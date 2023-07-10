@@ -14,7 +14,7 @@ MEMORY
 {
 	/* TODO: Configure this per platform. */
 	/* ORIGIN is BL31_BASE for qemu */
-	image : ORIGIN = 0xe0a0000, LENGTH = 0x6000
+	image : ORIGIN = 0xe0a0000, LENGTH = 0x10000
 }
 
 SECTIONS

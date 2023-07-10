@@ -8,6 +8,12 @@ authors = [
 ]
 
 [dependencies]
+bitflags = "2.3.2"
+log = "0.4.19"
+spin = { version = "0.9.8", default-features = false, features = [
+  "once",
+  "spin_mutex",
+] }
 
 [build-dependencies]
 cc = "1.0.79"

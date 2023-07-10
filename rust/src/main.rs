@@ -5,14 +5,21 @@
 #![no_main]
 #![no_std]
 
-use core::panic::PanicInfo;
+mod logger;
+mod pl011;
+
+use crate::pl011::Uart;
+use log::{info, LevelFilter};
+
+/// Base address of the primary PL011 UART.
+const PL011_BASE_ADDRESS: *mut u32 = 0x900_0000 as _;
 
 #[no_mangle]
 extern "C" fn bl31_main() {
-    loop {}
-}
-
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
+    // Safe because `PL011_BASE_ADDRESS` is the base address of a PL011 device,
+    // and nothing else accesses that address range.
+    let uart = unsafe { Uart::new(PL011_BASE_ADDRESS) };
+    logger::init(uart, LevelFilter::Trace).unwrap();
+    info!("Rust BL31 starting");
     loop {}
 }

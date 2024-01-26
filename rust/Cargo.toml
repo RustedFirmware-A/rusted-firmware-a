@@ -1,0 +1,13 @@
+[package]
+name = "tf-a-bl31"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Andrew Walbran <qwandor@google.com>",
+  "Okash Khawaja <okash@google.com>",
+]
+
+[dependencies]
+
+[build-dependencies]
+cc = "1.0.79"

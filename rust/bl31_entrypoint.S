@@ -18,6 +18,10 @@ func bl31_entrypoint
         mov     x22, x2
         mov     x23, x3
 
+        adr     x0, runtime_exceptions
+        msr     vbar_el3, x0
+        isb
+
         /* TODO: jump to reset_handler. get cpu_ops pointer and apply errata workarounds */
 
         /* ---------------------------------------------------------------------

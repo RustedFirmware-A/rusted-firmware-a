@@ -28,6 +28,7 @@ SECTIONS
 		*(.text.asm.bl31_entrypoint)
 		*(.init.*)
 		*(.text.*)
+		*(.vectors)
 	} >image
 	__TEXT_END__ = .;
 
@@ -37,6 +38,13 @@ SECTIONS
 	.rodata : ALIGN(4096) {
 		__RODATA_START__ = .;
 		*(.rodata.*)
+		. = ALIGN(8);
+		__CPU_OPS_START__ = .;
+		KEEP(*(.cpu_ops))
+		__CPU_OPS_END__ = .;
+		__RT_SVC_DESCS_START__ = .;
+		KEEP(*(.rt_svc_descs))
+		__RT_SVC_DESCS_END__ = .;
 	} >image
 	__RODATA_END__ = .;
 

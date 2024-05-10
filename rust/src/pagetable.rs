@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::layout::{bl31_end, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end};
+use crate::{
+    layout::{bl31_end, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end},
+    platform::{Platform, PlatformImpl, BL31_BASE},
+};
 use aarch64_paging::{
     idmap::IdMap,
     paging::{Attributes, MemoryRegion, PhysicalAddress, TranslationRegime},
@@ -34,6 +37,7 @@ const MAIR_NON_CACHEABLE: u64 = MAIR_NORM_NC | MAIR_NORM_NC << MAIR_NORM_OUTER_S
 // Attribute values corresponding to the above MAIR indices.
 const IWBWA_OWBWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;
 const DEVICE: Attributes = Attributes::ATTRIBUTE_INDEX_1;
+#[allow(unused)]
 const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
 
 /// Attributes used for all mappings.
@@ -49,40 +53,29 @@ const BASE: Attributes = Attributes::ACCESSED
 /// Device memory is always mapped as execute-never to avoid the possibility of a speculative
 /// instruction fetch, which could be an issue if the memory region corresponds to a read-sensitive
 /// peripheral.
-const MT_DEVICE: Attributes = DEVICE
+pub const MT_DEVICE: Attributes = DEVICE
     .union(Attributes::OUTER_SHAREABLE)
     .union(BASE)
     .union(Attributes::UXN);
 
 /// Attributes used for non-cacheable memory mappings.
-const MT_NON_CACHEABLE: Attributes = NON_CACHEABLE.union(Attributes::OUTER_SHAREABLE).union(BASE);
+#[allow(unused)]
+pub const MT_NON_CACHEABLE: Attributes =
+    NON_CACHEABLE.union(Attributes::OUTER_SHAREABLE).union(BASE);
 /// Attributes used for regular memory mappings.
-const MT_MEMORY: Attributes = IWBWA_OWBWA_NTR.union(BASE); // TODO: Sharability
+pub const MT_MEMORY: Attributes = IWBWA_OWBWA_NTR.union(BASE); // TODO: Sharability
 
 /// Attributes used for code (i.e. text) mappings.
-const MT_CODE: Attributes = MT_MEMORY.union(Attributes::READ_ONLY);
+pub const MT_CODE: Attributes = MT_MEMORY.union(Attributes::READ_ONLY);
 
 /// Attributes used for read-only data mappings.
-const MT_RO_DATA: Attributes = MT_MEMORY
+pub const MT_RO_DATA: Attributes = MT_MEMORY
     .union(Attributes::READ_ONLY)
     .union(Attributes::UXN);
 
 /// Attributes used for read-write data mappings.
-const MT_RW_DATA: Attributes = MT_MEMORY.union(Attributes::UXN);
-
-const SEC_SRAM_BASE: usize = 0x0e00_0000;
-const SHARED_RAM_BASE: usize = SEC_SRAM_BASE;
-const SHARED_RAM_SIZE: usize = 0x0000_1000;
-const DEVICE0_BASE: usize = 0x0800_0000;
-const DEVICE0_SIZE: usize = 0x0100_0000;
-const DEVICE1_BASE: usize = 0x0900_0000;
-const DEVICE1_SIZE: usize = 0x00c0_0000;
-const BL31_BASE: usize = BL31_LIMIT - 0x6_0000;
-const BL31_LIMIT: usize = BL_RAM_BASE + BL_RAM_SIZE - FW_HANDOFF_SIZE;
-const BL_RAM_BASE: usize = SHARED_RAM_BASE + SHARED_RAM_SIZE;
-const BL_RAM_SIZE: usize = SEC_SRAM_SIZE - SHARED_RAM_SIZE;
-const SEC_SRAM_SIZE: usize = 0x0010_0000;
-const FW_HANDOFF_SIZE: usize = 0;
+#[allow(unused)]
+pub const MT_RW_DATA: Attributes = MT_MEMORY.union(Attributes::UXN);
 
 #[no_mangle]
 static mut mmu_cfg_params: MmuCfgParams = MmuCfgParams {
@@ -122,14 +115,7 @@ pub fn init() -> IdMap {
     );
 
     // Corresponds to `plat_regions` in C TF-A.
-    const SHARED_RAM: MemoryRegion =
-        MemoryRegion::new(SHARED_RAM_BASE, SHARED_RAM_BASE + SHARED_RAM_SIZE);
-    const SHARED_RAM_FLAGS: Attributes = MT_DEVICE;
-    const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE);
-    const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE);
-    map_region(&mut idmap, &SHARED_RAM, SHARED_RAM_FLAGS);
-    map_region(&mut idmap, &DEVICE0, MT_DEVICE);
-    map_region(&mut idmap, &DEVICE1, MT_DEVICE);
+    PlatformImpl::map_extra_regions(&mut idmap);
 
     info!("Setting MMU config");
     setup_mmu_cfg(idmap.root_address());
@@ -143,7 +129,7 @@ pub fn init() -> IdMap {
 }
 
 /// Adds the given region to the page table with the given attributes, logging it first.
-fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attributes) {
+pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attributes) {
     info!("Mapping {} as {:?}.", region, attributes);
     idmap
         .map_range(region, attributes)

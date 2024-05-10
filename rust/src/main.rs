@@ -13,6 +13,7 @@ mod layout;
 mod logger;
 mod pagetable;
 mod pl011;
+mod platform;
 
 use crate::pl011::Uart;
 use buddy_system_allocator::LockedHeap;

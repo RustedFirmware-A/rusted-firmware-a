@@ -28,6 +28,8 @@ const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEV
 pub struct Qemu;
 
 impl Platform for Qemu {
+    const CORE_COUNT: usize = 4;
+
     fn map_extra_regions(idmap: &mut IdMap) {
         map_region(idmap, &SHARED_RAM, MT_DEVICE);
         map_region(idmap, &DEVICE0, MT_DEVICE);

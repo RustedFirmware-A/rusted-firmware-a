@@ -10,6 +10,9 @@ pub use qemu::{Qemu as PlatformImpl, BL31_BASE};
 
 /// The hooks implemented by all platforms.
 pub trait Platform {
+    /// The number of CPU cores.
+    const CORE_COUNT: usize;
+
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.
     fn map_extra_regions(idmap: &mut IdMap);

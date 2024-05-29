@@ -47,7 +47,7 @@ func bl31_entrypoint
         msr     sctlr_el3, x0
         isb
 
-        /* TODO: call init_cpu_data_ptr */
+        bl init_cpu_data_ptr
 
         /* ---------------------------------------------------------------------
          * Initialise SCR_EL3, setting all fields rather than relying on hw.

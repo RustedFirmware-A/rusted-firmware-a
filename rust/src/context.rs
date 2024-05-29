@@ -2,12 +2,17 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+use crate::platform::{Platform, PlatformImpl};
+use core::ptr::null_mut;
+
 // TODO: Add support for realm security state.
 /// The number of contexts to store for each CPU core, one per security state.
 const CPU_DATA_CONTEXT_NUM: usize = 2;
 
 /// The maximum number of runtime services that we can support.
 const MAX_RT_SVCS: usize = 128;
+
+const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 
 /// The state of a core at the next lower EL in a given security state.
 #[derive(Clone, Debug)]
@@ -67,6 +72,44 @@ struct PerWorldContext {
     zcr_el3: u64,
 }
 
+#[derive(Clone, Debug)]
+#[repr(C, align(64))]
+struct CpuData {
+    cpu_context: [*mut u8; CPU_DATA_CONTEXT_NUM],
+    cpu_ops_ptr: usize,
+    psci_svc_cpu_data: PsciCpuData,
+    crash_buf: [u64; CPU_DATA_CRASH_BUF_SIZE >> 3],
+}
+
+impl CpuData {
+    const EMPTY: Self = Self {
+        cpu_context: [null_mut(); CPU_DATA_CONTEXT_NUM],
+        cpu_ops_ptr: 0,
+        psci_svc_cpu_data: PsciCpuData {
+            aff_info_state: AffInfoState::On,
+            target_pwrlvl: 0,
+            local_state: 0,
+        },
+        crash_buf: [0; CPU_DATA_CRASH_BUF_SIZE >> 3],
+    };
+}
+
+#[derive(Clone, Debug)]
+#[repr(C)]
+struct PsciCpuData {
+    aff_info_state: AffInfoState,
+    target_pwrlvl: u32,
+    local_state: u8,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(C)]
+enum AffInfoState {
+    On = 0,
+    Off = 1,
+    OnPending = 2,
+}
+
 #[export_name = "per_world_context"]
 static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] = [
     PerWorldContext {
@@ -81,3 +124,7 @@ static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] = [
 
 #[export_name = "rt_svc_descs_indices"]
 static mut RT_SVC_DESCS_INDICES: [u8; MAX_RT_SVCS] = [0xff; MAX_RT_SVCS];
+
+#[no_mangle]
+static mut percpu_data: [CpuData; PlatformImpl::CORE_COUNT] =
+    [CpuData::EMPTY; PlatformImpl::CORE_COUNT];

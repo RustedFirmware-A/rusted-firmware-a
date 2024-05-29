@@ -14,7 +14,7 @@ MEMORY
 {
 	/* TODO: Configure this per platform. */
 	/* ORIGIN is BL31_BASE for qemu */
-	image : ORIGIN = 0xe0a0000, LENGTH = 0x10000
+	image : ORIGIN = 0xe0a0000, LENGTH = 0x30000
 }
 
 SECTIONS
@@ -48,6 +48,9 @@ SECTIONS
 	} >image
 	__RODATA_END__ = .;
 
+	. = ALIGN(4096);
+	__RO_END__ = .;
+
 	/*
 	 * Collect together the read-write data including .bss at the end which
 	 * will be zero'd by the entry code.
@@ -77,10 +80,13 @@ SECTIONS
 
 	.stack (NOLOAD) : ALIGN(4096) {
 		boot_stack_begin = .;
-		. += 4 * 4096;
+		. += 8 * 4096;
 		. = ALIGN(4096);
 		boot_stack_end = .;
 	} >image
+
+	. = ALIGN(4096);
+	__BL31_END__ = .;
 
 	/*
 	 * Remove unused sections from the image.

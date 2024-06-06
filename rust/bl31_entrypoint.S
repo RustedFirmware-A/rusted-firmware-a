@@ -70,22 +70,10 @@ func bl31_entrypoint
          *
          * SCR_EL3.EA: Set to one to route External Aborts and SError Interrupts
          *  to EL3 when executing at any EL.
-         *
-         * SCR_EL3.{API,APK}: For Armv8.3 pointer authentication feature,
-         * disable traps to EL3 when accessing key registers or using pointer
-         * authentication instructions from lower ELs.
          * ---------------------------------------------------------------------
          */
         mov_imm x0, ((SCR_RESET_VAL | SCR_EA_BIT | SCR_SIF_BIT) \
                         & ~(SCR_TWE_BIT | SCR_TWI_BIT | SCR_SMD_BIT))
-#if CTX_INCLUDE_PAUTH_REGS
-        /*
-         * If the pointer authentication registers are saved during world
-         * switches, enable pointer authentication everywhere, as it is safe to
-         * do so.
-         */
-        orr     x0, x0, #(SCR_API_BIT | SCR_APK_BIT)
-#endif
         msr     scr_el3, x0
 
         /* ---------------------------------------------------------------------
@@ -224,28 +212,6 @@ func bl31_entrypoint
         orr     x0, x0, #TTA_BIT
 1:
         msr     cptr_el3, x0
-
-        /* If Data Independent Timing (DIT) functionality is implemented,
-         * always enable DIT in EL3.
-         * First assert that the FEAT_DIT build flag matches the feature id
-         * register value for DIT.
-         */
-#if ENABLE_FEAT_DIT
-#if ENABLE_ASSERTIONS || ENABLE_FEAT_DIT > 1
-        mrs     x0, id_aa64pfr0_el1
-        ubfx    x0, x0, #ID_AA64PFR0_DIT_SHIFT, #ID_AA64PFR0_DIT_LENGTH
-#if ENABLE_FEAT_DIT > 1
-        cbz     x0, 1f
-#else
-        cmp     x0, #ID_AA64PFR0_DIT_SUPPORTED
-        ASM_ASSERT(eq)
-#endif
-
-#endif /* ENABLE_ASSERTIONS */
-        mov     x0, #DIT_BIT
-        msr     DIT, x0
-1:
-#endif
 
         adrp    x0, __BSS_START__
         add     x0, x0, :lo12:__BSS_START__

@@ -18,8 +18,6 @@
 	.globl	report_el3_panic
 	.globl	report_elx_panic
 
-#if CRASH_REPORTING
-
 	/* ------------------------------------------------------
 	 * The below section deals with dumping the system state
 	 * when an unhandled exception is taken in EL3.
@@ -49,11 +47,6 @@ non_el3_sys_regs:
 		"tpidrro_el0",  "par_el1", "mpidr_el1", "afsr0_el1", "afsr1_el1",\
 		"contextidr_el1", "vbar_el1", "cntp_ctl_el0", "cntp_cval_el0",\
 		"cntv_ctl_el0", "cntv_cval_el0", "cntkctl_el1", "sp_el0", "isr_el1", ""
-
-#if CTX_INCLUDE_AARCH32_REGS
-aarch32_regs:
-	.asciz	"dacr32_el2", "ifsr32_el2", ""
-#endif /* CTX_INCLUDE_AARCH32_REGS */
 
 panic_msg:
 	.asciz "PANIC in EL3.\nx30"
@@ -345,10 +338,6 @@ do_crash_reporting:
 	/* Report x30 first from the crash buf */
 	ldr	x4, [x0, #REGSZ * 7]
 
-#if ENABLE_PAUTH
-	/* Demangle address */
-	xpaci	x4
-#endif
 	bl	asm_print_hex
 	bl	asm_print_newline
 	/* Load the crash buf address */
@@ -436,14 +425,6 @@ print_el3_sys_regs:
 	mrs	x8, isr_el1
 	bl	str_in_crash_buf_print
 
-#if CTX_INCLUDE_AARCH32_REGS
-	/* Print the AArch32 registers */
-	adr	x6, aarch32_regs
-	mrs	x8, dacr32_el2
-	mrs	x9, ifsr32_el2
-	bl	str_in_crash_buf_print
-#endif /* CTX_INCLUDE_AARCH32_REGS */
-
 	/* Get the cpu specific registers to report */
 	bl	do_cpu_reg_dump
 	bl	str_in_crash_buf_print
@@ -456,13 +437,6 @@ print_el3_sys_regs:
 	/* Done reporting */
 	no_ret	plat_panic_handler
 endfunc report_el3_panic
-
-#else	/* CRASH_REPORTING */
-func report_unhandled_exception
-report_unhandled_interrupt:
-	no_ret	plat_panic_handler
-endfunc report_unhandled_exception
-#endif	/* CRASH_REPORTING */
 
 func crash_panic
 	no_ret	plat_panic_handler

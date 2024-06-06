@@ -54,20 +54,12 @@
 
 	/*
 	 * Macro that synchronizes errors (EA) and checks for pending SError.
-	 * On detecting a pending SError it either reflects it back to lower
-	 * EL (KFH) or handles it in EL3 (FFH) based on EA routing model.
+	 * On detecting a pending SError it reflects it back to lower EL (KFH).
 	 */
 	.macro	sync_and_handle_pending_serror
 	synchronize_errors
 	mrs	x30, ISR_EL1
 	tbz	x30, #ISR_A_SHIFT, 2f
-#if FFH_SUPPORT
-	mrs	x30, scr_el3
-	tst	x30, #SCR_EA_BIT
-	b.eq	1f
-	bl	handle_pending_async_ea
-	b	2f
-#endif
 1:
 	/* This function never returns, but need LR for decision making */
 	bl	reflect_pending_async_ea_to_lower_el
@@ -80,18 +72,6 @@
 	 * ---------------------------------------------------------------------
 	 */
 	.macro	handle_sync_exception
-#if ENABLE_RUNTIME_INSTRUMENTATION
-	/*
-	 * Read the timestamp value and store it in per-cpu data. The value
-	 * will be extracted from per-cpu data by the C level SMC handler and
-	 * saved to the PMF timestamp region.
-	 */
-	mrs	x30, cntpct_el0
-	str	x29, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X29]
-	mrs	x29, tpidr_el3
-	str	x30, [x29, #CPU_DATA_PMF_TS0_OFFSET]
-	ldr	x29, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X29]
-#endif
 
 	mrs	x30, esr_el3
 	ubfx	x30, x30, #ESR_EC_SHIFT, #ESR_EC_LENGTH
@@ -109,13 +89,6 @@
 	cmp	x30, #EC_IMP_DEF_EL3
 	b.eq	imp_def_el3_handler
 
-	/* If FFH Support then try to handle lower EL EA exceptions. */
-#if FFH_SUPPORT
-	mrs	x30, scr_el3
-	tst	x30, #SCR_EA_BIT
-	b.eq	1f
-	b	handle_lower_el_sync_ea
-#endif
 1:
 	/* Synchronous exceptions other than the above are unhandled */
 	b	report_unhandled_exception
@@ -128,19 +101,6 @@ vector_base runtime_exceptions
 	 * ---------------------------------------------------------------------
 	 */
 vector_entry sync_exception_sp_el0
-#ifdef MONITOR_TRAPS
-	stp x29, x30, [sp, #-16]!
-
-	mrs	x30, esr_el3
-	ubfx	x30, x30, #ESR_EC_SHIFT, #ESR_EC_LENGTH
-
-	/* Check for BRK */
-	cmp	x30, #EC_BRK
-	b.eq	brk_handler
-
-	ldp x29, x30, [sp], #16
-#endif /* MONITOR_TRAPS */
-
 	/* We don't expect any synchronous exceptions from EL3 */
 	b	report_unhandled_exception
 end_vector_entry sync_exception_sp_el0
@@ -186,31 +146,6 @@ vector_entry fiq_sp_elx
 end_vector_entry fiq_sp_elx
 
 vector_entry serror_sp_elx
-#if FFH_SUPPORT
-	/*
-	 * This will trigger if the exception was taken due to SError in EL3 or
-	 * because of pending asynchronous external aborts from lower EL that got
-	 * triggered due to implicit/explicit synchronization in EL3 (SCR_EL3.EA=1)
-	 * during EL3 entry. For the former case we continue with "plat_handle_el3_ea".
-	 * The later case will occur when PSTATE.A bit is cleared in
-	 * "handle_pending_async_ea". This means we are doing a nested
-	 * exception in EL3. Call the handler for async EA which will eret back to
-	 * original el3 handler if it is nested exception. Also, unmask EA so that we
-	 * catch any further EA arise when handling this nested exception at EL3.
-	 */
-	save_x30
-	ldr	x30, [sp, #CTX_EL3STATE_OFFSET + CTX_NESTED_EA_FLAG]
-	cbz	x30, 1f
-	/*
-	 * This is nested exception handling, clear the flag to avoid taking this
-	 * path for further exceptions caused by EA handling
-	 */
-	str	xzr, [sp, #CTX_EL3STATE_OFFSET + CTX_NESTED_EA_FLAG]
-	unmask_async_ea
-	b	handle_lower_el_async_ea
-1:
-	restore_x30
-#endif
 	no_ret	plat_handle_el3_ea
 
 end_vector_entry serror_sp_elx
@@ -254,15 +189,7 @@ end_vector_entry fiq_aarch64
 	 * So reuse the sync mechanism to catch any further errors which are pending.
 	 */
 vector_entry serror_aarch64
-#if FFH_SUPPORT
-	save_x30
-	apply_at_speculative_wa
-	sync_and_handle_pending_serror
-	unmask_async_ea
-	b	handle_lower_el_async_ea
-#else
 	b	report_unhandled_exception
-#endif
 end_vector_entry serror_aarch64
 
 	/* ---------------------------------------------------------------------
@@ -304,24 +231,8 @@ end_vector_entry fiq_aarch32
 	 * So reuse the sync mechanism to catch any further errors which are pending.
 	 */
 vector_entry serror_aarch32
-#if FFH_SUPPORT
-	save_x30
-	apply_at_speculative_wa
-	sync_and_handle_pending_serror
-	unmask_async_ea
-	b	handle_lower_el_async_ea
-#else
 	b	report_unhandled_exception
-#endif
 end_vector_entry serror_aarch32
-
-#ifdef MONITOR_TRAPS
-	.section .rodata.brk_string, "aS"
-brk_location:
-	.asciz "Error at instruction 0x"
-brk_message:
-	.asciz "Unexpected BRK instruction with value 0x"
-#endif /* MONITOR_TRAPS */
 
 	/* ---------------------------------------------------------------------
 	 * The following code handles secure monitor calls.
@@ -347,11 +258,6 @@ sync_handler64:
 	 * Also save PMCR_EL0 and  set the PSTATE to a known state.
 	 */
 	bl	prepare_el3_entry
-
-#if ENABLE_PAUTH
-	/* Load and program APIAKey firmware key */
-	bl	pauth_load_bl31_apiakey
-#endif
 
 	/*
 	 * Populate the parameters for the SMC handler.
@@ -392,18 +298,6 @@ sync_handler64:
 
 	/* Clear flag register */
 	mov	x7, xzr
-
-#if ENABLE_RME
-	/* Copy SCR_EL3.NSE bit to the flag to indicate caller's security */
-	ubfx	x7, x18, #SCR_NSE_SHIFT, #1
-
-	/*
-	 * Shift copied SCR_EL3.NSE bit by 5 to create space for
-	 * SCR_EL3.NS bit. Bit 5 of the flag corresponds to
-	 * the SCR_EL3.NSE bit.
-	 */
-	lsl	x7, x7, #5
-#endif /* ENABLE_RME */
 
 	/* Copy SCR_EL3.NS bit to the flag to indicate caller's security */
 	bfi	x7, x18, #0, #1
@@ -543,11 +437,6 @@ func handle_interrupt_exception
 	 * Also save PMCR_EL0 and  set the PSTATE to a known state.
 	 */
 	bl	prepare_el3_entry
-
-#if ENABLE_PAUTH
-	/* Load and program APIAKey firmware key */
-	bl	pauth_load_bl31_apiakey
-#endif
 
 	/* Save the EL3 system registers needed to return from this exception */
 	mrs	x0, spsr_el3
@@ -721,39 +610,3 @@ skip_smc_check:
 	ldr	x30, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_LR]
 	exception_return
 endfunc reflect_pending_async_ea_to_lower_el
-
-	/* ---------------------------------------------------------------------
-	 * The following code handles exceptions caused by BRK instructions.
-	 * Following a BRK instruction, the only real valid cause of action is
-	 * to print some information and panic, as the code that caused it is
-	 * likely in an inconsistent internal state.
-	 *
-	 * This is initially intended to be used in conjunction with
-	 * __builtin_trap.
-	 * ---------------------------------------------------------------------
-	 */
-#ifdef MONITOR_TRAPS
-func brk_handler
-	/* Extract the ISS */
-	mrs	x10, esr_el3
-	ubfx	x10, x10, #ESR_ISS_SHIFT, #ESR_ISS_LENGTH
-
-	/* Ensure the console is initialized */
-	bl	plat_crash_console_init
-
-	adr	x4, brk_location
-	bl	asm_print_str
-	mrs	x4, elr_el3
-	bl	asm_print_hex
-	bl	asm_print_newline
-
-	adr	x4, brk_message
-	bl	asm_print_str
-	mov	x4, x10
-	mov	x5, #28
-	bl	asm_print_hex_bits
-	bl	asm_print_newline
-
-	no_ret	plat_panic_handler
-endfunc brk_handler
-#endif /* MONITOR_TRAPS */

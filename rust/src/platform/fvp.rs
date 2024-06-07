@@ -9,6 +9,7 @@ use fvp_defines::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CP
 
 use super::Platform;
 use crate::{
+    context::EntryPointInfo,
     logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     pl011::Uart,
@@ -75,5 +76,13 @@ impl Platform for Fvp {
         map_region(idmap, &V2M_MAP_IOFPGA, MT_DEVICE);
         map_region(idmap, &DEVICE0, MT_DEVICE);
         map_region(idmap, &DEVICE1, MT_DEVICE);
+    }
+
+    fn non_secure_entry_point() -> EntryPointInfo {
+        EntryPointInfo {
+            pc: 0x60000000,
+            spsr: 0x04,
+            args: Default::default(),
+        }
     }
 }

@@ -4,6 +4,7 @@
 
 use super::Platform;
 use crate::{
+    context::EntryPointInfo,
     logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     pl011::Uart,
@@ -49,5 +50,13 @@ impl Platform for Qemu {
         map_region(idmap, &SHARED_RAM, MT_DEVICE);
         map_region(idmap, &DEVICE0, MT_DEVICE);
         map_region(idmap, &DEVICE1, MT_DEVICE);
+    }
+
+    fn non_secure_entry_point() -> EntryPointInfo {
+        EntryPointInfo {
+            pc: 0x60000000,
+            spsr: 0x04,
+            args: Default::default(),
+        }
     }
 }

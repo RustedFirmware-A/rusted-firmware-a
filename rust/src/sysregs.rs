@@ -53,3 +53,4 @@ write_sysreg!(elr_el1, write_elr_el1);
 write_sysreg!(elr_el2, write_elr_el2);
 write_sysreg!(spsr_el1, write_spsr_el1);
 write_sysreg!(spsr_el2, write_spsr_el2);
+write_sysreg!(sctlr_el1, write_sctlr_el1);

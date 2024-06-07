@@ -12,7 +12,7 @@ pub use fvp::{Fvp as PlatformImpl, BL31_BASE};
 #[cfg(platform = "qemu")]
 pub use qemu::{Qemu as PlatformImpl, BL31_BASE};
 
-use crate::pagetable::IdMap;
+use crate::{context::EntryPointInfo, pagetable::IdMap};
 
 /// The hooks implemented by all platforms.
 pub trait Platform {
@@ -31,4 +31,7 @@ pub trait Platform {
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.
     fn map_extra_regions(idmap: &mut IdMap);
+
+    /// Returns the entry point for the non-secure world, i.e. BL33.
+    fn non_secure_entry_point() -> EntryPointInfo;
 }

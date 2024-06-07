@@ -51,7 +51,7 @@ clippy:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy --target $(CARGO_FLAGS)
 
 qemu: $(BL1) $(BL2) $(BL31) $(BL33)
-	cd target && qemu-system-aarch64 -machine virt,gic-version=3,secure=on -cpu max \
+	cd target && qemu-system-aarch64 -machine virt,gic-version=3,secure=on -cpu max -m 1024M \
 	  -chardev stdio,signal=off,mux=on,id=char0 -monitor chardev:char0 \
 	  -serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \
 	  -display none -bios bl1.bin -s

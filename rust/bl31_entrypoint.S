@@ -249,4 +249,5 @@ func bl31_entrypoint
 
         bl  bl31_main
 
+        b   el3_exit
 endfunc bl31_entrypoint

@@ -16,6 +16,7 @@ use crate::{
 };
 use aarch64_paging::paging::MemoryRegion;
 use log::LevelFilter;
+use percore::Cores;
 
 const BASE_GICD_BASE: usize = 0x2f00_0000;
 const BASE_GICR_BASE: usize = 0x2f10_0000;
@@ -84,5 +85,12 @@ impl Platform for Fvp {
             spsr: 0x04,
             args: Default::default(),
         }
+    }
+}
+
+unsafe impl Cores for Fvp {
+    fn core_index() -> usize {
+        // TODO: Implement this properly.
+        0
     }
 }

@@ -13,9 +13,10 @@ pub use fvp::{Fvp as PlatformImpl, BL31_BASE};
 pub use qemu::{Qemu as PlatformImpl, BL31_BASE};
 
 use crate::{context::EntryPointInfo, pagetable::IdMap};
+use percore::Cores;
 
 /// The hooks implemented by all platforms.
-pub trait Platform {
+pub trait Platform: Cores {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
 

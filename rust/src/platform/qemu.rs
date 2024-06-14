@@ -11,6 +11,7 @@ use crate::{
 };
 use aarch64_paging::paging::MemoryRegion;
 use log::LevelFilter;
+use percore::Cores;
 
 const DEVICE0_BASE: usize = 0x0800_0000;
 const DEVICE0_SIZE: usize = 0x0100_0000;
@@ -58,5 +59,12 @@ impl Platform for Qemu {
             spsr: 0x04,
             args: Default::default(),
         }
+    }
+}
+
+unsafe impl Cores for Qemu {
+    fn core_index() -> usize {
+        // TODO: Implement this properly.
+        0
     }
 }

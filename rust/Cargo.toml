@@ -17,6 +17,7 @@ panic = "abort"
 aarch64-paging = { version = "0.8.0", features = [], default-features = false }
 bitflags = "2.3.2"
 log = "0.4.19"
+percore = "0.1.0"
 spin = { version = "0.9.8", default-features = false, features = [
   "once",
   "spin_mutex",

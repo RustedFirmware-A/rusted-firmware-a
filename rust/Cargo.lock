@@ -30,6 +30,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
+name = "percore"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37f3b91128b19c0e881596447f5e0da98ab04214b1ecdc9237f0650e64e05181"
+
+[[package]]
 name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -43,5 +49,6 @@ dependencies = [
  "bitflags",
  "cc",
  "log",
+ "percore",
  "spin",
 ]

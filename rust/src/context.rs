@@ -8,8 +8,10 @@ use crate::{
 };
 use core::{
     arch::asm,
+    cell::RefCell,
     ptr::{addr_of_mut, null_mut},
 };
+use percore::{exception_free, ExceptionLock, PerCore};
 
 // TODO: Add support for realm security state.
 /// The number of contexts to store for each CPU core, one per security state.
@@ -233,8 +235,26 @@ static mut RT_SVC_DESCS_INDICES: [u8; MAX_RT_SVCS] = [0xff; MAX_RT_SVCS];
 static mut percpu_data: [CpuData; PlatformImpl::CORE_COUNT] =
     [CpuData::EMPTY; PlatformImpl::CORE_COUNT];
 
-static mut CPU_CONTEXTS: [CpuContext; CPU_DATA_CONTEXT_NUM] =
-    [CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM];
+#[derive(Debug)]
+struct CpuState {
+    cpu_contexts: [CpuContext; CPU_DATA_CONTEXT_NUM],
+}
+
+impl CpuState {
+    fn context_mut(&mut self, world: World) -> &mut CpuContext {
+        &mut self.cpu_contexts[world.index()]
+    }
+}
+
+const EMPTY_CPU_STATE: ExceptionLock<RefCell<CpuState>> =
+    ExceptionLock::new(RefCell::new(CpuState {
+        cpu_contexts: [CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
+    }));
+static CPU_STATE: PerCore<
+    ExceptionLock<RefCell<CpuState>>,
+    PlatformImpl,
+    { PlatformImpl::CORE_COUNT },
+> = PerCore::new([EMPTY_CPU_STATE; PlatformImpl::CORE_COUNT]);
 
 /// Sets SP_EL3 to a pointer to the given CpuContext, ready for exception return.
 ///
@@ -242,6 +262,7 @@ static mut CPU_CONTEXTS: [CpuContext; CPU_DATA_CONTEXT_NUM] =
 ///
 /// The given context pointer must remain valid until a new next context is set.
 unsafe fn set_next_context(context: *mut CpuContext) {
+    // SAFETY: The caller guarantees that the context remains valid until it's replaced.
     unsafe {
         asm!(
             "msr spsel, #1",
@@ -257,17 +278,27 @@ unsafe fn set_next_context(context: *mut CpuContext) {
 /// This works by setting `SP_EL3` to point to the appropriate `CpuContext` struct, so the
 /// exception return code will restore registers from it before the `eret`.
 pub fn set_next_world_context(world: World) {
-    unsafe { set_next_context(addr_of_mut!(CPU_CONTEXTS[world.index()])) }
+    // SAFETY: The CPU context is always valid, and will only be used via this pointer by assembly
+    // code after the Rust code returns to prepare for the eret, and after the next exception before
+    // entering the Rust code again.
+    unsafe {
+        set_next_context(addr_of_mut!(
+            (*CPU_STATE.get().as_ptr()).cpu_contexts[world.index()]
+        ))
+    }
 }
 
-/// Initialises all CPU contexts ready for first boot.
+/// Initialises all CPU contexts for this CPU, ready for first boot.
 pub fn initialise_contexts(non_secure_entry_point: &EntryPointInfo) {
-    unsafe {
+    exception_free(|token| {
         initialise_nonsecure(
-            &mut CPU_CONTEXTS[World::NonSecure.index()],
+            CPU_STATE
+                .get()
+                .borrow_mut(token)
+                .context_mut(World::NonSecure),
             non_secure_entry_point,
         );
-    }
+    });
 }
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.

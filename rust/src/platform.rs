@@ -12,12 +12,15 @@ pub use fvp::{Fvp as PlatformImpl, BL31_BASE};
 #[cfg(platform = "qemu")]
 pub use qemu::{Qemu as PlatformImpl, BL31_BASE};
 
-use aarch64_paging::idmap::IdMap;
+use crate::pagetable::IdMap;
 
 /// The hooks implemented by all platforms.
 pub trait Platform {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
+
+    /// The number of pages to reserve for the page heap.
+    const PAGE_HEAP_PAGE_COUNT: usize = 5;
 
     /// Initialises the logger and anything else the platform needs. This will be called before the
     /// MMU is enabled.

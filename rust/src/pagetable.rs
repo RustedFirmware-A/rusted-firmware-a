@@ -7,10 +7,18 @@ use crate::{
     platform::{Platform, PlatformImpl, BL31_BASE},
 };
 use aarch64_paging::{
-    idmap::IdMap,
-    paging::{Attributes, MemoryRegion, PhysicalAddress, TranslationRegime},
+    paging::{
+        Attributes, Constraints, MemoryRegion, PageTable, PhysicalAddress, Translation,
+        TranslationRegime, VaRange, VirtualAddress,
+    },
+    MapError, Mapping,
 };
-use log::info;
+use core::{mem::take, ptr::NonNull};
+use log::{info, warn};
+use spin::{
+    mutex::{SpinMutex, SpinMutexGuard},
+    Once,
+};
 
 const ROOT_LEVEL: usize = 1;
 
@@ -87,6 +95,10 @@ pub const MT_RO_DATA: Attributes = MT_MEMORY
 #[allow(unused)]
 pub const MT_RW_DATA: Attributes = MT_MEMORY.union(Attributes::UXN);
 
+static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
+    SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
+static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
+
 #[no_mangle]
 static mut mmu_cfg_params: MmuCfgParams = MmuCfgParams {
     mair: 0,
@@ -102,40 +114,47 @@ struct MmuCfgParams {
     ttbr0: usize,
 }
 
-pub fn init() -> IdMap {
-    let mut idmap = IdMap::new(0, ROOT_LEVEL, TranslationRegime::El3);
+/// Initialises and enables the page table.
+///
+/// This should be called once early in startup, before anything else that depends on it.
+pub fn init() {
+    PAGE_TABLE.call_once(|| {
+        let page_heap =
+            SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
+        let mut idmap = IdMap::new(page_heap);
 
-    // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
-    // BL31_TOTAL
-    map_region(
-        &mut idmap,
-        &MemoryRegion::new(BL31_BASE, bl31_end()),
-        MT_MEMORY,
-    );
-    // BL31_RO
-    map_region(
-        &mut idmap,
-        &MemoryRegion::new(bl_code_base(), bl_code_end()),
-        MT_CODE,
-    );
-    map_region(
-        &mut idmap,
-        &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
-        MT_RO_DATA,
-    );
+        // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
+        // BL31_TOTAL
+        map_region(
+            &mut idmap,
+            &MemoryRegion::new(BL31_BASE, bl31_end()),
+            MT_MEMORY,
+        );
+        // BL31_RO
+        map_region(
+            &mut idmap,
+            &MemoryRegion::new(bl_code_base(), bl_code_end()),
+            MT_CODE,
+        );
+        map_region(
+            &mut idmap,
+            &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
+            MT_RO_DATA,
+        );
 
-    // Corresponds to `plat_regions` in C TF-A.
-    PlatformImpl::map_extra_regions(&mut idmap);
+        // Corresponds to `plat_regions` in C TF-A.
+        PlatformImpl::map_extra_regions(&mut idmap);
 
-    info!("Setting MMU config");
-    setup_mmu_cfg(idmap.root_address());
-    unsafe {
-        enable_mmu_direct_el3(0);
-    }
-    info!("Marking page table as active");
-    idmap.mark_active(0);
+        info!("Setting MMU config");
+        setup_mmu_cfg(idmap.root_address());
+        unsafe {
+            enable_mmu_direct_el3(0);
+        }
+        info!("Marking page table as active");
+        idmap.mark_active();
 
-    idmap
+        SpinMutex::new(idmap)
+    });
 }
 
 /// Adds the given region to the page table with the given attributes, logging it first.
@@ -163,4 +182,75 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
 
 extern "C" {
     fn enable_mmu_direct_el3(flags: u32);
+}
+
+struct IdTranslation {
+    /// Pages which may be allocated for page tables but have not yet been.
+    unused_pages: &'static mut [PageTable],
+}
+
+impl IdTranslation {
+    fn virtual_to_physical(va: VirtualAddress) -> PhysicalAddress {
+        // Physical address is the same as the virtual address because we are using identity mapping
+        // everywhere.
+        PhysicalAddress(va.0)
+    }
+}
+
+impl Translation for IdTranslation {
+    fn allocate_table(&mut self) -> (NonNull<PageTable>, PhysicalAddress) {
+        let (table, rest) = take(&mut self.unused_pages)
+            .split_first_mut()
+            .expect("Failed to allocate page table");
+        self.unused_pages = rest;
+
+        let table = NonNull::from(table);
+        (
+            table,
+            Self::virtual_to_physical(VirtualAddress(table.as_ptr() as usize)),
+        )
+    }
+
+    unsafe fn deallocate_table(&mut self, page_table: NonNull<PageTable>) {
+        warn!("Leaking page table allocation {:?}", page_table);
+    }
+
+    fn physical_to_virtual(&self, page_table_pa: PhysicalAddress) -> NonNull<PageTable> {
+        NonNull::new(page_table_pa.0 as *mut PageTable)
+            .expect("Got physical address 0 for pagetable")
+    }
+}
+
+pub struct IdMap {
+    mapping: Mapping<IdTranslation>,
+}
+
+impl IdMap {
+    fn new(pages: &'static mut [PageTable]) -> Self {
+        Self {
+            mapping: Mapping::new(
+                IdTranslation {
+                    unused_pages: pages,
+                },
+                0,
+                ROOT_LEVEL,
+                TranslationRegime::El3,
+                VaRange::Lower,
+            ),
+        }
+    }
+
+    fn map_range(&mut self, range: &MemoryRegion, flags: Attributes) -> Result<(), MapError> {
+        let pa = IdTranslation::virtual_to_physical(range.start());
+        self.mapping
+            .map_range(range, pa, flags, Constraints::empty())
+    }
+
+    fn mark_active(&mut self) {
+        self.mapping.mark_active(0);
+    }
+
+    fn root_address(&self) -> PhysicalAddress {
+        self.mapping.root_address()
+    }
 }

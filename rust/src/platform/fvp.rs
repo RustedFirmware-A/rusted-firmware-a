@@ -10,10 +10,10 @@ use fvp_defines::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CP
 use super::Platform;
 use crate::{
     logger,
-    pagetable::{map_region, MT_DEVICE},
+    pagetable::{map_region, IdMap, MT_DEVICE},
     pl011::Uart,
 };
-use aarch64_paging::{idmap::IdMap, paging::MemoryRegion};
+use aarch64_paging::paging::MemoryRegion;
 use log::LevelFilter;
 
 const BASE_GICD_BASE: usize = 0x2f00_0000;

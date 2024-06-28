@@ -14,9 +14,8 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-aarch64-paging = "0.6.0"
+aarch64-paging = { version = "0.8.0", features = [], default-features = false }
 bitflags = "2.3.2"
-buddy_system_allocator = "0.9.1"
 log = "0.4.19"
 spin = { version = "0.9.8", default-features = false, features = [
   "once",

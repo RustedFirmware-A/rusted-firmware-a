@@ -2,15 +2,18 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! Test cases to run in secure world.
+//! Test cases to run in normal world.
 
 use crate::expect_eq;
 use log::{error, info};
 use smccc::{arch, psci, Smc};
 
+/// The number of normal world tests.
+pub const NORMAL_TEST_COUNT: u64 = 2;
+
 /// Runs the test with the given index.
 pub fn run_test(index: u64) -> Result<(), ()> {
-    info!("Running secure world test {}", index);
+    info!("Running normal world test {}", index);
     match index {
         0 => test_smccc_arch(),
         1 => test_psci_version(),

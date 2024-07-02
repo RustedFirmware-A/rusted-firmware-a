@@ -7,13 +7,16 @@
 #![no_main]
 #![no_std]
 
+mod expect;
 mod ffa;
 mod logger;
+mod normal_world_tests;
 mod platform;
 mod util;
 
 use crate::{
     ffa::direct_request,
+    normal_world_tests::{run_test, NORMAL_TEST_COUNT},
     platform::{Platform, PlatformImpl},
     util::{current_el, NORMAL_WORLD_ID, SECURE_WORLD_ID, TEST_FAILURE, TEST_PANIC, TEST_SUCCESS},
 };
@@ -23,7 +26,7 @@ use core::panic::PanicInfo;
 use log::{error, info, warn, LevelFilter};
 use smccc::{psci, Smc};
 
-const TEST_COUNT: u64 = 2;
+const SECURE_TEST_COUNT: u64 = 2;
 
 entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
@@ -39,9 +42,25 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
         x3,
     );
 
-    let mut passing_test_count = 0;
-    for test_index in 0..TEST_COUNT {
-        info!("Requesting test {} run...", test_index);
+    // Run normal world tests.
+    let mut passing_normal_test_count = 0;
+    for test_index in 0..NORMAL_TEST_COUNT {
+        if run_test(test_index).is_ok() {
+            info!("Normal world test {} passed", test_index);
+            passing_normal_test_count += 1;
+        } else {
+            warn!("Normal world test {} failed", test_index);
+        }
+    }
+    info!(
+        "{}/{} tests passed in normal world",
+        passing_normal_test_count, NORMAL_TEST_COUNT
+    );
+
+    // Run secure world tests.
+    let mut passing_secure_test_count = 0;
+    for test_index in 0..SECURE_TEST_COUNT {
+        info!("Requesting secure world test {} run...", test_index);
         let result = direct_request(
             NORMAL_WORLD_ID,
             SECURE_WORLD_ID,
@@ -58,14 +77,14 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
             assert_eq!(dst_id, NORMAL_WORLD_ID);
             match args {
                 DirectMsgArgs::Args64([TEST_SUCCESS, ..]) => {
-                    info!("Test {} passed", test_index);
-                    passing_test_count += 1;
+                    info!("Secure world test {} passed", test_index);
+                    passing_secure_test_count += 1;
                 }
                 DirectMsgArgs::Args64([TEST_FAILURE, ..]) => {
-                    warn!("Test {} failed", test_index);
+                    warn!("Secure world test {} failed", test_index);
                 }
                 DirectMsgArgs::Args64([TEST_PANIC, ..]) => {
-                    warn!("Test {} panicked", test_index);
+                    warn!("Secure world test {} panicked", test_index);
                     // We can't continue running other tests after one panics.
                     break;
                 }
@@ -79,7 +98,7 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     }
     info!(
         "{}/{} tests passed in secure world",
-        passing_test_count, TEST_COUNT
+        passing_secure_test_count, SECURE_TEST_COUNT
     );
 
     let ret = psci::system_off::<Smc>();

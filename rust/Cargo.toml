@@ -7,6 +7,12 @@ authors = [
   "Okash Khawaja <okash@google.com>",
 ]
 
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
 [dependencies]
 aarch64-paging = "0.6.0"
 bitflags = "2.3.2"

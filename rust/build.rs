@@ -35,5 +35,8 @@ fn main() {
         .file("../lib/cpus/aarch64/cpu_helpers.S")
         .file("../lib/el3_runtime/aarch64/cpu_data.S")
         .file("../lib/xlat_tables_v2/aarch64/enable_mmu.S")
-        .compile("empty")
+        .compile("empty");
+
+    println!("cargo:rustc-link-arg=-Timage.ld");
+    println!("cargo:rustc-link-arg=-Tqemu.ld");
 }

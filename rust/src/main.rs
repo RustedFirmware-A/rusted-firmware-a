@@ -5,6 +5,7 @@
 #![no_main]
 #![no_std]
 #![warn(clippy::undocumented_unsafe_blocks)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 mod logger;
 mod pl011;

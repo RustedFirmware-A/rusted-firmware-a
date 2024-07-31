@@ -15,6 +15,8 @@ mod pagetable;
 mod pl011;
 mod platform;
 mod semihosting;
+mod services;
+mod smccc;
 mod sysregs;
 
 use crate::platform::{Platform, PlatformImpl};

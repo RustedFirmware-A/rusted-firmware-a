@@ -261,19 +261,17 @@ sync_handler64:
 
 	/*
 	 * Populate the parameters for the SMC handler.
-	 * We already have x0-x4 in place. x5 will point to a cookie (not used
-	 * now). x6 will point to the context structure (SP_EL3) and x7 will
-	 * contain flags we need to pass to the handler.
+	 * We already have x0-x4 in place. x5 will point to the context structure
+	 * (SP_EL3) and x6 will contain flags we need to pass to the handler.
 	 */
-	mov	x5, xzr
-	mov	x6, sp
+	mov	x5, sp
 
 	/*
 	 * Restore the saved C runtime stack value which will become the new
 	 * SP_EL0 i.e. EL3 runtime stack. It was saved in the 'cpu_context'
 	 * structure prior to the last ERET from EL3.
 	 */
-	ldr	x12, [x6, #CTX_EL3STATE_OFFSET + CTX_RUNTIME_SP]
+	ldr	x12, [x5, #CTX_EL3STATE_OFFSET + CTX_RUNTIME_SP]
 
 	/* Switch to SP_EL0 */
 	msr	spsel, #MODE_SP_EL0
@@ -285,7 +283,7 @@ sync_handler64:
 	 */
 	mrs	x16, spsr_el3
 	mrs	x17, elr_el3
-	stp	x16, x17, [x6, #CTX_EL3STATE_OFFSET + CTX_SPSR_EL3]
+	stp	x16, x17, [x5, #CTX_EL3STATE_OFFSET + CTX_SPSR_EL3]
 
 	/* Load SCR_EL3 */
 	mrs	x18, scr_el3
@@ -297,10 +295,10 @@ sync_handler64:
 	b.eq	sysreg_handler64
 
 	/* Clear flag register */
-	mov	x7, xzr
+	mov	x6, xzr
 
 	/* Copy SCR_EL3.NS bit to the flag to indicate caller's security */
-	bfi	x7, x18, #0, #1
+	bfi	x6, x18, #0, #1
 
 	mov	sp, x12
 
@@ -322,48 +320,22 @@ sync_handler64:
 	 */
 2:
 	and	x16, x0, #(FUNCID_SVE_HINT_MASK << FUNCID_SVE_HINT_SHIFT)
-	orr	x7, x7, x16
+	orr	x6, x6, x16
 	bic	x0, x0, #(FUNCID_SVE_HINT_MASK << FUNCID_SVE_HINT_SHIFT)
-
-	/* Get the unique owning entity number */
-	ubfx	x16, x0, #FUNCID_OEN_SHIFT, #FUNCID_OEN_WIDTH
-	ubfx	x15, x0, #FUNCID_TYPE_SHIFT, #FUNCID_TYPE_WIDTH
-	orr	x16, x16, x15, lsl #FUNCID_OEN_WIDTH
-
-	/* Load descriptor index from array of indices */
-	adrp	x14, rt_svc_descs_indices
-	add	x14, x14, :lo12:rt_svc_descs_indices
-	ldrb	w15, [x14, x16]
-
-	/* Any index greater than 127 is invalid. Check bit 7. */
-	tbnz	w15, 7, smc_unknown
-
-	/*
-	 * Get the descriptor using the index
-	 * x11 = (base + off), w15 = index
-	 *
-	 * handler = (base + off) + (index << log2(size))
-	 */
-	adr_l	x11, (__RT_SVC_DESCS_START__ + RT_SVC_DESC_HANDLE)
-	lsl	w10, w15, #RT_SVC_SIZE_LOG2
-	ldr	x15, [x11, w10, uxtw]
 
 	/*
 	 * Call the Secure Monitor Call handler and then drop directly into
 	 * el3_exit() which will program any remaining architectural state
 	 * prior to issuing the ERET to the desired lower EL.
 	 */
-#if DEBUG
-	cbz	x15, rt_svc_fw_critical_error
-#endif
-	blr	x15
+	bl	handle_smc
 
 	b	el3_exit
 
 sysreg_handler64:
 	mov	x0, x16		/* ESR_EL3, containing syndrome information */
-	mov	x1, x6		/* lower EL's context */
-	mov	x19, x6		/* save context pointer for after the call */
+	mov	x1, x5		/* lower EL's context */
+	mov	x19, x5		/* save context pointer for after the call */
 	mov	sp, x12		/* EL3 runtime stack, as loaded above */
 
 	/* int handle_sysreg_trap(uint64_t esr_el3, cpu_context_t *ctx); */

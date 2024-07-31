@@ -4,6 +4,7 @@
 
 use crate::{
     platform::{Platform, PlatformImpl},
+    smccc::SmcReturn,
     sysregs::write_sctlr_el1,
 };
 use core::{
@@ -16,9 +17,6 @@ use percore::{exception_free, ExceptionLock, PerCore};
 // TODO: Add support for realm security state.
 /// The number of contexts to store for each CPU core, one per security state.
 const CPU_DATA_CONTEXT_NUM: usize = 2;
-
-/// The maximum number of runtime services that we can support.
-const MAX_RT_SVCS: usize = 128;
 
 const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 
@@ -46,7 +44,7 @@ impl World {
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct CpuContext {
-    gpregs: GpRegs,
+    pub gpregs: GpRegs,
     el3_state: El3State,
     el1_sysregs: El1Sysregs,
 }
@@ -65,7 +63,7 @@ impl CpuContext {
 /// we need to save the callee registers too.
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
-struct GpRegs {
+pub struct GpRegs {
     registers: [u64; Self::COUNT],
 }
 
@@ -76,6 +74,13 @@ impl GpRegs {
     const EMPTY: Self = Self {
         registers: [0; Self::COUNT],
     };
+
+    /// Writes the given return value to the general-purpose registers.
+    pub fn write_return_value(&mut self, value: &SmcReturn) {
+        for (i, value) in value.values().iter().enumerate() {
+            self.registers[i] = *value;
+        }
+    }
 }
 
 /// Miscellaneous registers used by EL3 firmware to maintain its state across exception entries and
@@ -227,9 +232,6 @@ static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] = [
         zcr_el3: 0,
     },
 ];
-
-#[export_name = "rt_svc_descs_indices"]
-static mut RT_SVC_DESCS_INDICES: [u8; MAX_RT_SVCS] = [0xff; MAX_RT_SVCS];
 
 #[no_mangle]
 static mut percpu_data: [CpuData; PlatformImpl::CORE_COUNT] =

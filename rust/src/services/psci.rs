@@ -4,6 +4,7 @@
 
 use crate::{
     exceptions::SmcFlags,
+    platform::{Platform, PlatformImpl},
     smccc::{FunctionId, SmcReturn, NOT_SUPPORTED},
 };
 
@@ -87,10 +88,17 @@ pub fn handle_smc(
 ) -> SmcReturn {
     match function.0 {
         PSCI_VERSION => version().into(),
+        PSCI_SYSTEM_OFF => system_off(),
         _ => NOT_SUPPORTED.into(),
     }
 }
 
 fn version() -> u32 {
     PSCI_VERSION_1_1
+}
+
+fn system_off() -> ! {
+    // TODO: Notify SPD, flush console.
+
+    PlatformImpl::system_off()
 }

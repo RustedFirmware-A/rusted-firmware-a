@@ -86,6 +86,10 @@ impl Platform for Fvp {
             args: Default::default(),
         }
     }
+
+    fn system_off() -> ! {
+        unimplemented!("System off not implemented on FVP.")
+    }
 }
 
 unsafe impl Cores for Fvp {

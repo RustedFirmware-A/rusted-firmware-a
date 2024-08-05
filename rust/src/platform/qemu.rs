@@ -8,6 +8,7 @@ use crate::{
     logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     pl011::Uart,
+    semihosting::{semihosting_exit, AdpStopped},
 };
 use aarch64_paging::paging::MemoryRegion;
 use log::LevelFilter;
@@ -59,6 +60,11 @@ impl Platform for Qemu {
             spsr: 0x04,
             args: Default::default(),
         }
+    }
+
+    fn system_off() -> ! {
+        semihosting_exit(AdpStopped::ApplicationExit, 0);
+        panic!("Semihosting system off call unexpectedly returned.");
     }
 }
 

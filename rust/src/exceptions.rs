@@ -3,18 +3,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    context::CpuContext,
+    context::{cpu_state, World},
     services::{arch, psci},
     smccc::{FunctionId, SmcccCallType, NOT_SUPPORTED},
 };
 use bitflags::bitflags;
 use core::{ffi::c_void, ptr::null_mut};
 use log::debug;
+use percore::exception_free;
 
 const TRAP_RET_UNHANDLED: i64 = -1;
 
 #[no_mangle]
-extern "C" fn handle_sysreg_trap(_esr_el3: u64, _ctx: *mut CpuContext) -> i64 {
+extern "C" fn handle_sysreg_trap(_esr_el3: u64, _world: World) -> i64 {
     TRAP_RET_UNHANDLED
 }
 
@@ -33,13 +34,8 @@ extern "C" fn get_interrupt_type_handler(_interrupt_type: u32) -> *mut c_void {
 /// registers of which EL3 firmware is unaware.
 ///
 /// This is a safety net to avoid EL3 panics caused by system register access.
-///
-/// # Safety
-///
-/// The `ctx` must be a valid pointer to a `CpuContext` with live aliases for the duration of the
-/// function call.
 #[no_mangle]
-unsafe extern "C" fn inject_undef64(_ctx: *mut CpuContext) {
+extern "C" fn inject_undef64(_world: World) {
     unimplemented!();
 }
 
@@ -54,23 +50,19 @@ bitflags! {
 }
 
 /// Called from the exception handler in assembly to handle an SMC.
-///
-/// # Safety
-///
-/// `context` must be a valid CpuContext for some world on the current CPU core.
 #[no_mangle]
-unsafe extern "C" fn handle_smc(
+extern "C" fn handle_smc(
     function: FunctionId,
     x1: u64,
     x2: u64,
     x3: u64,
     x4: u64,
-    context: *mut CpuContext,
+    world: World,
     flags: SmcFlags,
-) -> *mut CpuContext {
+) {
     debug!(
-        "Handling SMC {:?} ({:#0x}, {:#0x}, {:#0x}, {:#0x}) with context {:?}, flags {:?}",
-        function, x1, x2, x3, x4, context, flags
+        "Handling SMC {:?} ({:#0x}, {:#0x}, {:#0x}, {:#0x}) with world {:?}, flags {:?}",
+        function, x1, x2, x3, x4, world, flags
     );
     let ret = match (function.call_type(), function.oen()) {
         (SmcccCallType::Fast32 | SmcccCallType::Fast64, arch::OEN) => {
@@ -82,10 +74,11 @@ unsafe extern "C" fn handle_smc(
         _ => NOT_SUPPORTED.into(),
     };
 
-    unsafe {
-        // TODO: Get `CpuContext` from `CPU_STATE` safely based on current world? The `context`
-        // passed here may alias one obtained from `CPU_STATE` somewhere else.
-        (*context).gpregs.write_return_value(&ret);
-    }
-    context
+    // Write the return value back to the registers of the world that made the SMC call. Note that
+    // this might not be the same world as we are about to return to, as the handler might have
+    // switched worlds by calling `set_next_world_context`.
+    exception_free(|token| {
+        let mut cpu_state = cpu_state(token);
+        cpu_state.context_mut(world).gpregs.write_return_value(&ret);
+    });
 }

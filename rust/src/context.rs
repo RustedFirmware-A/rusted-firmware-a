@@ -9,10 +9,10 @@ use crate::{
 };
 use core::{
     arch::asm,
-    cell::RefCell,
+    cell::{RefCell, RefMut},
     ptr::{addr_of_mut, null_mut},
 };
-use percore::{exception_free, ExceptionLock, PerCore};
+use percore::{exception_free, ExceptionFree, ExceptionLock, PerCore};
 
 // TODO: Add support for realm security state.
 /// The number of contexts to store for each CPU core, one per security state.
@@ -29,9 +29,11 @@ const SCR_RW: u64 = 1 << 10;
 const SCTLR_EL1_RES1: u64 = 1 << 29 | 1 << 28 | 1 << 23 | 1 << 22 | 1 << 20 | 1 << 11;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
 pub enum World {
-    NonSecure = 0,
-    Secure = 1,
+    // The enum values must match those used by the `get_security_state` assembly function.
+    Secure = 0,
+    NonSecure = 1,
 }
 
 impl World {
@@ -238,12 +240,12 @@ static mut percpu_data: [CpuData; PlatformImpl::CORE_COUNT] =
     [CpuData::EMPTY; PlatformImpl::CORE_COUNT];
 
 #[derive(Debug)]
-struct CpuState {
+pub struct CpuState {
     cpu_contexts: [CpuContext; CPU_DATA_CONTEXT_NUM],
 }
 
 impl CpuState {
-    fn context_mut(&mut self, world: World) -> &mut CpuContext {
+    pub fn context_mut(&mut self, world: World) -> &mut CpuContext {
         &mut self.cpu_contexts[world.index()]
     }
 }
@@ -290,14 +292,18 @@ pub fn set_next_world_context(world: World) {
     }
 }
 
+/// Returns a reference to the `CpuState` for the current CPU.
+///
+/// Panics if the `CpuState` is already borrowed.
+pub fn cpu_state(token: ExceptionFree) -> RefMut<CpuState> {
+    CPU_STATE.get().borrow_mut(token)
+}
+
 /// Initialises all CPU contexts for this CPU, ready for first boot.
 pub fn initialise_contexts(non_secure_entry_point: &EntryPointInfo) {
     exception_free(|token| {
         initialise_nonsecure(
-            CPU_STATE
-                .get()
-                .borrow_mut(token)
-                .context_mut(World::NonSecure),
+            cpu_state(token).context_mut(World::NonSecure),
             non_secure_entry_point,
         );
     });

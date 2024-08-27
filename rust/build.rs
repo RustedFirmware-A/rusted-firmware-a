@@ -5,7 +5,7 @@
 use cc::Build;
 use std::env;
 
-const PLATFORMS: [&str; 1] = ["qemu"];
+const PLATFORMS: [&str; 2] = ["qemu", "fvp"];
 
 fn main() {
     println!(

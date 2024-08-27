@@ -1124,8 +1124,10 @@ include bl2u/bl2u.mk
 endif
 
 ifeq (${NEED_BL31},yes)
+ifneq (${RUST},1)
 include bl31/bl31.mk
-endif
+endif #(RUST)
+endif #(NEED_BL31)
 
 ################################################################################
 # Build options checks
@@ -1515,6 +1517,17 @@ $(eval $(call TOOL_ADD_IMG,scp_bl2,--scp-fw))
 endif #(NEED_SCP_BL2)
 
 ifeq (${NEED_BL31},yes)
+ifeq (${RUST},1)
+BL31 := rust/target/bl31.bin
+BL33 := rust/target/bl33.bin
+
+.PHONY: $(BL31)
+$(BL31):
+	${Q}${MAKE} PLAT=${PLAT} DEBUG=${DEBUG} -C rust all
+all: $(BL31)
+
+FIP_DEPS += $(BL31)
+else
 BL31_SOURCES += ${SPD_SOURCES}
 # Sort BL31 source files to remove duplicates
 BL31_SOURCES := $(sort ${BL31_SOURCES})
@@ -1525,6 +1538,7 @@ else
 $(if ${BL31}, $(eval $(call TOOL_ADD_IMG,bl31,--soc-fw)),\
 	$(eval $(call MAKE_BL,bl31,soc-fw)))
 endif #(DECRYPTION_SUPPORT)
+endif #(RUST)
 endif #(NEED_BL31)
 
 # If a BL32 image is needed but neither BL32 nor BL32_SOURCES is defined, the
@@ -1602,6 +1616,7 @@ endif #(UNIX_MK)
 	${Q}${MAKE} PLAT=${PLAT} --no-print-directory -C ${CRTTOOLPATH} clean
 	${Q}${MAKE} PLAT=${PLAT} --no-print-directory -C ${ENCTOOLPATH} clean
 	${Q}${MAKE} --no-print-directory -C ${ROMLIBPATH} clean
+	${Q}${MAKE} PLAT=${PLAT} -C rust clean
 
 realclean distclean:
 	@echo "  REALCLEAN"
@@ -1617,6 +1632,7 @@ endif #(UNIX_MK)
 	${Q}${MAKE} PLAT=${PLAT} --no-print-directory -C ${CRTTOOLPATH} realclean
 	${Q}${MAKE} PLAT=${PLAT} --no-print-directory -C ${ENCTOOLPATH} realclean
 	${Q}${MAKE} --no-print-directory -C ${ROMLIBPATH} clean
+	${Q}${MAKE} PLAT=${PLAT} -C rust clean
 
 checkcodebase:		locate-checkpatch
 	@echo "  CHECKING STYLE"

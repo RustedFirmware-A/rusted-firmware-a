@@ -2,9 +2,13 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+#[cfg(platform = "fvp")]
+mod fvp;
 #[cfg(platform = "qemu")]
 mod qemu;
 
+#[cfg(platform = "fvp")]
+pub use fvp::{Fvp as PlatformImpl, BL31_BASE};
 #[cfg(platform = "qemu")]
 pub use qemu::{Qemu as PlatformImpl, BL31_BASE};
 

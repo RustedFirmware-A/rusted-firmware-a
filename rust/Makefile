@@ -45,7 +45,7 @@ $(FIP):
 
 build:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build $(CARGO_FLAGS)
-	ln -fsr target/$(TARGET)/$(BUILDTYPE)/tf-a-bl31 $(BL31_ELF)
+	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 
 $(BL31_BIN): build
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $@

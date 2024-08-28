@@ -1,5 +1,5 @@
 [package]
-name = "tf-a-bl31"
+name = "rf-a-bl31"
 version = "0.1.0"
 edition = "2021"
 authors = [

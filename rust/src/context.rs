@@ -20,14 +20,6 @@ const MAX_RT_SVCS: usize = 128;
 
 const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 
-// Indices of registers within `El3State.registers`.
-const CTX_SCR_EL3: usize = 0;
-const CTX_SPSR_EL3: usize = 3;
-const CTX_ELR_EL3: usize = 4;
-
-// Indices of registers within `El1Sysregs.registers`.
-const CTX_SCTLR_EL1: usize = 2;
-
 /// RES1 bits in the `scr_el3` register.
 const SCR_RES1: u64 = 1 << 4 | 1 << 5;
 const SCR_NS: u64 = 1 << 0;
@@ -89,15 +81,30 @@ impl GpRegs {
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
 struct El3State {
-    registers: [u64; Self::COUNT],
+    scr_el3: u64,
+    esr_el3: u64,
+    runtime_sp: u64,
+    spsr_el3: u64,
+    elr_el3: u64,
+    pmcr_el0: u64,
+    is_in_el3: u64,
+    saved_elr_el3: u64,
+    nested_ea_flag: u64,
+    _padding: u64,
 }
 
 impl El3State {
-    /// The number of (64-bit) registers included in `El3State`.
-    const COUNT: usize = 10;
-
     const EMPTY: Self = Self {
-        registers: [0; Self::COUNT],
+        scr_el3: 0,
+        esr_el3: 0,
+        runtime_sp: 0,
+        spsr_el3: 0,
+        elr_el3: 0,
+        pmcr_el0: 0,
+        is_in_el3: 0,
+        saved_elr_el3: 0,
+        nested_ea_flag: 0,
+        _padding: 0,
     };
 }
 
@@ -106,15 +113,58 @@ impl El3State {
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
 struct El1Sysregs {
-    registers: [u64; Self::COUNT],
+    spsr_el1: u64,
+    elr_el1: u64,
+    sctlr_el1: u64,
+    tcr_el1: u64,
+    cpacr_el1: u64,
+    csselr_el1: u64,
+    sp_el1: u64,
+    esr_el1: u64,
+    ttbr0_el1: u64,
+    ttbr1_el1: u64,
+    mair_el1: u64,
+    amair_el1: u64,
+    actlr_el1: u64,
+    tpidr_el1: u64,
+    tpidr_el0: u64,
+    tpidrro_el0: u64,
+    par_el1: u64,
+    far_el1: u64,
+    afsr0_el1: u64,
+    afsr1_el1: u64,
+    contextidr_el1: u64,
+    vbar_el1: u64,
+    mdccint_el1: u64,
+    mdscr_el1: u64,
 }
 
 impl El1Sysregs {
-    /// The number of (64-bit) registers included in `EL1Sysregs`.
-    const COUNT: usize = 28;
-
     const EMPTY: Self = Self {
-        registers: [0; Self::COUNT],
+        spsr_el1: 0,
+        elr_el1: 0,
+        sctlr_el1: 0,
+        tcr_el1: 0,
+        cpacr_el1: 0,
+        csselr_el1: 0,
+        sp_el1: 0,
+        esr_el1: 0,
+        ttbr0_el1: 0,
+        ttbr1_el1: 0,
+        mair_el1: 0,
+        amair_el1: 0,
+        actlr_el1: 0,
+        tpidr_el1: 0,
+        tpidr_el0: 0,
+        tpidrro_el0: 0,
+        par_el1: 0,
+        far_el1: 0,
+        afsr0_el1: 0,
+        afsr1_el1: 0,
+        contextidr_el1: 0,
+        vbar_el1: 0,
+        mdccint_el1: 0,
+        mdscr_el1: 0,
     };
 }
 
@@ -222,14 +272,14 @@ pub fn initialise_contexts(non_secure_entry_point: &EntryPointInfo) {
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.
 fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
-    context.el3_state.registers[CTX_ELR_EL3] = entry_point.pc;
+    context.el3_state.elr_el3 = entry_point.pc;
     // TODO: FIQ and IRQ routing model.
     let scr_el3 = SCR_RES1 | SCR_NS | SCR_RW;
-    context.el3_state.registers[CTX_SCR_EL3] = scr_el3;
-    context.el3_state.registers[CTX_SPSR_EL3] = entry_point.spsr;
+    context.el3_state.scr_el3 = scr_el3;
+    context.el3_state.spsr_el3 = entry_point.spsr;
     // TODO: Initialise EL2 state too.
     let sctlr_el1 = SCTLR_EL1_RES1;
-    context.el1_sysregs.registers[CTX_SCTLR_EL1] = sctlr_el1;
+    context.el1_sysregs.sctlr_el1 = sctlr_el1;
     write_sctlr_el1(sctlr_el1);
 }
 

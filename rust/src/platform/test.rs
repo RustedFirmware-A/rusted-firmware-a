@@ -15,7 +15,7 @@ use crate::{
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
-    sysregs::SpsrEl3,
+    sysregs::Spsr,
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::gicv3::GicV3;
@@ -58,7 +58,7 @@ impl Platform for TestPlatform {
     fn secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x4000_0000,
-            spsr: SpsrEl3::M_AARCH64_EL1T,
+            spsr: Spsr::M_AARCH64_EL1T,
             args: Default::default(),
         }
     }
@@ -66,7 +66,7 @@ impl Platform for TestPlatform {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x6000_0000,
-            spsr: SpsrEl3::M_AARCH64_EL1T,
+            spsr: Spsr::M_AARCH64_EL1T,
             args: Default::default(),
         }
     }

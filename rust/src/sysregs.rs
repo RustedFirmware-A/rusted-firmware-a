@@ -14,7 +14,61 @@ pub use fake::write_sp_el3;
 use bitflags::bitflags;
 #[cfg(not(test))]
 use core::arch::asm;
-use core::ops::BitOr;
+
+/// Implements a similar interface to `bitflags` on some newtype.
+macro_rules! bitflagslike {
+    ($typename:ty: $inner:ty) => {
+        impl $typename {
+            pub const fn empty() -> Self {
+                Self(0)
+            }
+
+            pub const fn bits(self) -> $inner {
+                self.0
+            }
+
+            pub const fn from_bits_retain(bits: $inner) -> Self {
+                Self(bits)
+            }
+        }
+
+        impl core::ops::Not for $typename {
+            type Output = Self;
+
+            fn not(self) -> Self {
+                Self(!self.0)
+            }
+        }
+
+        impl core::ops::BitOr for $typename {
+            type Output = Self;
+
+            fn bitor(self, rhs: Self) -> Self {
+                Self(self.0 | rhs.0)
+            }
+        }
+
+        impl core::ops::BitOrAssign for $typename {
+            fn bitor_assign(&mut self, rhs: Self) {
+                *self = *self | rhs
+            }
+        }
+
+        impl core::ops::BitAnd for $typename {
+            type Output = Self;
+
+            fn bitand(self, rhs: Self) -> Self {
+                Self(self.0 & rhs.0)
+            }
+        }
+
+        impl core::ops::BitAndAssign for $typename {
+            fn bitand_assign(&mut self, rhs: Self) {
+                *self = *self & rhs
+            }
+        }
+    };
+}
 
 /// Generates a public function named `$function_name` to read the system register `$sysreg` as a
 /// value of type `$type`.
@@ -176,6 +230,7 @@ macro_rules! read_write_sysreg {
     };
 }
 
+read_sysreg!(id_aa64mmfr1_el1, u64, safe read_id_aa64mmfr1_el1);
 read_sysreg!(mpidr_el1, u64, safe read_mpidr_el1);
 read_write_sysreg!(actlr_el1, u64, safe read_actlr_el1, safe write_actlr_el1);
 read_write_sysreg!(actlr_el2, u64, safe read_actlr_el2, safe write_actlr_el2);
@@ -191,14 +246,14 @@ read_write_sysreg!(contextidr_el1, u64, safe read_contextidr_el1, safe write_con
 read_write_sysreg!(cpacr_el1, u64, safe read_cpacr_el1, safe write_cpacr_el1);
 read_write_sysreg!(cptr_el2, u64, safe read_cptr_el2, safe write_cptr_el2);
 read_write_sysreg!(csselr_el1, u64, safe read_csselr_el1, safe write_csselr_el1);
-read_write_sysreg!(elr_el1, u64, safe read_elr_el1, safe write_elr_el1);
-read_write_sysreg!(elr_el2, u64, safe read_elr_el2, safe write_elr_el2);
-read_write_sysreg!(esr_el1, u64, safe read_esr_el1, safe write_esr_el1);
-read_write_sysreg!(esr_el2, u64, safe read_esr_el2, safe write_esr_el2);
+read_write_sysreg!(elr_el1, usize, safe read_elr_el1, safe write_elr_el1);
+read_write_sysreg!(elr_el2, usize, safe read_elr_el2, safe write_elr_el2);
+read_write_sysreg!(esr_el1, u64: Esr, safe read_esr_el1, safe write_esr_el1);
+read_write_sysreg!(esr_el2, u64: Esr, safe read_esr_el2, safe write_esr_el2);
 read_write_sysreg!(far_el1, u64, safe read_far_el1, safe write_far_el1);
 read_write_sysreg!(far_el2, u64, safe read_far_el2, safe write_far_el2);
 read_write_sysreg!(hacr_el2, u64, safe read_hacr_el2, safe write_hacr_el2);
-read_write_sysreg!(hcr_el2, u64, safe read_hcr_el2, safe write_hcr_el2);
+read_write_sysreg!(hcr_el2, u64: HcrEl2, safe read_hcr_el2, safe write_hcr_el2);
 read_write_sysreg!(hpfar_el2, u64, safe read_hpfar_el2, safe write_hpfar_el2);
 read_write_sysreg!(hstr_el2, u64, safe read_hstr_el2, safe write_hstr_el2);
 read_write_sysreg!(icc_sre_el1, u64: IccSre, safe read_icc_sre_el1, safe write_icc_sre_el1);
@@ -241,8 +296,8 @@ read_write_sysreg! {
 }
 read_write_sysreg!(sp_el1, u64, safe read_sp_el1, safe write_sp_el1);
 read_write_sysreg!(sp_el2, u64, safe read_sp_el2, safe write_sp_el2);
-read_write_sysreg!(spsr_el1, u64, safe read_spsr_el1, safe write_spsr_el1);
-read_write_sysreg!(spsr_el2, u64, safe read_spsr_el2, safe write_spsr_el2);
+read_write_sysreg!(spsr_el1, u64: Spsr, safe read_spsr_el1, safe write_spsr_el1);
+read_write_sysreg!(spsr_el2, u64: Spsr, safe read_spsr_el2, safe write_spsr_el2);
 read_write_sysreg!(tcr_el1, u64, safe read_tcr_el1, safe write_tcr_el1);
 read_write_sysreg!(tcr_el2, u64, safe read_tcr_el2, safe write_tcr_el2);
 write_sysreg! {
@@ -267,8 +322,8 @@ write_sysreg! {
     ttbr0_el3, usize, write_ttbr0_el3
 }
 read_write_sysreg!(ttbr1_el1, u64, safe read_ttbr1_el1, safe write_ttbr1_el1);
-read_write_sysreg!(vbar_el1, u64, safe read_vbar_el1, safe write_vbar_el1);
-read_write_sysreg!(vbar_el2, u64, safe read_vbar_el2, safe write_vbar_el2);
+read_write_sysreg!(vbar_el1, usize, safe read_vbar_el1, safe write_vbar_el1);
+read_write_sysreg!(vbar_el2, usize, safe read_vbar_el2, safe write_vbar_el2);
 read_write_sysreg!(vmpidr_el2, u64, safe read_vmpidr_el2, safe write_vmpidr_el2);
 read_write_sysreg!(vpidr_el2, u64, safe read_vpidr_el2, safe write_vpidr_el2);
 read_write_sysreg!(vtcr_el2, u64, safe read_vtcr_el2, safe write_vtcr_el2);
@@ -333,12 +388,37 @@ bitflags! {
         /// RES1 bits in the `sctlr_el3` register.
         const RES1 = 1 << 23 | 1 << 18;
     }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct HcrEl2: u64 {
+        const TGE = 1 << 27;
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ExceptionLevel {
+    El0 = 0,
+    El1 = 1,
+    El2 = 2,
+    El3 = 3,
+}
+
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum StackPointer {
+    El0 = 0,
+    ElX = 1,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SpsrEl3(u64);
+pub struct Spsr(u64);
 
-impl SpsrEl3 {
+bitflagslike!(Spsr: u64);
+
+impl Spsr {
+    const EL_MASK: u64 = 0x3;
+    const EL_SHIFT: usize = 2;
+    const SP_MASK: u64 = 0x1;
+
     /// AArch64 execution state, EL0.
     pub const M_AARCH64_EL0: Self = Self(0b00000);
     /// AArch64 execution state, EL1 with SP_EL0.
@@ -354,6 +434,11 @@ impl SpsrEl3 {
     /// AArch64 execution state, EL3 with SP_EL3.
     pub const M_AARCH64_EL3H: Self = Self(0b01101);
 
+    /// Exception was taken with PSTATE.SP set to SP_EL0.
+    pub const SP_EL0: Self = Self(0);
+    /// Exception was taken with PSTATE.SP set to SP_ELx.
+    pub const SP_ELX: Self = Self(1);
+
     /// FIQ interrupt mask.
     pub const F: Self = Self(1 << 6);
     /// IRQ interrupt mask.
@@ -363,15 +448,49 @@ impl SpsrEl3 {
     /// Debug exception mask.
     pub const D: Self = Self(1 << 9);
 
-    pub const fn empty() -> Self {
-        Self(0)
+    /// Illegal Execution state.
+    pub const IL: Self = Self(1 << 20);
+    /// Software Step.
+    pub const SS: Self = Self(1 << 21);
+
+    pub const DIT: Self = Self(1 << 24);
+
+    pub const V: Self = Self(1 << 28);
+    pub const C: Self = Self(1 << 29);
+    pub const Z: Self = Self(1 << 30);
+    pub const N: Self = Self(1 << 31);
+    pub const NZCV: Self = Self(Spsr::V.0 | Spsr::C.0 | Spsr::Z.0 | Spsr::N.0);
+
+    pub const fn exception_level(self) -> ExceptionLevel {
+        match (self.0 >> Self::EL_SHIFT) & Self::EL_MASK {
+            0 => ExceptionLevel::El0,
+            1 => ExceptionLevel::El1,
+            2 => ExceptionLevel::El2,
+            3 => ExceptionLevel::El3,
+            _ => unreachable!(),
+        }
+    }
+
+    pub const fn stack_pointer(self) -> StackPointer {
+        match self.0 & Self::SP_MASK {
+            0 => StackPointer::El0,
+            1 => StackPointer::ElX,
+            _ => unreachable!(),
+        }
     }
 }
 
-impl BitOr for SpsrEl3 {
-    type Output = Self;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Esr(u64);
 
-    fn bitor(self, rhs: Self) -> Self {
-        Self(self.0 | rhs.0)
-    }
+bitflagslike!(Esr: u64);
+
+impl Esr {
+    pub const IL: Self = Self(1 << 25);
+}
+
+pub fn is_feat_vhe_present() -> bool {
+    const VHE: u64 = 1 << 8;
+
+    read_id_aa64mmfr1_el1() & VHE != 0
 }

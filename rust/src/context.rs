@@ -28,7 +28,7 @@ use crate::{
         write_spsr_el1, write_spsr_el2, write_tcr_el1, write_tcr_el2, write_tpidr_el0,
         write_tpidr_el1, write_tpidr_el2, write_tpidrro_el0, write_ttbr0_el1, write_ttbr0_el2,
         write_ttbr1_el1, write_vbar_el1, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2,
-        write_vtcr_el2, write_vttbr_el2, IccSre, ScrEl3, SctlrEl1, SpsrEl3,
+        write_vtcr_el2, write_vttbr_el2, Esr, HcrEl2, IccSre, ScrEl3, SctlrEl1, Spsr,
     },
 };
 use core::{
@@ -75,7 +75,7 @@ impl World {
 #[repr(C)]
 pub struct CpuContext {
     pub gpregs: GpRegs,
-    el3_state: El3State,
+    pub el3_state: El3State,
     #[cfg(feature = "sel2")]
     el2_sysregs: El2Sysregs,
     #[cfg(not(feature = "sel2"))]
@@ -137,12 +137,12 @@ impl GpRegs {
 /// exits.
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
-struct El3State {
-    scr_el3: ScrEl3,
-    esr_el3: u64,
+pub struct El3State {
+    pub scr_el3: ScrEl3,
+    esr_el3: Esr,
     runtime_sp: u64,
-    spsr_el3: SpsrEl3,
-    elr_el3: u64,
+    pub spsr_el3: Spsr,
+    pub elr_el3: usize,
     pmcr_el0: u64,
     is_in_el3: u64,
     saved_elr_el3: u64,
@@ -153,9 +153,9 @@ struct El3State {
 impl El3State {
     const EMPTY: Self = Self {
         scr_el3: ScrEl3::empty(),
-        esr_el3: 0,
+        esr_el3: Esr::empty(),
         runtime_sp: 0,
-        spsr_el3: SpsrEl3::empty(),
+        spsr_el3: Spsr::empty(),
         elr_el3: 0,
         pmcr_el0: 0,
         is_in_el3: 0,
@@ -169,14 +169,14 @@ impl El3State {
 /// world switches.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct El1Sysregs {
-    spsr_el1: u64,
-    elr_el1: u64,
+    spsr_el1: Spsr,
+    elr_el1: usize,
     sctlr_el1: SctlrEl1,
     tcr_el1: u64,
     cpacr_el1: u64,
     csselr_el1: u64,
     sp_el1: u64,
-    esr_el1: u64,
+    esr_el1: Esr,
     ttbr0_el1: u64,
     ttbr1_el1: u64,
     mair_el1: u64,
@@ -190,21 +190,21 @@ struct El1Sysregs {
     afsr0_el1: u64,
     afsr1_el1: u64,
     contextidr_el1: u64,
-    vbar_el1: u64,
+    vbar_el1: usize,
     mdccint_el1: u64,
     mdscr_el1: u64,
 }
 
 impl El1Sysregs {
     const EMPTY: Self = Self {
-        spsr_el1: 0,
+        spsr_el1: Spsr::empty(),
         elr_el1: 0,
         sctlr_el1: SctlrEl1::empty(),
         tcr_el1: 0,
         cpacr_el1: 0,
         csselr_el1: 0,
         sp_el1: 0,
-        esr_el1: 0,
+        esr_el1: Esr::empty(),
         ttbr0_el1: 0,
         ttbr1_el1: 0,
         mair_el1: 0,
@@ -291,11 +291,11 @@ struct El2Sysregs {
     cnthctl_el2: u64,
     cntvoff_el2: u64,
     cptr_el2: u64,
-    elr_el2: u64,
-    esr_el2: u64,
+    elr_el2: usize,
+    esr_el2: Esr,
     far_el2: u64,
     hacr_el2: u64,
-    hcr_el2: u64,
+    hcr_el2: HcrEl2,
     hpfar_el2: u64,
     hstr_el2: u64,
     icc_sre_el2: IccSre,
@@ -304,12 +304,12 @@ struct El2Sysregs {
     mair_el2: u64,
     mdcr_el2: u64,
     sctlr_el2: u64,
-    spsr_el2: u64,
+    spsr_el2: Spsr,
     sp_el2: u64,
     tcr_el2: u64,
     tpidr_el2: u64,
     ttbr0_el2: u64,
-    vbar_el2: u64,
+    vbar_el2: usize,
     vmpidr_el2: u64,
     vpidr_el2: u64,
     vtcr_el2: u64,
@@ -326,10 +326,10 @@ impl El2Sysregs {
         cntvoff_el2: 0,
         cptr_el2: 0,
         elr_el2: 0,
-        esr_el2: 0,
+        esr_el2: Esr::empty(),
         far_el2: 0,
         hacr_el2: 0,
-        hcr_el2: 0,
+        hcr_el2: HcrEl2::empty(),
         hpfar_el2: 0,
         hstr_el2: 0,
         icc_sre_el2: IccSre::empty(),
@@ -338,7 +338,7 @@ impl El2Sysregs {
         mair_el2: 0,
         mdcr_el2: 0,
         sctlr_el2: 0,
-        spsr_el2: 0,
+        spsr_el2: Spsr::empty(),
         sp_el2: 0,
         tcr_el2: 0,
         tpidr_el2: 0,
@@ -628,9 +628,9 @@ fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EntryPointInfo {
     /// The entry point address.
-    pub pc: u64,
+    pub pc: usize,
     /// The `spsr_el3` value to set before `eret`, to set the appropriate PSTATE.
-    pub spsr: SpsrEl3,
+    pub spsr: Spsr,
     /// Boot arguments to pass in `x0`-`x7`.
     pub args: [u64; 8],
 }

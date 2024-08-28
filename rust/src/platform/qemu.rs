@@ -16,7 +16,7 @@ use crate::{
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
-    sysregs::SpsrEl3,
+    sysregs::Spsr,
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
@@ -117,9 +117,9 @@ impl Platform for Qemu {
         EntryPointInfo {
             pc: 0x0e10_0000,
             #[cfg(feature = "sel2")]
-            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H,
+            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
             #[cfg(not(feature = "sel2"))]
-            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL1H,
+            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL1H,
             args: [
                 TOS_FW_CONFIG_ADDRESS,
                 HW_CONFIG_ADDRESS,
@@ -136,7 +136,7 @@ impl Platform for Qemu {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x6000_0000,
-            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H,
+            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
             args: Default::default(),
         }
     }

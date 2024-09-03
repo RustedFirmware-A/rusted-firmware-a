@@ -23,16 +23,23 @@ endif
 
 CARGO_FLAGS=--target aarch64-unknown-none
 
+ifeq ($(DEBUG), 1)
+	BUILDTYPE := debug
+else
+	BUILDTYPE := release
+	CARGO_FLAGS += --release
+endif
+
 all: $(BL31) $(BL33)
 
 $(BL1): build
-	ln -fsr ../build/$(PLAT)/release/bl1.bin $@
+	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl1.bin $@
 $(BL2): build
-	ln -fsr ../build/$(PLAT)/release/bl2.bin $@
+	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl2.bin $@
 $(BL33): build
 	touch $@
 $(FIP):
-	ln -fsr ../build/$(PLAT)/release/fip.bin $@
+	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/fip.bin $@
 
 $(BL31):
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build $(CARGO_FLAGS)

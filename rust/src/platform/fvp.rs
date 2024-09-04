@@ -2,6 +2,11 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+mod fvp_defines {
+    include!(concat!(env!("OUT_DIR"), "/fvp_defines.rs"));
+}
+use fvp_defines::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU};
+
 use super::Platform;
 use crate::{
     logger,
@@ -17,7 +22,8 @@ const BASE_GICR_BASE: usize = 0x2f10_0000;
 const DEVICE0_BASE: usize = 0x2000_0000;
 const DEVICE0_SIZE: usize = 0x0c20_0000;
 const DEVICE1_BASE: usize = BASE_GICD_BASE;
-const PLATFORM_CORE_COUNT: usize = 2 * 4 * 1;
+const PLATFORM_CORE_COUNT: usize =
+    FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU;
 const DEVICE1_SIZE: usize = (BASE_GICR_BASE - BASE_GICD_BASE) + (PLATFORM_CORE_COUNT * 0x2_0000);
 
 const PLAT_ARM_MAX_BL31_SIZE: usize = PLAT_ARM_TRUSTED_SRAM_SIZE - ARM_SHARED_RAM_SIZE;

@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#![no_main]
-#![no_std]
+#![cfg_attr(not(test), no_main)]
+#![cfg_attr(not(test), no_std)]
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod context;
 mod exceptions;
+#[cfg_attr(test, path = "layout_fake.rs")]
 mod layout;
 mod logger;
 mod pagetable;

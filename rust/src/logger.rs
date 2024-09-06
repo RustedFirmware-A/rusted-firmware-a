@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use core::fmt::Write;
+#[cfg(not(test))]
 use core::panic::PanicInfo;
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
 use pl011_uart::Uart;
@@ -37,6 +38,7 @@ pub fn init(uart: Uart, max_level: LevelFilter) -> Result<(), SetLoggerError> {
     Ok(())
 }
 
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     if let Some(logger) = LOGGER.get() {

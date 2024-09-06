@@ -5,6 +5,7 @@
 //! Implementation of a subset of the Arm semihosting calls.
 //! See https://github.com/ARM-software/abi-aa/blob/main/semihosting/semihosting.rst.
 
+#[cfg(not(test))]
 use core::arch::asm;
 
 /// `SYS_*` operation codes from the semihosting spec.
@@ -54,6 +55,7 @@ enum Operation {
 ///
 /// `system_block_address` must be a valid pointer to an argument block of the appropriate length
 /// for the operation being called.
+#[cfg(target_arch = "aarch64")]
 unsafe fn semihosting_call(operation: Operation, system_block_address: *const u64) -> u64 {
     let result;
     unsafe {
@@ -108,6 +110,7 @@ impl From<AdpStopped> for u64 {
 ///
 /// The most common use is to report that execution has completed, with reason
 /// `AdpStopped::ApplicationExit`.
+#[cfg(target_arch = "aarch64")]
 pub fn semihosting_exit(reason: AdpStopped, subcode: u64) {
     let parameters: [u64; 2] = [reason.into(), subcode];
     // SAFETY: The parameters pointer is valid, and contains two parameters as expected by

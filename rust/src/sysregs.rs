@@ -4,11 +4,16 @@
 
 #![allow(unused)]
 
+#[cfg(test)]
+#[macro_use]
+pub mod fake;
+
 use core::arch::asm;
 
 /// Generates a safe public function named `$function_name` to read the system register `$sysreg`.
 ///
 /// This should only be used for system registers which are indeed safe to read.
+#[cfg(not(test))]
 macro_rules! read_sysreg {
     ($sysreg:ident, $function_name:ident) => {
         pub fn $function_name() -> u64 {
@@ -29,6 +34,7 @@ macro_rules! read_sysreg {
 /// `$sysreg`.
 ///
 /// This should only be used for system registers which are indeed safe to write.
+#[cfg(not(test))]
 macro_rules! write_sysreg {
     ($sysreg:ident, $function_name:ident) => {
         pub fn $function_name(value: u64) {

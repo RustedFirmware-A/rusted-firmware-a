@@ -121,29 +121,7 @@ pub fn init() {
     PAGE_TABLE.call_once(|| {
         let page_heap =
             SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
-        let mut idmap = IdMap::new(page_heap);
-
-        // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
-        // BL31_TOTAL
-        map_region(
-            &mut idmap,
-            &MemoryRegion::new(BL31_BASE, bl31_end()),
-            MT_MEMORY,
-        );
-        // BL31_RO
-        map_region(
-            &mut idmap,
-            &MemoryRegion::new(bl_code_base(), bl_code_end()),
-            MT_CODE,
-        );
-        map_region(
-            &mut idmap,
-            &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
-            MT_RO_DATA,
-        );
-
-        // Corresponds to `plat_regions` in C TF-A.
-        PlatformImpl::map_extra_regions(&mut idmap);
+        let mut idmap = init_page_table(page_heap);
 
         info!("Setting MMU config");
         setup_mmu_cfg(idmap.root_address());
@@ -155,6 +133,36 @@ pub fn init() {
 
         SpinMutex::new(idmap)
     });
+}
+
+/// Creates the page table and maps initial regions needed for boot, including any platform-specific
+/// regions.
+fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
+    let mut idmap = IdMap::new(pages);
+
+    // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
+    // BL31_TOTAL
+    map_region(
+        &mut idmap,
+        &MemoryRegion::new(BL31_BASE, bl31_end()),
+        MT_MEMORY,
+    );
+    // BL31_RO
+    map_region(
+        &mut idmap,
+        &MemoryRegion::new(bl_code_base(), bl_code_end()),
+        MT_CODE,
+    );
+    map_region(
+        &mut idmap,
+        &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
+        MT_RO_DATA,
+    );
+
+    // Corresponds to `plat_regions` in C TF-A.
+    PlatformImpl::map_extra_regions(&mut idmap);
+
+    idmap
 }
 
 /// Adds the given region to the page table with the given attributes, logging it first.
@@ -252,5 +260,22 @@ impl IdMap {
 
     fn root_address(&self) -> PhysicalAddress {
         self.mapping.root_address()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_page_table() {
+        assert_ne!(PlatformImpl::PAGE_HEAP_PAGE_COUNT, 0);
+
+        let page_heap =
+            SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
+
+        let mut idmap = init_page_table(page_heap);
+        assert_ne!(idmap.root_address().0, 0);
+        idmap.mark_active();
     }
 }

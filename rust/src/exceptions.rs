@@ -4,13 +4,13 @@
 
 use crate::{
     context::{cpu_state, World},
+    platform::exception_free,
     services::{arch, psci},
     smccc::{FunctionId, SmcccCallType, NOT_SUPPORTED},
 };
 use bitflags::bitflags;
 use core::{ffi::c_void, ptr::null_mut};
 use log::debug;
-use percore::exception_free;
 
 const TRAP_RET_UNHANDLED: i64 = -1;
 

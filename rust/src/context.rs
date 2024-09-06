@@ -3,16 +3,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    platform::{Platform, PlatformImpl},
+    platform::{exception_free, Platform, PlatformImpl},
     smccc::SmcReturn,
     sysregs::write_sctlr_el1,
 };
+#[cfg(not(test))]
+use core::arch::asm;
 use core::{
-    arch::asm,
     cell::{RefCell, RefMut},
     ptr::null_mut,
 };
-use percore::{exception_free, ExceptionFree, ExceptionLock, PerCore};
+use percore::{ExceptionFree, ExceptionLock, PerCore};
 
 /// The number of contexts to store for each CPU core, one per security state.
 const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
@@ -271,6 +272,7 @@ static CPU_STATE: PerCore<
 /// The given context pointer must remain valid until a new next context is set.
 unsafe fn set_next_context(context: *mut CpuContext) {
     // SAFETY: The caller guarantees that the context remains valid until it's replaced.
+    #[cfg(not(test))]
     unsafe {
         asm!(
             "msr spsel, #1",

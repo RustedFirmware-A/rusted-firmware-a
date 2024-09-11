@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#[cfg(feature = "plat-qemu")]
+#[cfg(platform = "qemu")]
 mod qemu;
-use aarch64_paging::idmap::IdMap;
-#[cfg(feature = "plat-qemu")]
+
+#[cfg(platform = "qemu")]
 pub use qemu::{Qemu as PlatformImpl, BL31_BASE};
+
+use aarch64_paging::idmap::IdMap;
 
 /// The hooks implemented by all platforms.
 pub trait Platform {

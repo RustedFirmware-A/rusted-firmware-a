@@ -9,12 +9,12 @@ BL31 := target/bl31.bin
 all: $(BL31)
 
 build:
-	cargo build --target aarch64-unknown-none
+	RUSTFLAGS="--cfg platform=\"qemu\"" cargo build --target aarch64-unknown-none
 $(BL31): build
-	cargo objcopy --target aarch64-unknown-none -- -O binary $@
+	RUSTFLAGS="--cfg platform=\"qemu\"" cargo objcopy --target aarch64-unknown-none -- -O binary $@
 
 clippy:
-	cargo clippy --target aarch64-unknown-none
+	RUSTFLAGS="--cfg platform=\"qemu\"" cargo clippy --target aarch64-unknown-none
 
 clean:
 	cargo clean

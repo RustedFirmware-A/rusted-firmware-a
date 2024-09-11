@@ -5,7 +5,22 @@
 use cc::Build;
 use std::env;
 
+const PLATFORMS: [&str; 1] = ["qemu"];
+
 fn main() {
+    println!(
+        "cargo::rustc-check-cfg=cfg(platform, values(\"{}\"))",
+        PLATFORMS.join("\", \"")
+    );
+
+    let platform = env::var("CARGO_CFG_PLATFORM").expect("Missing platform name");
+    assert!(
+        PLATFORMS.contains(&platform.as_str()),
+        "Unexpected platform name {:?}. Supported platforms: {:?}",
+        platform,
+        PLATFORMS,
+    );
+
     env::set_var("CROSS_COMPILE", "aarch64-none-elf");
     env::set_var("CC", "clang");
 
@@ -38,5 +53,5 @@ fn main() {
         .compile("empty");
 
     println!("cargo:rustc-link-arg=-Timage.ld");
-    println!("cargo:rustc-link-arg=-Tqemu.ld");
+    println!("cargo:rustc-link-arg=-T{}.ld", platform);
 }

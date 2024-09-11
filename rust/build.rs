@@ -12,6 +12,7 @@ fn main() {
     Build::new()
         .define("CRASH_REPORTING", Some("1"))
         .define("PL011_GENERIC_UART", Some("0"))
+        .define("ENABLE_ASSERTIONS", Some("1"))
         .define("ENABLE_CONSOLE_GETC", Some("0"))
         .define("IMAGE_BL31", Some("1"))
         .include("../include")

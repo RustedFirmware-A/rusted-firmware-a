@@ -27,6 +27,9 @@ fn main() {
     env::set_var("CC", "clang");
 
     let mut build = Build::new();
+    if env::var("CARGO_FEATURE_RME").as_deref() == Ok("1") {
+        build.define("ENABLE_RME", Some("1"));
+    }
     build
         .define("CRASH_REPORTING", Some("1"))
         .define("PL011_GENERIC_UART", Some("0"))

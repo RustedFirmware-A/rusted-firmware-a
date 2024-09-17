@@ -14,9 +14,8 @@ use core::{
 };
 use percore::{exception_free, ExceptionFree, ExceptionLock, PerCore};
 
-// TODO: Add support for realm security state.
 /// The number of contexts to store for each CPU core, one per security state.
-const CPU_DATA_CONTEXT_NUM: usize = 2;
+const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
 
 const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 
@@ -34,6 +33,8 @@ pub enum World {
     // The enum values must match those used by the `get_security_state` assembly function.
     Secure = 0,
     NonSecure = 1,
+    #[cfg(feature = "rme")]
+    Realm = 2,
 }
 
 impl World {
@@ -185,6 +186,13 @@ struct PerWorldContext {
     zcr_el3: u64,
 }
 
+impl PerWorldContext {
+    const EMPTY: Self = Self {
+        cptr_el3: 0,
+        zcr_el3: 0,
+    };
+}
+
 #[derive(Clone, Debug)]
 #[repr(C, align(64))]
 struct CpuData {
@@ -225,14 +233,10 @@ enum AffInfoState {
 
 #[export_name = "per_world_context"]
 static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] = [
-    PerWorldContext {
-        cptr_el3: 0,
-        zcr_el3: 0,
-    },
-    PerWorldContext {
-        cptr_el3: 0,
-        zcr_el3: 0,
-    },
+    PerWorldContext::EMPTY,
+    PerWorldContext::EMPTY,
+    #[cfg(feature = "rme")]
+    PerWorldContext::EMPTY,
 ];
 
 #[unsafe(no_mangle)]

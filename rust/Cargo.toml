@@ -26,3 +26,6 @@ spin = { version = "0.9.8", default-features = false, features = [
 
 [build-dependencies]
 cc = "1.0.79"
+
+[features]
+rme = []

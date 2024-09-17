@@ -10,6 +10,7 @@
 mod aarch64;
 mod context;
 mod exceptions;
+mod gicv3;
 #[cfg_attr(test, path = "layout_fake.rs")]
 mod layout;
 mod logger;
@@ -24,6 +25,7 @@ mod sysregs;
 use crate::platform::{Platform, PlatformImpl};
 use context::{initialise_contexts, set_initial_world, World};
 use log::info;
+use percore::Cores;
 
 #[unsafe(no_mangle)]
 extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
@@ -34,6 +36,15 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
     // Set up page table.
     pagetable::init();
     info!("Page table activated.");
+
+    // Set up GIC.
+    gicv3::init(
+        // SAFETY: This is the only place where GIC is created and there are no aliases.
+        unsafe { &mut PlatformImpl::create_gic() },
+        &PlatformImpl::GIC_CONFIG,
+        PlatformImpl::core_index(),
+    );
+    info!("GIC configured.");
 
     let non_secure_entry_point = PlatformImpl::non_secure_entry_point();
     let secure_entry_point = PlatformImpl::secure_entry_point();

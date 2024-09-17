@@ -9,6 +9,7 @@ mod qemu;
 #[cfg(test)]
 mod test;
 
+use arm_gic::gicv3::GicV3;
 #[cfg(platform = "fvp")]
 pub use fvp::Fvp as PlatformImpl;
 #[cfg(not(test))]
@@ -18,7 +19,7 @@ pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
 pub use test::{exception_free, TestPlatform as PlatformImpl};
 
-use crate::{context::EntryPointInfo, pagetable::IdMap, services::arch::WorkaroundSupport};
+use crate::{context::EntryPointInfo, gicv3, pagetable::IdMap, services::arch::WorkaroundSupport};
 use percore::Cores;
 
 /// The code must use `platform::LoggerWriter` to avoid the 'ambiguous associated type' error that
@@ -29,6 +30,9 @@ pub type LoggerWriter = <PlatformImpl as Platform>::LoggerWriter;
 pub trait Platform: Cores {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
+
+    /// The GIC configuration.
+    const GIC_CONFIG: gicv3::GicConfig;
 
     /// The number of pages to reserve for the page heap.
     const PAGE_HEAP_PAGE_COUNT: usize = 5;
@@ -45,6 +49,13 @@ pub trait Platform: Cores {
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.
     fn map_extra_regions(idmap: &mut IdMap);
+
+    /// Creates instance of GIC driver.
+    ///
+    /// # Safety
+    ///
+    /// This must only be called once, to avoid creating aliases of the GIC driver.
+    unsafe fn create_gic() -> GicV3;
 
     /// Returns the entry point for the secure world, i.e. BL32.
     fn secure_entry_point() -> EntryPointInfo;

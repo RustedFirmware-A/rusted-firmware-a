@@ -21,13 +21,13 @@ use crate::{
         write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el1, write_cpacr_el1,
         write_cptr_el2, write_csselr_el1, write_elr_el1, write_elr_el2, write_esr_el1,
         write_esr_el2, write_far_el1, write_far_el2, write_hacr_el2, write_hcr_el2,
-        write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_icc_sre_el3, write_ich_hcr_el2,
-        write_mair_el1, write_mair_el2, write_mdccint_el1, write_mdcr_el2, write_mdscr_el1,
-        write_par_el1, write_scr_el3, write_sctlr_el1, write_sctlr_el2, write_sp_el1, write_sp_el2,
-        write_sp_el3, write_spsr_el1, write_spsr_el2, write_tcr_el1, write_tcr_el2,
-        write_tpidr_el0, write_tpidr_el1, write_tpidr_el2, write_tpidrro_el0, write_ttbr0_el1,
-        write_ttbr0_el2, write_ttbr1_el1, write_vbar_el1, write_vbar_el2, write_vmpidr_el2,
-        write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, IccSre, ScrEl3, SctlrEl1, SpsrEl3,
+        write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_mair_el1,
+        write_mair_el2, write_mdccint_el1, write_mdcr_el2, write_mdscr_el1, write_par_el1,
+        write_scr_el3, write_sctlr_el1, write_sctlr_el2, write_sp_el1, write_sp_el2, write_sp_el3,
+        write_spsr_el1, write_spsr_el2, write_tcr_el1, write_tcr_el2, write_tpidr_el0,
+        write_tpidr_el1, write_tpidr_el2, write_tpidrro_el0, write_ttbr0_el1, write_ttbr0_el2,
+        write_ttbr1_el1, write_vbar_el1, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2,
+        write_vtcr_el2, write_vttbr_el2, IccSre, ScrEl3, SctlrEl1, SpsrEl3,
     },
 };
 use core::{
@@ -548,16 +548,6 @@ pub fn switch_world(old_world: World, new_world: World) {
 /// This doesn't save the current state of the lower EL system registers, so should only be used for
 /// initial boot where we don't care about their state.
 pub fn set_initial_world(world: World) {
-    // ICC_SRE_EL3 must be set to 0xF before configuring ICC_SRE_EL2
-    // TODO: Remove when GIC driver is used/implemented, as this should be set by the driver.
-    //       As `set_initial_world` gets called only during initial boot, we place it here until
-    //       it gets removed when the GIC driver gets added.
-    // SAFETY: This is the only place we set `icc_sre_el3`, and we set the SRE bit, so it is never
-    // changed from 1 to 0.
-    unsafe {
-        write_icc_sre_el3(IccSre::DIB | IccSre::DFB | IccSre::EN | IccSre::SRE);
-    }
-
     exception_free(|token| {
         let cpu_state = cpu_state(token);
         let context = cpu_state.context(world);

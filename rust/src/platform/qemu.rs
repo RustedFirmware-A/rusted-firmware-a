@@ -5,15 +5,20 @@
 use super::Platform;
 use crate::{
     context::EntryPointInfo,
-    logger,
+    gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
     services::arch::WorkaroundSupport,
     sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
+use arm_gic::{
+    gicv3::{GicV3, SecureIntGroup},
+    {IntId, Trigger},
+};
 use arm_pl011_uart::{OwnedMmioPointer, PL011Registers, Uart};
 use core::ptr::NonNull;
+use gicv3::{GicConfig, SecureInterruptConfig};
 use log::LevelFilter;
 use percore::Cores;
 
@@ -31,6 +36,14 @@ const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEV
 
 /// Base address of the primary PL011 UART.
 const PL011_BASE_ADDRESS: *mut PL011Registers = 0x0900_0000 as _;
+/// Base address of GICv3 distributor.
+const GICD_BASE_ADDRESS: *mut u64 = 0x800_0000 as _;
+/// Base address of the first GICv3 redistributor frame.
+const GICR_BASE_ADDRESS: *mut u64 = 0x80A_0000 as _;
+/// Size of a single GIC redistributor frame (there is one per core).
+// TODO: Maybe GIC should infer the frame size based on info gicv3 vs gicv4.
+// Because I think only 1 << 0x11 and 1 << 0x12 values are allowed.
+const GICR_FRAME_SIZE: usize = 1 << 0x11;
 
 // TODO: Use the correct addresses here.
 /// The physical address of the SPMC manifest blob.
@@ -44,6 +57,16 @@ impl Platform for Qemu {
     const CORE_COUNT: usize = 4;
 
     type LoggerWriter = Uart<'static>;
+
+    const GIC_CONFIG: GicConfig = GicConfig {
+        // TODO: Fill this with proper values.
+        secure_interrupts_config: &[SecureInterruptConfig {
+            id: IntId::spi(0),
+            priority: 0x81,
+            group: SecureIntGroup::Group1S,
+            trigger: Trigger::Level,
+        }],
+    };
 
     fn init_beforemmu() {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
@@ -59,6 +82,20 @@ impl Platform for Qemu {
         map_region(idmap, &SHARED_RAM, MT_DEVICE);
         map_region(idmap, &DEVICE0, MT_DEVICE);
         map_region(idmap, &DEVICE1, MT_DEVICE);
+    }
+
+    unsafe fn create_gic() -> GicV3 {
+        // SAFETY: `GICD_BASE_ADDRESS` and `GICR_BASE_ADDRESS` are base addresses of a GIC device,
+        // and nothing else accesses that address range.
+        // TODO: Powering on-off secondary cores will also access their GIC Redistributors.
+        unsafe {
+            GicV3::new(
+                GICD_BASE_ADDRESS,
+                GICR_BASE_ADDRESS,
+                Qemu::CORE_COUNT,
+                GICR_FRAME_SIZE,
+            )
+        }
     }
 
     fn secure_entry_point() -> EntryPointInfo {

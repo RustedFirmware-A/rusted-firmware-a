@@ -200,6 +200,7 @@ read_write_sysreg!(hacr_el2, u64, safe read_hacr_el2, safe write_hacr_el2);
 read_write_sysreg!(hcr_el2, u64, safe read_hcr_el2, safe write_hcr_el2);
 read_write_sysreg!(hpfar_el2, u64, safe read_hpfar_el2, safe write_hpfar_el2);
 read_write_sysreg!(hstr_el2, u64, safe read_hstr_el2, safe write_hstr_el2);
+read_write_sysreg!(icc_sre_el1, u64: IccSre, safe read_icc_sre_el1, safe write_icc_sre_el1);
 read_write_sysreg!(icc_sre_el2, u64: IccSre, safe read_icc_sre_el2, safe write_icc_sre_el2);
 write_sysreg! {
     /// # Safety

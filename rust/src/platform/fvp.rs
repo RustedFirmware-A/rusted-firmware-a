@@ -7,19 +7,28 @@ include!("../../platforms/fvp/config.rs");
 use super::Platform;
 use crate::{
     context::EntryPointInfo,
-    logger,
+    gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::arch::WorkaroundSupport,
     sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
+use arm_gic::{
+    gicv3::{GicV3, SecureIntGroup},
+    IntId, Trigger,
+};
 use arm_pl011_uart::{OwnedMmioPointer, PL011Registers, Uart};
 use core::ptr::NonNull;
+use gicv3::SecureInterruptConfig;
 use log::LevelFilter;
 use percore::Cores;
 
 const BASE_GICD_BASE: usize = 0x2f00_0000;
 const BASE_GICR_BASE: usize = 0x2f10_0000;
+/// Size of a single GIC redistributor frame (there is one per core).
+// TODO: Maybe GIC should infer the frame size based on info gicv3 vs gicv4.
+// Because I think only 1 << 0x11 and 1 << 0x12 values are allowed.
+const GICR_FRAME_SIZE: usize = 1 << 0x11;
 
 const DEVICE0_BASE: usize = 0x2000_0000;
 const DEVICE0_SIZE: usize = 0x0c20_0000;
@@ -69,6 +78,16 @@ impl Platform for Fvp {
 
     type LoggerWriter = Uart<'static>;
 
+    const GIC_CONFIG: gicv3::GicConfig = gicv3::GicConfig {
+        // TODO: Fill this with proper values.
+        secure_interrupts_config: &[SecureInterruptConfig {
+            id: IntId::spi(0),
+            priority: 0x81,
+            group: SecureIntGroup::Group1S,
+            trigger: Trigger::Level,
+        }],
+    };
+
     fn init_beforemmu() {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
         // accesses that address range. The address remains valid after turning on the MMU
@@ -84,6 +103,20 @@ impl Platform for Fvp {
         map_region(idmap, &V2M_MAP_IOFPGA, MT_DEVICE);
         map_region(idmap, &DEVICE0, MT_DEVICE);
         map_region(idmap, &DEVICE1, MT_DEVICE);
+    }
+
+    unsafe fn create_gic() -> GicV3 {
+        // SAFETY: `GICD_BASE_ADDRESS` and `GICR_BASE_ADDRESS` are base addresses of a GIC device,
+        // and nothing else accesses that address range.
+        // TODO: Powering on-off secondary cores will also access their GIC Redistributors.
+        unsafe {
+            GicV3::new(
+                BASE_GICD_BASE as *mut u64,
+                BASE_GICR_BASE as *mut u64,
+                Fvp::CORE_COUNT,
+                GICR_FRAME_SIZE,
+            )
+        }
     }
 
     fn secure_entry_point() -> EntryPointInfo {

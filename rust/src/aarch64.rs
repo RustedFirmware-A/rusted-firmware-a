@@ -5,6 +5,15 @@
 #[cfg(target_arch = "aarch64")]
 use core::arch::asm;
 
+/// Issues a full system (`sy`) data synchronization barrier (`dsb`) instruction.
+pub fn dsb_sy() {
+    // SAFETY: `dsb` does not violate safe Rust guarantees.
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!("dsb sy", options(nostack));
+    }
+}
+
 /// Issues a data synchronization barrier (`dsb`) instruction that applies to the inner shareable
 /// domain (`ish`).
 pub fn dsb_ish() {

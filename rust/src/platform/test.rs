@@ -5,11 +5,13 @@
 use super::Platform;
 use crate::{
     context::EntryPointInfo,
+    gicv3,
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::arch::WorkaroundSupport,
     sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
+use arm_gic::gicv3::GicV3;
 use percore::{Cores, ExceptionFree};
 
 const DEVICE0_BASE: usize = 0x0200_0000;
@@ -24,10 +26,18 @@ impl Platform for TestPlatform {
 
     type LoggerWriter = DummyLoggerWriter;
 
+    const GIC_CONFIG: gicv3::GicConfig = gicv3::GicConfig {
+        secure_interrupts_config: &[],
+    };
+
     fn init_beforemmu() {}
 
     fn map_extra_regions(idmap: &mut IdMap) {
         map_region(idmap, &DEVICE0, MT_DEVICE);
+    }
+
+    unsafe fn create_gic() -> GicV3 {
+        unimplemented!();
     }
 
     fn secure_entry_point() -> EntryPointInfo {

@@ -40,12 +40,14 @@ const DEVICE: Attributes = Attributes::ATTRIBUTE_INDEX_1;
 #[allow(unused)]
 const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
 
+/// Attribute bits which are RES1 for the EL3 translation regime, as we configure it.
+const EL3_RES1: Attributes = Attributes::USER;
+
 /// Attributes used for all mappings.
 ///
-/// We always set the access flag, as we don't manage access flag faults. The `USER` bit is RES1 for
-/// the EL3 translation regime.
-const BASE: Attributes = Attributes::ACCESSED
-    .union(Attributes::USER)
+/// We always set the access flag, as we don't manage access flag faults.
+const BASE: Attributes = EL3_RES1
+    .union(Attributes::ACCESSED)
     .union(Attributes::VALID);
 
 /// Attributes used for device mappings.

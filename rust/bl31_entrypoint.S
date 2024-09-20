@@ -213,6 +213,18 @@ func bl31_entrypoint
 1:
         msr     cptr_el3, x0
 
+        /*
+         * Invalidate cache for the entire BL31 image. Since there can be memory
+         * overlap with previous boot loader stages, without this we can end up
+         * re-using dirty cache lines from previous stages.
+         */
+        adrp    x0, __TEXT_START__
+        add     x0, x0, :lo12:__TEXT_START__
+        adrp    x1, __BL31_END__
+        add     x1, x1, :lo12:__BL31_END__
+        sub     x1, x1, x0
+        bl      inv_dcache_range
+
         adrp    x0, __BSS_START__
         add     x0, x0, :lo12:__BSS_START__
 

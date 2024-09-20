@@ -46,6 +46,7 @@ fn main() {
         .file("runtime_exceptions.S")
         .file("../drivers/arm/pl011/aarch64/pl011_console.S")
         .file("../plat/qemu/common/aarch64/plat_helpers.S")
+        .file("../lib/aarch64/cache_helpers.S")
         .file("../lib/aarch64/misc_helpers.S")
         .file("../lib/cpus/aarch64/cpu_helpers.S")
         .file("../lib/el3_runtime/aarch64/cpu_data.S")

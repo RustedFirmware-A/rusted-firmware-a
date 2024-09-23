@@ -29,6 +29,11 @@ const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEV
 /// Base address of the primary PL011 UART.
 const PL011_BASE_ADDRESS: *mut u32 = 0x0900_0000 as _;
 
+// TODO: Use the correct addresses here.
+/// The physical address of the SPMC manifest blob.
+const TOS_FW_CONFIG_ADDRESS: u64 = 0;
+const HW_CONFIG_ADDRESS: u64 = 0;
+
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
 
@@ -48,9 +53,27 @@ impl Platform for Qemu {
         map_region(idmap, &DEVICE1, MT_DEVICE);
     }
 
+    fn secure_entry_point() -> EntryPointInfo {
+        let core_linear_id = Self::core_index() as u64;
+        EntryPointInfo {
+            pc: 0x0e10_0000,
+            spsr: 0x3c9,
+            args: [
+                TOS_FW_CONFIG_ADDRESS,
+                HW_CONFIG_ADDRESS,
+                0,
+                0,
+                core_linear_id,
+                0,
+                0,
+                0,
+            ],
+        }
+    }
+
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
-            pc: 0x60000000,
+            pc: 0x6000_0000,
             spsr: 0x3c9,
             args: Default::default(),
         }

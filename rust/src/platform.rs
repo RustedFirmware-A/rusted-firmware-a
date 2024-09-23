@@ -39,6 +39,9 @@ pub trait Platform: Cores {
     /// enabled.
     fn map_extra_regions(idmap: &mut IdMap);
 
+    /// Returns the entry point for the secure world, i.e. BL32.
+    fn secure_entry_point() -> EntryPointInfo;
+
     /// Returns the entry point for the non-secure world, i.e. BL33.
     fn non_secure_entry_point() -> EntryPointInfo;
 

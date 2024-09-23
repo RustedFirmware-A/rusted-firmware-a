@@ -16,9 +16,17 @@ impl Platform for TestPlatform {
 
     fn map_extra_regions(_idmap: &mut IdMap) {}
 
+    fn secure_entry_point() -> EntryPointInfo {
+        EntryPointInfo {
+            pc: 0x4000_0000,
+            spsr: 0x04,
+            args: Default::default(),
+        }
+    }
+
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
-            pc: 0x60000000,
+            pc: 0x6000_0000,
             spsr: 0x04,
             args: Default::default(),
         }

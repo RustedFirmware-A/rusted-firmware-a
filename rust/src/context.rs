@@ -5,7 +5,6 @@
 use crate::{
     platform::{exception_free, Platform, PlatformImpl},
     smccc::SmcReturn,
-    sysregs::write_sctlr_el1,
 };
 #[cfg(not(test))]
 use core::arch::asm;
@@ -23,7 +22,9 @@ const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 /// RES1 bits in the `scr_el3` register.
 const SCR_RES1: u64 = 1 << 4 | 1 << 5;
 const SCR_NS: u64 = 1 << 0;
+const SCR_SIF: u64 = 1 << 9;
 const SCR_RW: u64 = 1 << 10;
+const SCR_EEL2: u64 = 1 << 18;
 
 /// RES1 bits in the `sctlr_el1` register.
 const SCTLR_EL1_RES1: u64 = 1 << 29 | 1 << 28 | 1 << 23 | 1 << 22 | 1 << 20 | 1 << 11;
@@ -306,26 +307,42 @@ pub fn cpu_state(token: ExceptionFree) -> RefMut<CpuState> {
 }
 
 /// Initialises all CPU contexts for this CPU, ready for first boot.
-pub fn initialise_contexts(non_secure_entry_point: &EntryPointInfo) {
+pub fn initialise_contexts(
+    non_secure_entry_point: &EntryPointInfo,
+    secure_entry_point: &EntryPointInfo,
+) {
     exception_free(|token| {
         initialise_nonsecure(
             cpu_state(token).context_mut(World::NonSecure),
             non_secure_entry_point,
         );
+        initialise_secure(
+            cpu_state(token).context_mut(World::Secure),
+            secure_entry_point,
+        );
     });
+}
+
+/// Initialises parts of the given CPU context that are the same for all worlds.
+fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
+    context.el3_state.elr_el3 = entry_point.pc;
+    context.el3_state.spsr_el3 = entry_point.spsr;
+    context.el3_state.scr_el3 = SCR_RES1 | SCR_SIF | SCR_RW | SCR_EEL2;
+    context.el1_sysregs.sctlr_el1 = SCTLR_EL1_RES1;
+    // TODO: Initialise EL2 state too.
 }
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.
 fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
-    context.el3_state.elr_el3 = entry_point.pc;
+    initialise_common(context, entry_point);
+    context.el3_state.scr_el3 |= SCR_NS;
     // TODO: FIQ and IRQ routing model.
-    let scr_el3 = SCR_RES1 | SCR_NS | SCR_RW;
-    context.el3_state.scr_el3 = scr_el3;
-    context.el3_state.spsr_el3 = entry_point.spsr;
-    // TODO: Initialise EL2 state too.
-    let sctlr_el1 = SCTLR_EL1_RES1;
-    context.el1_sysregs.sctlr_el1 = sctlr_el1;
-    write_sctlr_el1(sctlr_el1);
+}
+
+/// Initialises the given CPU context ready for booting S-EL2 or S-EL1.
+fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
+    initialise_common(context, entry_point);
+    // TODO: FIQ and IRQ routing model.
 }
 
 /// Information about the entry point for a next stage (e.g. BL32 or BL33).

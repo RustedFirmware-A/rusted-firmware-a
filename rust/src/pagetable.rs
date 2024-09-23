@@ -15,7 +15,7 @@ use log::info;
 const ROOT_LEVEL: usize = 1;
 
 // Indices of entries in the Memory Attribute Indirection Register.
-const MAIR_IWBWA_OWBWA_NTR_INDEX: usize = 0;
+const MAIR_IWBRWA_OWBRWA_NTR_INDEX: usize = 0;
 const MAIR_DEVICE_INDEX: usize = 1;
 const MAIR_NON_CACHEABLE_INDEX: usize = 2;
 
@@ -30,12 +30,12 @@ const MAIR_NORM_OUTER_SHIFT: usize = 4;
 
 // Values for MAIR entries.
 const MAIR_DEVICE: u64 = MAIR_DEV_NGNRE;
-const MAIR_IWBWA_OWBWA_NTR: u64 =
+const MAIR_IWBRWA_OWBRWA_NTR: u64 =
     MAIR_NORM_WB_NTR_RWA | MAIR_NORM_WB_NTR_RWA << MAIR_NORM_OUTER_SHIFT;
 const MAIR_NON_CACHEABLE: u64 = MAIR_NORM_NC | MAIR_NORM_NC << MAIR_NORM_OUTER_SHIFT;
 
 // Attribute values corresponding to the above MAIR indices.
-const IWBWA_OWBWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;
+const IWBRWA_OWBRWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;
 const DEVICE: Attributes = Attributes::ATTRIBUTE_INDEX_1;
 #[allow(unused)]
 const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
@@ -65,7 +65,7 @@ pub const MT_DEVICE: Attributes = DEVICE
 pub const MT_NON_CACHEABLE: Attributes =
     NON_CACHEABLE.union(Attributes::OUTER_SHAREABLE).union(BASE);
 /// Attributes used for regular memory mappings.
-pub const MT_MEMORY: Attributes = IWBWA_OWBWA_NTR.union(BASE); // TODO: Sharability
+pub const MT_MEMORY: Attributes = IWBRWA_OWBRWA_NTR.union(BASE); // TODO: Sharability
 
 /// Attributes used for code (i.e. text) mappings.
 pub const MT_CODE: Attributes = MT_MEMORY.union(Attributes::READ_ONLY);
@@ -140,7 +140,7 @@ pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attribut
 
 fn setup_mmu_cfg(root_address: PhysicalAddress) {
     let mair = MAIR_DEVICE << (MAIR_DEVICE_INDEX << 3)
-        | MAIR_IWBWA_OWBWA_NTR << (MAIR_IWBWA_OWBWA_NTR_INDEX << 3)
+        | MAIR_IWBRWA_OWBRWA_NTR << (MAIR_IWBRWA_OWBRWA_NTR_INDEX << 3)
         | MAIR_NON_CACHEABLE << (MAIR_NON_CACHEABLE_INDEX << 3);
     let tcr = 0b101 << 16 // 48 bit physical address size (256 TiB).
         | 64 - 39; // Size offset is 2**39 bytes (512 GiB).

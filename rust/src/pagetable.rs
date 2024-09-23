@@ -41,6 +41,10 @@ const DEVICE: Attributes = Attributes::ATTRIBUTE_INDEX_1;
 const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
 
 /// Attribute bits which are RES1 for the EL3 translation regime, as we configure it.
+///
+/// From Arm ARM K.a, D8.3.1.2 Fig. D8-16: lower attributes AP[1] bit 6
+/// and D8.4.1.2.1 Stage 1 data accesses using Direct permissions:
+/// "For a stage 1 translation that supports one Exception level, AP[1] is RES1."
 const EL3_RES1: Attributes = Attributes::USER;
 
 /// Attributes used for all mappings.
@@ -55,17 +59,21 @@ const BASE: Attributes = EL3_RES1
 /// Device memory is always mapped as execute-never to avoid the possibility of a speculative
 /// instruction fetch, which could be an issue if the memory region corresponds to a read-sensitive
 /// peripheral.
-pub const MT_DEVICE: Attributes = DEVICE
-    .union(Attributes::OUTER_SHAREABLE)
-    .union(BASE)
-    .union(Attributes::UXN);
+/// Arm ARM K.a D8.6.2 "If a region is mapped as Device memory or Normal
+/// Non-cacheable memory after all enabled translation stages, then the
+/// region has an effective Shareability attribute of Outer Shareable."
+/// Arm ARM K.a D8.4.1.2.3 bit 54 UXN/PXN/XN is the XN field at EL3:
+/// "If the Effective value of XN is 1, then PrivExecute is removed."
+pub const MT_DEVICE: Attributes = DEVICE.union(BASE).union(Attributes::UXN);
 
 /// Attributes used for non-cacheable memory mappings.
 #[allow(unused)]
-pub const MT_NON_CACHEABLE: Attributes =
-    NON_CACHEABLE.union(Attributes::OUTER_SHAREABLE).union(BASE);
+pub const MT_NON_CACHEABLE: Attributes = NON_CACHEABLE.union(BASE);
+
 /// Attributes used for regular memory mappings.
-pub const MT_MEMORY: Attributes = IWBRWA_OWBRWA_NTR.union(BASE); // TODO: Sharability
+pub const MT_MEMORY: Attributes = IWBRWA_OWBRWA_NTR
+    .union(BASE)
+    .union(Attributes::INNER_SHAREABLE);
 
 /// Attributes used for code (i.e. text) mappings.
 pub const MT_CODE: Attributes = MT_MEMORY.union(Attributes::READ_ONLY);

@@ -1527,6 +1527,10 @@ $(BL31):
 all: $(BL31)
 
 FIP_DEPS += $(BL31)
+# For RUST builds, TOOL_ADD_IMG is skipped because it performs checks
+# about the pre-existence of the bl33.bin file, which we know will be
+# generated after the TOOL_ADD_IMG command gets executed.
+NEED_BL33 = 0
 else
 BL31_SOURCES += ${SPD_SOURCES}
 # Sort BL31 source files to remove duplicates
@@ -1751,6 +1755,11 @@ cscope:
 	@echo "  CSCOPE"
 	${Q}find ${CURDIR} -name "*.[chsS]" > cscope.files
 	${Q}cscope -b -q -k
+
+ifeq (${RUST},1)
+run: all fip
+	${Q}${MAKE} DEBUG=${DEBUG} -C rust ${PLAT}
+endif
 
 help:
 	@echo "usage: ${MAKE} [PLAT=<platform>] [OPTIONS] [TARGET]"

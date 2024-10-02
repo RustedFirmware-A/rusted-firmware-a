@@ -207,6 +207,9 @@ PSCI_OS_INIT_MODE		:= 0
 # By default, BL1 acts as the reset handler, not BL31
 RESET_TO_BL31			:= 0
 
+# Build Rust BL31 by default
+RUST		:= 1
+
 # For Chain of Trust
 SAVE_KEYS			:= 0
 

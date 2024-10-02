@@ -34,11 +34,11 @@ endif
 
 all: $(BL31_BIN) $(BL33)
 
-$(BL1): build
+$(BL1):
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl1.bin $@
-$(BL2): build
+$(BL2):
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl2.bin $@
-$(BL33): build
+$(BL33):
 	touch $@
 $(FIP):
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/fip.bin $@
@@ -111,7 +111,7 @@ help:
 	@echo "  all         Build BL31 bootloader binary and create BL33 file"
 	@echo "  clean       Clean the build for all platforms"
 	@echo "  clippy      Check the coding style of the entire rust source tree"
-	@echo "  qemu        Build bootloader binaries for the qemu platform and run qemu"
-	@echo "  fvp         Build bootloader binaries for the fvp platform and run fvp"
+	@echo "  qemu        Run qemu. Target should be invoked after binaries are built."
+	@echo "  fvp         Run fvp. Target should be invoked after binaries are built."
 	@echo "  build       Build BL31 for the specified platform"
 	@echo ""

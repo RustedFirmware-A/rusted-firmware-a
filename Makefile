@@ -1124,7 +1124,9 @@ include bl2u/bl2u.mk
 endif
 
 ifeq (${NEED_BL31},yes)
-ifneq (${RUST},1)
+ifeq (${RUST},1)
+include rust/bl31.mk
+else
 include bl31/bl31.mk
 endif #(RUST)
 endif #(NEED_BL31)
@@ -1517,21 +1519,7 @@ $(eval $(call TOOL_ADD_IMG,scp_bl2,--scp-fw))
 endif #(NEED_SCP_BL2)
 
 ifeq (${NEED_BL31},yes)
-ifeq (${RUST},1)
-BL31 := rust/target/bl31.bin
-BL33 := rust/target/bl33.bin
-
-.PHONY: $(BL31)
-$(BL31):
-	${Q}${MAKE} PLAT=${PLAT} DEBUG=${DEBUG} FEATURES=${RUST_FEATURES} -C rust all
-all: $(BL31)
-
-FIP_DEPS += $(BL31)
-# For RUST builds, TOOL_ADD_IMG is skipped because it performs checks
-# about the pre-existence of the bl33.bin file, which we know will be
-# generated after the TOOL_ADD_IMG command gets executed.
-NEED_BL33 = 0
-else
+ifneq (${RUST},1)
 BL31_SOURCES += ${SPD_SOURCES}
 # Sort BL31 source files to remove duplicates
 BL31_SOURCES := $(sort ${BL31_SOURCES})

@@ -12,7 +12,7 @@ BL31_ELF := target/bl31.elf
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES :=
 
-.PHONY: all clean clippy qemu qemu-wait fvp build list_platforms
+.PHONY: all clean clippy qemu qemu-wait fvp build build-bl33 list_platforms
 
 PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
@@ -35,23 +35,23 @@ else
 	CARGO_FLAGS += --release
 endif
 
-all: $(BL31_BIN) $(BL33)
+all: build build-bl33
 
 $(BL1):
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl1.bin $@
 $(BL2):
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl2.bin $@
-$(BL33):
-	touch $@
 $(FIP):
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/fip.bin $@
 
 build:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build $(CARGO_FLAGS)
+	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $(BL31_BIN)
 	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 
-$(BL31_BIN): build
-	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $@
+build-bl33:
+	mkdir -p target
+	touch $(BL33)
 
 clippy:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy $(CARGO_FLAGS)
@@ -63,7 +63,7 @@ QEMU_FLAGS = -machine virt,gic-version=3,secure=on,virtualization=on -cpu max -m
 	-serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \
 	-gdb tcp:localhost:$(GDB_PORT) \
 	-display none -bios bl1.bin
-QEMU_DEPS = $(BL1) $(BL2) $(BL31_BIN) $(BL33)
+QEMU_DEPS = $(BL1) $(BL2) build build-bl33
 
 qemu: $(QEMU_DEPS)
 	cd target && $(QEMU) $(QEMU_FLAGS)

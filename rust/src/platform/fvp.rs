@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-mod fvp_defines {
-    include!(concat!(env!("OUT_DIR"), "/fvp_defines.rs"));
-}
-use fvp_defines::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU};
+include!("../../platforms/fvp/config.rs");
 
 use super::Platform;
 use crate::{

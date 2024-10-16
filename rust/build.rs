@@ -57,7 +57,7 @@ fn main() {
 
         platform_builder.configure_build(&mut build).unwrap();
 
-        build.compile("empty");
+        build.compile("tfa");
 
         println!("cargo:rustc-link-arg=-Timage.ld");
         println!("cargo:rustc-link-arg=-T{}.ld", platform);

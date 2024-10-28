@@ -25,7 +25,7 @@ ifndef PLAT
   endif
 endif
 
-TARGET := aarch64-unknown-none
+TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS := --target $(TARGET) --features "$(FEATURES)"
 
 ifeq ($(DEBUG), 1)
@@ -72,7 +72,7 @@ qemu-wait: $(QEMU_DEPS)
 	cd target && $(QEMU) $(QEMU_FLAGS) -S
 
 gdb: $(QEMU_DEPS)
-	gdb-multiarch target/aarch64-unknown-none/debug/rf-a-bl31 \
+	gdb-multiarch target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 \
 		--eval-command="target remote :$(GDB_PORT)"
 
 fvp: $(BL1) $(FIP)

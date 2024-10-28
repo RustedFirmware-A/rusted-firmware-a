@@ -4,9 +4,10 @@
 
 BL1 := target/bl1.bin
 BL2 := target/bl2.bin
-BL31 := target/bl31.bin
+BL31_BIN := target/bl31.bin
 BL33 := target/bl33.bin
 FIP := target/fip.bin
+BL31_ELF := target/bl31.elf
 
 .PHONY: all clean clippy qemu fvp build list_platforms
 
@@ -21,7 +22,8 @@ ifndef PLAT
   endif
 endif
 
-CARGO_FLAGS=--target aarch64-unknown-none
+TARGET := aarch64-unknown-none
+CARGO_FLAGS=--target $(TARGET)
 
 ifeq ($(DEBUG), 1)
 	BUILDTYPE := debug
@@ -30,7 +32,7 @@ else
 	CARGO_FLAGS += --release
 endif
 
-all: $(BL31) $(BL33)
+all: $(BL31_BIN) $(BL33)
 
 $(BL1): build
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl1.bin $@
@@ -41,16 +43,17 @@ $(BL33): build
 $(FIP):
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/fip.bin $@
 
-$(BL31):
+build:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build $(CARGO_FLAGS)
-	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $@
+	ln -fsr target/$(TARGET)/$(BUILDTYPE)/tf-a-bl31 $(BL31_ELF)
 
-build: $(BL31)
+$(BL31_BIN): build
+	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $@
 
 clippy:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy --target $(CARGO_FLAGS)
 
-qemu: $(BL1) $(BL2) $(BL31) $(BL33)
+qemu: $(BL1) $(BL2) $(BL31_BIN) $(BL33)
 	cd target && qemu-system-aarch64 -machine virt,gic-version=3,secure=on -cpu max -m 1024M \
 	  -chardev stdio,signal=off,mux=on,id=char0 -monitor chardev:char0 \
 	  -serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \

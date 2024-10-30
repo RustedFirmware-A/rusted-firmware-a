@@ -57,7 +57,7 @@ impl Platform for Qemu {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x60000000,
-            spsr: 0x04,
+            spsr: 0x3c9,
             args: Default::default(),
         }
     }

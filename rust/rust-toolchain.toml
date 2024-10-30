@@ -1,0 +1,5 @@
+[toolchain]
+channel = "1.82.0"
+components = ["llvm-tools"]
+profile = "default"
+targets = ["aarch64-unknown-none"]

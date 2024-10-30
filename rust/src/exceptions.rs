@@ -14,18 +14,18 @@ use percore::exception_free;
 
 const TRAP_RET_UNHANDLED: i64 = -1;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_sysreg_trap(_esr_el3: u64, _world: World) -> i64 {
     TRAP_RET_UNHANDLED
 }
 
 /// Returns the type of the highest priority pending interrupt at the interrupt controller.
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn plat_ic_get_pending_interrupt_type() -> u32 {
     unimplemented!();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn get_interrupt_type_handler(_interrupt_type: u32) -> *mut c_void {
     null_mut()
 }
@@ -34,7 +34,7 @@ extern "C" fn get_interrupt_type_handler(_interrupt_type: u32) -> *mut c_void {
 /// registers of which EL3 firmware is unaware.
 ///
 /// This is a safety net to avoid EL3 panics caused by system register access.
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn inject_undef64(_world: World) {
     unimplemented!();
 }
@@ -51,7 +51,7 @@ bitflags! {
 }
 
 /// Called from the exception handler in assembly to handle an SMC.
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn handle_smc(
     function: FunctionId,
     x1: u64,

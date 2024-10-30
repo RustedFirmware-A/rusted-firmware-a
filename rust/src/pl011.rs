@@ -5,7 +5,6 @@
 use bitflags::bitflags;
 use core::fmt::{self, Write};
 use core::hint::spin_loop;
-use core::ptr::{addr_of, addr_of_mut};
 
 bitflags! {
     /// Flags from the UART flag register.
@@ -113,7 +112,7 @@ impl Uart {
         // appropriately mapped, as promised by the caller of `Uart::new`.
         unsafe {
             // Write to the TX buffer.
-            addr_of_mut!((*self.registers).dr).write_volatile(u16::from(byte));
+            (&raw mut (*self.registers).dr).write_volatile(u16::from(byte));
         }
 
         // Wait until the UART is no longer busy.
@@ -125,7 +124,7 @@ impl Uart {
     fn flags(&self) -> Flags {
         // SAFETY: self.registers points to the control registers of a PL011 device which is
         // appropriately mapped, as promised by the caller of `Uart::new`.
-        unsafe { addr_of!((*self.registers).fr).read_volatile() }
+        unsafe { (&raw const (*self.registers).fr).read_volatile() }
     }
 }
 

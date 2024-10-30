@@ -23,7 +23,7 @@ use crate::platform::{Platform, PlatformImpl};
 use context::{initialise_contexts, set_next_world_context, World};
 use log::info;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
     PlatformImpl::init_beforemmu();
     info!("Rust BL31 starting");

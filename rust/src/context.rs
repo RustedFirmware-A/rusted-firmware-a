@@ -10,7 +10,7 @@ use crate::{
 use core::{
     arch::asm,
     cell::{RefCell, RefMut},
-    ptr::{addr_of_mut, null_mut},
+    ptr::null_mut,
 };
 use percore::{exception_free, ExceptionFree, ExceptionLock, PerCore};
 
@@ -235,7 +235,7 @@ static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] = [
     },
 ];
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 static mut percpu_data: [CpuData; PlatformImpl::CORE_COUNT] =
     [CpuData::EMPTY; PlatformImpl::CORE_COUNT];
 
@@ -285,11 +285,7 @@ pub fn set_next_world_context(world: World) {
     // SAFETY: The CPU context is always valid, and will only be used via this pointer by assembly
     // code after the Rust code returns to prepare for the eret, and after the next exception before
     // entering the Rust code again.
-    unsafe {
-        set_next_context(addr_of_mut!(
-            (*CPU_STATE.get().as_ptr()).cpu_contexts[world.index()]
-        ))
-    }
+    unsafe { set_next_context(&raw mut (*CPU_STATE.get().as_ptr()).cpu_contexts[world.index()]) }
 }
 
 /// Returns a reference to the `CpuState` for the current CPU.

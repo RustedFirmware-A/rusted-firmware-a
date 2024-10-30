@@ -6,6 +6,7 @@ authors = [
   "Andrew Walbran <qwandor@google.com>",
   "Okash Khawaja <okash@google.com>",
 ]
+rust-version = "1.82"
 
 [profile.dev]
 panic = "abort"

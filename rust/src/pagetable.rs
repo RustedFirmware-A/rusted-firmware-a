@@ -99,7 +99,7 @@ static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
     SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
 static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 static mut mmu_cfg_params: MmuCfgParams = MmuCfgParams {
     mair: 0,
     tcr: 0,

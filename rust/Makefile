@@ -8,13 +8,13 @@ BL31 := target/bl31.bin
 BL33 := target/bl33.bin
 FIP := target/fip.bin
 
-.PHONY: all clean clippy qemu fvp build
+.PHONY: all clean clippy qemu fvp build list_platforms
 
 PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
 
 ifndef PLAT
-  ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),help clean))
+  ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),help clean list_platforms))
     $(info error: environment variable PLAT=<xxx> is required. Options are:)
     $(foreach p, $(PLATFORMS_AVAILABLE), $(info * $(p)))
     $(error Please run `make PLAT=...`)
@@ -75,6 +75,9 @@ fvp: $(BL1) $(FIP)
 clean:
 	cargo clean
 	rm -f target/*.bin
+
+list_platforms:
+	@echo "${PLATFORMS_AVAILABLE}"
 
 help:
 	@echo "usage: ${MAKE} [PLAT=<platform>] [OPTIONS] [TARGET]"

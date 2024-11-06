@@ -40,6 +40,7 @@ extern "C" fn inject_undef64(_world: World) {
 }
 
 bitflags! {
+    // These bit flags must match those set in `runtime_exceptions.S`.
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     #[repr(transparent)]
     pub struct SmcFlags: u64 {

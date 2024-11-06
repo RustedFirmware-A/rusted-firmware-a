@@ -77,10 +77,12 @@ impl Debug for FunctionId {
 pub struct SmcReturn {
     /// The number of elements from `values` that are actually used for this return.
     used: usize,
-    values: [u64; 18],
+    values: [u64; Self::MAX_VALUES],
 }
 
 impl SmcReturn {
+    pub const MAX_VALUES: usize = 18;
+
     /// Returns a slice containing the used values.
     pub fn values(&self) -> &[u64] {
         &self.values[0..self.used]
@@ -113,3 +115,36 @@ impl From<i32> for SmcReturn {
         Self::from(value as u64)
     }
 }
+
+macro_rules! smc_return_from_array {
+    ($length:literal) => {
+        impl From<[u64; $length]> for SmcReturn {
+            fn from(value: [u64; $length]) -> Self {
+                let mut values = [0; Self::MAX_VALUES];
+                values[..$length].copy_from_slice(&value);
+                Self {
+                    used: $length,
+                    values,
+                }
+            }
+        }
+    };
+}
+
+smc_return_from_array!(2);
+smc_return_from_array!(3);
+smc_return_from_array!(4);
+smc_return_from_array!(5);
+smc_return_from_array!(6);
+smc_return_from_array!(7);
+smc_return_from_array!(8);
+smc_return_from_array!(9);
+smc_return_from_array!(10);
+smc_return_from_array!(11);
+smc_return_from_array!(12);
+smc_return_from_array!(13);
+smc_return_from_array!(14);
+smc_return_from_array!(15);
+smc_return_from_array!(16);
+smc_return_from_array!(17);
+smc_return_from_array!(18);

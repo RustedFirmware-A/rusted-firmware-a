@@ -51,7 +51,8 @@ build:
 
 build-bl33:
 	mkdir -p target
-	touch $(BL33)
+# fiptool refuses to include empty files in FIPs
+	echo "dummy content" > $(BL33)
 
 clippy:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy $(CARGO_FLAGS)

@@ -17,6 +17,13 @@ pub const SUCCESS: i32 = 0;
 /// The call is not supported by the implementation.
 pub const NOT_SUPPORTED: i32 = -1;
 
+/// The call is deemed not required by the implementation.
+#[allow(unused)]
+pub const NOT_REQUIRED: i32 = -2;
+
+/// One of the call parameters has a non-supported value.
+pub const INVALID_PARAMETER: i32 = -3;
+
 /// The type of an SMCCC call: whether it is a fast call or yielding call, and which calling
 /// convention it uses.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

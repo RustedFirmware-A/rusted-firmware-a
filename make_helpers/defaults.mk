@@ -210,6 +210,10 @@ RESET_TO_BL31			:= 0
 # Build Rust BL31 by default
 RUST		:= 1
 
+# Build Rust BL31 with the given cargo features (See Rust BL31's Cargo.toml
+# for available features)
+RUST_FEATURES		:=
+
 # For Chain of Trust
 SAVE_KEYS			:= 0
 

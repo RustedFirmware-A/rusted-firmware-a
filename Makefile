@@ -1523,7 +1523,7 @@ BL33 := rust/target/bl33.bin
 
 .PHONY: $(BL31)
 $(BL31):
-	${Q}${MAKE} PLAT=${PLAT} DEBUG=${DEBUG} -C rust all
+	${Q}${MAKE} PLAT=${PLAT} DEBUG=${DEBUG} FEATURES=${RUST_FEATURES} -C rust all
 all: $(BL31)
 
 FIP_DEPS += $(BL31)
@@ -1758,7 +1758,7 @@ cscope:
 
 ifeq (${RUST},1)
 run: all fip
-	${Q}${MAKE} DEBUG=${DEBUG} -C rust ${PLAT}
+	${Q}${MAKE} DEBUG=${DEBUG} FEATURES=${RUST_FEATURES} -C rust ${PLAT}
 endif
 
 help:

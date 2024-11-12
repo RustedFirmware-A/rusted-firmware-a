@@ -54,7 +54,7 @@ $(BL31_BIN): build
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $@
 
 clippy:
-	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy --target $(CARGO_FLAGS)
+	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy $(CARGO_FLAGS)
 
 QEMU = qemu-system-aarch64
 GDB_PORT ?= 1234

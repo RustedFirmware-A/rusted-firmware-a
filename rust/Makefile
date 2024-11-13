@@ -9,7 +9,7 @@ BL33 := target/bl33.bin
 FIP := target/fip.bin
 BL31_ELF := target/bl31.elf
 
-.PHONY: all clean clippy qemu fvp build list_platforms
+.PHONY: all clean clippy qemu qemu-wait fvp build list_platforms
 
 PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
@@ -53,11 +53,24 @@ $(BL31_BIN): build
 clippy:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy --target $(CARGO_FLAGS)
 
-qemu: $(BL1) $(BL2) $(BL31_BIN) $(BL33)
-	cd target && qemu-system-aarch64 -machine virt,gic-version=3,secure=on -cpu max -m 1024M \
-	  -chardev stdio,signal=off,mux=on,id=char0 -monitor chardev:char0 \
-	  -serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \
-	  -display none -bios bl1.bin -s
+QEMU = qemu-system-aarch64
+GDB_PORT ?= 1234
+QEMU_FLAGS = -machine virt,gic-version=3,secure=on -cpu max -m 1204M \
+	-chardev stdio,signal=off,mux=on,id=char0 -monitor chardev:char0 \
+	-serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \
+	-gdb tcp:localhost:$(GDB_PORT) \
+	-display none -bios bl1.bin
+QEMU_DEPS = $(BL1) $(BL2) $(BL31) $(BL33)
+
+qemu: $(QEMU_DEPS)
+	cd target && $(QEMU) $(QEMU_FLAGS)
+
+qemu-wait: $(QEMU_DEPS)
+	cd target && $(QEMU) $(QEMU_FLAGS) -S
+
+gdb: $(QEMU_DEPS)
+	gdb-multiarch target/aarch64-unknown-none/debug/tf-a-bl31 \
+		--eval-command="target remote :$(GDB_PORT)"
 
 fvp: $(BL1) $(FIP)
 	FVP_Base_RevC-2xAEMvA \

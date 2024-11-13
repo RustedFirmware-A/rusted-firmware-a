@@ -45,7 +45,7 @@ $ make DEBUG=1 qemu
 
 Build and run in QEMU from the top level directory:
 
-```
+```sh
 $ make PLAT=qemu RUST=1 run
 ```
 
@@ -53,12 +53,29 @@ $ make PLAT=qemu RUST=1 run
 
 To connect GDB to QEMU:
 
-```
-$ gdb-multiarch target/aarch64-unknown-none/debug/rf-a-bl31
-(gdb) target remote :1234
+```sh
+$ make PLAT=qemu qemu-wait
 ```
 
-To make QEMU wait for GDB, add `-S` to the end of the QEMU command-line in the `Makefile`.
+Then, in a separate terminal window, attach `gdb`:
+
+```sh
+$ make PLAT=qemu gdb
+```
+
+If you want QEMU's `gdb` listener listen on a port other than the default (which
+is 1234), specify the `GDB_PORT` environment variable in both `make`
+invocations:
+
+```sh
+$ GDB_PORT=4096 make PLAT=qemu qemu-wait
+
+# In your 2nd terminal, of course:
+$ GDB_PORT=4096 make PLAT=qemu gdb
+```
+
+(This could be useful if you needed to run many instances of QEMU, such as to
+run many tests in parallel.)
 
 ## Getting started with FVP
 
@@ -77,6 +94,6 @@ to download this or any other FVP.
 
 Build and run in FVP from the top level directory:
 
-```
+```sh
 $ make PLAT=fvp RUST=1 run
 ```

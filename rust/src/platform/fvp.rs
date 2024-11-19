@@ -12,11 +12,11 @@ use crate::{
     context::EntryPointInfo,
     logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
-    pl011::Uart,
 };
 use aarch64_paging::paging::MemoryRegion;
 use log::LevelFilter;
 use percore::Cores;
+use pl011_uart::Uart;
 
 const BASE_GICD_BASE: usize = 0x2f00_0000;
 const BASE_GICR_BASE: usize = 0x2f10_0000;

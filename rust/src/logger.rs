@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::pl011::Uart;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
+use pl011_uart::Uart;
 use spin::{mutex::SpinMutex, Once};
 
 static LOGGER: Once<Logger> = Once::new();

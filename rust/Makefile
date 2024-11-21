@@ -63,7 +63,7 @@ QEMU_FLAGS = -machine virt,gic-version=3,secure=on -cpu max -m 1204M \
 	-serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \
 	-gdb tcp:localhost:$(GDB_PORT) \
 	-display none -bios bl1.bin
-QEMU_DEPS = $(BL1) $(BL2) $(BL31) $(BL33)
+QEMU_DEPS = $(BL1) $(BL2) $(BL31_BIN) $(BL33)
 
 qemu: $(QEMU_DEPS)
 	cd target && $(QEMU) $(QEMU_FLAGS)

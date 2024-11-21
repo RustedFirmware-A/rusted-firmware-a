@@ -83,3 +83,64 @@ extern "C" fn handle_smc(
         cpu_state.context_mut(world).gpregs.write_return_value(&ret);
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arch::{SMCCC_VERSION, SMCCC_VERSION_1_5};
+
+    /// Tests the SMCCC arch version call as a simple example of SMC dispatch.
+    ///
+    /// The point of this isn't to test every individual SMC call, just that the common code in
+    /// `handle_smc` works. Individual SMC calls can be tested directly within their modules.
+    #[test]
+    fn handle_smc_arch_version() {
+        handle_smc(
+            FunctionId(SMCCC_VERSION),
+            0,
+            0,
+            0,
+            0,
+            World::NonSecure,
+            SmcFlags::empty(),
+        );
+
+        assert_eq!(
+            exception_free(|token| { cpu_state(token).context(World::NonSecure).gpregs.registers }),
+            [
+                SMCCC_VERSION_1_5 as u64,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            ]
+        );
+    }
+}

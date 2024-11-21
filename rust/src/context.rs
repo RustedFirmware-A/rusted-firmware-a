@@ -68,7 +68,7 @@ impl CpuContext {
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
 pub struct GpRegs {
-    registers: [u64; Self::COUNT],
+    pub registers: [u64; Self::COUNT],
 }
 
 impl GpRegs {
@@ -250,6 +250,10 @@ pub struct CpuState {
 }
 
 impl CpuState {
+    pub fn context(&self, world: World) -> &CpuContext {
+        &self.cpu_contexts[world.index()]
+    }
+
     pub fn context_mut(&mut self, world: World) -> &mut CpuContext {
         &mut self.cpu_contexts[world.index()]
     }

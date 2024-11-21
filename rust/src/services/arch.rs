@@ -9,7 +9,7 @@ use crate::{
 
 pub const OEN: u8 = 0;
 
-const SMCCC_VERSION: u32 = 0x8000_0000;
+pub const SMCCC_VERSION: u32 = 0x8000_0000;
 const SMCCC_ARCH_FEATURES: u32 = 0x8000_0001;
 #[allow(unused)]
 const SMCCC_ARCH_SOC_ID: u32 = 0x8000_0002;
@@ -20,7 +20,7 @@ const SMCCC_ARCH_WORKAROUND_2: u32 = 0x8000_7FFF;
 #[allow(unused)]
 const SMCCC_ARCH_WORKAROUND_3: u32 = 0x8000_3FFF;
 
-const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
+pub const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
 
 /// Handles an Arm architecture SMC.
 pub fn handle_smc(

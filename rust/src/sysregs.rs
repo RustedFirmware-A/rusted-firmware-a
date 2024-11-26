@@ -8,6 +8,7 @@
 #[macro_use]
 pub mod fake;
 
+#[cfg(not(test))]
 use core::arch::asm;
 
 /// Generates a safe public function named `$function_name` to read the system register `$sysreg`.

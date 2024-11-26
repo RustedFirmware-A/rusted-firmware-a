@@ -4,8 +4,6 @@
 
 //! Fake implementations of system register getters and setters for unit tests.
 
-#![allow(unused)]
-
 use std::sync::Mutex;
 
 /// Values of fake system registers.

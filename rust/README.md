@@ -54,7 +54,7 @@ $ make PLAT=qemu RUST=1 run
 To connect GDB to QEMU:
 
 ```sh
-$ make PLAT=qemu qemu-wait
+$ make PLAT=qemu DEBUG=1 qemu-wait
 ```
 
 Then, in a separate terminal window, attach `gdb`:
@@ -68,7 +68,7 @@ is 1234), specify the `GDB_PORT` environment variable in both `make`
 invocations:
 
 ```sh
-$ GDB_PORT=4096 make PLAT=qemu qemu-wait
+$ GDB_PORT=4096 make PLAT=qemu DEBUG=1 qemu-wait
 
 # In your 2nd terminal, of course:
 $ GDB_PORT=4096 make PLAT=qemu gdb

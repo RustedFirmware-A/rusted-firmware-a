@@ -72,7 +72,7 @@ qemu-wait: $(QEMU_DEPS)
 	cd target && $(QEMU) $(QEMU_FLAGS) -S
 
 gdb: $(QEMU_DEPS)
-	gdb-multiarch target/aarch64-unknown-none/debug/tf-a-bl31 \
+	gdb-multiarch target/aarch64-unknown-none/debug/rf-a-bl31 \
 		--eval-command="target remote :$(GDB_PORT)"
 
 fvp: $(BL1) $(FIP)

@@ -7,6 +7,7 @@ This directory contains an experimental Rust port of TF-A BL31.
 Install Rust from [rustup](https://rustup.rs/), then some other tools and the target we need:
 
 ```sh
+$ sudo apt install clang build-essential lld
 $ rustup target add aarch64-unknown-none-softfloat
 $ rustup component add llvm-tools
 $ cargo install cargo-binutils

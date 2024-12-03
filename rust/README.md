@@ -61,7 +61,7 @@ $ make PLAT=qemu DEBUG=1 qemu-wait
 Then, in a separate terminal window, attach `gdb`:
 
 ```sh
-$ make PLAT=qemu gdb
+$ make PLAT=qemu DEBUG=1 gdb
 ```
 
 If you want QEMU's `gdb` listener listen on a port other than the default (which
@@ -72,7 +72,7 @@ invocations:
 $ GDB_PORT=4096 make PLAT=qemu DEBUG=1 qemu-wait
 
 # In your 2nd terminal, of course:
-$ GDB_PORT=4096 make PLAT=qemu gdb
+$ GDB_PORT=4096 make PLAT=qemu DEBUG=1 gdb
 ```
 
 (This could be useful if you needed to run many instances of QEMU, such as to

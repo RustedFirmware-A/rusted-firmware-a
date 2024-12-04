@@ -5,7 +5,8 @@
 use crate::{
     exceptions::SmcFlags,
     platform::{Platform, PlatformImpl},
-    smccc::{FunctionId, SmcReturn, NOT_SUPPORTED},
+    services::arch::SMCCC_VERSION,
+    smccc::{FunctionId, SmcReturn, NOT_SUPPORTED, SUCCESS},
 };
 
 pub const OEN: u8 = 4;
@@ -48,7 +49,6 @@ const PSCI_MEM_PROTECT: u32 = 0x84000013;
 const PSCI_MEM_PROTECT_CHECK_RANGE_32: u32 = 0x84000014;
 #[allow(unused)]
 const PSCI_MEM_PROTECT_CHECK_RANGE_64: u32 = 0xC4000014;
-#[allow(unused)]
 const PSCI_FEATURES: u32 = 0x8400000A;
 #[allow(unused)]
 const PSCI_CPU_FREEZE: u32 = 0x8400000B;
@@ -80,7 +80,7 @@ const PSCI_VERSION_1_1: u32 = 0x0001_0001;
 /// Handles a PSCI SMC.
 pub fn handle_smc(
     function: FunctionId,
-    _x1: u64,
+    x1: u64,
     _x2: u64,
     _x3: u64,
     _x4: u64,
@@ -89,6 +89,7 @@ pub fn handle_smc(
     match function.0 {
         PSCI_VERSION => version().into(),
         PSCI_SYSTEM_OFF => system_off(),
+        PSCI_FEATURES => psci_features(x1 as u32).into(),
         _ => NOT_SUPPORTED.into(),
     }
 }
@@ -101,4 +102,11 @@ fn system_off() -> ! {
     // TODO: Notify SPD, flush console.
 
     PlatformImpl::system_off()
+}
+
+fn psci_features(function_id: u32) -> i32 {
+    match function_id {
+        SMCCC_VERSION | PSCI_VERSION | PSCI_SYSTEM_OFF | PSCI_FEATURES => SUCCESS,
+        _ => NOT_SUPPORTED,
+    }
 }

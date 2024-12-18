@@ -36,6 +36,49 @@ pub enum SmcccCallType {
     Yielding,
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum OwningEntity {
+    ArmArchitectureService,
+    CPUService,
+    SiPService,
+    OEMService,
+    StandardSecureService,
+    StandardHypervisorService,
+    VendorSpecificHypervisorService,
+    VendorSpecificEL3MonitorService,
+    TrustedApplications,
+    TrustedOS,
+    Unknown,
+}
+
+/// Owning Entity Number (OEN)
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct OwningEntityNumber(pub u8);
+
+impl OwningEntityNumber {
+    pub fn oe(self) -> OwningEntity {
+        match self.0 {
+            0 => OwningEntity::ArmArchitectureService,
+            1 => OwningEntity::CPUService,
+            2 => OwningEntity::SiPService,
+            3 => OwningEntity::OEMService,
+            4 => OwningEntity::StandardSecureService,
+            5 => OwningEntity::StandardHypervisorService,
+            6 => OwningEntity::VendorSpecificHypervisorService,
+            7 => OwningEntity::VendorSpecificEL3MonitorService,
+            48..=49 => OwningEntity::TrustedApplications,
+            50..=63 => OwningEntity::TrustedOS,
+            _ => OwningEntity::Unknown,
+        }
+    }
+}
+
+impl Display for OwningEntityNumber {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// An SMCCC function ID.
 #[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(transparent)]
@@ -43,8 +86,13 @@ pub struct FunctionId(pub u32);
 
 impl FunctionId {
     /// Returns the Owning Entity Number of the function ID.
-    pub fn oen(self) -> u8 {
-        ((self.0 & OEN_MASK) >> OEN_SHIFT) as u8
+    pub fn oen(self) -> OwningEntityNumber {
+        OwningEntityNumber(((self.0 & OEN_MASK) >> OEN_SHIFT) as u8)
+    }
+
+    /// Returns bits[15..0] of a function ID as a u16
+    pub fn number(self) -> u16 {
+        (self.0 & 0xFFFF) as u16
     }
 
     /// Returns what type of call this is.
@@ -71,10 +119,11 @@ impl Debug for FunctionId {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
-            "{:#010x} ({:?} OEN {})",
+            "{:#010x} ({:?} OEN {} {:?})",
             self.0,
             self.call_type(),
-            self.oen()
+            self.oen(),
+            self.oen().oe()
         )
     }
 }

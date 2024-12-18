@@ -4,10 +4,12 @@
 
 use crate::{
     exceptions::SmcFlags,
-    smccc::{FunctionId, SmcReturn, SmcccCallType, INVALID_PARAMETER, NOT_SUPPORTED, SUCCESS},
+    services::owns,
+    smccc::{
+        FunctionId, OwningEntity, OwningEntityNumber, SmcReturn, SmcccCallType, INVALID_PARAMETER,
+        NOT_SUPPORTED, SUCCESS,
+    },
 };
-
-pub const OEN: u8 = 0;
 
 pub const SMCCC_VERSION: u32 = 0x8000_0000;
 const SMCCC_ARCH_FEATURES: u32 = 0x8000_0001;
@@ -24,6 +26,9 @@ const SMCCC_ARCH_WORKAROUND_2: u32 = 0x8000_7FFF;
 const SMCCC_ARCH_WORKAROUND_3: u32 = 0x8000_3FFF;
 
 pub const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
+
+// Defines the range of SMC function ID values covered by the arch service
+owns! {OwningEntity::ArmArchitectureService}
 
 /// Handles an Arm architecture SMC.
 pub fn handle_smc(

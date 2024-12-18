@@ -6,10 +6,12 @@ use crate::{
     exceptions::SmcFlags,
     platform::{Platform, PlatformImpl},
     services::arch::SMCCC_VERSION,
-    smccc::{FunctionId, SmcReturn, NOT_SUPPORTED, SUCCESS},
+    services::owns,
+    smccc::{
+        FunctionId, OwningEntity, OwningEntityNumber, SmcReturn, SmcccCallType, NOT_SUPPORTED,
+        SUCCESS,
+    },
 };
-
-pub const OEN: u8 = 4;
 
 const PSCI_VERSION: u32 = 0x84000000;
 #[allow(unused)]
@@ -76,6 +78,9 @@ const PSCI_STAT_COUNT_32: u32 = 0x84000011;
 const PSCI_STAT_COUNT_64: u32 = 0xC4000011;
 
 const PSCI_VERSION_1_1: u32 = 0x0001_0001;
+
+// Defines the range of SMC function ID values covered by the psci.rs service
+owns! {OwningEntity::StandardSecureService, RangeInclusive::new(0x0000, 0x001F)}
 
 /// Handles a PSCI SMC.
 pub fn handle_smc(

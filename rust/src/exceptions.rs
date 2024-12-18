@@ -6,7 +6,7 @@ use crate::{
     context::{cpu_state, World},
     platform::exception_free,
     services::{arch, psci},
-    smccc::{FunctionId, SmcccCallType, NOT_SUPPORTED},
+    smccc::{FunctionId, NOT_SUPPORTED},
 };
 use bitflags::bitflags;
 use core::{ffi::c_void, ptr::null_mut};
@@ -65,14 +65,13 @@ extern "C" fn handle_smc(
         "Handling SMC {:?} ({:#0x}, {:#0x}, {:#0x}, {:#0x}) with world {:?}, flags {:?}",
         function, x1, x2, x3, x4, world, flags
     );
-    let ret = match (function.call_type(), function.oen()) {
-        (SmcccCallType::Fast32 | SmcccCallType::Fast64, arch::OEN) => {
-            arch::handle_smc(function, x1, x2, x3, x4, flags)
-        }
-        (SmcccCallType::Fast32 | SmcccCallType::Fast64, psci::OEN) => {
-            psci::handle_smc(function, x1, x2, x3, x4, flags)
-        }
-        _ => NOT_SUPPORTED.into(),
+
+    let ret = if arch::owns(function) {
+        arch::handle_smc(function, x1, x2, x3, x4, flags)
+    } else if psci::owns(function) {
+        psci::handle_smc(function, x1, x2, x3, x4, flags)
+    } else {
+        NOT_SUPPORTED.into()
     };
 
     // Write the return value back to the registers of the world that made the SMC call. Note that

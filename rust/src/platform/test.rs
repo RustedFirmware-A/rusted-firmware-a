@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
-use crate::{context::EntryPointInfo, pagetable::IdMap};
+use crate::{context::EntryPointInfo, pagetable::IdMap, services::arch::WorkaroundSupport};
 use percore::{Cores, ExceptionFree};
 
 /// A fake platform for unit tests.
@@ -34,6 +34,28 @@ impl Platform for TestPlatform {
 
     fn system_off() -> ! {
         panic!("system_off called in test.");
+    }
+
+    fn arch_workaround_1_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    fn arch_workaround_1() {}
+
+    fn arch_workaround_2_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    fn arch_workaround_2() {}
+
+    fn arch_workaround_3_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    fn arch_workaround_3() {}
+
+    fn arch_workaround_4_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
     }
 }
 

@@ -8,6 +8,7 @@ use crate::{
     logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
+    services::arch::WorkaroundSupport,
 };
 use aarch64_paging::paging::MemoryRegion;
 use log::LevelFilter;
@@ -82,6 +83,28 @@ impl Platform for Qemu {
     fn system_off() -> ! {
         semihosting_exit(AdpStopped::ApplicationExit, 0);
         panic!("Semihosting system off call unexpectedly returned.");
+    }
+
+    fn arch_workaround_1_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    fn arch_workaround_1() {}
+
+    fn arch_workaround_2_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    fn arch_workaround_2() {}
+
+    fn arch_workaround_3_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    fn arch_workaround_3() {}
+
+    fn arch_workaround_4_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
     }
 }
 

@@ -148,9 +148,20 @@ pub struct SmcReturn {
 impl SmcReturn {
     pub const MAX_VALUES: usize = 18;
 
+    pub const EMPTY: Self = Self {
+        used: 0,
+        values: [0; 18],
+    };
+
     /// Returns a slice containing the used values.
     pub fn values(&self) -> &[u64] {
         &self.values[0..self.used]
+    }
+}
+
+impl From<()> for SmcReturn {
+    fn from(_: ()) -> Self {
+        Self::EMPTY
     }
 }
 

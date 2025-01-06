@@ -18,7 +18,7 @@ pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
 pub use test::{exception_free, TestPlatform as PlatformImpl};
 
-use crate::{context::EntryPointInfo, pagetable::IdMap};
+use crate::{context::EntryPointInfo, pagetable::IdMap, services::arch::WorkaroundSupport};
 use percore::Cores;
 
 /// The hooks implemented by all platforms.
@@ -47,4 +47,25 @@ pub trait Platform: Cores {
 
     /// Powers off the system.
     fn system_off() -> !;
+
+    /// Returns whether this platform supports the arch WORKAROUND_1 SMC.
+    fn arch_workaround_1_supported() -> WorkaroundSupport;
+
+    /// If safe and necessary, performs the workaround specified for the WORKAROUND_1 SMC.
+    fn arch_workaround_1();
+
+    /// Returns whether this platform supports the arch WORKAROUND_2 SMC.
+    fn arch_workaround_2_supported() -> WorkaroundSupport;
+
+    /// If safe and necessary, performs the workaround specified for the WORKAROUND_2 SMC.
+    fn arch_workaround_2();
+
+    /// Returns whether this platform supports the arch WORKAROUND_3 SMC.
+    fn arch_workaround_3_supported() -> WorkaroundSupport;
+
+    /// If safe and necessary, performs the workaround specified for the WORKAROUND_3 SMC.
+    fn arch_workaround_3();
+
+    /// Returns whether this platform supports the arch WORKAROUND_4 SMC.
+    fn arch_workaround_4_supported() -> WorkaroundSupport;
 }

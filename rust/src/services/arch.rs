@@ -11,6 +11,8 @@ use crate::{
     },
 };
 
+use crate::platform::{Platform, PlatformImpl};
+
 pub const SMCCC_VERSION: u32 = 0x8000_0000;
 const SMCCC_ARCH_FEATURES: u32 = 0x8000_0001;
 const SMCCC_ARCH_SOC_ID_32: u32 = 0x8000_0002;
@@ -18,12 +20,10 @@ const SMCCC_ARCH_SOC_ID_64: u32 = 0xc000_0002;
 const SMCCC_ARCH_SOC_ID_VERSION: u32 = 0x0;
 const SMCCC_ARCH_SOC_ID_REVISION: u32 = 0x1;
 const SMCCC_ARCH_SOC_ID_NAME: u32 = 0x2;
-#[allow(unused)]
 const SMCCC_ARCH_WORKAROUND_1: u32 = 0x8000_8000;
-#[allow(unused)]
 const SMCCC_ARCH_WORKAROUND_2: u32 = 0x8000_7FFF;
-#[allow(unused)]
 const SMCCC_ARCH_WORKAROUND_3: u32 = 0x8000_3FFF;
+const SMCCC_ARCH_WORKAROUND_4: u32 = 0x8000_0004;
 
 pub const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
 
@@ -47,9 +47,19 @@ impl Service for Arch {
             SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => {
                 arch_soc_id(x1 as u32, function.call_type())
             }
+            SMCCC_ARCH_WORKAROUND_1 => arch_workaround_1().into(),
+            SMCCC_ARCH_WORKAROUND_2 => arch_workaround_2(x1 as u32).into(),
+            SMCCC_ARCH_WORKAROUND_3 => arch_workaround_3().into(),
             _ => NOT_SUPPORTED.into(),
         }
     }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(i32)]
+pub enum WorkaroundSupport {
+    Required = 0,
+    SafeButNotRequired = 1,
 }
 
 fn version() -> i32 {
@@ -61,12 +71,16 @@ fn arch_features(arch_func_id: u32) -> i32 {
         SMCCC_VERSION | SMCCC_ARCH_FEATURES | SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => {
             SUCCESS
         }
+        SMCCC_ARCH_WORKAROUND_1 => PlatformImpl::arch_workaround_1_supported() as i32,
+        SMCCC_ARCH_WORKAROUND_2 => PlatformImpl::arch_workaround_2_supported() as i32,
+        SMCCC_ARCH_WORKAROUND_3 => PlatformImpl::arch_workaround_3_supported() as i32,
+        SMCCC_ARCH_WORKAROUND_4 => PlatformImpl::arch_workaround_4_supported() as i32,
         _ => NOT_SUPPORTED,
     }
 }
 
-// This SMC is specified in §7.4 of [the Arm SMC Calling
-// Convention](https://developer.arm.com/documentation/den0028/galp1/?lang=en).
+/// This SMC is specified in §7.4 of [the Arm SMC Calling
+/// Convention](https://developer.arm.com/documentation/den0028/galp1/?lang=en).
 fn arch_soc_id(soc_id_type: u32, call_type: SmcccCallType) -> SmcReturn {
     // TODO/NOTE: Note that according to the SMCCC spec, section 7.4.6: we "must
     // ensure that SoC version and revision uniquely identify the SoC", and "SoC
@@ -87,5 +101,27 @@ fn arch_soc_id(soc_id_type: u32, call_type: SmcccCallType) -> SmcReturn {
             .into()
         }
         _ => INVALID_PARAMETER.into(),
+    }
+}
+
+/// Execute the mitigation for CVE-2017-5715 on the calling PE.
+fn arch_workaround_1() {
+    if PlatformImpl::arch_workaround_1_supported() == WorkaroundSupport::Required {
+        PlatformImpl::arch_workaround_1()
+    }
+}
+
+/// Enable the mitigation for CVE-2018-3639 on the calling PE. (Contrary to the
+/// latest specification as of January 2025, the argument is ignored.)
+fn arch_workaround_2(_: u32) {
+    if PlatformImpl::arch_workaround_2_supported() == WorkaroundSupport::Required {
+        PlatformImpl::arch_workaround_2()
+    }
+}
+
+/// Execute the mitigation for CVE-2017-5715 and CVE-2022-23960 on the calling PE.
+fn arch_workaround_3() {
+    if PlatformImpl::arch_workaround_3_supported() == WorkaroundSupport::Required {
+        PlatformImpl::arch_workaround_3()
     }
 }

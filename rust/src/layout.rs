@@ -7,11 +7,17 @@
 extern "C" {
     // These aren't really variables, just symbols defined by the linker script whose addresses we
     // need to get. They should never be read or written.
+    static __BL31_START__: u32;
     static __BL31_END__: u32;
     static __RODATA_START__: u32;
     static __RODATA_END__: u32;
     static __TEXT_START__: u32;
     static __TEXT_END__: u32;
+}
+
+/// Returns the address of the `__BL31_START__` symbol defined by the linker script.
+pub fn bl31_start() -> usize {
+    (&raw const __BL31_START__) as usize
 }
 
 /// Returns the address of the `__BL31_END__` symbol defined by the linker script.

@@ -10,13 +10,13 @@ mod qemu;
 mod test;
 
 #[cfg(platform = "fvp")]
-pub use fvp::{Fvp as PlatformImpl, BL31_BASE};
+pub use fvp::Fvp as PlatformImpl;
 #[cfg(not(test))]
 pub use percore::exception_free;
 #[cfg(platform = "qemu")]
-pub use qemu::{Qemu as PlatformImpl, BL31_BASE};
+pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
-pub use test::{exception_free, TestPlatform as PlatformImpl, BL31_BASE};
+pub use test::{exception_free, TestPlatform as PlatformImpl};
 
 use crate::{context::EntryPointInfo, pagetable::IdMap};
 use percore::Cores;

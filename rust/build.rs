@@ -60,6 +60,20 @@ fn main() {
         build.compile("tfa");
 
         println!("cargo:rustc-link-arg=-Timage.ld");
-        println!("cargo:rustc-link-arg=-T{}.ld", platform);
+
+        // Select the linker scripts.
+        // image.ld is common to all platforms.
+        // It gets supplemented by the platform linker script.
+        // Some platforms have multiple of those, depending on the enabled features.
+        #[allow(unused)]
+        let mut linker_name = platform.clone();
+
+        #[cfg(feature = "rme")]
+        linker_name.push_str("-rme");
+
+        println!(
+            "cargo:rustc-link-arg=-Tplatforms/{}/{}.ld",
+            platform, linker_name
+        );
     }
 }

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    layout::{bl31_end, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end},
-    platform::{Platform, PlatformImpl, BL31_BASE},
+    layout::{bl31_end, bl31_start, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end},
+    platform::{Platform, PlatformImpl},
 };
 use aarch64_paging::{
     paging::{
@@ -144,7 +144,7 @@ fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
     // BL31_TOTAL
     map_region(
         &mut idmap,
-        &MemoryRegion::new(BL31_BASE, bl31_end()),
+        &MemoryRegion::new(bl31_start(), bl31_end()),
         MT_MEMORY,
     );
     // BL31_RO

@@ -2,6 +2,10 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+pub fn bl31_start() -> usize {
+    0x6_0000
+}
+
 pub fn bl31_end() -> usize {
     0x10_0000
 }

@@ -6,8 +6,6 @@ use super::Platform;
 use crate::{context::EntryPointInfo, pagetable::IdMap};
 use percore::{Cores, ExceptionFree};
 
-pub const BL31_BASE: usize = 0x6_0000;
-
 /// A fake platform for unit tests.
 pub struct TestPlatform;
 

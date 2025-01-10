@@ -12,7 +12,8 @@ ENTRY(bl31_entrypoint)
 
 SECTIONS
 {
-	__ALLOC_START__ = .;
+	__BL31_START__ = bl31_entrypoint;
+
 	/*
 	 * Collect together the code.
 	 */

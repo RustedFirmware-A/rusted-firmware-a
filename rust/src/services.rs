@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 pub mod arch;
+pub mod ffa;
 pub mod psci;
 
-use self::{arch::Arch, psci::Psci};
+use self::{arch::Arch, ffa::Ffa, psci::Psci};
 use crate::{
     context::World,
     smccc::{FunctionId, SmcReturn, NOT_SUPPORTED},
@@ -75,6 +76,8 @@ pub fn dispatch_smc(
         Arch::handle_smc(function, x1, x2, x3, x4, world)
     } else if Psci::owns(function) {
         Psci::handle_smc(function, x1, x2, x3, x4, world)
+    } else if Ffa::owns(function) {
+        Ffa::handle_smc(function, x1, x2, x3, x4, world)
     } else {
         NOT_SUPPORTED.into()
     }

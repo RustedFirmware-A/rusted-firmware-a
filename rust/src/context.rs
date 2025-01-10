@@ -22,6 +22,7 @@ const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 /// RES1 bits in the `scr_el3` register.
 const SCR_RES1: u64 = 1 << 4 | 1 << 5;
 const SCR_NS: u64 = 1 << 0;
+const SCR_HCE: u64 = 1 << 8;
 const SCR_SIF: u64 = 1 << 9;
 const SCR_RW: u64 = 1 << 10;
 const SCR_EEL2: u64 = 1 << 18;
@@ -325,7 +326,7 @@ pub fn initialise_contexts(
 fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     context.el3_state.elr_el3 = entry_point.pc;
     context.el3_state.spsr_el3 = entry_point.spsr;
-    context.el3_state.scr_el3 = SCR_RES1 | SCR_SIF | SCR_RW | SCR_EEL2;
+    context.el3_state.scr_el3 = SCR_RES1 | SCR_HCE | SCR_SIF | SCR_RW | SCR_EEL2;
     context.el1_sysregs.sctlr_el1 = SCTLR_EL1_RES1;
     // TODO: Initialise EL2 state too.
 }

@@ -23,7 +23,7 @@ use core::panic::PanicInfo;
 use log::{error, info, warn, LevelFilter};
 use smccc::{psci, Smc};
 
-const TEST_COUNT: u64 = 3;
+const TEST_COUNT: u64 = 2;
 
 entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {

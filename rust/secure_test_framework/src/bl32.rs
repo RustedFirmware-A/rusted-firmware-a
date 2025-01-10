@@ -7,6 +7,7 @@
 #![no_main]
 #![no_std]
 
+mod expect;
 mod ffa;
 mod logger;
 mod platform;

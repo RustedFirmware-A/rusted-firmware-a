@@ -26,6 +26,12 @@ use arm_ffa::{DirectMsgArgs, Interface};
 use core::panic::PanicInfo;
 use log::{error, info, LevelFilter};
 
+/// The version of FF-A which we support.
+const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 1);
+
+/// An unreasonably high FF-A version number.
+const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
+
 entry!(bl32_main, 4);
 fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     let log_sink = PlatformImpl::make_log_sink();
@@ -39,6 +45,14 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
         x2,
         x3,
     );
+
+    // Test what happens if we try a much higher version.
+    let el3_supported_ffa_version = ffa::version(HIGH_FFA_VERSION).expect("FFA_VERSION failed");
+    info!("EL3 supports FF-A version {}", el3_supported_ffa_version);
+    assert!(el3_supported_ffa_version >= FFA_VERSION);
+    assert!(el3_supported_ffa_version < HIGH_FFA_VERSION);
+    // Negotiate the FF-A version we actually support. This must happen before any other FF-A calls.
+    assert_eq!(ffa::version(FFA_VERSION), Ok(FFA_VERSION));
 
     // Wait for the first test index.
     let mut message = msg_wait(None).unwrap();

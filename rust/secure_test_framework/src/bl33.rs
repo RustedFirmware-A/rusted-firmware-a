@@ -26,6 +26,13 @@ use core::panic::PanicInfo;
 use log::{error, info, warn, LevelFilter};
 use smccc::{psci, Smc};
 
+/// The version of FF-A which we support.
+const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0);
+
+/// An unreasonably high FF-A version number.
+const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
+
+/// The number of tests in the BL32 component of STF.
 const SECURE_TEST_COUNT: u64 = 2;
 
 entry!(bl33_main, 4);
@@ -41,6 +48,14 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
         x2,
         x3,
     );
+
+    // Test what happens if we try a much higher version.
+    let el3_supported_ffa_version = ffa::version(HIGH_FFA_VERSION).expect("FFA_VERSION failed");
+    info!("EL3 supports FF-A version {}", el3_supported_ffa_version);
+    assert!(el3_supported_ffa_version >= FFA_VERSION);
+    assert!(el3_supported_ffa_version < HIGH_FFA_VERSION);
+    // Negotiate the FF-A version we actually support. This must happen before any other FF-A calls.
+    assert_eq!(ffa::version(FFA_VERSION), Ok(FFA_VERSION));
 
     // Run normal world tests.
     let mut passing_normal_test_count = 0;

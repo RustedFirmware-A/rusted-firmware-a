@@ -52,6 +52,13 @@ const PL011_BASE_ADDRESS: *mut u32 = 0x1C09_0000 as _;
 const TOS_FW_CONFIG_ADDRESS: u64 = 0;
 const HW_CONFIG_ADDRESS: u64 = 0;
 
+// TODO: Use the correct values here (see services/std_svc/rmmd/rmmd_main.c).
+/// Version of the RMM Boot Interface.
+const RMM_BOOT_VERSION: u64 = 0;
+/// Base address for the EL3 - RMM shared area. The boot manifest should be stored at the beginning
+/// of this area.
+const RMM_SHARED_AREA_BASE_ADDRESS: u64 = 0;
+
 /// Fixed Virtual Platform
 pub struct Fvp;
 
@@ -95,6 +102,25 @@ impl Platform for Fvp {
             pc: 0x8800_0000,
             spsr: 0x3c9,
             args: Default::default(),
+        }
+    }
+
+    #[cfg(feature = "rme")]
+    fn realm_entry_point() -> EntryPointInfo {
+        let core_linear_id = Self::core_index() as u64;
+        EntryPointInfo {
+            pc: 0xfdc00000,
+            spsr: 0x3c9,
+            args: [
+                core_linear_id,
+                RMM_BOOT_VERSION,
+                Self::CORE_COUNT as u64,
+                RMM_SHARED_AREA_BASE_ADDRESS,
+                0,
+                0,
+                0,
+                0,
+            ],
         }
     }
 

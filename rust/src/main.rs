@@ -37,7 +37,14 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
 
     let non_secure_entry_point = PlatformImpl::non_secure_entry_point();
     let secure_entry_point = PlatformImpl::secure_entry_point();
-    initialise_contexts(&non_secure_entry_point, &secure_entry_point);
+    #[cfg(feature = "rme")]
+    let realm_entry_point = PlatformImpl::realm_entry_point();
+    initialise_contexts(
+        &non_secure_entry_point,
+        &secure_entry_point,
+        #[cfg(feature = "rme")]
+        &realm_entry_point,
+    );
     set_initial_world(World::Secure);
     info!("Entering next stage...");
 }

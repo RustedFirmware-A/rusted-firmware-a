@@ -43,6 +43,15 @@ impl Platform for TestPlatform {
         }
     }
 
+    #[cfg(feature = "rme")]
+    fn realm_entry_point() -> EntryPointInfo {
+        EntryPointInfo {
+            pc: 0x2000_0000,
+            spsr: 0x3c9,
+            args: Default::default(),
+        }
+    }
+
     fn system_off() -> ! {
         panic!("system_off called in test.");
     }

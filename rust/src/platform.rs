@@ -45,6 +45,10 @@ pub trait Platform: Cores {
     /// Returns the entry point for the non-secure world, i.e. BL33.
     fn non_secure_entry_point() -> EntryPointInfo;
 
+    /// Returns the entry point for the realm world.
+    #[cfg(feature = "rme")]
+    fn realm_entry_point() -> EntryPointInfo;
+
     /// Powers off the system.
     fn system_off() -> !;
 

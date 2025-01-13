@@ -517,6 +517,7 @@ pub fn cpu_state(token: ExceptionFree) -> RefMut<CpuState> {
 pub fn initialise_contexts(
     non_secure_entry_point: &EntryPointInfo,
     secure_entry_point: &EntryPointInfo,
+    #[cfg(feature = "rme")] realm_entry_point: &EntryPointInfo,
 ) {
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
@@ -525,6 +526,8 @@ pub fn initialise_contexts(
             non_secure_entry_point,
         );
         initialise_secure(cpu_state.context_mut(World::Secure), secure_entry_point);
+        #[cfg(feature = "rme")]
+        initialise_realm(cpu_state.context_mut(World::Realm), realm_entry_point);
     });
 }
 
@@ -572,6 +575,15 @@ fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) 
 /// Initialises the given CPU context ready for booting S-EL2 or S-EL1.
 fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
+    // TODO: FIQ and IRQ routing model.
+}
+
+/// Initialises the given CPU context ready for booting Realm world
+#[cfg(feature = "rme")]
+fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
+    initialise_common(context, entry_point);
+    // SCR_NS + SCR_NSE = Realm state
+    context.el3_state.scr_el3 |= SCR_NS | SCR_NSE;
     // TODO: FIQ and IRQ routing model.
 }
 

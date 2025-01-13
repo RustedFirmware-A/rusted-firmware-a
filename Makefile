@@ -4,6 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
+# TODO: delete me; temporary for RF-A, build BL1+BL2 with ENABLE_RME flags when
+#       RUST_FEATURES=rme is set
+ifeq ($(findstring rme,$(RUST_FEATURES)),rme)
+	ENABLE_RME=1
+endif
+
 #
 # Trusted Firmware Version
 #

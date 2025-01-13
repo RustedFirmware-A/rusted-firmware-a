@@ -64,7 +64,7 @@ fn msg_wait(world: World, _flags: u32) -> SmcReturn {
             // value when next we switch to secure world, so make it an error code we can recognise.
             FfaError::Denied.into()
         }
-        World::NonSecure => {
+        _ => {
             // FFA_MSG_WAIT is not allowed over SMC in the non-secure physical instance.
             FfaError::NotSupported.into()
         }

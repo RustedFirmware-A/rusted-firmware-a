@@ -56,21 +56,25 @@ const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
 /// "For a stage 1 translation that supports one Exception level, AP[1] is RES1."
 const EL3_RES1: Attributes = Attributes::USER;
 
-/// MMU enable for EL1 and EL0 stage 1 address translation.
-const SCTLR_M: u64 = 1 << 0;
-
-/// Cacheability control, for data accesses at EL1 and EL0.
-const SCTLR_C: u64 = 1 << 2;
-
-/// Write permission implies XN (Execute-never).
-const SCTLR_WXN: u64 = 1 << 19;
+/// Attribute bit for NSE aka Root state for FEAT_RME
+///
+/// From ARM DDI 0487K.a, D8-49 Stage 1 VMSAv8-64 Block and Page descriptor fields,
+/// the NSE bit is aliased with the Not-global (nG) flag (bit 11).
+const NSE: Attributes = Attributes::NON_GLOBAL;
 
 /// Attributes used for all mappings.
 ///
 /// We always set the access flag, as we don't manage access flag faults.
-const BASE: Attributes = EL3_RES1
-    .union(Attributes::ACCESSED)
-    .union(Attributes::VALID);
+const BASE: Attributes = if cfg!(feature = "rme") {
+    EL3_RES1
+        .union(Attributes::ACCESSED)
+        .union(Attributes::VALID)
+        .union(NSE)
+} else {
+    EL3_RES1
+        .union(Attributes::ACCESSED)
+        .union(Attributes::VALID)
+};
 
 /// Attributes used for device mappings.
 ///
@@ -104,6 +108,15 @@ pub const MT_RO_DATA: Attributes = MT_MEMORY
 /// Attributes used for read-write data mappings.
 #[allow(unused)]
 pub const MT_RW_DATA: Attributes = MT_MEMORY.union(Attributes::UXN);
+
+/// MMU enable for EL1 and EL0 stage 1 address translation.
+const SCTLR_M: u64 = 1 << 0;
+
+/// Cacheability control, for data accesses at EL1 and EL0.
+const SCTLR_C: u64 = 1 << 2;
+
+/// Write permission implies XN (Execute-never).
+const SCTLR_WXN: u64 = 1 << 19;
 
 static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
     SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);

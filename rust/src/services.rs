@@ -5,7 +5,11 @@
 pub mod arch;
 pub mod ffa;
 pub mod psci;
+#[cfg(feature = "rme")]
+pub mod rmmd;
 
+#[cfg(feature = "rme")]
+use self::rmmd::Rmmd;
 use self::{arch::Arch, ffa::Ffa, psci::Psci};
 use crate::{
     context::World,
@@ -79,6 +83,10 @@ pub fn dispatch_smc(
     } else if Ffa::owns(function) {
         Ffa::handle_smc(function, x1, x2, x3, x4, world)
     } else {
+        #[cfg(feature = "rme")]
+        if Rmmd::owns(function) {
+            return Rmmd::handle_smc(function, x1, x2, x3, x4, world);
+        }
         NOT_SUPPORTED.into()
     }
 }

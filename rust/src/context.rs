@@ -6,18 +6,28 @@ use crate::{
     platform::{exception_free, Platform, PlatformImpl},
     smccc::SmcReturn,
     sysregs::{
-        read_actlr_el2, read_afsr0_el2, read_afsr1_el2, read_amair_el2, read_cnthctl_el2,
-        read_cntvoff_el2, read_cptr_el2, read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2,
+        read_actlr_el1, read_actlr_el2, read_afsr0_el1, read_afsr0_el2, read_afsr1_el1,
+        read_afsr1_el2, read_amair_el1, read_amair_el2, read_cnthctl_el2, read_cntvoff_el2,
+        read_contextidr_el1, read_cpacr_el1, read_cptr_el2, read_csselr_el1, read_elr_el1,
+        read_elr_el2, read_esr_el1, read_esr_el2, read_far_el1, read_far_el2, read_hacr_el2,
         read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
-        read_ich_vmcr_el2, read_mair_el2, read_mdcr_el2, read_scr_el3, read_sctlr_el2, read_sp_el2,
-        read_spsr_el2, read_tcr_el2, read_tpidr_el2, read_ttbr0_el2, read_vbar_el2,
-        read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2, read_vttbr_el2, write_actlr_el2,
-        write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2, write_cntvoff_el2,
-        write_cptr_el2, write_elr_el2, write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2,
+        read_ich_vmcr_el2, read_mair_el1, read_mair_el2, read_mdccint_el1, read_mdcr_el2,
+        read_mdscr_el1, read_par_el1, read_scr_el3, read_sctlr_el1, read_sctlr_el2, read_sp_el1,
+        read_sp_el2, read_spsr_el1, read_spsr_el2, read_tcr_el1, read_tcr_el2, read_tpidr_el0,
+        read_tpidr_el1, read_tpidr_el2, read_tpidrro_el0, read_ttbr0_el1, read_ttbr0_el2,
+        read_ttbr1_el1, read_vbar_el1, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2,
+        read_vtcr_el2, read_vttbr_el2, write_actlr_el1, write_actlr_el2, write_afsr0_el1,
+        write_afsr0_el2, write_afsr1_el1, write_afsr1_el2, write_amair_el1, write_amair_el2,
+        write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el1, write_cpacr_el1,
+        write_cptr_el2, write_csselr_el1, write_elr_el1, write_elr_el2, write_esr_el1,
+        write_esr_el2, write_far_el1, write_far_el2, write_hacr_el2, write_hcr_el2,
         write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_icc_sre_el3, write_ich_hcr_el2,
-        write_mair_el2, write_mdcr_el2, write_scr_el3, write_sctlr_el2, write_sp_el2, write_sp_el3,
-        write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2,
-        write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
+        write_mair_el1, write_mair_el2, write_mdccint_el1, write_mdcr_el2, write_mdscr_el1,
+        write_par_el1, write_scr_el3, write_sctlr_el1, write_sctlr_el2, write_sp_el1, write_sp_el2,
+        write_sp_el3, write_spsr_el1, write_spsr_el2, write_tcr_el1, write_tcr_el2,
+        write_tpidr_el0, write_tpidr_el1, write_tpidr_el2, write_tpidrro_el0, write_ttbr0_el1,
+        write_ttbr0_el2, write_ttbr1_el1, write_vbar_el1, write_vbar_el2, write_vmpidr_el2,
+        write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
     },
 };
 use core::{
@@ -84,7 +94,9 @@ impl World {
 pub struct CpuContext {
     pub gpregs: GpRegs,
     el3_state: El3State,
+    #[cfg(feature = "sel2")]
     el2_sysregs: El2Sysregs,
+    #[cfg(not(feature = "sel2"))]
     el1_sysregs: El1Sysregs,
 }
 
@@ -92,9 +104,25 @@ impl CpuContext {
     const EMPTY: Self = Self {
         gpregs: GpRegs::EMPTY,
         el3_state: El3State::EMPTY,
+        #[cfg(feature = "sel2")]
         el2_sysregs: El2Sysregs::EMPTY,
+        #[cfg(not(feature = "sel2"))]
         el1_sysregs: El1Sysregs::EMPTY,
     };
+
+    fn save_lower_el_sysregs(&mut self) {
+        #[cfg(feature = "sel2")]
+        self.el2_sysregs.save();
+        #[cfg(not(feature = "sel2"))]
+        self.el1_sysregs.save();
+    }
+
+    fn restore_lower_el_sysregs(&self) {
+        #[cfg(feature = "sel2")]
+        self.el2_sysregs.restore();
+        #[cfg(not(feature = "sel2"))]
+        self.el1_sysregs.restore();
+    }
 }
 
 /// AArch64 general purpose register context structure. Usually x0-x18 and lr are saved as the
@@ -157,8 +185,7 @@ impl El3State {
 
 /// AArch64 EL1 system register context structure for preserving the architectural state during
 /// world switches.
-#[derive(Clone, Debug)]
-#[repr(C, align(16))]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct El1Sysregs {
     spsr_el1: u64,
     elr_el1: u64,
@@ -213,6 +240,62 @@ impl El1Sysregs {
         mdccint_el1: 0,
         mdscr_el1: 0,
     };
+
+    /// Reads the current values from the system registers to save them.
+    fn save(&mut self) {
+        self.spsr_el1 = read_spsr_el1();
+        self.elr_el1 = read_elr_el1();
+        self.sctlr_el1 = read_sctlr_el1();
+        self.tcr_el1 = read_tcr_el1();
+        self.cpacr_el1 = read_cpacr_el1();
+        self.csselr_el1 = read_csselr_el1();
+        self.sp_el1 = read_sp_el1();
+        self.esr_el1 = read_esr_el1();
+        self.ttbr0_el1 = read_ttbr0_el1();
+        self.ttbr1_el1 = read_ttbr1_el1();
+        self.mair_el1 = read_mair_el1();
+        self.amair_el1 = read_amair_el1();
+        self.actlr_el1 = read_actlr_el1();
+        self.tpidr_el1 = read_tpidr_el1();
+        self.tpidr_el0 = read_tpidr_el0();
+        self.tpidrro_el0 = read_tpidrro_el0();
+        self.par_el1 = read_par_el1();
+        self.far_el1 = read_far_el1();
+        self.afsr0_el1 = read_afsr0_el1();
+        self.afsr1_el1 = read_afsr1_el1();
+        self.contextidr_el1 = read_contextidr_el1();
+        self.vbar_el1 = read_vbar_el1();
+        self.mdccint_el1 = read_mdccint_el1();
+        self.mdscr_el1 = read_mdscr_el1();
+    }
+
+    /// Writes the saved register values to the system registers.
+    fn restore(&self) {
+        write_spsr_el1(self.spsr_el1);
+        write_elr_el1(self.elr_el1);
+        write_sctlr_el1(self.sctlr_el1);
+        write_tcr_el1(self.tcr_el1);
+        write_cpacr_el1(self.cpacr_el1);
+        write_csselr_el1(self.csselr_el1);
+        write_sp_el1(self.sp_el1);
+        write_esr_el1(self.esr_el1);
+        write_ttbr0_el1(self.ttbr0_el1);
+        write_ttbr1_el1(self.ttbr1_el1);
+        write_mair_el1(self.mair_el1);
+        write_amair_el1(self.amair_el1);
+        write_actlr_el1(self.actlr_el1);
+        write_tpidr_el1(self.tpidr_el1);
+        write_tpidr_el0(self.tpidr_el0);
+        write_tpidrro_el0(self.tpidrro_el0);
+        write_par_el1(self.par_el1);
+        write_far_el1(self.far_el1);
+        write_afsr0_el1(self.afsr0_el1);
+        write_afsr1_el1(self.afsr1_el1);
+        write_contextidr_el1(self.contextidr_el1);
+        write_vbar_el1(self.vbar_el1);
+        write_mdccint_el1(self.mdccint_el1);
+        write_mdscr_el1(self.mdscr_el1);
+    }
 }
 
 /// AArch64 EL2 system register context structure for preserving the architectural state during
@@ -472,8 +555,8 @@ pub fn switch_world(old_world: World, new_world: World) {
     assert_ne!(old_world, new_world);
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
-        cpu_state.context_mut(old_world).el2_sysregs.save();
-        cpu_state.context_mut(new_world).el2_sysregs.restore();
+        cpu_state.context_mut(old_world).save_lower_el_sysregs();
+        cpu_state.context(new_world).restore_lower_el_sysregs();
     });
     set_next_world_context(new_world);
 }
@@ -501,7 +584,7 @@ pub fn set_initial_world(world: World) {
         // This must be initialised before the EL2 system registers are written to, to avoid an
         // exception.
         write_scr_el3(context.el3_state.scr_el3);
-        context.el2_sysregs.restore();
+        context.restore_lower_el_sysregs();
     });
     set_next_world_context(world);
 }
@@ -559,10 +642,17 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     //
     // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
     // aganst ERRATA_V2_3099206.
-    context.el3_state.scr_el3 = SCR_RES1 | SCR_HCE | SCR_EA | SCR_SIF | SCR_EEL2 | SCR_RW;
-    context.el1_sysregs.sctlr_el1 = SCTLR_EL1_RES1;
-    // TODO: Initialise the rest of the context.el2_sysregs too.
-    context.el2_sysregs.icc_sre_el2 = ICC_SRE_DIB | ICC_SRE_DFB | ICC_SRE_EN | ICC_SRE_SRE;
+    context.el3_state.scr_el3 = SCR_RES1 | SCR_HCE | SCR_EA | SCR_SIF | SCR_RW;
+    #[cfg(feature = "sel2")]
+    {
+        context.el3_state.scr_el3 |= SCR_EEL2;
+        // TODO: Initialise the rest of the context.el2_sysregs too.
+        context.el2_sysregs.icc_sre_el2 = ICC_SRE_DIB | ICC_SRE_DFB | ICC_SRE_EN | ICC_SRE_SRE;
+    }
+    #[cfg(not(feature = "sel2"))]
+    {
+        context.el1_sysregs.sctlr_el1 = SCTLR_EL1_RES1;
+    }
 }
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.

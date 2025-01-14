@@ -10,7 +10,7 @@ FIP := target/fip.bin
 BL31_ELF := target/bl31.elf
 
 # cargo features to enable. See Cargo.toml for available features.
-FEATURES :=
+FEATURES := sel2
 
 .PHONY: all clean clippy clippy-test qemu qemu-wait fvp build build-bl33 list_platforms
 
@@ -26,7 +26,7 @@ ifndef PLAT
 endif
 
 TARGET := aarch64-unknown-none-softfloat
-CARGO_FLAGS := --target $(TARGET) --features "$(FEATURES)"
+CARGO_FLAGS := --target $(TARGET) --no-default-features --features "$(FEATURES)"
 
 ifeq ($(DEBUG), 1)
 	BUILDTYPE := debug

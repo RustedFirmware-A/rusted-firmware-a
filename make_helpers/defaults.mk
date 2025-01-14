@@ -212,7 +212,7 @@ RUST		:= 1
 
 # Build Rust BL31 with the given cargo features (See Rust BL31's Cargo.toml
 # for available features)
-RUST_FEATURES		:=
+RUST_FEATURES		:= sel2
 
 # For Chain of Trust
 SAVE_KEYS			:= 0

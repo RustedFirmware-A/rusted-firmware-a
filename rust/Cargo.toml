@@ -33,7 +33,9 @@ cc = "1.0.79"
 anyhow = "1.0.93"
 
 [features]
+default = ["sel2"]
 rme = []
+sel2 = []
 
 [lints.clippy]
 unreadable_literal = "deny"

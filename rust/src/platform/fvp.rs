@@ -83,7 +83,10 @@ impl Platform for Fvp {
         let core_linear_id = Self::core_index() as u64;
         EntryPointInfo {
             pc: 0x0600_0000,
+            #[cfg(feature = "sel2")]
             spsr: 0x3c9,
+            #[cfg(not(feature = "sel2"))]
+            spsr: 0x3c5,
             args: [
                 TOS_FW_CONFIG_ADDRESS,
                 HW_CONFIG_ADDRESS,

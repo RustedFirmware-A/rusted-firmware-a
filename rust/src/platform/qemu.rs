@@ -58,7 +58,10 @@ impl Platform for Qemu {
         let core_linear_id = Self::core_index() as u64;
         EntryPointInfo {
             pc: 0x0e10_0000,
+            #[cfg(feature = "sel2")]
             spsr: 0x3c9,
+            #[cfg(not(feature = "sel2"))]
+            spsr: 0x3c5,
             args: [
                 TOS_FW_CONFIG_ADDRESS,
                 HW_CONFIG_ADDRESS,

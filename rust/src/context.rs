@@ -5,6 +5,20 @@
 use crate::{
     platform::{exception_free, Platform, PlatformImpl},
     smccc::SmcReturn,
+    sysregs::{
+        read_actlr_el2, read_afsr0_el2, read_afsr1_el2, read_amair_el2, read_cnthctl_el2,
+        read_cntvoff_el2, read_cptr_el2, read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2,
+        read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
+        read_ich_vmcr_el2, read_mair_el2, read_mdcr_el2, read_sctlr_el2, read_sp_el2,
+        read_spsr_el2, read_tcr_el2, read_tpidr_el2, read_ttbr0_el2, read_vbar_el2,
+        read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2, read_vttbr_el2, write_actlr_el2,
+        write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2, write_cntvoff_el2,
+        write_cptr_el2, write_elr_el2, write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2,
+        write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_ich_vmcr_el2,
+        write_mair_el2, write_mdcr_el2, write_sctlr_el2, write_sp_el2, write_spsr_el2,
+        write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2, write_vmpidr_el2,
+        write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
+    },
 };
 #[cfg(not(test))]
 use core::arch::asm;
@@ -52,6 +66,7 @@ impl World {
 pub struct CpuContext {
     pub gpregs: GpRegs,
     el3_state: El3State,
+    el2_sysregs: El2Sysregs,
     el1_sysregs: El1Sysregs,
 }
 
@@ -59,6 +74,7 @@ impl CpuContext {
     const EMPTY: Self = Self {
         gpregs: GpRegs::EMPTY,
         el3_state: El3State::EMPTY,
+        el2_sysregs: El2Sysregs::EMPTY,
         el1_sysregs: El1Sysregs::EMPTY,
     };
 }
@@ -181,6 +197,145 @@ impl El1Sysregs {
     };
 }
 
+/// AArch64 EL2 system register context structure for preserving the architectural state during
+/// world switches.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct El2Sysregs {
+    actlr_el2: u64,
+    afsr0_el2: u64,
+    afsr1_el2: u64,
+    amair_el2: u64,
+    cnthctl_el2: u64,
+    cntvoff_el2: u64,
+    cptr_el2: u64,
+    elr_el2: u64,
+    esr_el2: u64,
+    far_el2: u64,
+    hacr_el2: u64,
+    hcr_el2: u64,
+    hpfar_el2: u64,
+    hstr_el2: u64,
+    icc_sre_el2: u64,
+    ich_hcr_el2: u64,
+    ich_vmcr_el2: u64,
+    mair_el2: u64,
+    mdcr_el2: u64,
+    sctlr_el2: u64,
+    spsr_el2: u64,
+    sp_el2: u64,
+    tcr_el2: u64,
+    tpidr_el2: u64,
+    ttbr0_el2: u64,
+    vbar_el2: u64,
+    vmpidr_el2: u64,
+    vpidr_el2: u64,
+    vtcr_el2: u64,
+    vttbr_el2: u64,
+}
+
+impl El2Sysregs {
+    const EMPTY: Self = Self {
+        actlr_el2: 0,
+        afsr0_el2: 0,
+        afsr1_el2: 0,
+        amair_el2: 0,
+        cnthctl_el2: 0,
+        cntvoff_el2: 0,
+        cptr_el2: 0,
+        elr_el2: 0,
+        esr_el2: 0,
+        far_el2: 0,
+        hacr_el2: 0,
+        hcr_el2: 0,
+        hpfar_el2: 0,
+        hstr_el2: 0,
+        icc_sre_el2: 0,
+        ich_hcr_el2: 0,
+        ich_vmcr_el2: 0,
+        mair_el2: 0,
+        mdcr_el2: 0,
+        sctlr_el2: 0,
+        spsr_el2: 0,
+        sp_el2: 0,
+        tcr_el2: 0,
+        tpidr_el2: 0,
+        ttbr0_el2: 0,
+        vbar_el2: 0,
+        vmpidr_el2: 0,
+        vpidr_el2: 0,
+        vtcr_el2: 0,
+        vttbr_el2: 0,
+    };
+
+    /// Reads the current values from the system registers to save them.
+    fn save(&mut self) {
+        self.actlr_el2 = read_actlr_el2();
+        self.afsr0_el2 = read_afsr0_el2();
+        self.afsr1_el2 = read_afsr1_el2();
+        self.amair_el2 = read_amair_el2();
+        self.cnthctl_el2 = read_cnthctl_el2();
+        self.cntvoff_el2 = read_cntvoff_el2();
+        self.cptr_el2 = read_cptr_el2();
+        self.elr_el2 = read_elr_el2();
+        self.esr_el2 = read_esr_el2();
+        self.far_el2 = read_far_el2();
+        self.hacr_el2 = read_hacr_el2();
+        self.hcr_el2 = read_hcr_el2();
+        self.hpfar_el2 = read_hpfar_el2();
+        self.hstr_el2 = read_hstr_el2();
+        self.icc_sre_el2 = read_icc_sre_el2();
+        self.ich_hcr_el2 = read_ich_hcr_el2();
+        self.ich_vmcr_el2 = read_ich_vmcr_el2();
+        self.mair_el2 = read_mair_el2();
+        self.mdcr_el2 = read_mdcr_el2();
+        self.sctlr_el2 = read_sctlr_el2();
+        self.spsr_el2 = read_spsr_el2();
+        self.sp_el2 = read_sp_el2();
+        self.tcr_el2 = read_tcr_el2();
+        self.tpidr_el2 = read_tpidr_el2();
+        self.ttbr0_el2 = read_ttbr0_el2();
+        self.vbar_el2 = read_vbar_el2();
+        self.vmpidr_el2 = read_vmpidr_el2();
+        self.vpidr_el2 = read_vpidr_el2();
+        self.vtcr_el2 = read_vtcr_el2();
+        self.vttbr_el2 = read_vttbr_el2();
+    }
+
+    /// Writes the saved register values to the system registers.
+    fn restore(&self) {
+        write_actlr_el2(self.actlr_el2);
+        write_afsr0_el2(self.afsr0_el2);
+        write_afsr1_el2(self.afsr1_el2);
+        write_amair_el2(self.amair_el2);
+        write_cnthctl_el2(self.cnthctl_el2);
+        write_cntvoff_el2(self.cntvoff_el2);
+        write_cptr_el2(self.cptr_el2);
+        write_elr_el2(self.elr_el2);
+        write_esr_el2(self.esr_el2);
+        write_far_el2(self.far_el2);
+        write_hacr_el2(self.hacr_el2);
+        write_hcr_el2(self.hcr_el2);
+        write_hpfar_el2(self.hpfar_el2);
+        write_hstr_el2(self.hstr_el2);
+        write_icc_sre_el2(self.icc_sre_el2);
+        write_ich_hcr_el2(self.ich_hcr_el2);
+        write_ich_vmcr_el2(self.ich_vmcr_el2);
+        write_mair_el2(self.mair_el2);
+        write_mdcr_el2(self.mdcr_el2);
+        write_sctlr_el2(self.sctlr_el2);
+        write_spsr_el2(self.spsr_el2);
+        write_sp_el2(self.sp_el2);
+        write_tcr_el2(self.tcr_el2);
+        write_tpidr_el2(self.tpidr_el2);
+        write_ttbr0_el2(self.ttbr0_el2);
+        write_vbar_el2(self.vbar_el2);
+        write_vmpidr_el2(self.vmpidr_el2);
+        write_vpidr_el2(self.vpidr_el2);
+        write_vtcr_el2(self.vtcr_el2);
+        write_vttbr_el2(self.vttbr_el2);
+    }
+}
+
 /// Registers whose values can be shared across CPUs.
 #[derive(Clone, Debug, Default)]
 #[repr(C)]
@@ -291,11 +446,35 @@ unsafe fn set_next_context(context: *mut CpuContext) {
 ///
 /// This works by setting `SP_EL3` to point to the appropriate `CpuContext` struct, so the
 /// exception return code will restore registers from it before the `eret`.
-pub fn set_next_world_context(world: World) {
+fn set_next_world_context(world: World) {
     // SAFETY: The CPU context is always valid, and will only be used via this pointer by assembly
     // code after the Rust code returns to prepare for the eret, and after the next exception before
     // entering the Rust code again.
     unsafe { set_next_context(&raw mut (*CPU_STATE.get().as_ptr()).cpu_contexts[world.index()]) }
+}
+
+/// Saves lower EL system registers from the current world, restores lower EL system registers of
+/// the given world, and sets the world to run on the next exception return.
+pub fn switch_world(old_world: World, new_world: World) {
+    assert_ne!(old_world, new_world);
+    exception_free(|token| {
+        let mut cpu_state = cpu_state(token);
+        cpu_state.context_mut(old_world).el2_sysregs.save();
+        cpu_state.context_mut(new_world).el2_sysregs.restore();
+    });
+    set_next_world_context(new_world);
+}
+
+/// Restores lower EL system registers of the given world and then sets it as the world to run on
+/// the next exception return.
+///
+/// This doesn't save the current state of the lower EL system registers, so should only be used for
+/// initial boot where we don't care about their state.
+pub fn set_initial_world(world: World) {
+    exception_free(|token| {
+        cpu_state(token).context_mut(world).el2_sysregs.restore();
+    });
+    set_next_world_context(world);
 }
 
 /// Returns a reference to the `CpuState` for the current CPU.
@@ -311,14 +490,12 @@ pub fn initialise_contexts(
     secure_entry_point: &EntryPointInfo,
 ) {
     exception_free(|token| {
+        let mut cpu_state = cpu_state(token);
         initialise_nonsecure(
-            cpu_state(token).context_mut(World::NonSecure),
+            cpu_state.context_mut(World::NonSecure),
             non_secure_entry_point,
         );
-        initialise_secure(
-            cpu_state(token).context_mut(World::Secure),
-            secure_entry_point,
-        );
+        initialise_secure(cpu_state.context_mut(World::Secure), secure_entry_point);
     });
 }
 
@@ -328,7 +505,7 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     context.el3_state.spsr_el3 = entry_point.spsr;
     context.el3_state.scr_el3 = SCR_RES1 | SCR_HCE | SCR_SIF | SCR_RW | SCR_EEL2;
     context.el1_sysregs.sctlr_el1 = SCTLR_EL1_RES1;
-    // TODO: Initialise EL2 state too.
+    // TODO: Initialise context.el2_sysregs too.
 }
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.

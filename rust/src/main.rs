@@ -20,7 +20,7 @@ mod smccc;
 mod sysregs;
 
 use crate::platform::{Platform, PlatformImpl};
-use context::{initialise_contexts, set_next_world_context, World};
+use context::{initialise_contexts, set_initial_world, World};
 use log::info;
 
 #[unsafe(no_mangle)]
@@ -36,6 +36,6 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
     let non_secure_entry_point = PlatformImpl::non_secure_entry_point();
     let secure_entry_point = PlatformImpl::secure_entry_point();
     initialise_contexts(&non_secure_entry_point, &secure_entry_point);
-    set_next_world_context(World::NonSecure);
+    set_initial_world(World::NonSecure);
     info!("Entering next stage...");
 }

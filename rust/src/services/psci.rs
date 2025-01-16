@@ -6,7 +6,7 @@ use crate::{
     context::World,
     platform::{Platform, PlatformImpl},
     services::{arch::SMCCC_VERSION, owns, Service},
-    smccc::{FunctionId, OwningEntityNumber, SmcReturn, NOT_SUPPORTED, SUCCESS},
+    smccc::{FunctionId, OwningEntityNumber, SmcReturn, NOT_SUPPORTED},
 };
 
 const PSCI_VERSION: u32 = 0x8400_0000;
@@ -116,7 +116,7 @@ fn system_off() -> ! {
 
 fn psci_features(function_id: u32) -> i32 {
     match function_id {
-        SMCCC_VERSION | PSCI_VERSION | PSCI_SYSTEM_OFF | PSCI_FEATURES => SUCCESS,
+        SMCCC_VERSION | PSCI_VERSION | PSCI_SYSTEM_OFF | PSCI_FEATURES => 0,
         _ => NOT_SUPPORTED,
     }
 }

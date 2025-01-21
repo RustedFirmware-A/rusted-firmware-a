@@ -5,8 +5,8 @@
 use crate::{
     context::{cpu_state, World},
     platform::exception_free,
-    services::{arch, psci},
-    smccc::{FunctionId, NOT_SUPPORTED},
+    services::dispatch_smc,
+    smccc::FunctionId,
 };
 use bitflags::bitflags;
 use core::{ffi::c_void, ptr::null_mut};
@@ -66,27 +66,23 @@ extern "C" fn handle_smc(
         function, x1, x2, x3, x4, world, flags
     );
 
-    let ret = if arch::owns(function) {
-        arch::handle_smc(function, x1, x2, x3, x4, flags)
-    } else if psci::owns(function) {
-        psci::handle_smc(function, x1, x2, x3, x4, flags)
-    } else {
-        NOT_SUPPORTED.into()
-    };
+    let ret = dispatch_smc(function, x1, x2, x3, x4, world);
 
     // Write the return value back to the registers of the world that made the SMC call. Note that
     // this might not be the same world as we are about to return to, as the handler might have
     // switched worlds by calling `set_next_world_context`.
     exception_free(|token| {
-        let mut cpu_state = cpu_state(token);
-        cpu_state.context_mut(world).gpregs.write_return_value(&ret);
+        cpu_state(token)
+            .context_mut(world)
+            .gpregs
+            .write_return_value(&ret);
     });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arch::{SMCCC_VERSION, SMCCC_VERSION_1_5};
+    use crate::services::arch::{SMCCC_VERSION, SMCCC_VERSION_1_5};
 
     /// Tests the SMCCC arch version call as a simple example of SMC dispatch.
     ///

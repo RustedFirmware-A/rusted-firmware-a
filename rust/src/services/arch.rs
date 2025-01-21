@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    exceptions::SmcFlags,
-    services::owns,
+    context::World,
+    services::{owns, Service},
     smccc::{
-        FunctionId, OwningEntity, OwningEntityNumber, SmcReturn, SmcccCallType, INVALID_PARAMETER,
-        NOT_SUPPORTED, SUCCESS,
+        FunctionId, OwningEntityNumber, SmcReturn, SmcccCallType, INVALID_PARAMETER, NOT_SUPPORTED,
+        SUCCESS,
     },
 };
 
@@ -27,23 +27,28 @@ const SMCCC_ARCH_WORKAROUND_3: u32 = 0x8000_3FFF;
 
 pub const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
 
-// Defines the range of SMC function ID values covered by the arch service
-owns! {OwningEntity::ArmArchitectureService}
+/// Arm architecture SMCs.
+pub struct Arch;
 
-/// Handles an Arm architecture SMC.
-pub fn handle_smc(
-    function: FunctionId,
-    x1: u64,
-    _x2: u64,
-    _x3: u64,
-    _x4: u64,
-    _flags: SmcFlags,
-) -> SmcReturn {
-    match function.0 {
-        SMCCC_VERSION => version().into(),
-        SMCCC_ARCH_FEATURES => arch_features(x1 as u32).into(),
-        SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => arch_soc_id(x1 as u32, function.call_type()),
-        _ => NOT_SUPPORTED.into(),
+impl Service for Arch {
+    owns!(OwningEntityNumber::ARM_ARCHITECTURE);
+
+    fn handle_smc(
+        function: FunctionId,
+        x1: u64,
+        _x2: u64,
+        _x3: u64,
+        _x4: u64,
+        _world: World,
+    ) -> SmcReturn {
+        match function.0 {
+            SMCCC_VERSION => version().into(),
+            SMCCC_ARCH_FEATURES => arch_features(x1 as u32).into(),
+            SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => {
+                arch_soc_id(x1 as u32, function.call_type())
+            }
+            _ => NOT_SUPPORTED.into(),
+        }
     }
 }
 

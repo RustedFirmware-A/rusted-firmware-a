@@ -3,14 +3,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    exceptions::SmcFlags,
+    context::World,
     platform::{Platform, PlatformImpl},
-    services::arch::SMCCC_VERSION,
-    services::owns,
-    smccc::{
-        FunctionId, OwningEntity, OwningEntityNumber, SmcReturn, SmcccCallType, NOT_SUPPORTED,
-        SUCCESS,
-    },
+    services::{arch::SMCCC_VERSION, owns, Service},
+    smccc::{FunctionId, OwningEntityNumber, SmcReturn, NOT_SUPPORTED, SUCCESS},
 };
 
 const PSCI_VERSION: u32 = 0x84000000;
@@ -79,23 +75,32 @@ const PSCI_STAT_COUNT_64: u32 = 0xC4000011;
 
 const PSCI_VERSION_1_1: u32 = 0x0001_0001;
 
-// Defines the range of SMC function ID values covered by the psci.rs service
-owns! {OwningEntity::StandardSecureService, RangeInclusive::new(0x0000, 0x001F)}
+const FUNCTION_NUMBER_MIN: u16 = 0x0000;
+const FUNCTION_NUMBER_MAX: u16 = 0x001F;
 
-/// Handles a PSCI SMC.
-pub fn handle_smc(
-    function: FunctionId,
-    x1: u64,
-    _x2: u64,
-    _x3: u64,
-    _x4: u64,
-    _flags: SmcFlags,
-) -> SmcReturn {
-    match function.0 {
-        PSCI_VERSION => version().into(),
-        PSCI_SYSTEM_OFF => system_off(),
-        PSCI_FEATURES => psci_features(x1 as u32).into(),
-        _ => NOT_SUPPORTED.into(),
+/// Power State Coordination Interface.
+pub struct Psci;
+
+impl Service for Psci {
+    owns!(
+        OwningEntityNumber::STANDARD_SECURE,
+        FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
+    );
+
+    fn handle_smc(
+        function: FunctionId,
+        x1: u64,
+        _x2: u64,
+        _x3: u64,
+        _x4: u64,
+        _world: World,
+    ) -> SmcReturn {
+        match function.0 {
+            PSCI_VERSION => version().into(),
+            PSCI_SYSTEM_OFF => system_off(),
+            PSCI_FEATURES => psci_features(x1 as u32).into(),
+            _ => NOT_SUPPORTED.into(),
+        }
     }
 }
 

@@ -56,18 +56,27 @@ pub enum OwningEntity {
 pub struct OwningEntityNumber(pub u8);
 
 impl OwningEntityNumber {
+    pub const ARM_ARCHITECTURE: Self = Self(0);
+    pub const CPU: Self = Self(1);
+    pub const SIP: Self = Self(2);
+    pub const OEM: Self = Self(3);
+    pub const STANDARD_SECURE: Self = Self(4);
+    pub const STANDARD_HYPERVISOR: Self = Self(5);
+    pub const VENDOR_SPECIFIC_HYPERVISOR: Self = Self(6);
+    pub const VENDOR_SPECIFIC_EL3_MONITOR: Self = Self(7);
+
     pub fn oe(self) -> OwningEntity {
-        match self.0 {
-            0 => OwningEntity::ArmArchitectureService,
-            1 => OwningEntity::CPUService,
-            2 => OwningEntity::SiPService,
-            3 => OwningEntity::OEMService,
-            4 => OwningEntity::StandardSecureService,
-            5 => OwningEntity::StandardHypervisorService,
-            6 => OwningEntity::VendorSpecificHypervisorService,
-            7 => OwningEntity::VendorSpecificEL3MonitorService,
-            48..=49 => OwningEntity::TrustedApplications,
-            50..=63 => OwningEntity::TrustedOS,
+        match self {
+            Self::ARM_ARCHITECTURE => OwningEntity::ArmArchitectureService,
+            Self::CPU => OwningEntity::CPUService,
+            Self::SIP => OwningEntity::SiPService,
+            Self::OEM => OwningEntity::OEMService,
+            Self::STANDARD_SECURE => OwningEntity::StandardSecureService,
+            Self::STANDARD_HYPERVISOR => OwningEntity::StandardHypervisorService,
+            Self::VENDOR_SPECIFIC_HYPERVISOR => OwningEntity::VendorSpecificHypervisorService,
+            Self::VENDOR_SPECIFIC_EL3_MONITOR => OwningEntity::VendorSpecificEL3MonitorService,
+            Self(48..=49) => OwningEntity::TrustedApplications,
+            Self(50..=63) => OwningEntity::TrustedOS,
             _ => OwningEntity::Unknown,
         }
     }
@@ -90,9 +99,9 @@ impl FunctionId {
         OwningEntityNumber(((self.0 & OEN_MASK) >> OEN_SHIFT) as u8)
     }
 
-    /// Returns bits[15..0] of a function ID as a u16
+    /// Returns the lower 16 bits of the function ID.
     pub fn number(self) -> u16 {
-        (self.0 & 0xFFFF) as u16
+        self.0 as u16
     }
 
     /// Returns what type of call this is.

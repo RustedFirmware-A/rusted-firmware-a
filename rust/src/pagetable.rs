@@ -45,7 +45,6 @@ const MAIR_NON_CACHEABLE: u64 = MAIR_NORM_NC | MAIR_NORM_NC << MAIR_NORM_OUTER_S
 // Attribute values corresponding to the above MAIR indices.
 const IWBRWA_OWBRWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;
 const DEVICE: Attributes = Attributes::ATTRIBUTE_INDEX_1;
-#[allow(unused)]
 const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
 
 /// Attribute bits which are RES1 for the EL3 translation regime, as we configure it.
@@ -178,7 +177,7 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
         | MAIR_IWBRWA_OWBRWA_NTR << (MAIR_IWBRWA_OWBRWA_NTR_INDEX << 3)
         | MAIR_NON_CACHEABLE << (MAIR_NON_CACHEABLE_INDEX << 3);
     let tcr = 0b101 << 16 // 48 bit physical address size (256 TiB).
-        | 64 - 39; // Size offset is 2**39 bytes (512 GiB).
+        | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
     let ttbr0 = root_address.0;
 
     unsafe {

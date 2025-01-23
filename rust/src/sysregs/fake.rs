@@ -47,6 +47,7 @@ pub struct SystemRegisters {
     pub vpidr_el2: u64,
     pub vtcr_el2: u64,
     pub vttbr_el2: u64,
+    pub sp_el3: usize,
 }
 
 impl SystemRegisters {
@@ -87,8 +88,19 @@ impl SystemRegisters {
             vpidr_el2: 0,
             vtcr_el2: 0,
             vttbr_el2: 0,
+            sp_el3: 0,
         }
     }
+}
+
+/// Writes `value` to `sp_el3`.
+///
+/// # Safety
+///
+/// The caller must ensure that `value` is consistent with how the rest of RF-A uses `sp_el3`.
+pub unsafe fn write_sp_el3(value: usize) {
+    let mut regs = SYSREGS.lock().unwrap();
+    regs.sp_el3 = value;
 }
 
 /// Generates a public function named `$function_name` to read the fake system register `$sysreg`.

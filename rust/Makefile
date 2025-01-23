@@ -18,7 +18,7 @@ PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
 
 ifndef PLAT
-  ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),help clean list_platforms))
+  ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),clean clippy-test help list_platforms))
     $(info error: environment variable PLAT=<xxx> is required. Options are:)
     $(foreach p, $(PLATFORMS_AVAILABLE), $(info * $(p)))
     $(error Please run `make PLAT=...`)
@@ -53,6 +53,9 @@ build-bl33:
 	mkdir -p target
 # fiptool refuses to include empty files in FIPs
 	echo "dummy content" > $(BL33)
+
+clippy-test:
+	cargo clippy --tests --features "$(FEATURES)"
 
 clippy:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy $(CARGO_FLAGS)
@@ -112,10 +115,11 @@ help:
 	@echo "from a previous build, a clean build must be performed."
 	@echo ""
 	@echo "Supported Targets:"
-	@echo "  all         Build BL31 bootloader binary and create BL33 file"
-	@echo "  clean       Clean the build for all platforms"
-	@echo "  clippy      Check the coding style of the entire rust source tree"
+	@echo "  all         Build BL31 bootloader binary and create BL33 file."
+	@echo "  clean       Clean the build for all platforms."
+	@echo "  clippy      Lint the Rust source tree for the specified platform."
+	@echo "  clippy-test Lint the Rust source tree in the test configuration."
 	@echo "  qemu        Run qemu. Target should be invoked after binaries are built."
 	@echo "  fvp         Run fvp. Target should be invoked after binaries are built."
-	@echo "  build       Build BL31 for the specified platform"
+	@echo "  build       Build BL31 for the specified platform."
 	@echo ""

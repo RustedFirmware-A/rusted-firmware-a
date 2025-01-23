@@ -15,13 +15,11 @@ use crate::{
         write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2, write_cntvoff_el2,
         write_cptr_el2, write_elr_el2, write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2,
         write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_ich_vmcr_el2,
-        write_mair_el2, write_mdcr_el2, write_sctlr_el2, write_sp_el2, write_spsr_el2,
-        write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2, write_vmpidr_el2,
-        write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
+        write_mair_el2, write_mdcr_el2, write_sctlr_el2, write_sp_el2, write_sp_el3,
+        write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2,
+        write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
     },
 };
-#[cfg(not(test))]
-use core::arch::asm;
 use core::{
     cell::{RefCell, RefMut},
     ptr::null_mut,
@@ -407,6 +405,10 @@ impl CpuState {
         cpu_contexts: [CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
     };
 
+    pub fn context(&self, world: World) -> &CpuContext {
+        &self.cpu_contexts[world.index()]
+    }
+
     pub fn context_mut(&mut self, world: World) -> &mut CpuContext {
         &mut self.cpu_contexts[world.index()]
     }
@@ -427,14 +429,8 @@ static CPU_STATE: PerCore<
 /// The given context pointer must remain valid until a new next context is set.
 unsafe fn set_next_context(context: *mut CpuContext) {
     // SAFETY: The caller guarantees that the context remains valid until it's replaced.
-    #[cfg(not(test))]
     unsafe {
-        asm!(
-            "msr spsel, #1",
-            "mov sp, {context}",
-            "msr spsel, #0",
-            context = in(reg) context,
-        )
+        write_sp_el3(context as usize);
     }
 }
 

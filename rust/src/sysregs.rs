@@ -8,6 +8,9 @@
 #[macro_use]
 pub mod fake;
 
+#[cfg(test)]
+pub use fake::write_sp_el3;
+
 #[cfg(not(test))]
 use core::arch::asm;
 
@@ -96,3 +99,21 @@ read_write_sysreg!(vmpidr_el2, read_vmpidr_el2, write_vmpidr_el2);
 read_write_sysreg!(vpidr_el2, read_vpidr_el2, write_vpidr_el2);
 read_write_sysreg!(vtcr_el2, read_vtcr_el2, write_vtcr_el2);
 read_write_sysreg!(vttbr_el2, read_vttbr_el2, write_vttbr_el2);
+
+/// Writes `value` to `sp_el3`.
+///
+/// # Safety
+///
+/// The caller must ensure that `value` is consistent with how the rest of RF-A uses `sp_el3`.
+#[cfg(not(test))]
+pub unsafe fn write_sp_el3(value: usize) {
+    // SAFETY: The caller guarantees that the value is a valid `sp_el3`.
+    unsafe {
+        asm!(
+            "msr spsel, #1",
+            "mov sp, {value}",
+            "msr spsel, #0",
+            value = in(reg) value,
+        )
+    }
+}

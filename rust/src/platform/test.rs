@@ -3,8 +3,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
-use crate::{context::EntryPointInfo, pagetable::IdMap, services::arch::WorkaroundSupport};
+use crate::{
+    context::EntryPointInfo,
+    pagetable::{map_region, IdMap, MT_DEVICE},
+    services::arch::WorkaroundSupport,
+};
+use aarch64_paging::paging::MemoryRegion;
 use percore::{Cores, ExceptionFree};
+
+const DEVICE0_BASE: usize = 0x0200_0000;
+const DEVICE0_SIZE: usize = 0x1000;
+const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE);
 
 /// A fake platform for unit tests.
 pub struct TestPlatform;
@@ -14,7 +23,9 @@ impl Platform for TestPlatform {
 
     fn init_beforemmu() {}
 
-    fn map_extra_regions(_idmap: &mut IdMap) {}
+    fn map_extra_regions(idmap: &mut IdMap) {
+        map_region(idmap, &DEVICE0, MT_DEVICE);
+    }
 
     fn secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {

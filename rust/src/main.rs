@@ -14,6 +14,7 @@ mod layout;
 mod logger;
 mod pagetable;
 mod platform;
+#[cfg(platform = "qemu")]
 mod semihosting;
 mod services;
 mod smccc;

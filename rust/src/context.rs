@@ -407,10 +407,6 @@ impl CpuState {
         cpu_contexts: [CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
     };
 
-    pub fn context(&self, world: World) -> &CpuContext {
-        &self.cpu_contexts[world.index()]
-    }
-
     pub fn context_mut(&mut self, world: World) -> &mut CpuContext {
         &mut self.cpu_contexts[world.index()]
     }

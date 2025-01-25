@@ -19,6 +19,8 @@ macro_rules! read_sysreg {
     ($sysreg:ident, $function_name:ident) => {
         pub fn $function_name() -> u64 {
             let value;
+            // SAFETY: The macro call site's author (i.e. see below) has determined that it is safe
+            // to read the given `$sysreg.`
             unsafe {
                 asm!(
                     concat!("mrs {value}, ", stringify!($sysreg)),
@@ -39,6 +41,8 @@ macro_rules! read_sysreg {
 macro_rules! write_sysreg {
     ($sysreg:ident, $function_name:ident) => {
         pub fn $function_name(value: u64) {
+            // SAFETY: The macro call site's author (i.e. see below) has determined that it is safe
+            // to write `value` to the given `$sysreg.`
             unsafe {
                 asm!(
                     concat!("msr ", stringify!($sysreg), ", {value}"),

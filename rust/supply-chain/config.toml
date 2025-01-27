@@ -1,0 +1,21 @@
+
+# cargo-vet config file
+
+[cargo-vet]
+version = "0.10"
+
+[imports.google]
+url = "https://raw.githubusercontent.com/google/rust-crate-audits/main/audits.toml"
+
+[imports.google.criteria-map]
+does-not-implement-crypto = "does-not-implement-crypto"
+ub-risk-0 = "ub-risk-0"
+ub-risk-1 = "ub-risk-1"
+ub-risk-1-thorough = "ub-risk-1-thorough"
+ub-risk-2 = "ub-risk-2"
+ub-risk-2-thorough = "ub-risk-2-thorough"
+ub-risk-3 = "ub-risk-3"
+ub-risk-4 = "ub-risk-4"
+
+[policy.rf-a-bl31]
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

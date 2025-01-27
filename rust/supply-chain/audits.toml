@@ -78,4 +78,12 @@ https://github.com/google/rust-crate-audits/blob/main/auditing_standards.md#ub-r
 """
 aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
 
-[audits]
+[[audits.aarch64-paging]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.8.0"
+
+[[audits.percore]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.1.0"

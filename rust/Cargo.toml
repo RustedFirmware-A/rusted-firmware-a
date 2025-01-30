@@ -27,6 +27,7 @@ spin = { version = "0.9.8", default-features = false, features = [
   "once",
   "spin_mutex",
 ] }
+arm-ffa = { version = "0.1.0", default-features = false }
 
 [build-dependencies]
 cc = "1.0.79"

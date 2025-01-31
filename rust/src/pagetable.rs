@@ -99,8 +99,8 @@ static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
     SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
 static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
 
-#[unsafe(no_mangle)]
-static mut mmu_cfg_params: MmuCfgParams = MmuCfgParams {
+#[unsafe(export_name = "mmu_cfg_params")]
+static mut MMU_CFG_PARAMS: MmuCfgParams = MmuCfgParams {
     mair: 0,
     tcr: 0,
     ttbr0: 0,
@@ -182,9 +182,9 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
     let ttbr0 = root_address.0;
 
     unsafe {
-        mmu_cfg_params.mair = mair;
-        mmu_cfg_params.tcr = tcr;
-        mmu_cfg_params.ttbr0 = ttbr0;
+        MMU_CFG_PARAMS.mair = mair;
+        MMU_CFG_PARAMS.tcr = tcr;
+        MMU_CFG_PARAMS.ttbr0 = ttbr0;
     }
 }
 

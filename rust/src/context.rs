@@ -233,16 +233,12 @@ enum AffInfoState {
     OnPending = 2,
 }
 
-#[export_name = "per_world_context"]
-static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] = [
-    PerWorldContext::EMPTY,
-    PerWorldContext::EMPTY,
-    #[cfg(feature = "rme")]
-    PerWorldContext::EMPTY,
-];
+#[unsafe(export_name = "per_world_context")]
+static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] =
+    [PerWorldContext::EMPTY; CPU_DATA_CONTEXT_NUM];
 
-#[unsafe(no_mangle)]
-static mut percpu_data: [CpuData; PlatformImpl::CORE_COUNT] =
+#[unsafe(export_name = "percpu_data")]
+static mut PERCPU_DATA: [CpuData; PlatformImpl::CORE_COUNT] =
     [CpuData::EMPTY; PlatformImpl::CORE_COUNT];
 
 #[derive(Debug)]

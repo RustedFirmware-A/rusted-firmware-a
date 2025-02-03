@@ -92,7 +92,7 @@ impl Platform for Fvp {
 
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
-            pc: 0x6000_0000,
+            pc: 0x8800_0000,
             spsr: 0x3c9,
             args: Default::default(),
         }

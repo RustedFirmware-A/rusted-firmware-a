@@ -85,6 +85,7 @@ read_write_sysreg!(ich_hcr_el2, read_ich_hcr_el2, write_ich_hcr_el2);
 read_write_sysreg!(ich_vmcr_el2, read_ich_vmcr_el2, write_ich_vmcr_el2);
 read_write_sysreg!(mair_el2, read_mair_el2, write_mair_el2);
 read_write_sysreg!(mdcr_el2, read_mdcr_el2, write_mdcr_el2);
+read_write_sysreg!(scr_el3, read_scr_el3, write_scr_el3);
 read_write_sysreg!(sctlr_el1, read_sctlr_el1, write_sctlr_el1);
 read_write_sysreg!(sctlr_el2, read_sctlr_el2, write_sctlr_el2);
 read_write_sysreg!(sp_el2, read_sp_el2, write_sp_el2);
@@ -100,7 +101,6 @@ read_write_sysreg!(vpidr_el2, read_vpidr_el2, write_vpidr_el2);
 read_write_sysreg!(vtcr_el2, read_vtcr_el2, write_vtcr_el2);
 read_write_sysreg!(vttbr_el2, read_vttbr_el2, write_vttbr_el2);
 write_sysreg!(icc_sre_el3, write_icc_sre_el3);
-write_sysreg!(scr_el3, write_scr_el3);
 
 /// Writes `value` to `sp_el3`.
 ///

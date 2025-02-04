@@ -260,13 +260,6 @@ sync_handler64:
 	bl	prepare_el3_entry
 
 	/*
-	 * Populate the parameters for the SMC handler.
-	 * We already have x0-x4 in place. x5 will be the index of the world.
-	 */
-	mrs	x18, scr_el3
-	get_security_state	x5, x18
-
-	/*
 	 * Restore the saved C runtime stack value which will become the new
 	 * SP_EL0 i.e. EL3 runtime stack. It was saved in the 'cpu_context'
 	 * structure prior to the last ERET from EL3.
@@ -305,11 +298,9 @@ sync_handler64:
 
 sysreg_handler64:
 	mov	x0, x16		/* ESR_EL3, containing syndrome information */
-	mov	x1, x5		/* lower EL's world index */
-	mov	x18, x5		/* save world index for after the call */
 	mov	sp, x12		/* EL3 runtime stack, as loaded above */
 
-	/* int handle_sysreg_trap(uint64_t esr_el3, World world_index); */
+	/* int handle_sysreg_trap(uint64_t esr_el3); */
 	bl	handle_sysreg_trap
 	/*
 	 * returns:
@@ -336,8 +327,6 @@ sysreg_handler64:
 	mrs	x0, spsr_el3
 	tst	x0, #(SPSR_M_MASK << SPSR_M_SHIFT)
 	b.ne	elx_panic
-	/* Pass world index as an argument to inject_undef64 */
-	mov	x0, x18
 	bl	inject_undef64
 	b	el3_exit
 

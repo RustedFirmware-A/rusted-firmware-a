@@ -29,13 +29,16 @@ pub struct SystemRegisters {
     pub hpfar_el2: u64,
     pub hstr_el2: u64,
     pub icc_sre_el2: u64,
+    pub icc_sre_el3: u64,
     pub ich_hcr_el2: u64,
     pub ich_vmcr_el2: u64,
     pub mair_el2: u64,
     pub mdcr_el2: u64,
+    pub scr_el3: u64,
     pub sctlr_el1: u64,
     pub sctlr_el2: u64,
     pub sp_el2: u64,
+    pub sp_el3: usize,
     pub spsr_el1: u64,
     pub spsr_el2: u64,
     pub tcr_el2: u64,
@@ -47,9 +50,6 @@ pub struct SystemRegisters {
     pub vpidr_el2: u64,
     pub vtcr_el2: u64,
     pub vttbr_el2: u64,
-    pub sp_el3: usize,
-    pub scr_el3: u64,
-    pub icc_sre_el3: u64,
 }
 
 impl SystemRegisters {
@@ -72,13 +72,16 @@ impl SystemRegisters {
             hpfar_el2: 0,
             hstr_el2: 0,
             icc_sre_el2: 0,
+            icc_sre_el3: 0,
             ich_hcr_el2: 0,
             ich_vmcr_el2: 0,
             mair_el2: 0,
             mdcr_el2: 0,
+            scr_el3: 0,
             sctlr_el1: 0,
             sctlr_el2: 0,
             sp_el2: 0,
+            sp_el3: 0,
             spsr_el1: 0,
             spsr_el2: 0,
             tcr_el2: 0,
@@ -90,9 +93,6 @@ impl SystemRegisters {
             vpidr_el2: 0,
             vtcr_el2: 0,
             vttbr_el2: 0,
-            sp_el3: 0,
-            scr_el3: 0,
-            icc_sre_el3: 0,
         }
     }
 }

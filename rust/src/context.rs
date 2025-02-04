@@ -9,7 +9,7 @@ use crate::{
         read_actlr_el2, read_afsr0_el2, read_afsr1_el2, read_amair_el2, read_cnthctl_el2,
         read_cntvoff_el2, read_cptr_el2, read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2,
         read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
-        read_ich_vmcr_el2, read_mair_el2, read_mdcr_el2, read_sctlr_el2, read_sp_el2,
+        read_ich_vmcr_el2, read_mair_el2, read_mdcr_el2, read_scr_el3, read_sctlr_el2, read_sp_el2,
         read_spsr_el2, read_tcr_el2, read_tpidr_el2, read_ttbr0_el2, read_vbar_el2,
         read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2, read_vttbr_el2, write_actlr_el2,
         write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2, write_cntvoff_el2,
@@ -35,14 +35,15 @@ const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 /// RES1 bits in the `scr_el3` register.
 const SCR_RES1: u64 = 1 << 4 | 1 << 5;
 const SCR_NS: u64 = 1 << 0;
+const SCR_EA: u64 = 1 << 3;
+const SCR_SMD: u64 = 1 << 7;
 const SCR_HCE: u64 = 1 << 8;
 const SCR_SIF: u64 = 1 << 9;
 const SCR_RW: u64 = 1 << 10;
-const SCR_EEL2: u64 = 1 << 18;
-const SCR_EA: u64 = 1 << 3;
-const SCR_TWE: u64 = 1 << 13;
 const SCR_TWI: u64 = 1 << 12;
-const SCR_SMD: u64 = 1 << 7;
+const SCR_TWE: u64 = 1 << 13;
+const SCR_EEL2: u64 = 1 << 18;
+const SCR_NSE: u64 = 1 << 62;
 
 /// RES1 bits in the `sctlr_el1` register.
 const SCTLR_EL1_RES1: u64 = 1 << 29 | 1 << 28 | 1 << 23 | 1 << 22 | 1 << 20 | 1 << 11;
@@ -66,6 +67,18 @@ pub enum World {
 impl World {
     fn index(self) -> usize {
         self as usize
+    }
+
+    /// Reads the current lower EL world from `scr_el3`.
+    pub fn current() -> Self {
+        let scr_el3 = read_scr_el3();
+        match (scr_el3 & SCR_NSE != 0, scr_el3 & SCR_NS != 0) {
+            (false, false) => World::Secure,
+            (false, true) => World::NonSecure,
+            #[cfg(feature = "rme")]
+            (true, true) => World::Realm,
+            _ => panic!("Invalid combination of NS and NSE in scr_el3"),
+        }
     }
 }
 

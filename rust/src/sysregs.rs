@@ -99,6 +99,8 @@ read_write_sysreg!(vmpidr_el2, read_vmpidr_el2, write_vmpidr_el2);
 read_write_sysreg!(vpidr_el2, read_vpidr_el2, write_vpidr_el2);
 read_write_sysreg!(vtcr_el2, read_vtcr_el2, write_vtcr_el2);
 read_write_sysreg!(vttbr_el2, read_vttbr_el2, write_vttbr_el2);
+write_sysreg!(icc_sre_el3, write_icc_sre_el3);
+write_sysreg!(scr_el3, write_scr_el3);
 
 /// Writes `value` to `sp_el3`.
 ///

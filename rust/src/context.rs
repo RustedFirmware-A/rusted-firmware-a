@@ -14,10 +14,11 @@ use crate::{
         read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2, read_vttbr_el2, write_actlr_el2,
         write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2, write_cntvoff_el2,
         write_cptr_el2, write_elr_el2, write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2,
-        write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_ich_vmcr_el2,
-        write_mair_el2, write_mdcr_el2, write_sctlr_el2, write_sp_el2, write_sp_el3,
-        write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2,
-        write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
+        write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_icc_sre_el3, write_ich_hcr_el2,
+        write_ich_vmcr_el2, write_mair_el2, write_mdcr_el2, write_scr_el3, write_sctlr_el2,
+        write_sp_el2, write_sp_el3, write_spsr_el2, write_tcr_el2, write_tpidr_el2,
+        write_ttbr0_el2, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2,
+        write_vttbr_el2,
     },
 };
 use core::{
@@ -38,9 +39,19 @@ const SCR_HCE: u64 = 1 << 8;
 const SCR_SIF: u64 = 1 << 9;
 const SCR_RW: u64 = 1 << 10;
 const SCR_EEL2: u64 = 1 << 18;
+const SCR_EA: u64 = 1 << 3;
+const SCR_TWE: u64 = 1 << 13;
+const SCR_TWI: u64 = 1 << 12;
+const SCR_SMD: u64 = 1 << 7;
 
 /// RES1 bits in the `sctlr_el1` register.
 const SCTLR_EL1_RES1: u64 = 1 << 29 | 1 << 28 | 1 << 23 | 1 << 22 | 1 << 20 | 1 << 11;
+
+///  ICC_SRE bits for the `icc_sre_el2` register.
+const ICC_SRE_SRE: u64 = 1 << 0;
+const ICC_SRE_DFB: u64 = 1 << 1;
+const ICC_SRE_DIB: u64 = 1 << 2;
+const ICC_SRE_EN: u64 = 1 << 3;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -317,7 +328,8 @@ impl El2Sysregs {
         write_hstr_el2(self.hstr_el2);
         write_icc_sre_el2(self.icc_sre_el2);
         write_ich_hcr_el2(self.ich_hcr_el2);
-        write_ich_vmcr_el2(self.ich_vmcr_el2);
+        // TODO: Write the ich_vmcr_el2 register when the GIC driver is used
+        // write_ich_vmcr_el2(self.ich_vmcr_el2);
         write_mair_el2(self.mair_el2);
         write_mdcr_el2(self.mdcr_el2);
         write_sctlr_el2(self.sctlr_el2);
@@ -464,7 +476,16 @@ pub fn switch_world(old_world: World, new_world: World) {
 /// initial boot where we don't care about their state.
 pub fn set_initial_world(world: World) {
     exception_free(|token| {
-        cpu_state(token).context_mut(world).el2_sysregs.restore();
+        let mut cpu_state = cpu_state(token);
+
+        // These are set here before the el2_sysregs are written on, which would otherwise trigger an exception
+        write_scr_el3(cpu_state.context_mut(world).el3_state.scr_el3);
+        // ICC_SRE_EL3 must be set to 0xF before configuring ICC_SRE_EL2
+        // TODO: Remove when GIC driver is used/implemented, as this should be set by the driver.
+        //       As `set_initial_world` gets called only during initial boot, we place it here until
+        //       it gets removed when the GIC driver gets added.
+        write_icc_sre_el3(ICC_SRE_DIB | ICC_SRE_DFB | ICC_SRE_EN | ICC_SRE_SRE);
+        cpu_state.context_mut(world).el2_sysregs.restore();
     });
     set_next_world_context(world);
 }
@@ -495,9 +516,32 @@ pub fn initialise_contexts(
 fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     context.el3_state.elr_el3 = entry_point.pc;
     context.el3_state.spsr_el3 = entry_point.spsr;
-    context.el3_state.scr_el3 = SCR_RES1 | SCR_HCE | SCR_SIF | SCR_RW | SCR_EEL2;
+    // Initialise SCR_EL3, setting all fields rather than relying on hw.
+    // All fields are architecturally UNKNOWN on reset.
+    // The following fields do not change during the TF lifetime.
+    //
+    // SCR_EL3.TWE: Set to zero so that execution of WFE instructions at
+    // EL2, EL1 and EL0 are not trapped to EL3.
+    //
+    // SCR_EL3.TWI: Set to zero so that execution of WFI instructions at
+    // EL2, EL1 and EL0 are not trapped to EL3.
+    //
+    // SCR_EL3.SIF: Set to one to disable instruction fetches from
+    // Non-secure memory.
+    // SCR_EL3.SMD: Set to zero to enable SMC calls at EL1 and above, from
+    // both Security states and both Execution states.
+    //
+    // SCR_EL3.EA: Set to one to route External Aborts and SError Interrupts
+    // to EL3 when executing at any EL.
+    //
+    // SCR_EL3.EEL2: Set to one if S-EL2 is present and enabled.
+    //
+    // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
+    // aganst ERRATA_V2_3099206.
+    context.el3_state.scr_el3 = SCR_RES1 | SCR_HCE | SCR_EA | SCR_SIF | SCR_EEL2 | SCR_RW;
     context.el1_sysregs.sctlr_el1 = SCTLR_EL1_RES1;
-    // TODO: Initialise context.el2_sysregs too.
+    // TODO: Initialise the rest of the context.el2_sysregs too.
+    context.el2_sysregs.icc_sre_el2 = ICC_SRE_DIB | ICC_SRE_DFB | ICC_SRE_EN | ICC_SRE_SRE;
 }
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.

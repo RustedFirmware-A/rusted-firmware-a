@@ -48,6 +48,8 @@ pub struct SystemRegisters {
     pub vtcr_el2: u64,
     pub vttbr_el2: u64,
     pub sp_el3: usize,
+    pub scr_el3: u64,
+    pub icc_sre_el3: u64,
 }
 
 impl SystemRegisters {
@@ -89,6 +91,8 @@ impl SystemRegisters {
             vtcr_el2: 0,
             vttbr_el2: 0,
             sp_el3: 0,
+            scr_el3: 0,
+            icc_sre_el3: 0,
         }
     }
 }

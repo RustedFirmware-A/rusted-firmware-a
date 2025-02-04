@@ -50,33 +50,6 @@ func bl31_entrypoint
         bl init_cpu_data_ptr
 
         /* ---------------------------------------------------------------------
-         * Initialise SCR_EL3, setting all fields rather than relying on hw.
-         * All fields are architecturally UNKNOWN on reset. The following fields
-         * do not change during the TF lifetime. The remaining fields are set to
-         * zero here but are updated ahead of transitioning to a lower EL in the
-         * function cm_init_context_common().
-         *
-         * SCR_EL3.TWE: Set to zero so that execution of WFE instructions at
-         *  EL2, EL1 and EL0 are not trapped to EL3.
-         *
-         * SCR_EL3.TWI: Set to zero so that execution of WFI instructions at
-         *  EL2, EL1 and EL0 are not trapped to EL3.
-         *
-         * SCR_EL3.SIF: Set to one to disable instruction fetches from
-         *  Non-secure memory.
-         *
-         * SCR_EL3.SMD: Set to zero to enable SMC calls at EL1 and above, from
-         *  both Security states and both Execution states.
-         *
-         * SCR_EL3.EA: Set to one to route External Aborts and SError Interrupts
-         *  to EL3 when executing at any EL.
-         * ---------------------------------------------------------------------
-         */
-        mov_imm x0, ((SCR_RESET_VAL | SCR_EA_BIT | SCR_SIF_BIT) \
-                        & ~(SCR_TWE_BIT | SCR_TWI_BIT | SCR_SMD_BIT))
-        msr     scr_el3, x0
-
-        /* ---------------------------------------------------------------------
          * Initialise MDCR_EL3, setting all fields rather than relying on hw.
          * Some fields are architecturally UNKNOWN on reset.
          *

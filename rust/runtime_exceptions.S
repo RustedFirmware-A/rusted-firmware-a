@@ -390,45 +390,7 @@ func handle_interrupt_exception
 	cmp	x0, #INTR_TYPE_INVAL
 	b.eq	interrupt_exit
 
-	/*
-	 * Get the registered handler for this interrupt type.
-	 * A NULL return value could be 'cause of the following conditions:
-	 *
-	 * a. An interrupt of a type was routed correctly but a handler for its
-	 *    type was not registered.
-	 *
-	 * b. An interrupt of a type was not routed correctly so a handler for
-	 *    its type was not registered.
-	 *
-	 * c. An interrupt of a type was routed correctly to EL3, but was
-	 *    deasserted before its pending state could be read. Another
-	 *    interrupt of a different type pended at the same time and its
-	 *    type was reported as pending instead. However, a handler for this
-	 *    type was not registered.
-	 *
-	 * a. and b. can only happen due to a programming error. The
-	 * occurrence of c. could be beyond the control of Trusted Firmware.
-	 * It makes sense to return from this exception instead of reporting an
-	 * error.
-	 */
-	bl	get_interrupt_type_handler
-	cbz	x0, interrupt_exit
-	mov	x21, x0
-
-	mov	x0, #INTR_ID_UNAVAILABLE
-
-	/* Set the current security state in the 'flags' parameter */
-	mrs	x2, scr_el3
-	ubfx	x1, x2, #0, #1
-
-	/* Restore the reference to the 'handle' i.e. SP_EL3 */
-	mov	x2, x20
-
-	/* x3 will point to a cookie (not used now) */
-	mov	x3, xzr
-
-	/* Call the interrupt type handler */
-	blr	x21
+	bl	handle_interrupt
 
 interrupt_exit:
 	/* Return from exception, possibly in a different security state */

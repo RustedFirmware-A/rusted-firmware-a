@@ -24,9 +24,10 @@ extern "C" fn plat_ic_get_pending_interrupt_type() -> u32 {
     unimplemented!();
 }
 
+/// Called from the exception handler in assembly to handle an interrupt.
 #[unsafe(no_mangle)]
-extern "C" fn get_interrupt_type_handler(_interrupt_type: u32) -> *mut c_void {
-    null_mut()
+extern "C" fn handle_interrupt(interrupt_type: u32) {
+    panic!("Unexpected interrupt of type {}", interrupt_type);
 }
 
 /// Handler for injecting undefined exception to lower EL caused by the lower EL accessing system

@@ -261,8 +261,7 @@ sync_handler64:
 
 	/*
 	 * Populate the parameters for the SMC handler.
-	 * We already have x0-x4 in place. x5 will be the index of the world and x6
-	 * will contain flags we need to pass to the handler.
+	 * We already have x0-x4 in place. x5 will be the index of the world.
 	 */
 	mrs	x18, scr_el3
 	get_security_state	x5, x18
@@ -293,34 +292,7 @@ sync_handler64:
 	cmp	x17, #EC_AARCH64_SYS
 	b.eq	sysreg_handler64
 
-	/* Clear flag register */
-	mov	x6, xzr
-
-	/* Copy SCR_EL3.NS bit to the flag to indicate caller's security */
-	bfi	x6, x18, #0, #1
-
 	mov	sp, x12
-
-	/*
-	 * Per SMCCC documentation, bits [23:17] must be zero for Fast
-	 * SMCs. Other values are reserved for future use. Ensure that
-	 * these bits are zeroes, if not report as unknown SMC.
-	 */
-	tbz	x0, #FUNCID_TYPE_SHIFT, 2f  /* Skip check if its a Yield Call*/
-	tst	x0, #(FUNCID_FC_RESERVED_MASK << FUNCID_FC_RESERVED_SHIFT)
-	b.ne	smc_unknown
-
-	/*
-	 * Per SMCCCv1.3 a caller can set the SVE hint bit in the SMC FID
-	 * passed through x0. Copy the SVE hint bit to flags and mask the
-	 * bit in smc_fid passed to the standard service dispatcher.
-	 * A service/dispatcher can retrieve the SVE hint bit state from
-	 * flags using the appropriate helper.
-	 */
-2:
-	and	x16, x0, #(FUNCID_SVE_HINT_MASK << FUNCID_SVE_HINT_SHIFT)
-	orr	x6, x6, x16
-	bic	x0, x0, #(FUNCID_SVE_HINT_MASK << FUNCID_SVE_HINT_SHIFT)
 
 	/*
 	 * Call the Secure Monitor Call handler and then drop directly into
@@ -367,17 +339,6 @@ sysreg_handler64:
 	/* Pass world index as an argument to inject_undef64 */
 	mov	x0, x18
 	bl	inject_undef64
-	b	el3_exit
-
-smc_unknown:
-	/*
-	 * Unknown SMC call. Populate return value with SMC_UNK and call
-	 * el3_exit() which will restore the remaining architectural state
-	 * i.e., SYS, GP and PAuth registers(if any) prior to issuing the ERET
-	 * to the desired lower EL.
-	 */
-	mov	x0, #SMC_UNK
-	str	x0, [x6, #CTX_GPREGS_OFFSET + CTX_GPREG_X0]
 	b	el3_exit
 
 smc_prohibited:

@@ -60,14 +60,18 @@ pub trait Service {
 /// Calls the appropriate SMC handler based on the function ID, or returns `NOT_SUPPORTED` if there
 /// is no suitable handler.
 pub fn dispatch_smc(
-    function: FunctionId,
+    mut function: FunctionId,
     x1: u64,
     x2: u64,
     x3: u64,
     x4: u64,
     world: World,
 ) -> SmcReturn {
-    if Arch::owns(function) {
+    function.clear_sve_hint();
+
+    if !function.valid() {
+        NOT_SUPPORTED.into()
+    } else if Arch::owns(function) {
         Arch::handle_smc(function, x1, x2, x3, x4, world)
     } else if Psci::owns(function) {
         Psci::handle_smc(function, x1, x2, x3, x4, world)

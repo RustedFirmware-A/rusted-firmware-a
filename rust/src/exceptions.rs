@@ -8,7 +8,6 @@ use crate::{
     services::dispatch_smc,
     smccc::FunctionId,
 };
-use bitflags::bitflags;
 use core::{ffi::c_void, ptr::null_mut};
 use log::debug;
 
@@ -39,31 +38,12 @@ extern "C" fn inject_undef64(_world: World) {
     unimplemented!();
 }
 
-bitflags! {
-    // These bit flags must match those set in `runtime_exceptions.S`.
-    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-    #[repr(transparent)]
-    pub struct SmcFlags: u64 {
-        const NON_SECURE = 1 << 0;
-        const REALM = 1 << 5;
-        const SVE_HINT = 1 << 16;
-    }
-}
-
 /// Called from the exception handler in assembly to handle an SMC.
 #[unsafe(no_mangle)]
-extern "C" fn handle_smc(
-    function: FunctionId,
-    x1: u64,
-    x2: u64,
-    x3: u64,
-    x4: u64,
-    world: World,
-    flags: SmcFlags,
-) {
+extern "C" fn handle_smc(function: FunctionId, x1: u64, x2: u64, x3: u64, x4: u64, world: World) {
     debug!(
-        "Handling SMC {:?} ({:#0x}, {:#0x}, {:#0x}, {:#0x}) with world {:?}, flags {:?}",
-        function, x1, x2, x3, x4, world, flags
+        "Handling SMC {:?} ({:#0x}, {:#0x}, {:#0x}, {:#0x}) from world {:?}",
+        function, x1, x2, x3, x4, world,
     );
 
     let ret = dispatch_smc(function, x1, x2, x3, x4, world);
@@ -90,15 +70,7 @@ mod tests {
     /// `handle_smc` works. Individual SMC calls can be tested directly within their modules.
     #[test]
     fn handle_smc_arch_version() {
-        handle_smc(
-            FunctionId(SMCCC_VERSION),
-            0,
-            0,
-            0,
-            0,
-            World::NonSecure,
-            SmcFlags::empty(),
-        );
+        handle_smc(FunctionId(SMCCC_VERSION), 0, 0, 0, 0, World::NonSecure);
 
         assert_eq!(
             exception_free(|token| { cpu_state(token).context(World::NonSecure).gpregs.registers }),

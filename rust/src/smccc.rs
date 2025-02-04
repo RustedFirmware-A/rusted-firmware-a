@@ -10,6 +10,8 @@ const FAST_CALL: u32 = 0x8000_0000;
 const SMC64: u32 = 0x4000_0000;
 const OEN_MASK: u32 = 0x3f00_0000;
 const OEN_SHIFT: u8 = 24;
+const SVE_HINT: u32 = 1 << 16;
+const RESERVED_BITS: u32 = 0x7f << 17;
 
 /// The call completed successfully.
 pub const SUCCESS: i32 = 0;
@@ -115,6 +117,26 @@ impl FunctionId {
         } else {
             SmcccCallType::Yielding
         }
+    }
+
+    /// Returns whether the SVE hint bit is set.
+    ///
+    /// If this is true, the caller asserts that P0-P15, FFR and the bits with index greater than
+    /// 127 in the Z0-Z31 registers do not contain any live state.
+    pub fn sve_hint(self) -> bool {
+        self.0 & SVE_HINT != 0
+    }
+
+    /// Clears the SVE hint bit.
+    pub fn clear_sve_hint(&mut self) {
+        self.0 &= !SVE_HINT
+    }
+
+    /// Returns false if this is a fast call but has any of bits 17-23 set.
+    ///
+    /// They are reserved for future use and should always be 0.
+    pub fn valid(self) -> bool {
+        self.call_type() == SmcccCallType::Yielding || self.0 & RESERVED_BITS == 0
     }
 }
 

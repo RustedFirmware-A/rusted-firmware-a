@@ -125,9 +125,11 @@ impl Platform for Fvp {
     }
 }
 
+// SAFETY: This implementation never returns the same index for different cores.
 unsafe impl Cores for Fvp {
     fn core_index() -> usize {
-        // TODO: Implement this properly.
+        // TODO: Implement this properly. Ensure that the safety invariant still holds, and update
+        // the comment to explain how.
         0
     }
 }

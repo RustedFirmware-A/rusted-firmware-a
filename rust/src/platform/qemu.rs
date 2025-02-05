@@ -108,9 +108,11 @@ impl Platform for Qemu {
     }
 }
 
+// SAFETY: This implementation never returns the same index for different cores.
 unsafe impl Cores for Qemu {
     fn core_index() -> usize {
-        // TODO: Implement this properly.
+        // TODO: Implement this properly. Ensure that the safety invariant still holds, and update
+        // the comment to explain how.
         0
     }
 }

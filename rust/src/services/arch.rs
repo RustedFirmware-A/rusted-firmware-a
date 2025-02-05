@@ -41,6 +41,7 @@ impl Service for Arch {
         _x4: u64,
         _world: World,
     ) -> SmcReturn {
+        #[allow(clippy::unit_arg)]
         match function.0 {
             SMCCC_VERSION => version().into(),
             SMCCC_ARCH_FEATURES => arch_features(x1 as u32).into(),

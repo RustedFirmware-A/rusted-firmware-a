@@ -12,7 +12,7 @@ BL31_ELF := target/bl31.elf
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES :=
 
-.PHONY: all clean clippy qemu qemu-wait fvp build build-bl33 list_platforms
+.PHONY: all clean clippy clippy-test qemu qemu-wait fvp build build-bl33 list_platforms
 
 PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
@@ -107,23 +107,26 @@ list_platforms:
 	@echo "${PLATFORMS_AVAILABLE}"
 
 help:
-	@echo "usage: ${MAKE} [PLAT=<platform>] [OPTIONS] [TARGET]"
-	@echo ""
-	@echo "PLAT is used to specify which platform you wish to build."
-	@echo "If no platform is specified, PLAT defaults to: None"
-	@echo ""
-	@echo "platform = ${PLATFORMS_AVAILABLE}"
-	@echo ""
-	@echo "Note that the build system doesn't track dependencies for build "
-	@echo "options. Therefore, if any of the build options are changed "
-	@echo "from a previous build, a clean build must be performed."
-	@echo ""
-	@echo "Supported Targets:"
-	@echo "  all         Build BL31 bootloader binary and create BL33 file."
-	@echo "  clean       Clean the build for all platforms."
-	@echo "  clippy      Lint the Rust source tree for the specified platform."
-	@echo "  clippy-test Lint the Rust source tree in the test configuration."
-	@echo "  qemu        Run qemu. Target should be invoked after binaries are built."
-	@echo "  fvp         Run fvp. Target should be invoked after binaries are built."
-	@echo "  build       Build BL31 for the specified platform."
-	@echo ""
+	@echo "usage: ${MAKE} PLAT=<platform> [VAR=<value> [...]] <target> [...]"
+	@echo
+	@echo "PLAT is required to specify which platform you wish to build."
+	@echo "The available platforms are:"
+	@echo
+	@echo "  ${PLATFORMS_AVAILABLE}"
+	@echo
+	@echo "Note that the build system doesn't track dependencies for build"
+	@echo "options. Therefore, if any of the build options have changed"
+	@echo "since a previous build, a clean build must be performed."
+	@echo
+	@echo "Supported targets:"
+	@echo
+	@echo "  all          Build BL31 bootloader binary and create dummy BL33 file."
+	@echo "  build        Build BL31 for the specified platform."
+	@echo "  build-bl33   Create a dummy BL33 file."
+	@echo "  clean        Clean the build for all platforms."
+	@echo "  clippy       Lint the Rust source tree for the specified platform."
+	@echo "  clippy-test  Lint the Rust source tree for the test configuration."
+	@echo "  fvp          Run fvp. Target should be invoked after binaries are built."
+	@echo "  gdb          Attach gdb to a running BL31."
+	@echo "  qemu         Run qemu. Target should be invoked after binaries are built."
+	@echo "  qemu-wait    Run qemu and wait for a debugger to be attached. (See gdb.)"

@@ -90,7 +90,9 @@ fvp: $(BL1) $(FIP)
 	  -C bp.terminal_3.start_telnet=0 \
 	  -C pctl.startup=0.0.0.0 \
 	  -C cluster0.NUM_CORES=4 \
+	  -C cluster1.NUM_CORES=4 \
 	  -C cluster0.cpu0.semihosting-cwd=target \
+	  -C cluster1.cpu0.semihosting-cwd=target \
 	  -C bp.secure_memory=1 \
 	  -C bp.secureflashloader.fname=$(BL1) \
 	  -C bp.flashloader0.fname=$(FIP)

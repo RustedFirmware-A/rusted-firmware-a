@@ -5,6 +5,7 @@
 use crate::{
     layout::{bl31_end, bl31_start, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end},
     platform::{Platform, PlatformImpl},
+    sysregs::{read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3},
 };
 use aarch64_paging::{
     mair::{Mair, MairAttribute, NormalMemory},
@@ -14,7 +15,7 @@ use aarch64_paging::{
     },
     MapError, Mapping,
 };
-use core::{mem::take, ptr::NonNull};
+use core::{arch::asm, mem::take, ptr::NonNull};
 use log::{info, warn};
 use spin::{
     mutex::{SpinMutex, SpinMutexGuard},
@@ -53,6 +54,15 @@ const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
 /// and D8.4.1.2.1 Stage 1 data accesses using Direct permissions:
 /// "For a stage 1 translation that supports one Exception level, AP[1] is RES1."
 const EL3_RES1: Attributes = Attributes::USER;
+
+/// MMU enable for EL1 and EL0 stage 1 address translation.
+const SCTLR_M: u64 = 1 << 0;
+
+/// Cacheability control, for data accesses at EL1 and EL0.
+const SCTLR_C: u64 = 1 << 2;
+
+/// Write permission implies XN (Execute-never).
+const SCTLR_WXN: u64 = 1 << 19;
 
 /// Attributes used for all mappings.
 ///
@@ -98,21 +108,6 @@ static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
     SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
 static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
 
-#[unsafe(export_name = "mmu_cfg_params")]
-static mut MMU_CFG_PARAMS: MmuCfgParams = MmuCfgParams {
-    mair: 0,
-    tcr: 0,
-    ttbr0: 0,
-};
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[repr(C)]
-struct MmuCfgParams {
-    mair: u64,
-    tcr: u64,
-    ttbr0: usize,
-}
-
 /// Initialises and enables the page table.
 ///
 /// This should be called once early in startup, before anything else that depends on it.
@@ -124,9 +119,6 @@ pub fn init() {
 
         info!("Setting MMU config");
         setup_mmu_cfg(idmap.root_address());
-        unsafe {
-            enable_mmu_direct_el3(0);
-        }
         info!("Marking page table as active");
         idmap.mark_active();
 
@@ -177,15 +169,26 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
         | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
     let ttbr0 = root_address.0;
 
-    unsafe {
-        MMU_CFG_PARAMS.mair = MAIR.0;
-        MMU_CFG_PARAMS.tcr = tcr;
-        MMU_CFG_PARAMS.ttbr0 = ttbr0;
-    }
-}
+    let mut sctlr = read_sctlr_el3();
+    assert!((sctlr & SCTLR_M) == 0);
 
-extern "C" {
-    fn enable_mmu_direct_el3(flags: u32);
+    tlbi_alle3();
+    // SAFETY: We enable the MMU with valid and correct configuration parameters MAIR, TCR, and
+    // TTBR0 (which is a valid address).
+    unsafe {
+        write_mair_el3(MAIR.0);
+        write_tcr_el3(tcr);
+        write_ttbr0_el3(ttbr0);
+    }
+
+    // Ensure all translation table writes have drained into memory, the TLB invalidation is
+    // complete, and translation register writes are committed before enabling the MMU.
+    dsb_ish();
+    isb();
+
+    sctlr |= SCTLR_M | SCTLR_C | SCTLR_WXN;
+    write_sctlr_el3(sctlr);
+    isb();
 }
 
 struct IdTranslation {
@@ -256,6 +259,35 @@ impl IdMap {
 
     fn root_address(&self) -> PhysicalAddress {
         self.mapping.root_address()
+    }
+}
+
+/// Issues a data synchronization barrier (`dsb`) instruction that applies to the inner shareable
+/// domain (`ish`).
+fn dsb_ish() {
+    // SAFETY: `dsb` does not violate safe Rust guarantees.
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!("dsb ish", options(nostack));
+    }
+}
+
+/// Issues an instruction synchronization barrier (`isb`) instruction.
+fn isb() {
+    // SAFETY: `isb` does not violate safe Rust guarantees.
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!("isb", options(nostack));
+    }
+}
+
+/// Issues a translation lookaside buffer invalidate (`tlbi`) instruction that invalidates all TLB
+/// entries for EL3 (`alle3`).
+fn tlbi_alle3() {
+    // SAFETY: `tlbi` does not violate safe Rust guarantees.
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!("tlbi alle3", options(nostack));
     }
 }
 

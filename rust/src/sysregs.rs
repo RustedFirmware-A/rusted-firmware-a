@@ -9,7 +9,7 @@
 pub mod fake;
 
 #[cfg(test)]
-pub use fake::write_sp_el3;
+pub use fake::{write_sp_el3, write_ttbr0_el3};
 
 #[cfg(not(test))]
 use core::arch::asm;
@@ -119,6 +119,7 @@ read_write_sysreg!(mdcr_el2, safe read_mdcr_el2, safe write_mdcr_el2);
 read_write_sysreg!(scr_el3, safe read_scr_el3, safe write_scr_el3);
 read_write_sysreg!(sctlr_el1, safe read_sctlr_el1, safe write_sctlr_el1);
 read_write_sysreg!(sctlr_el2, safe read_sctlr_el2, safe write_sctlr_el2);
+read_write_sysreg!(sctlr_el3, safe read_sctlr_el3, safe write_sctlr_el3);
 read_write_sysreg!(sp_el2, safe read_sp_el2, safe write_sp_el2);
 read_write_sysreg!(spsr_el1, safe read_spsr_el1, safe write_spsr_el1);
 read_write_sysreg!(spsr_el2, safe read_spsr_el2, safe write_spsr_el2);
@@ -135,6 +136,14 @@ read_write_sysreg!(vttbr_el2, safe read_vttbr_el2, safe write_vttbr_el2);
 // behaviour.
 write_sysreg!(icc_sre_el3, write_icc_sre_el3);
 
+// The caller must ensure that `value` is a correct and safe configuration value for the EL3 memory
+// attribute indirection register.
+write_sysreg!(mair_el3, write_mair_el3);
+
+// The caller must ensure that `value` is a correct and safe configuration value for the EL3
+// translation control register.
+write_sysreg!(tcr_el3, write_tcr_el3);
+
 /// Writes `value` to `sp_el3`.
 ///
 /// # Safety
@@ -150,5 +159,22 @@ pub unsafe fn write_sp_el3(value: usize) {
             "msr spsel, #0",
             value = in(reg) value,
         )
+    }
+}
+
+/// Writes `value` to `ttrb0_el3`.
+///
+/// # Safety
+///
+/// The caller must ensure that `value` is a valid base address for the EL3 translation table.
+#[cfg(not(test))]
+pub unsafe fn write_ttbr0_el3(value: usize) {
+    // SAFETY: The caller has ensured that `value` is valid.
+    unsafe {
+        asm!(
+            "msr ttbr0_el3, {value}",
+            options(nostack),
+            value = in(reg) value,
+        );
     }
 }

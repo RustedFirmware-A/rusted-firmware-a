@@ -33,17 +33,21 @@ pub struct SystemRegisters {
     pub ich_hcr_el2: u64,
     pub ich_vmcr_el2: u64,
     pub mair_el2: u64,
+    pub mair_el3: u64,
     pub mdcr_el2: u64,
     pub scr_el3: u64,
     pub sctlr_el1: u64,
     pub sctlr_el2: u64,
+    pub sctlr_el3: u64,
     pub sp_el2: u64,
     pub sp_el3: usize,
     pub spsr_el1: u64,
     pub spsr_el2: u64,
     pub tcr_el2: u64,
+    pub tcr_el3: u64,
     pub tpidr_el2: u64,
     pub ttbr0_el2: u64,
+    pub ttbr0_el3: u64,
     pub vbar_el1: u64,
     pub vbar_el2: u64,
     pub vmpidr_el2: u64,
@@ -76,17 +80,21 @@ impl SystemRegisters {
             ich_hcr_el2: 0,
             ich_vmcr_el2: 0,
             mair_el2: 0,
+            mair_el3: 0,
             mdcr_el2: 0,
             scr_el3: 0,
             sctlr_el1: 0,
             sctlr_el2: 0,
+            sctlr_el3: 0,
             sp_el2: 0,
             sp_el3: 0,
             spsr_el1: 0,
             spsr_el2: 0,
             tcr_el2: 0,
+            tcr_el3: 0,
             tpidr_el2: 0,
             ttbr0_el2: 0,
+            ttbr0_el3: 0,
             vbar_el1: 0,
             vbar_el2: 0,
             vmpidr_el2: 0,
@@ -105,6 +113,11 @@ impl SystemRegisters {
 pub unsafe fn write_sp_el3(value: usize) {
     let mut regs = SYSREGS.lock().unwrap();
     regs.sp_el3 = value;
+}
+
+pub unsafe fn write_ttbr0_el3(value: usize) {
+    let mut regs = SYSREGS.lock().unwrap();
+    regs.ttbr0_el3 = value as u64;
 }
 
 /// Generates a public function named `$function_name` to read the fake system register `$sysreg`.

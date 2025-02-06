@@ -21,7 +21,7 @@ macro_rules! owns {
             function.oen() == $owning_entity
                 && matches!(
                     function.call_type(),
-                    crate::smccc::SmcccCallType::Fast32 | crate::smccc::SmcccCallType::Fast64
+                    $crate::smccc::SmcccCallType::Fast32 | $crate::smccc::SmcccCallType::Fast64
                 )
         }
     };
@@ -34,7 +34,7 @@ macro_rules! owns {
                 && $range.contains(&function.number())
                 && matches!(
                     function.call_type(),
-                    crate::smccc::SmcccCallType::Fast32 | crate::smccc::SmcccCallType::Fast64
+                    $crate::smccc::SmcccCallType::Fast32 | $crate::smccc::SmcccCallType::Fast64
                 )
         }
     };

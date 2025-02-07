@@ -7,6 +7,7 @@ use crate::{
     platform::{Platform, PlatformImpl},
 };
 use aarch64_paging::{
+    mair::{Mair, MairAttribute, NormalMemory},
     paging::{
         Attributes, Constraints, MemoryRegion, PageTable, PhysicalAddress, Translation,
         TranslationRegime, VaRange, VirtualAddress,
@@ -23,24 +24,23 @@ use spin::{
 const ROOT_LEVEL: usize = 1;
 
 // Indices of entries in the Memory Attribute Indirection Register.
-const MAIR_IWBRWA_OWBRWA_NTR_INDEX: usize = 0;
-const MAIR_DEVICE_INDEX: usize = 1;
-const MAIR_NON_CACHEABLE_INDEX: usize = 2;
-
-/// Device-nGnRE memory
-const MAIR_DEV_NGNRE: u64 = 0x4;
-/// Normal memory, Non-Cacheable
-const MAIR_NORM_NC: u64 = 0x4;
-/// Normal memory, write-back non-transient, read-write-allocate
-const MAIR_NORM_WB_NTR_RWA: u64 = 0xf;
-/// Bit shift for outer memory attributes for normal memory.
-const MAIR_NORM_OUTER_SHIFT: usize = 4;
+const MAIR_IWBRWA_OWBRWA_NTR_INDEX: u8 = 0;
+const MAIR_DEVICE_INDEX: u8 = 1;
+const MAIR_NON_CACHEABLE_INDEX: u8 = 2;
 
 // Values for MAIR entries.
-const MAIR_DEVICE: u64 = MAIR_DEV_NGNRE;
-const MAIR_IWBRWA_OWBRWA_NTR: u64 =
-    MAIR_NORM_WB_NTR_RWA | MAIR_NORM_WB_NTR_RWA << MAIR_NORM_OUTER_SHIFT;
-const MAIR_NON_CACHEABLE: u64 = MAIR_NORM_NC | MAIR_NORM_NC << MAIR_NORM_OUTER_SHIFT;
+const MAIR_DEVICE: MairAttribute = MairAttribute::DEVICE_NGNRE;
+const MAIR_IWBRWA_OWBRWA_NTR: MairAttribute = MairAttribute::normal(
+    NormalMemory::WriteBackNonTransientReadWriteAllocate,
+    NormalMemory::WriteBackNonTransientReadWriteAllocate,
+);
+const MAIR_NON_CACHEABLE: MairAttribute =
+    MairAttribute::normal(NormalMemory::NonCacheable, NormalMemory::NonCacheable);
+
+const MAIR: Mair = Mair::EMPTY
+    .with_attribute(MAIR_DEVICE_INDEX, MAIR_DEVICE)
+    .with_attribute(MAIR_IWBRWA_OWBRWA_NTR_INDEX, MAIR_IWBRWA_OWBRWA_NTR)
+    .with_attribute(MAIR_NON_CACHEABLE_INDEX, MAIR_NON_CACHEABLE);
 
 // Attribute values corresponding to the above MAIR indices.
 const IWBRWA_OWBRWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;
@@ -173,15 +173,12 @@ pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attribut
 }
 
 fn setup_mmu_cfg(root_address: PhysicalAddress) {
-    let mair = MAIR_DEVICE << (MAIR_DEVICE_INDEX << 3)
-        | MAIR_IWBRWA_OWBRWA_NTR << (MAIR_IWBRWA_OWBRWA_NTR_INDEX << 3)
-        | MAIR_NON_CACHEABLE << (MAIR_NON_CACHEABLE_INDEX << 3);
     let tcr = 0b101 << 16 // 48 bit physical address size (256 TiB).
         | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
     let ttbr0 = root_address.0;
 
     unsafe {
-        MMU_CFG_PARAMS.mair = mair;
+        MMU_CFG_PARAMS.mair = MAIR.0;
         MMU_CFG_PARAMS.tcr = tcr;
         MMU_CFG_PARAMS.ttbr0 = ttbr0;
     }

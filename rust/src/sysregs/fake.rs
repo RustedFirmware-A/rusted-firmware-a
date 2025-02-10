@@ -109,8 +109,13 @@ pub unsafe fn write_sp_el3(value: usize) {
 
 /// Generates a public function named `$function_name` to read the fake system register `$sysreg`.
 macro_rules! read_sysreg {
-    ($sysreg:ident, $function_name:ident) => {
+    ($sysreg:ident, safe $function_name:ident) => {
         pub fn $function_name() -> u64 {
+            crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg
+        }
+    };
+    ($sysreg:ident, $function_name:ident) => {
+        pub unsafe fn $function_name() -> u64 {
             crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg
         }
     };
@@ -119,8 +124,13 @@ macro_rules! read_sysreg {
 /// Generates a public function named `$function_name` to write to the fake system register
 /// `$sysreg`.
 macro_rules! write_sysreg {
-    ($sysreg:ident, $function_name:ident) => {
+    ($sysreg:ident, safe $function_name:ident) => {
         pub fn $function_name(value: u64) {
+            crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg = value;
+        }
+    };
+    ($sysreg:ident, $function_name:ident) => {
+        pub unsafe fn $function_name(value: u64) {
             crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg = value;
         }
     };

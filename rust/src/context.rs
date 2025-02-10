@@ -48,7 +48,7 @@ const SCR_NSE: u64 = 1 << 62;
 /// RES1 bits in the `sctlr_el1` register.
 const SCTLR_EL1_RES1: u64 = 1 << 29 | 1 << 28 | 1 << 23 | 1 << 22 | 1 << 20 | 1 << 11;
 
-///  ICC_SRE bits for the `icc_sre_el2` register.
+// Bits for the `icc_sre_el2` and `icc_sre_el3` registers.
 const ICC_SRE_SRE: u64 = 1 << 0;
 const ICC_SRE_DFB: u64 = 1 << 1;
 const ICC_SRE_DIB: u64 = 1 << 2;
@@ -488,17 +488,24 @@ pub fn switch_world(old_world: World, new_world: World) {
 /// This doesn't save the current state of the lower EL system registers, so should only be used for
 /// initial boot where we don't care about their state.
 pub fn set_initial_world(world: World) {
-    exception_free(|token| {
-        let mut cpu_state = cpu_state(token);
-
-        // These are set here before the el2_sysregs are written on, which would otherwise trigger an exception
-        write_scr_el3(cpu_state.context_mut(world).el3_state.scr_el3);
-        // ICC_SRE_EL3 must be set to 0xF before configuring ICC_SRE_EL2
-        // TODO: Remove when GIC driver is used/implemented, as this should be set by the driver.
-        //       As `set_initial_world` gets called only during initial boot, we place it here until
-        //       it gets removed when the GIC driver gets added.
+    // ICC_SRE_EL3 must be set to 0xF before configuring ICC_SRE_EL2
+    // TODO: Remove when GIC driver is used/implemented, as this should be set by the driver.
+    //       As `set_initial_world` gets called only during initial boot, we place it here until
+    //       it gets removed when the GIC driver gets added.
+    // SAFETY: This is the only place we set `icc_sre_el3`, and we set the SRE bit, so it is never
+    // changed from 1 to 0.
+    unsafe {
         write_icc_sre_el3(ICC_SRE_DIB | ICC_SRE_DFB | ICC_SRE_EN | ICC_SRE_SRE);
-        cpu_state.context_mut(world).el2_sysregs.restore();
+    }
+
+    exception_free(|token| {
+        let cpu_state = cpu_state(token);
+        let context = cpu_state.context(world);
+
+        // This must be initialised before the EL2 system registers are written to, to avoid an
+        // exception.
+        write_scr_el3(context.el3_state.scr_el3);
+        context.el2_sysregs.restore();
     });
     set_next_world_context(world);
 }

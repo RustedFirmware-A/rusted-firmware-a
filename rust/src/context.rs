@@ -15,10 +15,9 @@ use crate::{
         write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2, write_cntvoff_el2,
         write_cptr_el2, write_elr_el2, write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2,
         write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_icc_sre_el3, write_ich_hcr_el2,
-        write_ich_vmcr_el2, write_mair_el2, write_mdcr_el2, write_scr_el3, write_sctlr_el2,
-        write_sp_el2, write_sp_el3, write_spsr_el2, write_tcr_el2, write_tpidr_el2,
-        write_ttbr0_el2, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2,
-        write_vttbr_el2,
+        write_mair_el2, write_mdcr_el2, write_scr_el3, write_sctlr_el2, write_sp_el2, write_sp_el3,
+        write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2,
+        write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
     },
 };
 use core::{
@@ -36,12 +35,9 @@ const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 const SCR_RES1: u64 = 1 << 4 | 1 << 5;
 const SCR_NS: u64 = 1 << 0;
 const SCR_EA: u64 = 1 << 3;
-const SCR_SMD: u64 = 1 << 7;
 const SCR_HCE: u64 = 1 << 8;
 const SCR_SIF: u64 = 1 << 9;
 const SCR_RW: u64 = 1 << 10;
-const SCR_TWI: u64 = 1 << 12;
-const SCR_TWE: u64 = 1 << 13;
 const SCR_EEL2: u64 = 1 << 18;
 const SCR_NSE: u64 = 1 << 62;
 

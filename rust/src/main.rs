@@ -7,6 +7,7 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
+mod aarch64;
 mod context;
 mod exceptions;
 #[cfg_attr(test, path = "layout_fake.rs")]

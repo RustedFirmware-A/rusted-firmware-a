@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
+    aarch64::{dsb_ish, isb},
     layout::{bl31_end, bl31_start, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end},
     platform::{Platform, PlatformImpl},
     sysregs::{read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3},
@@ -259,25 +260,6 @@ impl IdMap {
 
     fn root_address(&self) -> PhysicalAddress {
         self.mapping.root_address()
-    }
-}
-
-/// Issues a data synchronization barrier (`dsb`) instruction that applies to the inner shareable
-/// domain (`ish`).
-fn dsb_ish() {
-    // SAFETY: `dsb` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
-    unsafe {
-        asm!("dsb ish", options(nostack));
-    }
-}
-
-/// Issues an instruction synchronization barrier (`isb`) instruction.
-fn isb() {
-    // SAFETY: `isb` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
-    unsafe {
-        asm!("isb", options(nostack));
     }
 }
 

@@ -70,6 +70,9 @@ impl Platform for TestPlatform {
     }
 }
 
+// SAFETY: The `TestPlatform` pretends to have 1 core, and `core_index` always returns 0. This
+// trivially satisfies `Cores`' safety requirement that it not return the same index on different
+// cores.
 unsafe impl Cores for TestPlatform {
     fn core_index() -> usize {
         0

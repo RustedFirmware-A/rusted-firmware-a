@@ -41,7 +41,7 @@ extern "C" fn inject_undef64() {
 /// Called from the exception handler in assembly to handle an SMC.
 #[unsafe(no_mangle)]
 extern "C" fn handle_smc(function: FunctionId, x1: u64, x2: u64, x3: u64, x4: u64) {
-    let world = World::current();
+    let world = World::from_scr();
     debug!(
         "Handling SMC {:?} ({:#0x}, {:#0x}, {:#0x}, {:#0x}) from world {:?}",
         function, x1, x2, x3, x4, world,
@@ -64,6 +64,7 @@ extern "C" fn handle_smc(function: FunctionId, x1: u64, x2: u64, x3: u64, x4: u6
 mod tests {
     use super::*;
     use crate::{
+        context::SCR_NS,
         services::arch::{SMCCC_VERSION, SMCCC_VERSION_1_5},
         sysregs::fake::SYSREGS,
     };
@@ -75,7 +76,7 @@ mod tests {
     #[test]
     fn handle_smc_arch_version() {
         // Pretend to be coming from non-secure world.
-        SYSREGS.lock().unwrap().scr_el3 = 0x01;
+        SYSREGS.lock().unwrap().scr_el3 = SCR_NS;
 
         handle_smc(FunctionId(SMCCC_VERSION), 0, 0, 0, 0);
 

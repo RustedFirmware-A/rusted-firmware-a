@@ -33,7 +33,7 @@ const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
 
 /// RES1 bits in the `scr_el3` register.
 const SCR_RES1: u64 = 1 << 4 | 1 << 5;
-const SCR_NS: u64 = 1 << 0;
+pub const SCR_NS: u64 = 1 << 0;
 const SCR_EA: u64 = 1 << 3;
 const SCR_HCE: u64 = 1 << 8;
 const SCR_SIF: u64 = 1 << 9;
@@ -66,7 +66,7 @@ impl World {
     }
 
     /// Reads the current lower EL world from `scr_el3`.
-    pub fn current() -> Self {
+    pub fn from_scr() -> Self {
         let scr_el3 = read_scr_el3();
         match (scr_el3 & SCR_NSE != 0, scr_el3 & SCR_NS != 0) {
             (false, false) => World::Secure,

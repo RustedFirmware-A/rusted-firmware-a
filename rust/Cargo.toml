@@ -31,3 +31,6 @@ anyhow = "1.0.93"
 
 [features]
 rme = []
+
+[lints.clippy]
+unreadable_literal = "deny"

@@ -9,69 +9,69 @@ use crate::{
     smccc::{FunctionId, OwningEntityNumber, SmcReturn, NOT_SUPPORTED, SUCCESS},
 };
 
-const PSCI_VERSION: u32 = 0x84000000;
+const PSCI_VERSION: u32 = 0x8400_0000;
 #[allow(unused)]
-const PSCI_CPU_SUSPEND_32: u32 = 0x84000001;
+const PSCI_CPU_SUSPEND_32: u32 = 0x8400_0001;
 #[allow(unused)]
-const PSCI_CPU_SUSPEND_64: u32 = 0xC4000001;
+const PSCI_CPU_SUSPEND_64: u32 = 0xC400_0001;
 #[allow(unused)]
-const PSCI_CPU_OFF: u32 = 0x84000002;
+const PSCI_CPU_OFF: u32 = 0x8400_0002;
 #[allow(unused)]
-const PSCI_CPU_ON_32: u32 = 0x84000003;
+const PSCI_CPU_ON_32: u32 = 0x8400_0003;
 #[allow(unused)]
-const PSCI_CPU_ON_64: u32 = 0xC4000003;
+const PSCI_CPU_ON_64: u32 = 0xC400_0003;
 #[allow(unused)]
-const PSCI_AFFINITY_INFO_32: u32 = 0x84000004;
+const PSCI_AFFINITY_INFO_32: u32 = 0x8400_0004;
 #[allow(unused)]
-const PSCI_AFFINITY_INFO_64: u32 = 0xC4000004;
+const PSCI_AFFINITY_INFO_64: u32 = 0xC400_0004;
 #[allow(unused)]
-const PSCI_MIGRATE_32: u32 = 0x84000005;
+const PSCI_MIGRATE_32: u32 = 0x8400_0005;
 #[allow(unused)]
-const PSCI_MIGRATE_64: u32 = 0xC4000005;
+const PSCI_MIGRATE_64: u32 = 0xC400_0005;
 #[allow(unused)]
-const PSCI_MIGRATE_INFO_TYPE: u32 = 0x84000006;
+const PSCI_MIGRATE_INFO_TYPE: u32 = 0x8400_0006;
 #[allow(unused)]
-const PSCI_MIGRATE_INFO_UP_CPU_32: u32 = 0x84000007;
+const PSCI_MIGRATE_INFO_UP_CPU_32: u32 = 0x8400_0007;
 #[allow(unused)]
-const PSCI_MIGRATE_INFO_UP_CPU_64: u32 = 0xC4000007;
-const PSCI_SYSTEM_OFF: u32 = 0x84000008;
+const PSCI_MIGRATE_INFO_UP_CPU_64: u32 = 0xC400_0007;
+const PSCI_SYSTEM_OFF: u32 = 0x8400_0008;
 #[allow(unused)]
-const PSCI_SYSTEM_RESET: u32 = 0x84000009;
+const PSCI_SYSTEM_RESET: u32 = 0x8400_0009;
 #[allow(unused)]
-const PSCI_SYSTEM_RESET2_32: u32 = 0x84000012;
+const PSCI_SYSTEM_RESET2_32: u32 = 0x8400_0012;
 #[allow(unused)]
-const PSCI_SYSTEM_RESET2_64: u32 = 0xC4000012;
+const PSCI_SYSTEM_RESET2_64: u32 = 0xC400_0012;
 #[allow(unused)]
-const PSCI_MEM_PROTECT: u32 = 0x84000013;
+const PSCI_MEM_PROTECT: u32 = 0x8400_0013;
 #[allow(unused)]
-const PSCI_MEM_PROTECT_CHECK_RANGE_32: u32 = 0x84000014;
+const PSCI_MEM_PROTECT_CHECK_RANGE_32: u32 = 0x8400_0014;
 #[allow(unused)]
-const PSCI_MEM_PROTECT_CHECK_RANGE_64: u32 = 0xC4000014;
-const PSCI_FEATURES: u32 = 0x8400000A;
+const PSCI_MEM_PROTECT_CHECK_RANGE_64: u32 = 0xC400_0014;
+const PSCI_FEATURES: u32 = 0x8400_000A;
 #[allow(unused)]
-const PSCI_CPU_FREEZE: u32 = 0x8400000B;
+const PSCI_CPU_FREEZE: u32 = 0x8400_000B;
 #[allow(unused)]
-const PSCI_CPU_DEFAULT_SUSPEND_32: u32 = 0x8400000C;
+const PSCI_CPU_DEFAULT_SUSPEND_32: u32 = 0x8400_000C;
 #[allow(unused)]
-const PSCI_CPU_DEFAULT_SUSPEND_64: u32 = 0xC400000C;
+const PSCI_CPU_DEFAULT_SUSPEND_64: u32 = 0xC400_000C;
 #[allow(unused)]
-const PSCI_NODE_HW_STATE_32: u32 = 0x8400000D;
+const PSCI_NODE_HW_STATE_32: u32 = 0x8400_000D;
 #[allow(unused)]
-const PSCI_NODE_HW_STATE_64: u32 = 0xC400000D;
+const PSCI_NODE_HW_STATE_64: u32 = 0xC400_000D;
 #[allow(unused)]
-const PSCI_SYSTEM_SUSPEND_32: u32 = 0x8400000E;
+const PSCI_SYSTEM_SUSPEND_32: u32 = 0x8400_000E;
 #[allow(unused)]
-const PSCI_SYSTEM_SUSPEND_64: u32 = 0xC400000E;
+const PSCI_SYSTEM_SUSPEND_64: u32 = 0xC400_000E;
 #[allow(unused)]
-const PSCI_SET_SUSPEND_MODE: u32 = 0x8400000F;
+const PSCI_SET_SUSPEND_MODE: u32 = 0x8400_000F;
 #[allow(unused)]
-const PSCI_STAT_RESIDENCY_32: u32 = 0x84000010;
+const PSCI_STAT_RESIDENCY_32: u32 = 0x8400_0010;
 #[allow(unused)]
-const PSCI_STAT_RESIDENCY_64: u32 = 0xC4000010;
+const PSCI_STAT_RESIDENCY_64: u32 = 0xC400_0010;
 #[allow(unused)]
-const PSCI_STAT_COUNT_32: u32 = 0x84000011;
+const PSCI_STAT_COUNT_32: u32 = 0x8400_0011;
 #[allow(unused)]
-const PSCI_STAT_COUNT_64: u32 = 0xC4000011;
+const PSCI_STAT_COUNT_64: u32 = 0xC400_0011;
 
 const PSCI_VERSION_1_1: u32 = 0x0001_0001;
 

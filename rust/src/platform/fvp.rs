@@ -13,9 +13,10 @@ use crate::{
     sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
+use arm_pl011_uart::{OwnedMmioPointer, PL011Registers, Uart};
+use core::ptr::NonNull;
 use log::LevelFilter;
 use percore::Cores;
-use pl011_uart::Uart;
 
 const BASE_GICD_BASE: usize = 0x2f00_0000;
 const BASE_GICR_BASE: usize = 0x2f10_0000;
@@ -46,7 +47,7 @@ const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEV
 const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE);
 
 // Base address of the primary PL011 UART.
-const PL011_BASE_ADDRESS: *mut u32 = 0x1C09_0000 as _;
+const PL011_BASE_ADDRESS: *mut PL011Registers = 0x1C09_0000 as _;
 
 // TODO: Use the correct addresses here.
 /// The physical address of the SPMC manifest blob.
@@ -66,11 +67,16 @@ pub struct Fvp;
 impl Platform for Fvp {
     const CORE_COUNT: usize = PLATFORM_CORE_COUNT;
 
+    type LoggerWriter = Uart<'static>;
+
     fn init_beforemmu() {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
-        // accesses that address range.
-        let uart = unsafe { Uart::new(PL011_BASE_ADDRESS) };
-        logger::init(uart, LevelFilter::Trace).expect("Failed to initialise logger");
+        // accesses that address range. The address remains valid after turning on the MMU
+        // because of the identity mapping of the `V2M_MAP_IOFPGA` region.
+        let uart_pointer =
+            unsafe { OwnedMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
+        logger::init(Uart::new(uart_pointer), LevelFilter::Trace)
+            .expect("Failed to initialise logger");
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {

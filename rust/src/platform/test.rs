@@ -22,6 +22,8 @@ pub struct TestPlatform;
 impl Platform for TestPlatform {
     const CORE_COUNT: usize = 1;
 
+    type LoggerWriter = DummyLoggerWriter;
+
     fn init_beforemmu() {}
 
     fn map_extra_regions(idmap: &mut IdMap) {
@@ -98,4 +100,12 @@ pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
     // hardware exceptions nor multiple threads.
     let token = unsafe { ExceptionFree::new() };
     f(token)
+}
+
+pub struct DummyLoggerWriter;
+
+impl core::fmt::Write for DummyLoggerWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        Ok(())
+    }
 }

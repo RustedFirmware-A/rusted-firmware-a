@@ -21,6 +21,10 @@ pub use test::{exception_free, TestPlatform as PlatformImpl};
 use crate::{context::EntryPointInfo, pagetable::IdMap, services::arch::WorkaroundSupport};
 use percore::Cores;
 
+/// The code must use `platform::LoggerWriter` to avoid the 'ambiguous associated type' error that
+/// occurs when using `PlatformImpl::LoggerWriter` directly.
+pub type LoggerWriter = <PlatformImpl as Platform>::LoggerWriter;
+
 /// The hooks implemented by all platforms.
 pub trait Platform: Cores {
     /// The number of CPU cores.
@@ -28,6 +32,9 @@ pub trait Platform: Cores {
 
     /// The number of pages to reserve for the page heap.
     const PAGE_HEAP_PAGE_COUNT: usize = 5;
+
+    /// Platform dependent Write implementation type for Logger.
+    type LoggerWriter: core::fmt::Write;
 
     /// Initialises the logger and anything else the platform needs. This will be called before the
     /// MMU is enabled.

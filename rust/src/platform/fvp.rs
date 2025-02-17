@@ -10,6 +10,7 @@ use crate::{
     logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::arch::WorkaroundSupport,
+    sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
 use log::LevelFilter;
@@ -84,9 +85,9 @@ impl Platform for Fvp {
         EntryPointInfo {
             pc: 0x0600_0000,
             #[cfg(feature = "sel2")]
-            spsr: 0x3c9,
+            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H,
             #[cfg(not(feature = "sel2"))]
-            spsr: 0x3c5,
+            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL1H,
             args: [
                 TOS_FW_CONFIG_ADDRESS,
                 HW_CONFIG_ADDRESS,
@@ -103,7 +104,7 @@ impl Platform for Fvp {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x8800_0000,
-            spsr: 0x3c9,
+            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H,
             args: Default::default(),
         }
     }
@@ -113,7 +114,7 @@ impl Platform for Fvp {
         let core_linear_id = Self::core_index() as u64;
         EntryPointInfo {
             pc: 0xfdc00000,
-            spsr: 0x3c9,
+            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H,
             args: [
                 core_linear_id,
                 RMM_BOOT_VERSION,

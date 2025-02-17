@@ -27,7 +27,7 @@ use crate::{
         write_sp_el3, write_spsr_el1, write_spsr_el2, write_tcr_el1, write_tcr_el2,
         write_tpidr_el0, write_tpidr_el1, write_tpidr_el2, write_tpidrro_el0, write_ttbr0_el1,
         write_ttbr0_el2, write_ttbr1_el1, write_vbar_el1, write_vbar_el2, write_vmpidr_el2,
-        write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, IccSre, ScrEl3, SctlrEl1,
+        write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, IccSre, ScrEl3, SctlrEl1, SpsrEl3,
     },
 };
 use core::{
@@ -140,7 +140,7 @@ struct El3State {
     scr_el3: ScrEl3,
     esr_el3: u64,
     runtime_sp: u64,
-    spsr_el3: u64,
+    spsr_el3: SpsrEl3,
     elr_el3: u64,
     pmcr_el0: u64,
     is_in_el3: u64,
@@ -154,7 +154,7 @@ impl El3State {
         scr_el3: ScrEl3::empty(),
         esr_el3: 0,
         runtime_sp: 0,
-        spsr_el3: 0,
+        spsr_el3: SpsrEl3::empty(),
         elr_el3: 0,
         pmcr_el0: 0,
         is_in_el3: 0,
@@ -664,7 +664,7 @@ pub struct EntryPointInfo {
     /// The entry point address.
     pub pc: u64,
     /// The `spsr_el3` value to set before `eret`, to set the appropriate PSTATE.
-    pub spsr: u64,
+    pub spsr: SpsrEl3,
     /// Boot arguments to pass in `x0`-`x7`.
     pub args: [u64; 8],
 }

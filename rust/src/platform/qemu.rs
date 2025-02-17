@@ -9,6 +9,7 @@ use crate::{
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
     services::arch::WorkaroundSupport,
+    sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
 use log::LevelFilter;
@@ -59,9 +60,9 @@ impl Platform for Qemu {
         EntryPointInfo {
             pc: 0x0e10_0000,
             #[cfg(feature = "sel2")]
-            spsr: 0x3c9,
+            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H,
             #[cfg(not(feature = "sel2"))]
-            spsr: 0x3c5,
+            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL1H,
             args: [
                 TOS_FW_CONFIG_ADDRESS,
                 HW_CONFIG_ADDRESS,
@@ -78,7 +79,7 @@ impl Platform for Qemu {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x6000_0000,
-            spsr: 0x3c9,
+            spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H,
             args: Default::default(),
         }
     }

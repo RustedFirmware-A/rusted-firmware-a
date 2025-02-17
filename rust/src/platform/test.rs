@@ -7,6 +7,7 @@ use crate::{
     context::EntryPointInfo,
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::arch::WorkaroundSupport,
+    sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
 use percore::{Cores, ExceptionFree};
@@ -30,7 +31,7 @@ impl Platform for TestPlatform {
     fn secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x4000_0000,
-            spsr: 0x04,
+            spsr: SpsrEl3::M_AARCH64_EL1T,
             args: Default::default(),
         }
     }
@@ -38,7 +39,7 @@ impl Platform for TestPlatform {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x6000_0000,
-            spsr: 0x04,
+            spsr: SpsrEl3::M_AARCH64_EL1T,
             args: Default::default(),
         }
     }

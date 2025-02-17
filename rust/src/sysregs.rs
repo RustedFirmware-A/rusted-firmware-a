@@ -14,6 +14,7 @@ pub use fake::write_sp_el3;
 use bitflags::bitflags;
 #[cfg(not(test))]
 use core::arch::asm;
+use core::ops::BitOr;
 
 /// Generates a public function named `$function_name` to read the system register `$sysreg` as a
 /// value of type `$type`.
@@ -287,5 +288,46 @@ bitflags! {
         const WXN = 1 << 19;
         /// RES1 bits in the `sctlr_el3` register.
         const RES1 = 1 << 23 | 1 << 18;
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SpsrEl3(u64);
+
+impl SpsrEl3 {
+    /// AArch64 execution state, EL0.
+    pub const M_AARCH64_EL0: Self = Self(0b00000);
+    /// AArch64 execution state, EL1 with SP_EL0.
+    pub const M_AARCH64_EL1T: Self = Self(0b00100);
+    /// AArch64 execution state, EL1 with SP_EL1.
+    pub const M_AARCH64_EL1H: Self = Self(0b00101);
+    /// AArch64 execution state, EL2 with SP_EL0.
+    pub const M_AARCH64_EL2T: Self = Self(0b01000);
+    /// AArch64 execution state, EL2 with SP_EL2.
+    pub const M_AARCH64_EL2H: Self = Self(0b01001);
+    /// AArch64 execution state, EL3 with SP_EL0.
+    pub const M_AARCH64_EL3T: Self = Self(0b01100);
+    /// AArch64 execution state, EL3 with SP_EL3.
+    pub const M_AARCH64_EL3H: Self = Self(0b01101);
+
+    /// FIQ interrupt mask.
+    pub const F: Self = Self(1 << 6);
+    /// IRQ interrupt mask.
+    pub const I: Self = Self(1 << 7);
+    /// SError exception mask.
+    pub const A: Self = Self(1 << 8);
+    /// Debug exception mask.
+    pub const D: Self = Self(1 << 9);
+
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+}
+
+impl BitOr for SpsrEl3 {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
     }
 }

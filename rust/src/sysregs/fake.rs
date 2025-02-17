@@ -65,7 +65,7 @@ pub struct SystemRegisters {
     pub tpidrro_el0: u64,
     pub ttbr0_el1: u64,
     pub ttbr0_el2: u64,
-    pub ttbr0_el3: u64,
+    pub ttbr0_el3: usize,
     pub ttbr1_el1: u64,
     pub vbar_el1: u64,
     pub vbar_el2: u64,
@@ -153,35 +153,31 @@ pub unsafe fn write_sp_el3(value: usize) {
     regs.sp_el3 = value;
 }
 
-pub unsafe fn write_ttbr0_el3(value: usize) {
-    let mut regs = SYSREGS.lock().unwrap();
-    regs.ttbr0_el3 = value as u64;
-}
-
-/// Generates a public function named `$function_name` to read the fake system register `$sysreg`.
+/// Generates a public function named `$function_name` to read the fake system register `$sysreg` of
+/// type `$type`.
 macro_rules! read_sysreg {
-    ($sysreg:ident, safe $function_name:ident) => {
-        pub fn $function_name() -> u64 {
+    ($sysreg:ident, $type:ty, safe $function_name:ident) => {
+        pub fn $function_name() -> $type {
             crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg
         }
     };
-    ($sysreg:ident, $function_name:ident) => {
-        pub unsafe fn $function_name() -> u64 {
+    ($sysreg:ident, $type:ty, $function_name:ident) => {
+        pub unsafe fn $function_name() -> $type {
             crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg
         }
     };
 }
 
 /// Generates a public function named `$function_name` to write to the fake system register
-/// `$sysreg`.
+/// `$sysreg` of type `$type`.
 macro_rules! write_sysreg {
-    ($sysreg:ident, safe $function_name:ident) => {
-        pub fn $function_name(value: u64) {
+    ($sysreg:ident, $type:ty, safe $function_name:ident) => {
+        pub fn $function_name(value: $type) {
             crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg = value;
         }
     };
-    ($sysreg:ident, $function_name:ident) => {
-        pub unsafe fn $function_name(value: u64) {
+    ($sysreg:ident, $type:ty, $function_name:ident) => {
+        pub unsafe fn $function_name(value: $type) {
             crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg = value;
         }
     };

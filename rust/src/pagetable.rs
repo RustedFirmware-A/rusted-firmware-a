@@ -6,7 +6,9 @@ use crate::{
     aarch64::{dsb_ish, isb},
     layout::{bl31_end, bl31_start, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end},
     platform::{Platform, PlatformImpl},
-    sysregs::{read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3},
+    sysregs::{
+        read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3, SctlrEl3,
+    },
 };
 use aarch64_paging::{
     mair::{Mair, MairAttribute, NormalMemory},
@@ -109,15 +111,6 @@ pub const MT_RO_DATA: Attributes = MT_MEMORY
 #[allow(unused)]
 pub const MT_RW_DATA: Attributes = MT_MEMORY.union(Attributes::UXN);
 
-/// MMU enable for EL1 and EL0 stage 1 address translation.
-const SCTLR_M: u64 = 1 << 0;
-
-/// Cacheability control, for data accesses at EL1 and EL0.
-const SCTLR_C: u64 = 1 << 2;
-
-/// Write permission implies XN (Execute-never).
-const SCTLR_WXN: u64 = 1 << 19;
-
 static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
     SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
 static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
@@ -184,7 +177,7 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
     let ttbr0 = root_address.0;
 
     let mut sctlr = read_sctlr_el3();
-    assert!((sctlr & SCTLR_M) == 0);
+    assert!(!sctlr.contains(SctlrEl3::M));
 
     tlbi_alle3();
     // SAFETY: We enable the MMU with valid and correct configuration parameters MAIR, TCR, and
@@ -200,7 +193,7 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
     dsb_ish();
     isb();
 
-    sctlr |= SCTLR_M | SCTLR_C | SCTLR_WXN;
+    sctlr |= SctlrEl3::M | SctlrEl3::C | SctlrEl3::WXN;
     write_sctlr_el3(sctlr);
     isb();
 }

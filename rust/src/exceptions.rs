@@ -64,9 +64,8 @@ extern "C" fn handle_smc(function: FunctionId, x1: u64, x2: u64, x3: u64, x4: u6
 mod tests {
     use super::*;
     use crate::{
-        context::SCR_NS,
         services::arch::{SMCCC_VERSION, SMCCC_VERSION_1_5},
-        sysregs::fake::SYSREGS,
+        sysregs::{fake::SYSREGS, ScrEl3},
     };
 
     /// Tests the SMCCC arch version call as a simple example of SMC dispatch.
@@ -76,7 +75,7 @@ mod tests {
     #[test]
     fn handle_smc_arch_version() {
         // Pretend to be coming from non-secure world.
-        SYSREGS.lock().unwrap().scr_el3 = SCR_NS;
+        SYSREGS.lock().unwrap().scr_el3 = ScrEl3::NS;
 
         handle_smc(FunctionId(SMCCC_VERSION), 0, 0, 0, 0);
 

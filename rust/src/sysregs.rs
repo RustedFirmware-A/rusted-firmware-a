@@ -11,6 +11,7 @@ pub mod fake;
 #[cfg(test)]
 pub use fake::write_sp_el3;
 
+use bitflags::bitflags;
 #[cfg(not(test))]
 use core::arch::asm;
 
@@ -49,6 +50,35 @@ macro_rules! read_sysreg {
             value
         }
     };
+    ($sysreg:ident, $raw_type:ty : $type:ty, safe $function_name:ident) => {
+        pub fn $function_name() -> $type {
+            let value: $raw_type;
+            // SAFETY: The macro call site's author (i.e. see below) has determined that it is
+            // always safe to read the given `$sysreg.`
+            unsafe {
+                asm!(
+                    concat!("mrs {value}, ", stringify!($sysreg)),
+                    options(nostack),
+                    value = out(reg) value,
+                );
+            }
+            <$type>::from_bits_retain(value)
+        }
+    };
+    ($sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident) => {
+        pub unsafe fn $function_name() -> $type {
+            let value: $raw_type;
+            // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
+            unsafe {
+                asm!(
+                    concat!("mrs {value}, ", stringify!($sysreg)),
+                    options(nostack),
+                    value = out(reg) value,
+                );
+            }
+            <$type>::from_bits_retain(value)
+        }
+    };
 }
 
 /// Generates a public function named `$function_name` to write a value of type `$type` to the
@@ -83,6 +113,33 @@ macro_rules! write_sysreg {
             }
         }
     };
+    ($sysreg:ident, $raw_type:ty : $type:ty, safe $function_name:ident) => {
+        pub fn $function_name(value: $type) {
+            let value: $raw_type = value.bits();
+            // SAFETY: The macro call site's author (i.e. see below) has determined that it is safe
+            // to write any value to the given `$sysreg.`
+            unsafe {
+                asm!(
+                    concat!("msr ", stringify!($sysreg), ", {value}"),
+                    options(nostack),
+                    value = in(reg) value,
+                );
+            }
+        }
+    };
+    ($sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident) => {
+        pub unsafe fn $function_name(value: $type) {
+            let value: $raw_type = value.bits();
+            // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.
+            unsafe {
+                asm!(
+                    concat!("msr ", stringify!($sysreg), ", {value}"),
+                    options(nostack),
+                    value = in(reg) value,
+                );
+            }
+        }
+    };
 }
 
 macro_rules! read_write_sysreg {
@@ -93,6 +150,14 @@ macro_rules! read_write_sysreg {
     ($sysreg:ident, $type:ty, safe $read_function_name:ident, $write_function_name:ident) => {
         read_sysreg!($sysreg, $type, safe $read_function_name);
         write_sysreg!($sysreg, $type, $write_function_name);
+    };
+    ($sysreg:ident, $raw_type:ty : $type:ty, safe $read_function_name:ident, safe $write_function_name:ident) => {
+        read_sysreg!($sysreg, $raw_type : $type, safe $read_function_name);
+        write_sysreg!($sysreg, $raw_type : $type, safe $write_function_name);
+    };
+    ($sysreg:ident, $raw_type:ty : $type:ty, safe $read_function_name:ident, $write_function_name:ident) => {
+        read_sysreg!($sysreg, $raw_type : $type, safe $read_function_name);
+        write_sysreg!($sysreg, $raw_type : $type, $write_function_name);
     };
 }
 
@@ -120,7 +185,7 @@ read_write_sysreg!(hacr_el2, u64, safe read_hacr_el2, safe write_hacr_el2);
 read_write_sysreg!(hcr_el2, u64, safe read_hcr_el2, safe write_hcr_el2);
 read_write_sysreg!(hpfar_el2, u64, safe read_hpfar_el2, safe write_hpfar_el2);
 read_write_sysreg!(hstr_el2, u64, safe read_hstr_el2, safe write_hstr_el2);
-read_write_sysreg!(icc_sre_el2, u64, safe read_icc_sre_el2, safe write_icc_sre_el2);
+read_write_sysreg!(icc_sre_el2, u64: IccSre, safe read_icc_sre_el2, safe write_icc_sre_el2);
 read_write_sysreg!(ich_hcr_el2, u64, safe read_ich_hcr_el2, safe write_ich_hcr_el2);
 read_write_sysreg!(ich_vmcr_el2, u64, safe read_ich_vmcr_el2, safe write_ich_vmcr_el2);
 read_write_sysreg!(mair_el1, u64, safe read_mair_el1, safe write_mair_el1);
@@ -129,10 +194,10 @@ read_write_sysreg!(mdccint_el1, u64, safe read_mdccint_el1, safe write_mdccint_e
 read_write_sysreg!(mdcr_el2, u64, safe read_mdcr_el2, safe write_mdcr_el2);
 read_write_sysreg!(mdscr_el1, u64, safe read_mdscr_el1, safe write_mdscr_el1);
 read_write_sysreg!(par_el1, u64, safe read_par_el1, safe write_par_el1);
-read_write_sysreg!(scr_el3, u64, safe read_scr_el3, safe write_scr_el3);
-read_write_sysreg!(sctlr_el1, u64, safe read_sctlr_el1, safe write_sctlr_el1);
+read_write_sysreg!(scr_el3, u64: ScrEl3, safe read_scr_el3, safe write_scr_el3);
+read_write_sysreg!(sctlr_el1, u64: SctlrEl1, safe read_sctlr_el1, safe write_sctlr_el1);
 read_write_sysreg!(sctlr_el2, u64, safe read_sctlr_el2, safe write_sctlr_el2);
-read_write_sysreg!(sctlr_el3, u64, safe read_sctlr_el3, safe write_sctlr_el3);
+read_write_sysreg!(sctlr_el3, u64: SctlrEl3, safe read_sctlr_el3, safe write_sctlr_el3);
 read_write_sysreg!(sp_el1, u64, safe read_sp_el1, safe write_sp_el1);
 read_write_sysreg!(sp_el2, u64, safe read_sp_el2, safe write_sp_el2);
 read_write_sysreg!(spsr_el1, u64, safe read_spsr_el1, safe write_spsr_el1);
@@ -154,7 +219,7 @@ read_write_sysreg!(vtcr_el2, u64, safe read_vtcr_el2, safe write_vtcr_el2);
 read_write_sysreg!(vttbr_el2, u64, safe read_vttbr_el2, safe write_vttbr_el2);
 // The SRE bit of `icc_sre_el3` must not be changed from 1 to 0, as this can result in unpredictable
 // behaviour.
-write_sysreg!(icc_sre_el3, u64, write_icc_sre_el3);
+write_sysreg!(icc_sre_el3, u64: IccSre, write_icc_sre_el3);
 // The caller must ensure that `value` is a correct and safe configuration value for the EL3 memory
 // attribute indirection register.
 write_sysreg!(mair_el3, u64, write_mair_el3);
@@ -179,5 +244,48 @@ pub unsafe fn write_sp_el3(value: usize) {
             "msr spsel, #0",
             value = in(reg) value,
         )
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct ScrEl3: u64 {
+        /// RES1 bits in the `scr_el3` register.
+        const RES1 = 1 << 4 | 1 << 5;
+        const NS = 1 << 0;
+        const EA = 1 << 3;
+        const HCE = 1 << 8;
+        const SIF = 1 << 9;
+        const RW = 1 << 10;
+        const EEL2 = 1 << 18;
+        const NSE = 1 << 62;
+    }
+
+    /// Type for the `icc_sre_el2` and `icc_sre_el3` registers.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct IccSre: u64 {
+        const SRE = 1 << 0;
+        const DFB = 1 << 1;
+        const DIB = 1 << 2;
+        const EN = 1 << 3;
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct SctlrEl1: u64 {
+        /// RES1 bits in the `sctlr_el1` register.
+        const RES1 = 1 << 29 | 1 << 28 | 1 << 23 | 1 << 22 | 1 << 20 | 1 << 11;
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct SctlrEl3: u64 {
+        /// MMU enable for EL3 stage 1 address translation.
+        const M = 1 << 0;
+        /// Cacheability control, for data accesses at EL3.
+        const C = 1 << 2;
+        /// Write permission implies XN (Execute-never). For the EL3 translation regime, this bit
+        /// can force all memory regions that are writable to be treated as XN.
+        const WXN = 1 << 19;
+        /// RES1 bits in the `sctlr_el3` register.
+        const RES1 = 1 << 23 | 1 << 18;
     }
 }

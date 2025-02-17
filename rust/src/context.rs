@@ -27,7 +27,7 @@ use crate::{
         write_sp_el3, write_spsr_el1, write_spsr_el2, write_tcr_el1, write_tcr_el2,
         write_tpidr_el0, write_tpidr_el1, write_tpidr_el2, write_tpidrro_el0, write_ttbr0_el1,
         write_ttbr0_el2, write_ttbr1_el1, write_vbar_el1, write_vbar_el2, write_vmpidr_el2,
-        write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
+        write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, IccSre, ScrEl3, SctlrEl1,
     },
 };
 use core::{
@@ -40,25 +40,6 @@ use percore::{ExceptionFree, ExceptionLock, PerCore};
 const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
 
 const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
-
-/// RES1 bits in the `scr_el3` register.
-const SCR_RES1: u64 = 1 << 4 | 1 << 5;
-pub const SCR_NS: u64 = 1 << 0;
-const SCR_EA: u64 = 1 << 3;
-const SCR_HCE: u64 = 1 << 8;
-const SCR_SIF: u64 = 1 << 9;
-const SCR_RW: u64 = 1 << 10;
-const SCR_EEL2: u64 = 1 << 18;
-const SCR_NSE: u64 = 1 << 62;
-
-/// RES1 bits in the `sctlr_el1` register.
-const SCTLR_EL1_RES1: u64 = 1 << 29 | 1 << 28 | 1 << 23 | 1 << 22 | 1 << 20 | 1 << 11;
-
-// Bits for the `icc_sre_el2` and `icc_sre_el3` registers.
-const ICC_SRE_SRE: u64 = 1 << 0;
-const ICC_SRE_DFB: u64 = 1 << 1;
-const ICC_SRE_DIB: u64 = 1 << 2;
-const ICC_SRE_EN: u64 = 1 << 3;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -78,7 +59,7 @@ impl World {
     /// Reads the current lower EL world from `scr_el3`.
     pub fn from_scr() -> Self {
         let scr_el3 = read_scr_el3();
-        match (scr_el3 & SCR_NSE != 0, scr_el3 & SCR_NS != 0) {
+        match (scr_el3.contains(ScrEl3::NSE), scr_el3.contains(ScrEl3::NS)) {
             (false, false) => World::Secure,
             (false, true) => World::NonSecure,
             #[cfg(feature = "rme")]
@@ -156,7 +137,7 @@ impl GpRegs {
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
 struct El3State {
-    scr_el3: u64,
+    scr_el3: ScrEl3,
     esr_el3: u64,
     runtime_sp: u64,
     spsr_el3: u64,
@@ -170,7 +151,7 @@ struct El3State {
 
 impl El3State {
     const EMPTY: Self = Self {
-        scr_el3: 0,
+        scr_el3: ScrEl3::empty(),
         esr_el3: 0,
         runtime_sp: 0,
         spsr_el3: 0,
@@ -189,7 +170,7 @@ impl El3State {
 struct El1Sysregs {
     spsr_el1: u64,
     elr_el1: u64,
-    sctlr_el1: u64,
+    sctlr_el1: SctlrEl1,
     tcr_el1: u64,
     cpacr_el1: u64,
     csselr_el1: u64,
@@ -217,7 +198,7 @@ impl El1Sysregs {
     const EMPTY: Self = Self {
         spsr_el1: 0,
         elr_el1: 0,
-        sctlr_el1: 0,
+        sctlr_el1: SctlrEl1::empty(),
         tcr_el1: 0,
         cpacr_el1: 0,
         csselr_el1: 0,
@@ -316,7 +297,7 @@ struct El2Sysregs {
     hcr_el2: u64,
     hpfar_el2: u64,
     hstr_el2: u64,
-    icc_sre_el2: u64,
+    icc_sre_el2: IccSre,
     ich_hcr_el2: u64,
     ich_vmcr_el2: u64,
     mair_el2: u64,
@@ -350,7 +331,7 @@ impl El2Sysregs {
         hcr_el2: 0,
         hpfar_el2: 0,
         hstr_el2: 0,
-        icc_sre_el2: 0,
+        icc_sre_el2: IccSre::empty(),
         ich_hcr_el2: 0,
         ich_vmcr_el2: 0,
         mair_el2: 0,
@@ -574,7 +555,7 @@ pub fn set_initial_world(world: World) {
     // SAFETY: This is the only place we set `icc_sre_el3`, and we set the SRE bit, so it is never
     // changed from 1 to 0.
     unsafe {
-        write_icc_sre_el3(ICC_SRE_DIB | ICC_SRE_DFB | ICC_SRE_EN | ICC_SRE_SRE);
+        write_icc_sre_el3(IccSre::DIB | IccSre::DFB | IccSre::EN | IccSre::SRE);
     }
 
     exception_free(|token| {
@@ -642,23 +623,23 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     //
     // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
     // aganst ERRATA_V2_3099206.
-    context.el3_state.scr_el3 = SCR_RES1 | SCR_HCE | SCR_EA | SCR_SIF | SCR_RW;
+    context.el3_state.scr_el3 = ScrEl3::RES1 | ScrEl3::HCE | ScrEl3::EA | ScrEl3::SIF | ScrEl3::RW;
     #[cfg(feature = "sel2")]
     {
-        context.el3_state.scr_el3 |= SCR_EEL2;
+        context.el3_state.scr_el3 |= ScrEl3::EEL2;
         // TODO: Initialise the rest of the context.el2_sysregs too.
-        context.el2_sysregs.icc_sre_el2 = ICC_SRE_DIB | ICC_SRE_DFB | ICC_SRE_EN | ICC_SRE_SRE;
+        context.el2_sysregs.icc_sre_el2 = IccSre::DIB | IccSre::DFB | IccSre::EN | IccSre::SRE;
     }
     #[cfg(not(feature = "sel2"))]
     {
-        context.el1_sysregs.sctlr_el1 = SCTLR_EL1_RES1;
+        context.el1_sysregs.sctlr_el1 = SctlrEl1::RES1;
     }
 }
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.
 fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
-    context.el3_state.scr_el3 |= SCR_NS;
+    context.el3_state.scr_el3 |= ScrEl3::NS;
     // TODO: FIQ and IRQ routing model.
 }
 
@@ -673,7 +654,7 @@ fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
     // SCR_NS + SCR_NSE = Realm state
-    context.el3_state.scr_el3 |= SCR_NS | SCR_NSE;
+    context.el3_state.scr_el3 |= ScrEl3::NS | ScrEl3::NSE;
     // TODO: FIQ and IRQ routing model.
 }
 

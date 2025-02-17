@@ -4,6 +4,7 @@
 
 //! Fake implementations of system register getters and setters for unit tests.
 
+use super::{IccSre, ScrEl3, SctlrEl1, SctlrEl3};
 use std::sync::Mutex;
 
 /// Values of fake system registers.
@@ -36,8 +37,8 @@ pub struct SystemRegisters {
     pub hcr_el2: u64,
     pub hpfar_el2: u64,
     pub hstr_el2: u64,
-    pub icc_sre_el2: u64,
-    pub icc_sre_el3: u64,
+    pub icc_sre_el2: IccSre,
+    pub icc_sre_el3: IccSre,
     pub ich_hcr_el2: u64,
     pub ich_vmcr_el2: u64,
     pub mair_el1: u64,
@@ -47,10 +48,10 @@ pub struct SystemRegisters {
     pub mdcr_el2: u64,
     pub mdscr_el1: u64,
     pub par_el1: u64,
-    pub scr_el3: u64,
-    pub sctlr_el1: u64,
+    pub scr_el3: ScrEl3,
+    pub sctlr_el1: SctlrEl1,
     pub sctlr_el2: u64,
-    pub sctlr_el3: u64,
+    pub sctlr_el3: SctlrEl3,
     pub sp_el1: u64,
     pub sp_el2: u64,
     pub sp_el3: usize,
@@ -102,8 +103,8 @@ impl SystemRegisters {
             hcr_el2: 0,
             hpfar_el2: 0,
             hstr_el2: 0,
-            icc_sre_el2: 0,
-            icc_sre_el3: 0,
+            icc_sre_el2: IccSre::empty(),
+            icc_sre_el3: IccSre::empty(),
             ich_hcr_el2: 0,
             ich_vmcr_el2: 0,
             mair_el1: 0,
@@ -113,10 +114,10 @@ impl SystemRegisters {
             mdcr_el2: 0,
             mdscr_el1: 0,
             par_el1: 0,
-            scr_el3: 0,
-            sctlr_el1: 0,
+            scr_el3: ScrEl3::empty(),
+            sctlr_el1: SctlrEl1::empty(),
             sctlr_el2: 0,
-            sctlr_el3: 0,
+            sctlr_el3: SctlrEl3::empty(),
             sp_el1: 0,
             sp_el2: 0,
             sp_el3: 0,
@@ -166,6 +167,16 @@ macro_rules! read_sysreg {
             crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg
         }
     };
+    ($sysreg:ident, $raw_type:ty : $type:ty, safe $function_name:ident) => {
+        pub fn $function_name() -> $type {
+            crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg
+        }
+    };
+    ($sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident) => {
+        pub unsafe fn $function_name() -> $type {
+            crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg
+        }
+    };
 }
 
 /// Generates a public function named `$function_name` to write to the fake system register
@@ -177,6 +188,16 @@ macro_rules! write_sysreg {
         }
     };
     ($sysreg:ident, $type:ty, $function_name:ident) => {
+        pub unsafe fn $function_name(value: $type) {
+            crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg = value;
+        }
+    };
+    ($sysreg:ident, $raw_type:ty : $type:ty, safe $function_name:ident) => {
+        pub fn $function_name(value: $type) {
+            crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg = value;
+        }
+    };
+    ($sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident) => {
         pub unsafe fn $function_name(value: $type) {
             crate::sysregs::fake::SYSREGS.lock().unwrap().$sysreg = value;
         }

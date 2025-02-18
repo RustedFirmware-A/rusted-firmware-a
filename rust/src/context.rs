@@ -532,6 +532,8 @@ pub fn initialise_contexts(
 fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     context.el3_state.elr_el3 = entry_point.pc;
     context.el3_state.spsr_el3 = entry_point.spsr;
+    context.gpregs.registers[..entry_point.args.len()].copy_from_slice(&entry_point.args);
+
     // Initialise SCR_EL3, setting all fields rather than relying on hw.
     // All fields are architecturally UNKNOWN on reset.
     // The following fields do not change during the TF lifetime.

@@ -102,7 +102,11 @@ macro_rules! write_sysreg {
             }
         }
     };
-    ($sysreg:ident, $type:ty, $function_name:ident) => {
+    (
+        $(#[$attributes:meta])*
+        $sysreg:ident, $type:ty, $function_name:ident
+    ) => {
+        $(#[$attributes])*
         pub unsafe fn $function_name(value: $type) {
             // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.
             unsafe {
@@ -128,7 +132,11 @@ macro_rules! write_sysreg {
             }
         }
     };
-    ($sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident) => {
+    (
+        $(#[$attributes:meta])*
+        $sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident
+    ) => {
+        $(#[$attributes])*
         pub unsafe fn $function_name(value: $type) {
             let value: $raw_type = value.bits();
             // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.
@@ -187,10 +195,24 @@ read_write_sysreg!(hcr_el2, u64, safe read_hcr_el2, safe write_hcr_el2);
 read_write_sysreg!(hpfar_el2, u64, safe read_hpfar_el2, safe write_hpfar_el2);
 read_write_sysreg!(hstr_el2, u64, safe read_hstr_el2, safe write_hstr_el2);
 read_write_sysreg!(icc_sre_el2, u64: IccSre, safe read_icc_sre_el2, safe write_icc_sre_el2);
+write_sysreg! {
+    /// # Safety
+    ///
+    /// The SRE bit of `icc_sre_el3` must not be changed from 1 to 0, as this can result in
+    /// unpredictable behaviour.
+    icc_sre_el3, u64: IccSre, write_icc_sre_el3
+}
 read_write_sysreg!(ich_hcr_el2, u64, safe read_ich_hcr_el2, safe write_ich_hcr_el2);
 read_write_sysreg!(ich_vmcr_el2, u64, safe read_ich_vmcr_el2, safe write_ich_vmcr_el2);
 read_write_sysreg!(mair_el1, u64, safe read_mair_el1, safe write_mair_el1);
 read_write_sysreg!(mair_el2, u64, safe read_mair_el2, safe write_mair_el2);
+write_sysreg! {
+    /// # Safety
+    ///
+    /// The caller must ensure that `value` is a correct and safe configuration value for the EL3
+    /// memory attribute indirection register.
+    mair_el3, u64, write_mair_el3
+}
 read_write_sysreg!(mdccint_el1, u64, safe read_mdccint_el1, safe write_mdccint_el1);
 read_write_sysreg!(mdcr_el2, u64, safe read_mdcr_el2, safe write_mdcr_el2);
 read_write_sysreg!(mdscr_el1, u64, safe read_mdscr_el1, safe write_mdscr_el1);
@@ -205,12 +227,27 @@ read_write_sysreg!(spsr_el1, u64, safe read_spsr_el1, safe write_spsr_el1);
 read_write_sysreg!(spsr_el2, u64, safe read_spsr_el2, safe write_spsr_el2);
 read_write_sysreg!(tcr_el1, u64, safe read_tcr_el1, safe write_tcr_el1);
 read_write_sysreg!(tcr_el2, u64, safe read_tcr_el2, safe write_tcr_el2);
+write_sysreg! {
+    /// # Safety
+    ///
+    /// The caller must ensure that `value` is a correct and safe configuration value for the EL3
+    /// translation control register.
+    tcr_el3, u64, write_tcr_el3
+}
 read_write_sysreg!(tpidr_el0, u64, safe read_tpidr_el0, safe write_tpidr_el0);
 read_write_sysreg!(tpidr_el1, u64, safe read_tpidr_el1, safe write_tpidr_el1);
 read_write_sysreg!(tpidr_el2, u64, safe read_tpidr_el2, safe write_tpidr_el2);
 read_write_sysreg!(tpidrro_el0, u64, safe read_tpidrro_el0, safe write_tpidrro_el0);
 read_write_sysreg!(ttbr0_el1, u64, safe read_ttbr0_el1, safe write_ttbr0_el1);
 read_write_sysreg!(ttbr0_el2, u64, safe read_ttbr0_el2, safe write_ttbr0_el2);
+write_sysreg! {
+    /// # Safety
+    ///
+    /// The caller must ensure that `value` is a valid base address for the EL3 translation table: it
+    /// must be page-aligned, and must point to a stage 1 translation table in the EL3 translation
+    /// regime.
+    ttbr0_el3, usize, write_ttbr0_el3
+}
 read_write_sysreg!(ttbr1_el1, u64, safe read_ttbr1_el1, safe write_ttbr1_el1);
 read_write_sysreg!(vbar_el1, u64, safe read_vbar_el1, safe write_vbar_el1);
 read_write_sysreg!(vbar_el2, u64, safe read_vbar_el2, safe write_vbar_el2);
@@ -218,17 +255,6 @@ read_write_sysreg!(vmpidr_el2, u64, safe read_vmpidr_el2, safe write_vmpidr_el2)
 read_write_sysreg!(vpidr_el2, u64, safe read_vpidr_el2, safe write_vpidr_el2);
 read_write_sysreg!(vtcr_el2, u64, safe read_vtcr_el2, safe write_vtcr_el2);
 read_write_sysreg!(vttbr_el2, u64, safe read_vttbr_el2, safe write_vttbr_el2);
-// The SRE bit of `icc_sre_el3` must not be changed from 1 to 0, as this can result in unpredictable
-// behaviour.
-write_sysreg!(icc_sre_el3, u64: IccSre, write_icc_sre_el3);
-// The caller must ensure that `value` is a correct and safe configuration value for the EL3 memory
-// attribute indirection register.
-write_sysreg!(mair_el3, u64, write_mair_el3);
-// The caller must ensure that `value` is a correct and safe configuration value for the EL3
-// translation control register.
-write_sysreg!(tcr_el3, u64, write_tcr_el3);
-// The caller must ensure that `value` is a valid base address for the EL3 translation table.
-write_sysreg!(ttbr0_el3, usize, write_ttbr0_el3);
 
 /// Writes `value` to `sp_el3`.
 ///

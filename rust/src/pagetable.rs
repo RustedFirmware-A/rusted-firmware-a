@@ -177,6 +177,7 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
     let ttbr0 = root_address.0;
 
     let mut sctlr = read_sctlr_el3();
+    // Assert that the MMU is not yet enabled:
     assert!(!sctlr.contains(SctlrEl3::M));
 
     tlbi_alle3();
@@ -194,7 +195,13 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
     isb();
 
     sctlr |= SctlrEl3::M | SctlrEl3::C | SctlrEl3::WXN;
-    write_sctlr_el3(sctlr);
+    // SAFETY: `sctlr` is a valid and safe value for the EL3 system control register. At this point,
+    // the MMU is turned off (as `assert!`ed above), the translation table base register has been
+    // set to a valid address, and we are about to turn the MMU on with a safe configuration
+    // (`SCTLR_C | SCTLR_WXN`).
+    unsafe {
+        write_sctlr_el3(sctlr);
+    }
     isb();
 }
 

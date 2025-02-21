@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+# Copyright (c) 2025, Google LLC. All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Make sure `cargo vet` and `cargo clippy` are clean, and everything builds,
+# before `git push`.
+
+set -o errexit
+set -o errtrace
+set -o nounset
+set -o pipefail
+shopt -s extdebug
+
+vet=$(cargo --list | awk '$1 == "vet" { print $1 }')
+if "$vet" != "vet"; then
+    cargo install cargo-vet
+fi
+
+clippy=$(cargo --list | awk '$1 == "clippy" { print $1 }')
+if "$clippy" != "clippy"; then
+    rustup component add clippy-preview
+fi
+
+must() {
+    $@
+    if [[ $? -ne 0 ]]; then
+        echo -- "$@" > /dev/stderr
+        exit 1
+    fi
+}
+
+must cargo test
+must make clippy-test
+
+for platform in qemu fvp; do
+    for debug in 1 0; do
+        must make DEBUG="$debug" PLAT="$platform" build
+    done
+    must make PLAT="$platform" clippy
+done
+
+must cargo vet
+must cargo fmt
+
+exit 0

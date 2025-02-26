@@ -31,8 +31,12 @@ crate features.
 For `[build-dependencies]`, convenience and clarity can be acceptable reasons to import a 3P crate
 (for example, `anyhow`). Even then, parsimony remains a goal.
 
+### Use `cargo vet`
+
 Ultimately, we will require that `cargo vet` pass cleanly before submitting new dependencies. TODO:
 Add a presubmit script to run `cargo vet`, and update this text once that is done.
+
+The crate’s vetter and the crate’s author must not be the same person.
 
 ## Coding Guidelines
 
@@ -96,6 +100,14 @@ The primary language for comments and naming must be International English. In c
 a conflict between the American English and British English spellings of a word, use the American
 English spelling. However, for proper nouns, such as the names of companies, use the existing
 spelling.
+
+### Copyrights
+
+At the top of each source code file, put a copyright header in this format:
+
+> Copyright (c) [XXXX–]YYYY, &lt;Owner&gt;. All rights reserved.
+>
+> SPDX-License-Identifier: BSD-3-Clause
 
 [1]: threat-model.md
 [2]: https://doc.rust-lang.org/reference/types/numeric.html#machine-dependent-integer-types

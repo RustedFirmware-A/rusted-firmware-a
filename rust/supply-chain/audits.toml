@@ -97,3 +97,18 @@ version = "2.0.3"
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "2.0.3"
+
+[[audits.spin]]
+who = "Chris Palmer <palmer@google.com>"
+criteria = ["safe-to-deploy", "ub-risk-2"]
+version = "0.9.8"
+notes = """
+Safe to deploy: Does not interact with untrustworthy input.
+
+UB risk: A fair amount of `unsafe`, but it is all either well explained with
+SAFETY comments that rely on e.g. statically checked assertions such as
+exclusive access due to `&mut` (proven by `rustc`), exclusive access due to
+access inside `*Guard`s, and `debug_assert`s that check the safety
+preconditions. Other uses of `unsafe` are in tests, such as to mutate a `static
+mut`.
+"""

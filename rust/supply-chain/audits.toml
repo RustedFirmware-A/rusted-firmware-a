@@ -88,6 +88,23 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.1.0"
 
+[[audits.safe-mmio]]
+who = "Chris Palmer <palmer@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2-thorough"]
+version = "0.1.0"
+notes = """
+No crypto.
+
+Safe to run: No filesystem access, process creation, et c.
+
+Safe to deploy: Does not interact with untrustworthy data.
+
+UB: Small amount of `unsafe`, with well-documented safety requirements for
+callers. This crate probably can't be ub-risk-1 because it can't statically or
+feasibly dynamically check its callers; therefore callers are on their own to
+meet the (clear, straightforward) safety contract.
+"""
+
 [[audits.thiserror]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

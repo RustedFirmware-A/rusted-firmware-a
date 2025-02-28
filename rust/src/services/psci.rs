@@ -1705,3 +1705,19 @@ mod tests {
         assert_eq!(Err(ErrorCode::Denied), psci.system_suspend(ENTRY_POINT));
     }
 }
+
+#[unsafe(no_mangle)]
+extern "C" fn psci_warmboot_entrypoint() {
+    // TODO: Initialise scr_el3?
+    // TODO: enable MMU, via `setup_mmu_cfg`.
+    info!("psci_warmboot_entrypoint");
+    // TODO: Initialise context if this is the first this CPU has run.
+    // TODO: Set up GIC redistributor
+    // TODO: Set next world appropriately.
+    // TODO: Call handle_cpu_boot and set non-secure entry point.
+    loop {}
+}
+
+unsafe extern "C" {
+    pub unsafe fn bl31_warm_entrypoint();
+}

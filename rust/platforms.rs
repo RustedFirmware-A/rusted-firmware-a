@@ -5,26 +5,29 @@
 mod fvp;
 mod qemu;
 
-use anyhow::anyhow;
 use cc::Build;
 use fvp::FvpBuilder;
 use qemu::QemuBuilder;
+use std::error::Error;
 
 pub const PLATFORMS: [&str; 2] = [QemuBuilder::PLAT_NAME, FvpBuilder::PLAT_NAME];
 
+type BuildResult = Result<(), Box<dyn Error>>;
+
 pub trait Builder {
-    // Add platform specific configurations (code generation, file inclusions cc::Build definitions,etc.)
-    fn configure_build(&self, build: &mut Build) -> anyhow::Result<()>;
+    /// Sets up platform-specific configurations (code generation, file inclusions, `cc::Build`
+    /// definitions, etc.).
+    fn configure_build(&self, build: &mut Build) -> BuildResult;
 }
 
-pub fn get_builder(platform: &str) -> anyhow::Result<Box<dyn Builder>> {
+pub fn get_builder(platform: &str) -> Result<Box<dyn Builder>, Box<dyn Error>> {
     match platform {
         FvpBuilder::PLAT_NAME => Ok(Box::new(FvpBuilder)),
         QemuBuilder::PLAT_NAME => Ok(Box::new(QemuBuilder)),
-        _ => Err(anyhow!(
+        _ => Err(format!(
             "Unexpected platform name {:?}. Supported platforms: {:?}",
-            platform,
-            PLATFORMS
-        )),
+            platform, PLATFORMS
+        )
+        .into()),
     }
 }

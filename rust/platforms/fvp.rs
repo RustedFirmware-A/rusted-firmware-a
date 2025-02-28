@@ -4,7 +4,7 @@
 
 mod config;
 
-use super::Builder;
+use super::{BuildResult, Builder};
 use cc::Build;
 use config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU};
 use std::path::Path;
@@ -12,7 +12,7 @@ use std::path::Path;
 pub struct FvpBuilder;
 
 impl Builder for FvpBuilder {
-    fn configure_build(&self, build: &mut Build) -> anyhow::Result<()> {
+    fn configure_build(&self, build: &mut Build) -> BuildResult {
         build
             .file("../plat/arm/common/aarch64/arm_helpers.S")
             .include("../include/plat/arm/common")

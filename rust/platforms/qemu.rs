@@ -2,23 +2,22 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::Builder;
-use anyhow::bail;
+use super::{BuildResult, Builder};
 use cc::Build;
 
 pub struct QemuBuilder;
 
 impl Builder for QemuBuilder {
-    fn configure_build(&self, build: &mut Build) -> anyhow::Result<()> {
+    fn configure_build(&self, build: &mut Build) -> BuildResult {
         if cfg!(feature = "rme") {
-            bail!("RME is not supported on {:?}", QemuBuilder::PLAT_NAME);
+            Err(format!("RME is not supported on {:?}", QemuBuilder::PLAT_NAME).into())
+        } else {
+            build
+                .include("../plat/qemu/common/include")
+                .include("../plat/qemu/qemu/include")
+                .file("../plat/qemu/common/aarch64/plat_helpers.S");
+            Ok(())
         }
-
-        build
-            .include("../plat/qemu/common/include")
-            .include("../plat/qemu/qemu/include")
-            .file("../plat/qemu/common/aarch64/plat_helpers.S");
-        Ok(())
     }
 }
 

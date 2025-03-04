@@ -243,9 +243,9 @@ read_write_sysreg!(ttbr0_el2, u64, safe read_ttbr0_el2, safe write_ttbr0_el2);
 write_sysreg! {
     /// # Safety
     ///
-    /// The caller must ensure that `value` is a valid base address for the EL3 translation table: it
-    /// must be page-aligned, and must point to a stage 1 translation table in the EL3 translation
-    /// regime.
+    /// The caller must ensure that `value` is a valid base address for the EL3 translation table:
+    /// it must be page-aligned, and must point to a stage 1 translation table in the EL3
+    /// translation regime.
     ttbr0_el3, usize, write_ttbr0_el3
 }
 read_write_sysreg!(ttbr1_el1, u64, safe read_ttbr1_el1, safe write_ttbr1_el1);

@@ -154,7 +154,8 @@ pub unsafe fn write_sp_el3(value: usize) {
     regs.sp_el3 = value;
 }
 
-/// Generates a public function named `$function_name` to read the fake system register `$sysreg`.
+/// Generates a public function named `$function_name` to read the fake system register `$sysreg` of
+/// type `$type`.
 macro_rules! read_sysreg {
     ($sysreg:ident, $type:ty, safe $function_name:ident) => {
         pub fn $function_name() -> $type {

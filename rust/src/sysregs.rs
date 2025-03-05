@@ -164,9 +164,15 @@ macro_rules! read_write_sysreg {
         read_sysreg!($sysreg, $raw_type : $type, safe $read_function_name);
         write_sysreg!($sysreg, $raw_type : $type, safe $write_function_name);
     };
-    ($sysreg:ident, $raw_type:ty : $type:ty, safe $read_function_name:ident, $write_function_name:ident) => {
+    (
+        $(#[$attributes:meta])*
+        $sysreg:ident, $raw_type:ty : $type:ty, safe $read_function_name:ident, $write_function_name:ident
+    ) => {
         read_sysreg!($sysreg, $raw_type : $type, safe $read_function_name);
-        write_sysreg!($sysreg, $raw_type : $type, $write_function_name);
+        write_sysreg! {
+            $(#[$attributes])*
+            $sysreg, $raw_type : $type, $write_function_name
+        }
     };
 }
 
@@ -220,7 +226,16 @@ read_write_sysreg!(par_el1, u64, safe read_par_el1, safe write_par_el1);
 read_write_sysreg!(scr_el3, u64: ScrEl3, safe read_scr_el3, safe write_scr_el3);
 read_write_sysreg!(sctlr_el1, u64: SctlrEl1, safe read_sctlr_el1, safe write_sctlr_el1);
 read_write_sysreg!(sctlr_el2, u64, safe read_sctlr_el2, safe write_sctlr_el2);
-read_write_sysreg!(sctlr_el3, u64: SctlrEl3, safe read_sctlr_el3, safe write_sctlr_el3);
+read_write_sysreg! {
+    /// # Safety
+    ///
+    /// Given its purpose, writing to the EL3 system control register can be very dangerous: it
+    /// affects the behavior of the MMU, interrupt handling, security-relevant features like memory
+    /// tagging, branch target identification, and pointer authentication, and more. Callers of
+    /// `write_sctlr_el3` must ensure that the register value upholds TF-A security and reliability
+    /// requirements.
+    sctlr_el3, u64: SctlrEl3, safe read_sctlr_el3, write_sctlr_el3
+}
 read_write_sysreg!(sp_el1, u64, safe read_sp_el1, safe write_sp_el1);
 read_write_sysreg!(sp_el2, u64, safe read_sp_el2, safe write_sp_el2);
 read_write_sysreg!(spsr_el1, u64, safe read_spsr_el1, safe write_spsr_el1);

@@ -210,6 +210,7 @@ write_sysreg! {
 }
 read_write_sysreg!(ich_hcr_el2, u64, safe read_ich_hcr_el2, safe write_ich_hcr_el2);
 read_write_sysreg!(ich_vmcr_el2, u64, safe read_ich_vmcr_el2, safe write_ich_vmcr_el2);
+read_sysreg!(isr_el1, u64, safe read_isr_el1);
 read_write_sysreg!(mair_el1, u64, safe read_mair_el1, safe write_mair_el1);
 read_write_sysreg!(mair_el2, u64, safe read_mair_el2, safe write_mair_el2);
 write_sysreg! {

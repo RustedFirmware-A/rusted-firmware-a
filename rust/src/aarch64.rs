@@ -23,3 +23,13 @@ pub fn isb() {
         asm!("isb", options(nostack));
     }
 }
+
+/// Issues a translation lookaside buffer invalidate (`tlbi`) instruction that invalidates all TLB
+/// entries for EL3 (`alle3`).
+pub fn tlbi_alle3() {
+    // SAFETY: `tlbi` does not violate safe Rust guarantees.
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!("tlbi alle3", options(nostack));
+    }
+}

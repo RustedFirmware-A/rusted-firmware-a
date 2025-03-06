@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    aarch64::{dsb_ish, isb},
+    aarch64::{dsb_ish, isb, tlbi_alle3},
     layout::{bl31_end, bl31_start, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end},
     platform::{Platform, PlatformImpl},
     sysregs::{
@@ -18,7 +18,7 @@ use aarch64_paging::{
     },
     MapError, Mapping,
 };
-use core::{arch::asm, mem::take, ptr::NonNull};
+use core::{mem::take, ptr::NonNull};
 use log::{info, warn};
 use spin::{
     mutex::{SpinMutex, SpinMutexGuard},
@@ -273,16 +273,6 @@ impl IdMap {
 
     fn root_address(&self) -> PhysicalAddress {
         self.mapping.root_address()
-    }
-}
-
-/// Issues a translation lookaside buffer invalidate (`tlbi`) instruction that invalidates all TLB
-/// entries for EL3 (`alle3`).
-fn tlbi_alle3() {
-    // SAFETY: `tlbi` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
-    unsafe {
-        asm!("tlbi alle3", options(nostack));
     }
 }
 

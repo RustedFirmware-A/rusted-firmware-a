@@ -8,7 +8,7 @@ use platforms::{get_builder, PLATFORMS};
 use cc::Build;
 use std::env;
 
-fn build_libtfa(platform: &String) {
+fn build_libtfa(platform: &str) {
     let platform_builder = get_builder(platform).unwrap();
 
     env::set_var("CROSS_COMPILE", "aarch64-none-elf");

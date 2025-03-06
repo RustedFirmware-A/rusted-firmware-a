@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Build script for RF-A.
+
 mod platforms;
 use platforms::{get_builder, PLATFORMS};
 

@@ -88,9 +88,11 @@ ultimate cause and seek to solve that. Don’t quiet lints just for the sake of 
 
 ## Documentation
 
-Document all `pub` interfaces (functions, types, methods, etc.) with Rustdoc comments (`/// ...`
-and `//! ...`). Use Markdown to indicate structure where necessary, such as for code identifiers but
-also for emphasis, hyperlinks, and so on.
+Document all `pub` interfaces (functions, types, methods, etc.) with Rustdoc comments (`/// ...` and
+`//! ...`). (The `missing_docs` lint is set to “deny” in Cargo.toml.)
+
+Use Markdown to indicate structure where necessary, especially for code identifiers but also for
+emphasis, hyperlinks ([including links to related code][7]), and so on.
 
 It’s always worth spending time on punctuation, capitalization (including proper nouns, Arm
 architecture technical terms, and acronyms), and spelling. TODO: See if Arm has a documentation
@@ -115,3 +117,4 @@ At the top of each source code file, put a copyright header in this format:
 [4]: https://doc.rust-lang.org/stable/std/ptr/index.html#strict-provenance
 [5]: https://doc.rust-lang.org/stable/std/ptr/index.html#exposed-provenance
 [6]: https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html#lossy-provenance-casts
+[7]: https://doc.rust-lang.org/rustdoc/write-documentation/linking-to-items-by-name.html

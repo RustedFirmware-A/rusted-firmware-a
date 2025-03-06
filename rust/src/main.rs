@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! RF-A: A new implementation of TF-A for AArch64.
+
 #![cfg_attr(not(test), no_main)]
 #![cfg_attr(not(test), no_std)]
 #![warn(clippy::undocumented_unsafe_blocks)]

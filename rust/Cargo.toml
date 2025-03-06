@@ -40,3 +40,6 @@ sel2 = []
 
 [lints.clippy]
 unreadable_literal = "deny"
+
+[lints.rust]
+missing_docs = "deny"

@@ -2,32 +2,37 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+#[cfg(not(feature = "sel2"))]
+use crate::sysregs::{
+    read_actlr_el1, read_afsr0_el1, read_afsr1_el1, read_amair_el1, read_contextidr_el1,
+    read_cpacr_el1, read_csselr_el1, read_elr_el1, read_esr_el1, read_far_el1, read_mair_el1,
+    read_mdccint_el1, read_mdscr_el1, read_par_el1, read_sctlr_el1, read_sp_el1, read_spsr_el1,
+    read_tcr_el1, read_tpidr_el0, read_tpidr_el1, read_tpidrro_el0, read_ttbr0_el1, read_ttbr1_el1,
+    read_vbar_el1, write_actlr_el1, write_afsr0_el1, write_afsr1_el1, write_amair_el1,
+    write_contextidr_el1, write_cpacr_el1, write_csselr_el1, write_elr_el1, write_esr_el1,
+    write_far_el1, write_mair_el1, write_mdccint_el1, write_mdscr_el1, write_par_el1,
+    write_sctlr_el1, write_sp_el1, write_spsr_el1, write_tcr_el1, write_tpidr_el0, write_tpidr_el1,
+    write_tpidrro_el0, write_ttbr0_el1, write_ttbr1_el1, write_vbar_el1, SctlrEl1,
+};
+#[cfg(feature = "sel2")]
+use crate::sysregs::{
+    read_actlr_el2, read_afsr0_el2, read_afsr1_el2, read_amair_el2, read_cnthctl_el2,
+    read_cntvoff_el2, read_cptr_el2, read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2,
+    read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
+    read_ich_vmcr_el2, read_mair_el2, read_mdcr_el2, read_sctlr_el2, read_sp_el2, read_spsr_el2,
+    read_tcr_el2, read_tpidr_el2, read_ttbr0_el2, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2,
+    read_vtcr_el2, read_vttbr_el2, write_actlr_el2, write_afsr0_el2, write_afsr1_el2,
+    write_amair_el2, write_cnthctl_el2, write_cntvoff_el2, write_cptr_el2, write_elr_el2,
+    write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2, write_hpfar_el2, write_hstr_el2,
+    write_icc_sre_el2, write_ich_hcr_el2, write_mair_el2, write_mdcr_el2, write_sctlr_el2,
+    write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2,
+    write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, HcrEl2,
+};
 use crate::{
     platform::{exception_free, plat_calc_core_pos, Platform, PlatformImpl},
     smccc::SmcReturn,
     sysregs::{
-        read_actlr_el1, read_actlr_el2, read_afsr0_el1, read_afsr0_el2, read_afsr1_el1,
-        read_afsr1_el2, read_amair_el1, read_amair_el2, read_cnthctl_el2, read_cntvoff_el2,
-        read_contextidr_el1, read_cpacr_el1, read_cptr_el2, read_csselr_el1, read_elr_el1,
-        read_elr_el2, read_esr_el1, read_esr_el2, read_far_el1, read_far_el2, read_hacr_el2,
-        read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
-        read_ich_vmcr_el2, read_mair_el1, read_mair_el2, read_mdccint_el1, read_mdcr_el2,
-        read_mdscr_el1, read_mpidr_el1, read_par_el1, read_scr_el3, read_sctlr_el1, read_sctlr_el2,
-        read_sp_el1, read_sp_el2, read_spsr_el1, read_spsr_el2, read_tcr_el1, read_tcr_el2,
-        read_tpidr_el0, read_tpidr_el1, read_tpidr_el2, read_tpidrro_el0, read_ttbr0_el1,
-        read_ttbr0_el2, read_ttbr1_el1, read_vbar_el1, read_vbar_el2, read_vmpidr_el2,
-        read_vpidr_el2, read_vtcr_el2, read_vttbr_el2, write_actlr_el1, write_actlr_el2,
-        write_afsr0_el1, write_afsr0_el2, write_afsr1_el1, write_afsr1_el2, write_amair_el1,
-        write_amair_el2, write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el1,
-        write_cpacr_el1, write_cptr_el2, write_csselr_el1, write_elr_el1, write_elr_el2,
-        write_esr_el1, write_esr_el2, write_far_el1, write_far_el2, write_hacr_el2, write_hcr_el2,
-        write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_mair_el1,
-        write_mair_el2, write_mdccint_el1, write_mdcr_el2, write_mdscr_el1, write_par_el1,
-        write_scr_el3, write_sctlr_el1, write_sctlr_el2, write_sp_el1, write_sp_el2, write_sp_el3,
-        write_spsr_el1, write_spsr_el2, write_tcr_el1, write_tcr_el2, write_tpidr_el0,
-        write_tpidr_el1, write_tpidr_el2, write_tpidrro_el0, write_ttbr0_el1, write_ttbr0_el2,
-        write_ttbr1_el1, write_vbar_el1, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2,
-        write_vtcr_el2, write_vttbr_el2, Esr, HcrEl2, IccSre, ScrEl3, SctlrEl1, Spsr,
+        read_mpidr_el1, read_scr_el3, write_scr_el3, write_sp_el3, Esr, IccSre, ScrEl3, Spsr,
     },
 };
 use arm_psci::Mpidr;
@@ -191,6 +196,7 @@ impl El3State {
 /// AArch64 EL1 system register context structure for preserving the architectural state during
 /// world switches.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg(not(feature = "sel2"))]
 struct El1Sysregs {
     spsr_el1: Spsr,
     elr_el1: usize,
@@ -218,6 +224,7 @@ struct El1Sysregs {
     mdscr_el1: u64,
 }
 
+#[cfg(not(feature = "sel2"))]
 impl El1Sysregs {
     const EMPTY: Self = Self {
         spsr_el1: Spsr::empty(),
@@ -306,6 +313,7 @@ impl El1Sysregs {
 /// AArch64 EL2 system register context structure for preserving the architectural state during
 /// world switches.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg(feature = "sel2")]
 struct El2Sysregs {
     actlr_el2: u64,
     afsr0_el2: u64,
@@ -339,6 +347,7 @@ struct El2Sysregs {
     vttbr_el2: u64,
 }
 
+#[cfg(feature = "sel2")]
 impl El2Sysregs {
     const EMPTY: Self = Self {
         actlr_el2: 0,

@@ -42,3 +42,5 @@ unreadable_literal = "deny"
 
 [lints.rust]
 missing_docs = "deny"
+undocumented_unsafe_blocks = "deny"
+unsafe_op_in_unsafe_fn = "deny"

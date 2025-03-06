@@ -12,15 +12,15 @@ automated check, please go right ahead and push a change to Gerrit.
 ## How To Use `unsafe`
 
 As part of meeting [the RF-A threat model][1], we aim to have as little `unsafe` code as possible.
-All `unsafe` blocks should be as short as possible, and should come with a safety comment explaining
-how the code upholds Rust’s safety guarantees.
+Keep `unsafe` as short as possible, and always write a safety comment explaining how the code
+upholds Rust’s safety guarantees. (The `undocumented_unsafe_blocks` lint is set to “deny”.)
 
 Safety comments should make specific and verifiable claims about the validity of pointers, the
 block’s (non-)impingement on memory safety and type safety, and (where applicable) how the block
 meets the `# Safety` requirements in the surrounding interface’s Rustdoc.
 
 During code review, get an `unsafe` expert to review your `unsafe` blocks and their safety comments.
-(Checking this automatically is, of course, a key goal.)
+(Automatically requiring review is, of course, a key goal.)
 
 ## Third-party Dependencies
 

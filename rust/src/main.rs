@@ -6,8 +6,6 @@
 
 #![cfg_attr(not(test), no_main)]
 #![cfg_attr(not(test), no_std)]
-#![warn(clippy::undocumented_unsafe_blocks)]
-#![deny(unsafe_op_in_unsafe_fn)]
 
 mod aarch64;
 mod context;

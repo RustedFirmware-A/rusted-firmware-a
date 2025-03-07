@@ -76,10 +76,12 @@ const PL011_BASE_ADDRESS: *mut PL011Registers = 0x1C09_0000 as _;
 
 const V2M_IOFPGA_UART1_BASE: usize = 0x1c0a_0000;
 
-// TODO: Use the correct addresses here.
+// TODO: These addresses should be parsed from FW_CONFIG
 /// The physical address of the SPMC manifest blob.
-const TOS_FW_CONFIG_ADDRESS: u64 = 0;
-const HW_CONFIG_ADDRESS: u64 = 0;
+const TOS_FW_CONFIG_ADDRESS: u64 = 0x0400_1500;
+const NT_FW_CONFIG_ADDRESS: u64 = 0x8000_0000;
+const HW_CONFIG_ADDRESS: u64 = 0x07f0_0000;
+const HW_CONFIG_ADDRESS_NS: u64 = 0x8200_0000;
 
 // TODO: Use the correct values here (see services/std_svc/rmmd/rmmd_main.c).
 /// Version of the RMM Boot Interface.
@@ -189,7 +191,7 @@ impl Platform for Fvp {
         EntryPointInfo {
             pc: 0x8800_0000,
             spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
-            args: Default::default(),
+            args: [NT_FW_CONFIG_ADDRESS, HW_CONFIG_ADDRESS_NS, 0, 0, 0, 0, 0, 0],
         }
     }
 

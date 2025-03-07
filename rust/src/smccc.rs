@@ -187,6 +187,11 @@ impl SmcReturn {
         &self.values[0..self.used]
     }
 
+    /// Returns a mutable slice containing the used values.
+    pub fn values_mut(&mut self) -> &mut [u64] {
+        &mut self.values[0..self.used]
+    }
+
     /// Returns true if no values are used.
     pub fn is_empty(&self) -> bool {
         self.used == 0

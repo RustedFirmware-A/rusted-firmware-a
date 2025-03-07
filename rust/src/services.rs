@@ -80,8 +80,8 @@ static SERVICES: Once<Services> = Once::new();
 /// Contains an instance of all of the currently implemented services.
 pub struct Services {
     pub arch: arch::Arch,
-    pub ffa: ffa::Ffa,
     pub psci: psci::Psci,
+    pub spmd: ffa::Spmd,
     #[cfg(feature = "rme")]
     pub rmmd: rmmd::Rmmd,
 }
@@ -97,8 +97,8 @@ impl Services {
     fn new() -> Self {
         Self {
             arch: arch::Arch::new(),
-            ffa: ffa::Ffa::new(),
             psci: psci::Psci::new(PlatformImpl::psci_platform().unwrap()),
+            spmd: ffa::Spmd::new(),
             #[cfg(feature = "rme")]
             rmmd: rmmd::Rmmd::new(),
         }
@@ -115,8 +115,8 @@ impl Services {
             &self.arch
         } else if self.psci.owns(function) {
             &self.psci
-        } else if self.ffa.owns(function) {
-            &self.ffa
+        } else if self.spmd.owns(function) {
+            &self.spmd
         } else {
             #[cfg(feature = "rme")]
             if self.rmmd.owns(function) {
@@ -145,7 +145,7 @@ impl Services {
             // (InterruptType::El3, World::NonSecure) => plat_group0_interrupt_handler(),
             // Group 0 interrupts hitting in SWd should be catched by the SPMC and passed to EL3
             // synchronously, by invoking FFA_EL3_INTR_HANDLE.
-            (InterruptType::Secure, World::NonSecure) => self.ffa.forward_secure_interrupt(),
+            (InterruptType::Secure, World::NonSecure) => self.spmd.forward_secure_interrupt(),
             (InterruptType::Invalid, _) => {
                 // If the interrupt controller reports a spurious interrupt then return to where we
                 // came from.

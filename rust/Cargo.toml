@@ -31,7 +31,7 @@ spin = { version = "0.10.0", default-features = false, features = [
   "once",
   "spin_mutex",
 ] }
-arm-ffa = { version = "0.2.1", default-features = false }
+arm-ffa = { version = "0.3.0", default-features = false }
 arm-gic = "0.4.0"
 
 [dev-dependencies]

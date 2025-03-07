@@ -105,16 +105,6 @@ feasibly dynamically check its callers; therefore callers are on their own to
 meet the (clear, straightforward) safety contract.
 """
 
-[[audits.thiserror]]
-who = "Andrew Walbran <qwandor@google.com>"
-criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
-version = "2.0.3"
-
-[[audits.thiserror-impl]]
-who = "Andrew Walbran <qwandor@google.com>"
-criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
-version = "2.0.3"
-
 [[audits.spin]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "ub-risk-2"]
@@ -128,4 +118,36 @@ exclusive access due to `&mut` (proven by `rustc`), exclusive access due to
 access inside `*Guard`s, and `debug_assert`s that check the safety
 preconditions. Other uses of `unsafe` are in tests, such as to mutate a `static
 mut`.
+"""
+
+[[audits.thiserror]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+version = "2.0.3"
+
+[[audits.thiserror-impl]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+version = "2.0.3"
+
+[[audits.uuid]]
+who = "Chris Palmer <palmer@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "1.15.1"
+notes = """
+does-not-implement-crypto: Calls into `sha1_smol` to use it in a straightforward
+and correct way. Uses `md5` similarly. (Although cryptographically obsolete,
+particular UUID specification versions require these functions.) Uses
+`getrandom` (default) or `rand` (configurable) for its RNG.
+
+ub-risk-2: `unsafe` blocks are either well-explained with safety comments;
+invocations of C functions with valid arguments (e.g. `CoCreateGuid` on
+Windows), and casts from and to pointers to objects that are all newtype
+wrappers of the same underlying type and hence have the same layout.
+`new_unchecked` returns a `NonNilUuid` without checking it, creating the
+(declared) possibility of UB.
+
+safe-to-deploy: Limited input language. `parse_str` and callees do not use
+`unsafe`. UB seems restricted to caller error (as mentioned above for
+ub-risk-2).
 """

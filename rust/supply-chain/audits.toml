@@ -83,6 +83,25 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.8.0"
 
+[[audits.num_enum]]
+who = "Chris Palmer <palmer@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.7.3"
+notes = """
+safe-to-deploy: Given the UB risk in `num_enum_derive`, `num_enum` callers
+should prefer `FromPrimitive` to `UnsafeFromPrimitive`.
+"""
+
+[[audits.num_enum_derive]]
+who = "Chris Palmer <palmer@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.7.3"
+notes = """
+ub-risk-2: unsafe in asserts, tests, and doc tests. `unchecked_transmute_from`:
+unexplained use of `transmute`; caller is required to check that \"`number` must
+represent a valid discriminant of `Self`.\"
+"""
+
 [[audits.percore]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

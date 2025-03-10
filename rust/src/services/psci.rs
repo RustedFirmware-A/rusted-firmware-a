@@ -652,6 +652,26 @@ impl Psci {
         self.platform.system_reset2(reset_type, cookie)
     }
 
+    /// Handles `MEM_PROTECT` PSCI call.
+    fn mem_protect(&self, enabled: bool) -> Result<bool, ErrorCode> {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::MEM_PROTECT) {
+            return Err(ErrorCode::NotSupported);
+        }
+
+        self.platform.mem_protect(enabled)
+    }
+
+    /// Handles `MEM_PROTECT_CHECK_RANGE` PSCI call.
+    fn mem_protect_check_range(&self, range: MemProtectRange) -> Result<(), ErrorCode> {
+        if !PsciPlatformImpl::FEATURES
+            .contains(PsciPlatformOptionalFeatures::MEM_PROTECT_CHECK_RANGE)
+        {
+            return Err(ErrorCode::NotSupported);
+        }
+
+        self.platform.mem_protect_check_range(range)
+    }
+
     /// Notify SPMD about the PSCI call.
     fn notify_spmd(&self, function: Function) {
         let mut psci_request = [0; 4];
@@ -1280,5 +1300,16 @@ mod tests {
                 Cookie::Cookie64(0),
             );
         });
+    }
+
+    #[test]
+    fn psci_mem_protect() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+
+        assert_eq!(Ok(true), psci.mem_protect(true));
+        assert_eq!(
+            Ok(()),
+            psci.mem_protect_check_range(MemProtectRange::Range64 { base: 0, length: 4 })
+        );
     }
 }

@@ -616,6 +616,42 @@ impl Psci {
             .affinity_info())
     }
 
+    /// Handles `SYSTEM_OFF` PSCI call.
+    /// Turns off the system and does not return.
+    fn system_off(&self) -> ! {
+        self.notify_spmd(Function::SystemOff);
+        self.platform.system_off();
+    }
+
+    /// Handles `SYSTEM_OFF2` PSCI call.
+    /// Suspends system to disk and never returns on success.
+    fn system_off2(&self, off_type: SystemOff2Type, cookie: Cookie) -> Result<(), ErrorCode> {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::SYSTEM_OFF2) {
+            return Err(ErrorCode::NotSupported);
+        }
+
+        self.notify_spmd(Function::SystemOff2 { off_type, cookie });
+        self.platform.system_off2(off_type, cookie)
+    }
+
+    /// Handles `SYSTEM_RESET` PSCI call.
+    /// Resets the system and does not return.
+    fn system_reset(&self) -> ! {
+        self.notify_spmd(Function::SystemReset);
+        self.platform.system_reset();
+    }
+
+    /// Handles `SYSTEM_RESET2` PSCI call.
+    /// Initiates an architectural or vendor specific system reset. Does not return on success.
+    fn system_reset2(&self, reset_type: ResetType, cookie: Cookie) -> Result<(), ErrorCode> {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::SYSTEM_RESET2) {
+            return Err(ErrorCode::NotSupported);
+        }
+
+        self.notify_spmd(Function::SystemReset2 { reset_type, cookie });
+        self.platform.system_reset2(reset_type, cookie)
+    }
+
     /// Notify SPMD about the PSCI call.
     fn notify_spmd(&self, function: Function) {
         let mut psci_request = [0; 4];
@@ -669,6 +705,8 @@ impl Debug for Psci {
 
 #[cfg(test)]
 mod tests {
+    use arm_psci::ArchitecturalResetType;
+
     use super::{PsciPlatformImpl, *};
     use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 
@@ -1197,5 +1235,50 @@ mod tests {
                 ],
             );
         }
+    }
+
+    #[test]
+    fn psci_system_off() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+
+        expect_cpu_power_down(PsciPlatformImpl::SYSTEM_OFF_MAGIC, || psci.system_off());
+    }
+
+    #[test]
+    fn psci_system_off2() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+
+        let off_type = SystemOff2Type::HibernateOff;
+        let cookie = Cookie::Cookie64(0);
+
+        let magic = format!(
+            "{} {:?} {:?}",
+            PsciPlatformImpl::SYSTEM_OFF2_MAGIC,
+            off_type,
+            cookie
+        );
+
+        expect_cpu_power_down(magic.as_str(), || {
+            let _ = psci.system_off2(off_type, cookie);
+        });
+    }
+
+    #[test]
+    fn psci_system_reset() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+
+        expect_cpu_power_down(PsciPlatformImpl::SYSTEM_RESET_MAGIC, || psci.system_reset());
+    }
+
+    #[test]
+    fn psci_system_reset2() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+
+        expect_cpu_power_down(PsciPlatformImpl::SYSTEM_RESET2_MAGIC, || {
+            let _ = psci.system_reset2(
+                ResetType::Architectural(ArchitecturalResetType::SystemWarmReset),
+                Cookie::Cookie64(0),
+            );
+        });
     }
 }

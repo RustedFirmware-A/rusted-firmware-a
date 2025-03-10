@@ -2,22 +2,25 @@
 // Copyright (c) 2025, Arm Ltd. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
+mod power_domain_tree;
+
 use arm_psci::{
-    Cookie, EntryPoint, ErrorCode, HwState, MemProtectRange, Mpidr, PowerState, ResetType,
-    SystemOff2Type,
+    AffinityInfo, Cookie, EntryPoint, ErrorCode, HwState, MemProtectRange, Mpidr, PowerState,
+    ResetType, SystemOff2Type,
 };
 use bitflags::bitflags;
-use core::fmt::Debug;
+use core::fmt::{Debug, Formatter};
+use percore::Cores;
 
+use super::{owns, Service};
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::World,
-    platform::{PlatformPowerState, PsciPlatformImpl},
+    platform::{PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     smccc::{FunctionId as OtherFunctionId, OwningEntityNumber, SmcReturn},
     sysregs::read_isr_el1,
 };
-
-use super::{owns, Service};
+use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
 
 bitflags! {
     /// Optional platform feature flags
@@ -226,6 +229,54 @@ impl PsciCompositePowerState {
             .rposition(|state| state.power_state_type() == PowerStateType::PowerDown)
     }
 
+    /// Fill the structure with the current local states of the given CPU node and its ancestor
+    /// non-CPU power domain nodes.
+    pub fn set_local_states_from_nodes(
+        &mut self,
+        cpu: &CpuPowerNode,
+        ancestors: &AncestorPowerDomains,
+    ) {
+        self.states[PsciCompositePowerState::CPU_POWER_LEVEL] = cpu.local_state();
+
+        for (node, state) in ancestors
+            .iter()
+            .zip(&mut self.states[PsciCompositePowerState::CPU_POWER_LEVEL + 1..])
+        {
+            *state = node.local_state();
+        }
+    }
+
+    /// Requests the power state for all ancestor nodes and sets the minimal local state for each
+    /// node. When a CPU node enters a lower power state, its ancestor nodes may also be able to
+    /// transition to a lower power state. Each non-CPU power node maintains a list of power states
+    /// requested by its descendant nodes. This function sets the lowest power state permitted by
+    /// the list of requested states.
+    pub fn coordinate_state(&mut self, cpu_index: usize, ancestors: &mut AncestorPowerDomains) {
+        let mut higher_levels_are_run = false;
+
+        for (node, state) in ancestors
+            .iter_mut()
+            .zip(&mut self.states[PsciCompositePowerState::CPU_POWER_LEVEL + 1..])
+        {
+            node.set_requested_power_state(cpu_index, *state);
+
+            if !higher_levels_are_run {
+                node.set_minimal_allowed_state();
+                *state = node.local_state();
+
+                if state.power_state_type() == PowerStateType::Run {
+                    // We reached a level where running states is required, so all power states
+                    // on the higher level can be set to run.
+                    higher_levels_are_run = true;
+                }
+            } else {
+                // If there was a running state on a previous level, there's no need for finding
+                // the minimal allowed state because it can only be in running state.
+                *state = PlatformPowerState::RUN;
+            }
+        }
+    }
+
     /// Checks that the composite state does not violate any PSCI rules.
     pub fn is_valid_suspend_request(&self, is_power_down_state: bool) -> bool {
         // There should be a non-run level
@@ -252,11 +303,37 @@ impl PsciCompositePowerState {
 /// the power state representation of each power domain.
 pub struct Psci {
     platform: PsciPlatformImpl,
+    power_domain_tree: PowerDomainTree,
 }
 
 impl Psci {
     pub fn new(platform: PsciPlatformImpl) -> Self {
-        Self { platform }
+        let power_domain_tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        {
+            // Init primary CPU
+            let cpu_index = Self::local_cpu_index();
+            let mut cpu = power_domain_tree.locked_cpu_node(cpu_index);
+
+            power_domain_tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+                cpu.set_affinity_info(AffinityInfo::On);
+                cpu.set_local_state(PlatformPowerState::RUN);
+
+                for node in ancestors.iter_mut() {
+                    node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
+                    node.set_local_state(PlatformPowerState::RUN);
+                }
+            });
+        }
+
+        Self {
+            platform,
+            power_domain_tree,
+        }
+    }
+
+    fn local_cpu_index() -> usize {
+        PlatformImpl::core_index()
     }
 }
 
@@ -279,6 +356,12 @@ impl Service for Psci {
     ) -> SmcReturn {
         let result = ErrorCode::NotSupported as u32;
         result.into()
+    }
+}
+
+impl Debug for Psci {
+    fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
+        self.power_domain_tree.fmt(f)
     }
 }
 
@@ -338,5 +421,41 @@ mod tests {
         composite_state.states[PsciCompositePowerState::CPU_POWER_LEVEL] = PlatformPowerState::OFF;
         assert!(composite_state.is_valid_suspend_request(true));
         assert!(!composite_state.is_valid_suspend_request(false));
+    }
+
+    #[test]
+    fn psci_composite_power_state_set_from_nodes() {
+        let mut composite_state = PsciCompositePowerState::OFF;
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        let mut cpu = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+            cpu.set_local_state(PlatformPowerState::RUN);
+            for ancestor in ancestors.iter_mut() {
+                ancestor.set_local_state(PlatformPowerState::RUN);
+            }
+
+            composite_state.set_local_states_from_nodes(cpu, &ancestors);
+        });
+
+        assert_eq!(
+            [PlatformPowerState::RUN; {
+                PsciPlatformImpl::MAX_POWER_LEVEL - PsciCompositePowerState::CPU_POWER_LEVEL + 1
+            }],
+            composite_state.states[PsciCompositePowerState::CPU_POWER_LEVEL..]
+        )
+    }
+
+    #[test]
+    fn psci_composite_power_state_coordination() {
+        let mut composite_state = PsciCompositePowerState::OFF;
+        composite_state.states[PsciPlatformImpl::MAX_POWER_LEVEL - 1] = PlatformPowerState::RUN;
+        composite_state.states[PsciPlatformImpl::MAX_POWER_LEVEL] = PlatformPowerState::RUN;
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        let mut cpu = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu, |_cpu, mut ancestors| {
+            composite_state.coordinate_state(2, &mut ancestors);
+        });
     }
 }

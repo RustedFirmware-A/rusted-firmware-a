@@ -767,6 +767,18 @@ impl Psci {
         self.platform.cpu_freeze()
     }
 
+    /// Handles `CPU_DEFAULT_SUSPEND` PSCI call.
+    /// Places a core into an implementation defined low-power state. It might not return if the
+    /// default state is a power down state.
+    fn cpu_default_suspend(&self, entry: EntryPoint) -> Result<(), ErrorCode> {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::CPU_DEFAULT_SUSPEND) {
+            return Err(ErrorCode::NotSupported);
+        }
+
+        let power_state = self.platform.cpu_default_suspend_power_state();
+        self.cpu_suspend(power_state, entry)
+    }
+
     /// Notify SPMD about the PSCI call.
     fn notify_spmd(&self, function: Function) {
         let mut psci_request = [0; 4];
@@ -1490,5 +1502,11 @@ mod tests {
         expect_cpu_power_down(PsciPlatformImpl::CPU_FREEZE_MAGIC, || {
             let _ = psci.cpu_freeze();
         });
+    }
+
+    #[test]
+    fn psci_cpu_default_suspend() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+        assert_eq!(Ok(()), psci.cpu_default_suspend(ENTRY_POINT));
     }
 }

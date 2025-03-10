@@ -42,3 +42,13 @@ pub fn tlbi_alle3() {
         asm!("tlbi alle3", options(nostack));
     }
 }
+
+/// Wait For Interrupt is a hint instruction that indicates that the PE can enter a low-power state
+/// and remain there until a wakeup event occurs.
+pub fn wfi() {
+    // SAFETY: `wfi` does not violate safe Rust guarantees.
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!("wfi", options(nostack));
+    }
+}

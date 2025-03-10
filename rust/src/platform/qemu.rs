@@ -8,7 +8,13 @@ use crate::{
     gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
-    services::arch::WorkaroundSupport,
+    services::{
+        arch::WorkaroundSupport,
+        psci::{
+            PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
+            PsciPlatformInterface, PsciPlatformOptionalFeatures,
+        },
+    },
     sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
@@ -17,6 +23,7 @@ use arm_gic::{
     {IntId, Trigger},
 };
 use arm_pl011_uart::{OwnedMmioPointer, PL011Registers, Uart};
+use arm_psci::{ErrorCode, Mpidr, PowerState};
 use core::ptr::NonNull;
 use gicv3::{GicConfig, SecureInterruptConfig};
 use log::LevelFilter;
@@ -57,6 +64,7 @@ impl Platform for Qemu {
     const CORE_COUNT: usize = 4;
 
     type LoggerWriter = Uart<'static>;
+    type PsciPlatformImpl = QemuPsciPlatformImpl;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         // TODO: Fill this with proper values.
@@ -127,9 +135,8 @@ impl Platform for Qemu {
         }
     }
 
-    fn system_off() -> ! {
-        semihosting_exit(AdpStopped::ApplicationExit, 0);
-        panic!("Semihosting system off call unexpectedly returned.");
+    fn psci_platform() -> Option<Self::PsciPlatformImpl> {
+        Some(QemuPsciPlatformImpl)
     }
 
     fn arch_workaround_1_supported() -> WorkaroundSupport {
@@ -161,5 +168,87 @@ unsafe impl Cores for Qemu {
         // TODO: Implement this properly. Ensure that the safety invariant still holds, and update
         // the comment to explain how.
         0
+    }
+}
+
+#[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
+pub enum QemuPowerState {
+    PowerDown,
+    Standby,
+    On,
+}
+
+impl PlatformPowerStateInterface for QemuPowerState {
+    const OFF: Self = Self::PowerDown;
+    const RUN: Self = Self::On;
+
+    fn power_state_type(&self) -> PowerStateType {
+        match self {
+            Self::PowerDown => PowerStateType::PowerDown,
+            Self::Standby => PowerStateType::StandbyOrRetention,
+            Self::On => PowerStateType::Run,
+        }
+    }
+}
+
+impl From<QemuPowerState> for usize {
+    fn from(_value: QemuPowerState) -> Self {
+        todo!()
+    }
+}
+
+pub struct QemuPsciPlatformImpl;
+
+impl PsciPlatformInterface for QemuPsciPlatformImpl {
+    const POWER_DOMAIN_COUNT: usize = 6;
+    const MAX_POWER_LEVEL: usize = 2;
+
+    const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::empty();
+
+    type PlatformPowerState = QemuPowerState;
+
+    fn topology() -> &'static [usize] {
+        &[1, 1, 4]
+    }
+
+    fn try_parse_power_state(_power_state: PowerState) -> Option<PsciCompositePowerState> {
+        todo!()
+    }
+
+    fn cpu_standby(&self, _cpu_state: QemuPowerState) {
+        todo!()
+    }
+
+    fn power_domain_suspend(&self, _target_state: &PsciCompositePowerState) {
+        todo!()
+    }
+
+    fn power_domain_suspend_finish(&self, _target_state: &PsciCompositePowerState) {
+        todo!()
+    }
+
+    fn power_domain_off(&self, _target_state: &PsciCompositePowerState) {
+        todo!()
+    }
+
+    fn power_domain_on(&self, _mpidr: Mpidr) -> Result<(), ErrorCode> {
+        todo!()
+    }
+
+    fn power_domain_on_finish(&self, _target_state: &PsciCompositePowerState) {
+        todo!()
+    }
+
+    fn system_off(&self) -> ! {
+        semihosting_exit(AdpStopped::ApplicationExit, 0);
+        panic!("Semihosting system off call unexpectedly returned.");
+    }
+
+    fn system_reset(&self) -> ! {
+        todo!()
+    }
+
+    fn try_get_cpu_index_by_mpidr(_mpidr: &Mpidr) -> Option<usize> {
+        todo!()
     }
 }

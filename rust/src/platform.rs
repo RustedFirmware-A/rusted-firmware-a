@@ -19,12 +19,20 @@ pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
 pub use test::{exception_free, TestPlatform as PlatformImpl};
 
-use crate::{context::EntryPointInfo, gicv3, pagetable::IdMap, services::arch::WorkaroundSupport};
+use crate::{
+    context::EntryPointInfo,
+    gicv3,
+    pagetable::IdMap,
+    services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
+};
 use percore::Cores;
 
 /// The code must use `platform::LoggerWriter` to avoid the 'ambiguous associated type' error that
 /// occurs when using `PlatformImpl::LoggerWriter` directly.
 pub type LoggerWriter = <PlatformImpl as Platform>::LoggerWriter;
+
+pub type PsciPlatformImpl = <PlatformImpl as Platform>::PsciPlatformImpl;
+pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface>::PlatformPowerState;
 
 /// The hooks implemented by all platforms.
 pub trait Platform: Cores {
@@ -39,6 +47,9 @@ pub trait Platform: Cores {
 
     /// Platform dependent Write implementation type for Logger.
     type LoggerWriter: core::fmt::Write;
+
+    /// Platform dependent PsciPlatformInterface implementation type.
+    type PsciPlatformImpl: PsciPlatformInterface;
 
     /// Initialises the logger and anything else the platform needs. This will be called before the
     /// MMU is enabled.
@@ -67,8 +78,9 @@ pub trait Platform: Cores {
     #[cfg(feature = "rme")]
     fn realm_entry_point() -> EntryPointInfo;
 
-    /// Powers off the system.
-    fn system_off() -> !;
+    /// Returns an option with a PSCI platform implementation handle. The function should only be
+    /// called once, when it returns `Some`. All subsequent calls must return `None`.
+    fn psci_platform() -> Option<Self::PsciPlatformImpl>;
 
     /// Returns whether this platform supports the arch WORKAROUND_1 SMC.
     fn arch_workaround_1_supported() -> WorkaroundSupport;

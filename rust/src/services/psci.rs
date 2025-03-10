@@ -779,6 +779,21 @@ impl Psci {
         self.cpu_suspend(power_state, entry)
     }
 
+    /// Handles `NODE_HW_STATE` PSCI call.
+    fn node_hw_state(&self, target_cpu: Mpidr, power_level: u32) -> Result<HwState, ErrorCode> {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::NODE_HW_STATE) {
+            return Err(ErrorCode::NotSupported);
+        }
+
+        if PsciPlatformImpl::try_get_cpu_index_by_mpidr(&target_cpu).is_none()
+            || power_level as usize > PsciPlatformImpl::MAX_POWER_LEVEL
+        {
+            return Err(ErrorCode::InvalidParameters);
+        }
+
+        self.platform.node_hw_state(target_cpu, power_level)
+    }
+
     /// Notify SPMD about the PSCI call.
     fn notify_spmd(&self, function: Function) {
         let mut psci_request = [0; 4];
@@ -1508,5 +1523,28 @@ mod tests {
     fn psci_cpu_default_suspend() {
         let psci = Psci::new(PsciPlatformImpl::new());
         assert_eq!(Ok(()), psci.cpu_default_suspend(ENTRY_POINT));
+    }
+
+    #[test]
+    fn psci_node_hw_state() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+
+        assert_eq!(
+            Err(ErrorCode::InvalidParameters),
+            psci.node_hw_state(
+                INVALID_MPIDR,
+                PsciCompositePowerState::CPU_POWER_LEVEL as u32
+            )
+        );
+
+        assert_eq!(
+            Err(ErrorCode::InvalidParameters),
+            psci.node_hw_state(CPU1_MPIDR, PsciPlatformImpl::MAX_POWER_LEVEL as u32 + 1)
+        );
+
+        assert_eq!(
+            Ok(HwState::Off),
+            psci.node_hw_state(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
+        );
     }
 }

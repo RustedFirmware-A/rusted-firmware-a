@@ -22,7 +22,7 @@ macro_rules! owns {
     // service handles the entire Owning Entity Number (OEN)
     ($owning_entity:expr) => {
         #[inline(always)]
-        fn owns(function: FunctionId) -> bool {
+        fn owns(function: $crate::smccc::FunctionId) -> bool {
             function.oen() == $owning_entity
                 && matches!(
                     function.call_type(),
@@ -34,7 +34,7 @@ macro_rules! owns {
     // range refers to the lower 16 bits [15:0] of the SMC FunctionId
     ($owning_entity:expr, $range:expr) => {
         #[inline(always)]
-        fn owns(function: FunctionId) -> bool {
+        fn owns(function: $crate::smccc::FunctionId) -> bool {
             function.oen() == $owning_entity
                 && $range.contains(&function.number())
                 && matches!(

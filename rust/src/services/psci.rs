@@ -757,6 +757,16 @@ impl Psci {
         }
     }
 
+    /// Handles `CPU_FREEZE` PSCI call.
+    /// Does not return on success.
+    fn cpu_freeze(&self) -> Result<(), ErrorCode> {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::CPU_FREEZE) {
+            return Err(ErrorCode::NotSupported);
+        }
+
+        self.platform.cpu_freeze()
+    }
+
     /// Notify SPMD about the PSCI call.
     fn notify_spmd(&self, function: Function) {
         let mut psci_request = [0; 4];
@@ -1472,5 +1482,13 @@ mod tests {
                 psci.handle_features(PsciFeature::PsciFunction(function_id))
             );
         }
+    }
+
+    #[test]
+    fn psci_cpu_freeze() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+        expect_cpu_power_down(PsciPlatformImpl::CPU_FREEZE_MAGIC, || {
+            let _ = psci.cpu_freeze();
+        });
     }
 }

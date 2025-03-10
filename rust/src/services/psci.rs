@@ -794,6 +794,44 @@ impl Psci {
         self.platform.node_hw_state(target_cpu, power_level)
     }
 
+    /// Handles `SYSTEM_SUSPEND` PSCI call.
+    /// Suspends system into RAM, does not return on success.
+    fn system_suspend(&self, entry: EntryPoint) -> Result<(), ErrorCode> {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND) {
+            return Err(ErrorCode::NotSupported);
+        }
+
+        let cpu_index = Self::local_cpu_index();
+
+        if !self.power_domain_tree.is_last_cpu(cpu_index) {
+            return Err(ErrorCode::Denied);
+        }
+
+        if !self.platform.is_valid_ns_entrypoint(&entry) {
+            return Err(ErrorCode::InvalidAddress);
+        }
+
+        let state = self.platform.sys_suspend_power_state();
+        if state.find_highest_non_run_level() != Some(PsciPlatformImpl::MAX_POWER_LEVEL) {
+            return Err(ErrorCode::Denied);
+        }
+
+        assert!(state.is_valid_suspend_request(true));
+        assert_eq!(
+            state.highest_level_state().power_state_type(),
+            PowerStateType::PowerDown
+        );
+
+        self.cpu_suspend_start(
+            cpu_index,
+            None,
+            entry,
+            PsciPlatformImpl::MAX_POWER_LEVEL,
+            state,
+            true,
+        )
+    }
+
     /// Notify SPMD about the PSCI call.
     fn notify_spmd(&self, function: Function) {
         let mut psci_request = [0; 4];
@@ -1546,5 +1584,19 @@ mod tests {
             Ok(HwState::Off),
             psci.node_hw_state(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
         );
+    }
+
+    #[test]
+    fn psci_system_suspend() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+
+        expect_cpu_power_down_wfi(|| {
+            let _ = psci.system_suspend(ENTRY_POINT);
+        });
+        psci.handle_cpu_boot();
+
+        assert_eq!(Ok(()), psci.cpu_on(CPU1_MPIDR, ENTRY_POINT));
+        // Not last CPU
+        assert_eq!(Err(ErrorCode::Denied), psci.system_suspend(ENTRY_POINT));
     }
 }

@@ -6,8 +6,9 @@ mod power_domain_tree;
 mod spmd_stub;
 
 use arm_psci::{
-    AffinityInfo, Cookie, EntryPoint, ErrorCode, Function, HwState, MemProtectRange, Mpidr,
-    PowerState, ResetType, ReturnCode, SystemOff2Type,
+    AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
+    Function, FunctionId, HwState, MemProtectRange, MigrateInfoType, Mpidr, PowerState,
+    PsciFeature, ResetType, ReturnCode, SystemOff2Type,
 };
 use bitflags::bitflags;
 use core::fmt::{Debug, Formatter};
@@ -672,6 +673,90 @@ impl Psci {
         self.platform.mem_protect_check_range(range)
     }
 
+    /// Handles `PSCI_FEATURES` PSCI call.
+    fn handle_features(&self, feature: PsciFeature) -> Result<u64, ErrorCode> {
+        const SUCCESS: u64 = 0;
+
+        let check_optional_feature = |feature| {
+            if PsciPlatformImpl::FEATURES.contains(feature) {
+                Ok(SUCCESS)
+            } else {
+                Err(ErrorCode::NotSupported)
+            }
+        };
+
+        match feature {
+            PsciFeature::PsciFunction(function_id) => match function_id {
+                // Mandatory features without feature flags
+                FunctionId::PsciVersion
+                | FunctionId::CpuOff
+                | FunctionId::CpuOn32
+                | FunctionId::CpuOn64
+                | FunctionId::AffinityInfo32
+                | FunctionId::AffinityInfo64
+                | FunctionId::SystemOff
+                | FunctionId::SystemReset
+                | FunctionId::PsciFeatures => Ok(SUCCESS),
+
+                // CPU suspend features
+                FunctionId::CpuSuspend32 | FunctionId::CpuSuspend64 => {
+                    let flags = FeatureFlagsCpuSuspend::EXTENDED_POWER_STATE;
+                    // TODO: OS-initiated flag
+                    Ok(u32::from(flags) as u64)
+                }
+
+                // Migrate
+                FunctionId::Migrate32
+                | FunctionId::Migrate64
+                | FunctionId::MigrateInfoUpCpu32
+                | FunctionId::MigrateInfoUpCpu64 => Err(ErrorCode::NotSupported),
+                FunctionId::MigrateInfoType => {
+                    let migration_type = MigrateInfoType::MigrationNotRequired as u32;
+                    Ok(migration_type.into())
+                }
+                FunctionId::SystemOff232 | FunctionId::SystemOff264 => {
+                    if PsciPlatformImpl::FEATURES
+                        .contains(PsciPlatformOptionalFeatures::SYSTEM_OFF2)
+                    {
+                        let flags = FeatureFlagsSystemOff2::HIBERNATE_OFF;
+                        Ok(u32::from(flags) as u64)
+                    } else {
+                        Err(ErrorCode::NotSupported)
+                    }
+                }
+                FunctionId::SystemReset232 | FunctionId::SystemReset264 => {
+                    check_optional_feature(PsciPlatformOptionalFeatures::SYSTEM_RESET2)
+                }
+                FunctionId::MemProtect => {
+                    check_optional_feature(PsciPlatformOptionalFeatures::MEM_PROTECT)
+                }
+                FunctionId::MemProtectCheckRange32 | FunctionId::MemProtectCheckRange64 => {
+                    check_optional_feature(PsciPlatformOptionalFeatures::MEM_PROTECT_CHECK_RANGE)
+                }
+                FunctionId::CpuFreeze => {
+                    check_optional_feature(PsciPlatformOptionalFeatures::CPU_FREEZE)
+                }
+                FunctionId::CpuDefaultSuspend32 | FunctionId::CpuDefaultSuspend64 => {
+                    check_optional_feature(PsciPlatformOptionalFeatures::CPU_DEFAULT_SUSPEND)
+                }
+                FunctionId::NodeHwState32 | FunctionId::NodeHwState64 => {
+                    check_optional_feature(PsciPlatformOptionalFeatures::NODE_HW_STATE)
+                }
+                FunctionId::SystemSuspend32 | FunctionId::SystemSuspend64 => {
+                    check_optional_feature(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND)
+                }
+                FunctionId::PsciSetSuspendMode => Err(ErrorCode::NotSupported),
+                FunctionId::PsciStatResidency32 | FunctionId::PsciStatResidency64 => {
+                    Err(ErrorCode::NotSupported)
+                }
+                FunctionId::PsciStatCount32 | FunctionId::PsciStatCount64 => {
+                    Err(ErrorCode::NotSupported)
+                }
+            },
+            PsciFeature::SmcccVersion => Ok(SUCCESS),
+        }
+    }
+
     /// Notify SPMD about the PSCI call.
     fn notify_spmd(&self, function: Function) {
         let mut psci_request = [0; 4];
@@ -1311,5 +1396,81 @@ mod tests {
             Ok(()),
             psci.mem_protect_check_range(MemProtectRange::Range64 { base: 0, length: 4 })
         );
+    }
+
+    #[test]
+    fn psci_features() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+
+        let supported_functions = [
+            FunctionId::PsciVersion,
+            FunctionId::CpuOff,
+            FunctionId::CpuOn32,
+            FunctionId::CpuOn64,
+            FunctionId::AffinityInfo32,
+            FunctionId::AffinityInfo64,
+            FunctionId::SystemOff,
+            FunctionId::SystemReset,
+            FunctionId::SystemReset232,
+            FunctionId::SystemReset264,
+            FunctionId::MemProtect,
+            FunctionId::MemProtectCheckRange32,
+            FunctionId::MemProtectCheckRange64,
+            FunctionId::PsciFeatures,
+            FunctionId::CpuFreeze,
+            FunctionId::CpuDefaultSuspend32,
+            FunctionId::CpuDefaultSuspend64,
+            FunctionId::NodeHwState32,
+            FunctionId::NodeHwState64,
+            FunctionId::SystemSuspend32,
+            FunctionId::SystemSuspend64,
+        ];
+
+        let not_supported_functions = [
+            FunctionId::Migrate32,
+            FunctionId::Migrate64,
+            FunctionId::MigrateInfoUpCpu32,
+            FunctionId::MigrateInfoUpCpu64,
+            FunctionId::PsciSetSuspendMode,
+            FunctionId::PsciStatResidency32,
+            FunctionId::PsciStatResidency64,
+            FunctionId::PsciStatCount32,
+            FunctionId::PsciStatCount64,
+        ];
+
+        assert_eq!(Ok(0), psci.handle_features(PsciFeature::SmcccVersion));
+        assert_eq!(
+            Ok(0x0000_0002),
+            psci.handle_features(PsciFeature::PsciFunction(FunctionId::CpuSuspend32))
+        );
+        assert_eq!(
+            Ok(0x0000_0002),
+            psci.handle_features(PsciFeature::PsciFunction(FunctionId::CpuSuspend64))
+        );
+        assert_eq!(
+            Ok(0x0000_0001),
+            psci.handle_features(PsciFeature::PsciFunction(FunctionId::SystemOff232))
+        );
+        assert_eq!(
+            Ok(0x0000_0001),
+            psci.handle_features(PsciFeature::PsciFunction(FunctionId::SystemOff264))
+        );
+        assert_eq!(
+            Ok(2),
+            psci.handle_features(PsciFeature::PsciFunction(FunctionId::MigrateInfoType))
+        );
+
+        for function_id in supported_functions {
+            assert_eq!(
+                Ok(0),
+                psci.handle_features(PsciFeature::PsciFunction(function_id))
+            );
+        }
+        for function_id in not_supported_functions {
+            assert_eq!(
+                Err(ErrorCode::NotSupported),
+                psci.handle_features(PsciFeature::PsciFunction(function_id))
+            );
+        }
     }
 }

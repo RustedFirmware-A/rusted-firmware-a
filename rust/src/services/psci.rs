@@ -5,26 +5,26 @@
 mod power_domain_tree;
 mod spmd_stub;
 
-use arm_psci::{
-    AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
-    Function, FunctionId, HwState, MemProtectRange, MigrateInfoType, Mpidr, PowerState,
-    PsciFeature, ResetType, ReturnCode, SystemOff2Type,
-};
-use bitflags::bitflags;
-use core::fmt::{Debug, Formatter};
-use percore::Cores;
-use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
-use spmd_stub::SPMD;
-
+use super::{owns, Service};
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::World,
-    platform::{PlatformImpl, PlatformPowerState, PsciPlatformImpl},
+    platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     smccc::{FunctionId as OtherFunctionId, OwningEntityNumber, SmcReturn},
     sysregs::read_isr_el1,
 };
-
-use super::{owns, Service};
+use arm_psci::{
+    AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
+    Function, FunctionId, HwState, MemProtectRange, MigrateInfoType, Mpidr, PowerState,
+    PsciFeature, ResetType, ReturnCode, SystemOff2Type, Version,
+};
+use bitflags::bitflags;
+use core::fmt::{Debug, Formatter};
+use log::info;
+use percore::Cores;
+use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
+use spin::Once;
+use spmd_stub::SPMD;
 
 bitflags! {
     /// Optional platform feature flags
@@ -832,6 +832,84 @@ impl Psci {
         )
     }
 
+    fn handle_smc_inner(&self, regs: [u64; 4]) -> Result<u64, ErrorCode> {
+        const SUCCESS: u64 = 0;
+        let function = Function::try_from(regs)?;
+
+        match function {
+            Function::Version => {
+                let version = Version { major: 1, minor: 3 };
+                Ok(u32::from(version).into())
+            }
+            Function::CpuSuspend { state, entry } => {
+                self.cpu_suspend(state, entry)?;
+                Ok(SUCCESS)
+            }
+            Function::CpuOff => {
+                self.cpu_off()?;
+                Ok(SUCCESS)
+            }
+            Function::CpuOn { target_cpu, entry } => {
+                self.cpu_on(target_cpu, entry)?;
+                Ok(SUCCESS)
+            }
+            Function::AffinityInfo {
+                mpidr,
+                lowest_affinity_level,
+            } => {
+                let affinity_info = self.affinity_info(mpidr, lowest_affinity_level)?;
+                Ok(u32::from(affinity_info).into())
+            }
+            Function::Migrate { .. } => Err(ErrorCode::NotSupported),
+            Function::MigrateInfoType => {
+                Ok(u32::from(MigrateInfoType::MigrationNotRequired).into())
+            }
+            Function::MigrateInfoUpCpu { .. } => Err(ErrorCode::NotSupported),
+
+            Function::SystemOff => self.system_off(),
+            Function::SystemOff2 { off_type, cookie } => {
+                self.system_off2(off_type, cookie)?;
+                Ok(SUCCESS)
+            }
+            Function::SystemReset => self.system_reset(),
+            Function::SystemReset2 { reset_type, cookie } => {
+                self.system_reset2(reset_type, cookie)?;
+                Ok(SUCCESS)
+            }
+            Function::MemProtect { enabled } => {
+                let previous_state = self.mem_protect(enabled)?;
+                Ok(if previous_state { 1 } else { 0 })
+            }
+            Function::MemProtectCheckRange { range } => {
+                self.mem_protect_check_range(range)?;
+                Ok(SUCCESS)
+            }
+            Function::Features { psci_func_id } => self.handle_features(psci_func_id),
+            Function::CpuFreeze => {
+                self.cpu_freeze()?;
+                Ok(SUCCESS)
+            }
+            Function::CpuDefaultSuspend { entry } => {
+                self.cpu_default_suspend(entry)?;
+                Ok(SUCCESS)
+            }
+            Function::NodeHwState {
+                target_cpu,
+                power_level,
+            } => {
+                let hw_state = self.node_hw_state(target_cpu, power_level)?;
+                Ok(u32::from(hw_state).into())
+            }
+            Function::SystemSuspend { entry } => {
+                self.system_suspend(entry)?;
+                Ok(SUCCESS)
+            }
+            Function::SetSuspendMode { .. } => Err(ErrorCode::NotSupported),
+            Function::StatResidency { .. } => Err(ErrorCode::NotSupported),
+            Function::StatCount { .. } => Err(ErrorCode::NotSupported),
+        }
+    }
+
     /// Notify SPMD about the PSCI call.
     fn notify_spmd(&self, function: Function) {
         let mut psci_request = [0; 4];
@@ -858,6 +936,13 @@ impl Psci {
 const FUNCTION_NUMBER_MIN: u16 = 0x0000;
 const FUNCTION_NUMBER_MAX: u16 = 0x001F;
 
+static PSCI: Once<Psci> = Once::new();
+
+pub fn init() {
+    info!("Initialzing PSCI");
+    PSCI.call_once(|| Psci::new(PlatformImpl::psci_platform().unwrap()));
+}
+
 impl Service for Psci {
     owns!(
         OwningEntityNumber::STANDARD_SECURE,
@@ -865,15 +950,22 @@ impl Service for Psci {
     );
 
     fn handle_smc(
-        _function: OtherFunctionId,
-        _x1: u64,
-        _x2: u64,
-        _x3: u64,
+        function: OtherFunctionId,
+        x1: u64,
+        x2: u64,
+        x3: u64,
         _x4: u64,
         _world: World,
     ) -> SmcReturn {
-        let result = ErrorCode::NotSupported as u32;
-        result.into()
+        match PSCI
+            .get()
+            .unwrap()
+            .handle_smc_inner([function.0 as u64, x1, x2, x3])
+        {
+            Ok(result) => result,
+            Err(return_code) => u64::from(return_code),
+        }
+        .into()
     }
 }
 

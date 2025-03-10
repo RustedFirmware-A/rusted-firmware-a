@@ -26,6 +26,7 @@ use crate::platform::{Platform, PlatformImpl};
 use context::{initialise_contexts, set_initial_world, World};
 use log::info;
 use percore::Cores;
+use services::psci;
 
 #[unsafe(no_mangle)]
 extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
@@ -45,6 +46,8 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
         PlatformImpl::core_index(),
     );
     info!("GIC configured.");
+
+    psci::init();
 
     let non_secure_entry_point = PlatformImpl::non_secure_entry_point();
     let secure_entry_point = PlatformImpl::secure_entry_point();

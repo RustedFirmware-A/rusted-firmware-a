@@ -5,14 +5,18 @@
 use super::Platform;
 use crate::{
     context::EntryPointInfo,
-    gicv3,
+    gicv3::GicConfig,
+    logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::arch::WorkaroundSupport,
     sysregs::SpsrEl3,
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::gicv3::GicV3;
+use core::fmt;
+use log::LevelFilter;
 use percore::{Cores, ExceptionFree};
+use std::io::{stdout, Write};
 
 const DEVICE0_BASE: usize = 0x0200_0000;
 const DEVICE0_SIZE: usize = 0x1000;
@@ -26,11 +30,14 @@ impl Platform for TestPlatform {
 
     type LoggerWriter = DummyLoggerWriter;
 
-    const GIC_CONFIG: gicv3::GicConfig = gicv3::GicConfig {
+    const GIC_CONFIG: GicConfig = GicConfig {
         secure_interrupts_config: &[],
     };
 
-    fn init_beforemmu() {}
+    fn init_beforemmu() {
+        logger::init(DummyLoggerWriter {}, LevelFilter::Trace)
+            .expect("Failed to initialise logger");
+    }
 
     fn map_extra_regions(idmap: &mut IdMap) {
         map_region(idmap, &DEVICE0, MT_DEVICE);
@@ -114,8 +121,22 @@ pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
 
 pub struct DummyLoggerWriter;
 
-impl core::fmt::Write for DummyLoggerWriter {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+impl fmt::Write for DummyLoggerWriter {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let mut stdout = stdout();
+        stdout.write_all(s.as_bytes()).unwrap();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::fmt::Write;
+
+    #[test]
+    fn test_basic_logging() {
+        let mut writer = DummyLoggerWriter {};
+        writeln!(writer, "hello").unwrap();
     }
 }

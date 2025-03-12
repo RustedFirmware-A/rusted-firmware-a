@@ -28,12 +28,11 @@ impl Log for Logger {
     fn flush(&self) {}
 }
 
-/// Initialises UART logger.
-pub fn init(uart: LoggerWriter, max_level: LevelFilter) -> Result<(), SetLoggerError> {
+/// Initialises logger.
+pub fn init(writer: LoggerWriter, max_level: LevelFilter) -> Result<(), SetLoggerError> {
     let logger = LOGGER.call_once(|| Logger {
-        writer: SpinMutex::new(uart),
+        writer: SpinMutex::new(writer),
     });
-
     log::set_logger(logger)?;
     log::set_max_level(max_level);
     Ok(())

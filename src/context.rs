@@ -4,17 +4,18 @@
 
 #[cfg(feature = "sel2")]
 use crate::sysregs::{
-    HcrEl2, IccSre, read_actlr_el2, read_afsr0_el2, read_afsr1_el2, read_amair_el2,
-    read_cnthctl_el2, read_cntvoff_el2, read_cptr_el2, read_elr_el2, read_esr_el2, read_far_el2,
-    read_hacr_el2, read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
-    read_ich_vmcr_el2, read_mair_el2, read_mdcr_el2, read_sctlr_el2, read_sp_el2, read_spsr_el2,
-    read_tcr_el2, read_tpidr_el2, read_ttbr0_el2, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2,
-    read_vtcr_el2, read_vttbr_el2, write_actlr_el2, write_afsr0_el2, write_afsr1_el2,
-    write_amair_el2, write_cnthctl_el2, write_cntvoff_el2, write_cptr_el2, write_elr_el2,
+    HcrEl2, IccSre, is_feat_vhe_present, read_actlr_el2, read_afsr0_el2, read_afsr1_el2,
+    read_amair_el2, read_cnthctl_el2, read_cntvoff_el2, read_contextidr_el2, read_cptr_el2,
+    read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2, read_hcr_el2, read_hpfar_el2,
+    read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2, read_ich_vmcr_el2, read_mair_el2,
+    read_mdcr_el2, read_sctlr_el2, read_sp_el2, read_spsr_el2, read_tcr_el2, read_tpidr_el2,
+    read_ttbr0_el2, read_ttbr1_el2, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2,
+    read_vttbr_el2, write_actlr_el2, write_afsr0_el2, write_afsr1_el2, write_amair_el2,
+    write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el2, write_cptr_el2, write_elr_el2,
     write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2, write_hpfar_el2, write_hstr_el2,
     write_icc_sre_el2, write_ich_hcr_el2, write_mair_el2, write_mdcr_el2, write_sctlr_el2,
-    write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2,
-    write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
+    write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_ttbr1_el2,
+    write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
 };
 #[cfg(not(feature = "sel2"))]
 use crate::sysregs::{
@@ -324,6 +325,7 @@ struct El2Sysregs {
     amair_el2: u64,
     cnthctl_el2: u64,
     cntvoff_el2: u64,
+    contextidr_el2: u64,
     cptr_el2: u64,
     elr_el2: usize,
     esr_el2: Esr,
@@ -343,6 +345,7 @@ struct El2Sysregs {
     tcr_el2: u64,
     tpidr_el2: u64,
     ttbr0_el2: u64,
+    ttbr1_el2: u64,
     vbar_el2: usize,
     vmpidr_el2: u64,
     vpidr_el2: u64,
@@ -359,6 +362,7 @@ impl El2Sysregs {
         amair_el2: 0,
         cnthctl_el2: 0,
         cntvoff_el2: 0,
+        contextidr_el2: 0,
         cptr_el2: 0,
         elr_el2: 0,
         esr_el2: Esr::empty(),
@@ -378,6 +382,7 @@ impl El2Sysregs {
         tcr_el2: 0,
         tpidr_el2: 0,
         ttbr0_el2: 0,
+        ttbr1_el2: 0,
         vbar_el2: 0,
         vmpidr_el2: 0,
         vpidr_el2: 0,
@@ -417,6 +422,10 @@ impl El2Sysregs {
         self.vpidr_el2 = read_vpidr_el2();
         self.vtcr_el2 = read_vtcr_el2();
         self.vttbr_el2 = read_vttbr_el2();
+
+        if is_feat_vhe_present() {
+            self.save_vhe();
+        }
     }
 
     /// Writes the saved register values to the system registers.
@@ -452,6 +461,20 @@ impl El2Sysregs {
         write_vpidr_el2(self.vpidr_el2);
         write_vtcr_el2(self.vtcr_el2);
         write_vttbr_el2(self.vttbr_el2);
+
+        if is_feat_vhe_present() {
+            self.restore_vhe();
+        }
+    }
+
+    fn save_vhe(&mut self) {
+        self.contextidr_el2 = read_contextidr_el2();
+        self.ttbr1_el2 = read_ttbr1_el2();
+    }
+
+    fn restore_vhe(&self) {
+        write_contextidr_el2(self.contextidr_el2);
+        write_ttbr1_el2(self.ttbr1_el2);
     }
 }
 

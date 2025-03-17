@@ -254,6 +254,7 @@ read_write_sysreg!(amair_el2, u64, safe read_amair_el2, safe write_amair_el2);
 read_write_sysreg!(cnthctl_el2, u64, safe read_cnthctl_el2, safe write_cnthctl_el2);
 read_write_sysreg!(cntvoff_el2, u64, safe read_cntvoff_el2, safe write_cntvoff_el2);
 read_write_sysreg!(contextidr_el1, u64, safe read_contextidr_el1, safe write_contextidr_el1);
+read_write_sysreg!(contextidr_el2, u64, safe read_contextidr_el2, safe write_contextidr_el2);
 read_write_sysreg!(cpacr_el1, u64, safe read_cpacr_el1, safe write_cpacr_el1);
 read_write_sysreg!(cptr_el2, u64, safe read_cptr_el2, safe write_cptr_el2);
 read_write_sysreg!(csselr_el1, u64, safe read_csselr_el1, safe write_csselr_el1);
@@ -333,6 +334,7 @@ write_sysreg! {
     ttbr0_el3, usize, write_ttbr0_el3
 }
 read_write_sysreg!(ttbr1_el1, u64, safe read_ttbr1_el1, safe write_ttbr1_el1);
+read_write_sysreg!(ttbr1_el2, u64, safe read_ttbr1_el2, safe write_ttbr1_el2);
 read_write_sysreg!(vbar_el1, usize, safe read_vbar_el1, safe write_vbar_el1);
 read_write_sysreg!(vbar_el2, usize, safe read_vbar_el2, safe write_vbar_el2);
 read_write_sysreg!(vmpidr_el2, u64, safe read_vmpidr_el2, safe write_vmpidr_el2);

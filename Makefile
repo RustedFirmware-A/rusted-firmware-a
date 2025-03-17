@@ -62,8 +62,8 @@ $(FIP): $(BL2) build $(BL32) $(BL33)
 	$(TFA)/tools/fiptool/fiptool update --soc-fw $(BL31_BIN) $@
 
 build:
-	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build $(CARGO_FLAGS)
-	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $(BL31_BIN)
+	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C target-feature=+vh" cargo build $(CARGO_FLAGS)
+	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C target-feature=+vh" cargo objcopy $(CARGO_FLAGS) -- -O binary $(BL31_BIN)
 	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 
 build-stf:
@@ -83,7 +83,7 @@ cargo-doc:
 	--features "$(FEATURES)"
 
 clippy:
-	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy $(CARGO_FLAGS)
+	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C target-feature=+vh" cargo clippy $(CARGO_FLAGS)
 
 QEMU = qemu-system-aarch64
 GDB_PORT ?= 1234

@@ -251,6 +251,7 @@ read_write_sysreg!(afsr1_el1, u64, safe read_afsr1_el1, safe write_afsr1_el1);
 read_write_sysreg!(afsr1_el2, u64, safe read_afsr1_el2, safe write_afsr1_el2);
 read_write_sysreg!(amair_el1, u64, safe read_amair_el1, safe write_amair_el1);
 read_write_sysreg!(amair_el2, u64, safe read_amair_el2, safe write_amair_el2);
+read_write_sysreg!(cntfrq_el0, u64, safe read_cntfrq_el0, safe write_cntfrq_el0);
 read_write_sysreg!(cnthctl_el2, u64, safe read_cnthctl_el2, safe write_cnthctl_el2);
 read_write_sysreg!(cntvoff_el2, u64, safe read_cntvoff_el2, safe write_cntvoff_el2);
 read_write_sysreg!(contextidr_el1, u64, safe read_contextidr_el1, safe write_contextidr_el1);

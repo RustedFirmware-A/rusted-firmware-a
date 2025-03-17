@@ -7,6 +7,7 @@ mod config;
 use self::config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU};
 use super::{DummyService, Platform};
 use crate::{
+    aarch64::{dsb_ish, dsb_sy, wfi},
     context::{CoresImpl, EntryPointInfo},
     cpu::aem_generic::AemGeneric,
     debug::DEBUG,
@@ -18,13 +19,20 @@ use crate::{
         arch::WorkaroundSupport,
         psci::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
-            PsciPlatformInterface, PsciPlatformOptionalFeatures,
+            PsciPlatformInterface, PsciPlatformOptionalFeatures, bl31_warm_entrypoint,
         },
         trng::NotSupportedTrngPlatformImpl,
     },
-    sysregs::{IccSre, MpidrEl1, Spsr},
+    sysregs::{IccSre, MpidrEl1, SctlrEl3, Spsr, read_mpidr_el1, read_sctlr_el3, write_cntfrq_el0},
 };
-use aarch64_paging::paging::MemoryRegion;
+use aarch64_paging::paging::{MemoryRegion, VirtualAddress};
+use arm_fvp_base_pac::{
+    Cci550Map, MemoryMap, Peripherals, PhysicalInstance,
+    arm_cci::{Cci5x0, Cci5x0Registers},
+    arm_generic_timer::{CntAcr, CntControlBase, CntCtlBase, GenericTimerControl, GenericTimerCtl},
+    power_controller::{FvpPowerController, FvpPowerControllerRegisters, SystemStatus},
+    system::{FvpSystemPeripheral, FvpSystemRegisters, SystemConfigFunction},
+};
 use arm_gic::{
     IntId, Trigger,
     gicv3::{
@@ -32,10 +40,11 @@ use arm_gic::{
         registers::{Gicd, GicrSgi},
     },
 };
-use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
-use arm_psci::{ErrorCode, Mpidr, PowerState};
+use arm_pl011_uart::{Uart, UniqueMmioPointer};
+use arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState};
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
 use percore::Cores;
+use spin::mutex::SpinMutex;
 
 const BLD_GIC_VE_MMAP: u32 = 0x0;
 
@@ -55,10 +64,15 @@ const DEVICE1_BASE: usize = BASE_GICD_BASE;
 const PLATFORM_CORE_COUNT: usize =
     FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU;
 const DEVICE1_SIZE: usize = (BASE_GICR_BASE - BASE_GICD_BASE) + (PLATFORM_CORE_COUNT * 0x2_0000);
+const DEVICE2_BASE: usize = 0x2a00_0000;
+const DEVICE2_SIZE: usize = 0x10000;
 
 const ARM_TRUSTED_SRAM_BASE: usize = 0x0400_0000;
 const ARM_SHARED_RAM_BASE: usize = ARM_TRUSTED_SRAM_BASE;
 const ARM_SHARED_RAM_SIZE: usize = 0x0000_1000; /* 4 KB */
+
+const WARM_ENTRYPOINT_FIELD: *mut unsafe extern "C" fn() =
+    ARM_SHARED_RAM_BASE as *mut unsafe extern "C" fn();
 
 const V2M_IOFPGA_BASE: usize = 0x1c00_0000;
 const V2M_IOFPGA_SIZE: usize = 0x0300_0000;
@@ -68,14 +82,12 @@ const SHARED_RAM: MemoryRegion = MemoryRegion::new(
     ARM_SHARED_RAM_BASE + ARM_SHARED_RAM_SIZE,
 );
 
-const V2M_MAP_IOFPGA: MemoryRegion =
-    MemoryRegion::new(V2M_IOFPGA_BASE, V2M_IOFPGA_BASE + V2M_IOFPGA_SIZE);
-
-const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE);
-const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE);
-
-// Base address of the primary PL011 UART.
-const PL011_BASE_ADDRESS: *mut PL011Registers = 0x1C09_0000 as _;
+const DEVICE_REGIONS: [MemoryRegion; 4] = [
+    MemoryRegion::new(V2M_IOFPGA_BASE, V2M_IOFPGA_BASE + V2M_IOFPGA_SIZE),
+    MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE),
+    MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE),
+    MemoryRegion::new(DEVICE2_BASE, DEVICE2_BASE + DEVICE2_SIZE),
+];
 
 const V2M_IOFPGA_UART1_BASE: usize = 0x1c0a_0000;
 
@@ -99,6 +111,29 @@ const RMM_SHARED_AREA_BASE_ADDRESS: u64 = 0;
 const SEL2_TIMER_ID: IntId = IntId::ppi(4);
 const SEL1_TIMER_ID: IntId = IntId::ppi(13);
 
+fn device_regions_include<T>(physical_instance: &PhysicalInstance<T>) -> bool {
+    let start = physical_instance.pa();
+    let end = start + size_of::<T>() - 1;
+
+    DEVICE_REGIONS.iter().any(|region| {
+        let range = region.start()..region.end();
+
+        range.contains(&VirtualAddress(start)) && range.contains(&VirtualAddress(end))
+    })
+}
+
+/// Creates an identity mapped `UniqueMmioPointer` from a `PhysicalInstance`. The function will
+/// panic if called with a physical_instance that is not part of the mapped DEVICE_REGIONS.
+fn map_peripheral<T>(physical_instance: PhysicalInstance<T>) -> UniqueMmioPointer<'static, T> {
+    assert!(device_regions_include(&physical_instance));
+
+    // Safety: Physical instances are unique pointers to peripherals. The addresses remains valid
+    // after turning on the MMU because of the identity mapping of the DEVICE_REGIONS.
+    unsafe { UniqueMmioPointer::new(NonNull::new(physical_instance.pa() as *mut T).unwrap()) }
+}
+
+static FVP_PSCI_PLATFORM_IMPL: SpinMutex<Option<FvpPsciPlatformImpl>> = SpinMutex::new(None);
+
 define_cpu_ops!(AemGeneric);
 
 /// Fixed Virtual Platform
@@ -109,7 +144,7 @@ impl Platform for Fvp {
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
     type LogSinkImpl = LockedWriter<Uart<'static>>;
-    type PsciPlatformImpl = FvpPsciPlatformImpl;
+    type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
     // TODO: Implement TRNG for FVP.
     type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
 
@@ -137,20 +172,42 @@ impl Platform for Fvp {
     };
 
     fn init_before_mmu() {
-        // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
-        // accesses that address range. The address remains valid after turning on the MMU
-        // because of the identity mapping of the `V2M_MAP_IOFPGA` region.
-        let uart_pointer =
-            unsafe { UniqueMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
+        let peripherals = Peripherals::take().unwrap();
+
+        let uart_pointer = map_peripheral(peripherals.uart0);
+
         logger::init(LockedWriter::new(Uart::new(uart_pointer)))
             .expect("Failed to initialise logger");
+
+        let psci_platform = FvpPsciPlatformImpl::new(
+            peripherals.power_controller,
+            peripherals.system,
+            peripherals.refclk_cntcontrol,
+            peripherals.ap_refclk_cntctl,
+            peripherals.cci_550,
+        );
+
+        // Safety: At this point the MMU and the caches are off on the primary core and all other
+        // cores are off. It is safe to enter coherency.
+        unsafe { psci_platform.enter_coherency() };
+        psci_platform.init_generic_timer();
+
+        *FVP_PSCI_PLATFORM_IMPL.lock() = Some(psci_platform);
+
+        // Write warm boot entry point the shared memory, so secondary cores can pick it up during
+        // boot.
+        // Safety: WARM_ENTRYPOINT_FIELD points to a valid, writable address.
+        unsafe {
+            *WARM_ENTRYPOINT_FIELD = bl31_warm_entrypoint;
+        }
+        dsb_sy();
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {
         map_region(idmap, &SHARED_RAM, MT_DEVICE);
-        map_region(idmap, &V2M_MAP_IOFPGA, MT_DEVICE);
-        map_region(idmap, &DEVICE0, MT_DEVICE);
-        map_region(idmap, &DEVICE1, MT_DEVICE);
+        for region in &DEVICE_REGIONS {
+            map_region(idmap, region, MT_DEVICE);
+        }
     }
 
     unsafe fn create_gic() -> GicV3<'static> {
@@ -238,7 +295,7 @@ impl Platform for Fvp {
     }
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
-        Some(FvpPsciPlatformImpl)
+        FVP_PSCI_PLATFORM_IMPL.lock().take()
     }
 
     fn arch_workaround_1_supported() -> WorkaroundSupport {
@@ -266,78 +323,394 @@ impl Platform for Fvp {
 
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
 pub enum FvpPowerState {
-    PowerDown,
-    Standby,
-    On,
+    Run = 0,
+    Retention = 1,
+    Off = 2,
 }
 
 impl PlatformPowerStateInterface for FvpPowerState {
-    const OFF: Self = Self::PowerDown;
-    const RUN: Self = Self::On;
+    const OFF: Self = Self::Off;
+    const RUN: Self = Self::Run;
 
     fn power_state_type(&self) -> PowerStateType {
         match self {
-            Self::PowerDown => PowerStateType::PowerDown,
-            Self::Standby => PowerStateType::StandbyOrRetention,
-            Self::On => PowerStateType::Run,
+            Self::Run => PowerStateType::Run,
+            Self::Retention => PowerStateType::StandbyOrRetention,
+            Self::Off => PowerStateType::PowerDown,
         }
     }
 }
 
 impl From<FvpPowerState> for usize {
-    fn from(_value: FvpPowerState) -> Self {
-        todo!()
+    fn from(value: FvpPowerState) -> Self {
+        value as usize
     }
 }
 
-pub struct FvpPsciPlatformImpl;
+pub struct FvpPsciPlatformImpl<'a> {
+    power_controller: SpinMutex<FvpPowerController<'a>>,
+    system: SpinMutex<FvpSystemPeripheral<'a>>,
+    timer_control: SpinMutex<GenericTimerControl<'a>>,
+    timer_ctl: SpinMutex<GenericTimerCtl<'a>>,
+    cci550: SpinMutex<Cci5x0<'a>>,
+}
 
-impl PsciPlatformInterface for FvpPsciPlatformImpl {
-    const POWER_DOMAIN_COUNT: usize = 11;
+impl FvpPsciPlatformImpl<'_> {
+    const CLUSTER_POWER_LEVEL: usize = 1;
+    const NS_TIMER_INDEX: usize = 1;
+
+    pub fn new(
+        power_controller: PhysicalInstance<FvpPowerControllerRegisters>,
+        system: PhysicalInstance<FvpSystemRegisters>,
+        timer_control: PhysicalInstance<CntControlBase>,
+        timer_ctl: PhysicalInstance<CntCtlBase>,
+        cci550: PhysicalInstance<Cci5x0Registers>,
+    ) -> Self {
+        Self {
+            power_controller: SpinMutex::new(FvpPowerController::new(map_peripheral(
+                power_controller,
+            ))),
+            system: SpinMutex::new(FvpSystemPeripheral::new(map_peripheral(system))),
+            timer_control: SpinMutex::new(GenericTimerControl::new(map_peripheral(timer_control))),
+            timer_ctl: SpinMutex::new(GenericTimerCtl::new(map_peripheral(timer_ctl))),
+            cci550: SpinMutex::new(Cci5x0::new(map_peripheral(cci550))),
+        }
+    }
+
+    /// Enter current core to the cache coherency domain.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the master only enables allocating shareable data into its cache
+    /// after this function completes.
+    pub unsafe fn enter_coherency(&self) {
+        // Safety: The function propagates the same safety requirements to the caller.
+        unsafe {
+            self.cci550
+                .lock()
+                .add_master_to_coherency(Self::get_cci_master_index());
+        }
+    }
+
+    /// Remove current core from the cache coherency domain.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the master is configured so that it does not allocate shareable
+    /// data into its cache, for example by disabling the data cache. The caller also has to clean
+    /// and invalidate all shareable data from the caches in the master prior calling this function.
+    unsafe fn exit_coherency(&self) {
+        // Safety: The function propagates the same safety requirements to the caller.
+        unsafe {
+            self.cci550
+                .lock()
+                .remove_master_from_coherency(Self::get_cci_master_index());
+        }
+    }
+
+    fn get_cci_master_index() -> usize {
+        let mpidr_el1 = read_mpidr_el1();
+
+        match mpidr_el1.aff2() {
+            0 => Cci550Map::CLUSTER0,
+            1 => Cci550Map::CLUSTER1,
+            cluster_index => panic!("Invalid cluster index {cluster_index}"),
+        }
+    }
+
+    fn cluster_off(&self, mpidr: u32) {
+        assert!(!read_sctlr_el3().contains(SctlrEl3::C));
+
+        // Safety: At this point the CPU specific power down function must have turned off the cache
+        // on the local core and flushes the cache contents. This is handled by `cpu_power_down`
+        // calls in the generic Psci implementation.
+        unsafe {
+            self.exit_coherency();
+        }
+
+        self.power_controller.lock().power_off_cluster(mpidr);
+    }
+
+    fn power_domain_on_finish_common(&self, target_state: &PsciCompositePowerState) {
+        assert_eq!(target_state.cpu_level_state(), FvpPowerState::Off);
+
+        let mpidr = read_mpidr_el1().bits() as u32;
+
+        // Perform the common cluster specific operations.
+        if target_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
+            // This CPU might have woken up whilst the cluster was attempting to power down. In
+            // this case the FVP power controller will have a pending cluster power off request
+            // which needs to be cleared by writing to the PPONR register. This prevents the power
+            // controller from interpreting a subsequent entry of this cpu into a simple wfi as a
+            // power down request.
+            self.power_controller.lock().power_on_processor(mpidr);
+
+            // Enable coherency if this cluster was off
+            // Safety: It is safe to enter coherency, because the platform provides
+            // hardware-assisted coherency.
+            unsafe {
+                self.enter_coherency();
+            }
+        }
+
+        // Perform the common system specific operations.
+        if target_state.highest_level_state() == FvpPowerState::Off {
+            self.restore_system_power_domain();
+        }
+
+        // Clear PWKUPR.WEN bit to ensure interrupts do not interfere with a cpu power down unless
+        // the bit is set again.
+        self.power_controller.lock().disable_wakeup_requests(mpidr);
+
+        let frequency = self.timer_control.lock().base_frequency();
+        write_cntfrq_el0(frequency.into());
+    }
+
+    // Enable and initialize the system level generic timer
+    pub fn init_generic_timer(&self) {
+        let mut timer_control = self.timer_control.lock();
+
+        timer_control.set_enable(true);
+
+        let frequency = timer_control.base_frequency();
+
+        let mut timer_ctl = self.timer_ctl.lock();
+
+        timer_ctl.set_access_control(Self::NS_TIMER_INDEX, CntAcr::all());
+        timer_ctl.set_non_secure_access(Self::NS_TIMER_INDEX, true);
+        timer_ctl.set_frequency(frequency);
+
+        write_cntfrq_el0(frequency.into());
+    }
+
+    fn gic_cpu_interface_enable(&self) {
+        // TODO: implement enable_gic_cpu_interface
+    }
+    fn gic_cpu_interface_disable(&self) {
+        // TODO: implement disable_gic_cpu_interface
+    }
+
+    fn gic_redistributor_enable(&self) {
+        // TODO: implement enable_gic_redistributor
+    }
+
+    fn gic_redistributor_disable(&self) {
+        // TODO: implement disable_gic_redistributor
+    }
+
+    fn save_system_power_domain(&self) {
+        // TODO: implement save_system_power_domain
+        // plat_arm_gic_save();
+
+        log::logger().flush();
+
+        // All the other peripheral which are configured by ARM TF are re-initialized on resume
+        // from system suspend. Hence we don't save their state here.
+    }
+
+    fn restore_system_power_domain(&self) {
+        // TODO: implement restore_system_power_domain
+        // plat_arm_gic_resume();
+        // plat_arm_security_setup();
+        self.init_generic_timer();
+    }
+}
+
+const _: () = assert!(
+    (FVP_CLUSTER_COUNT > 0) && (FVP_CLUSTER_COUNT <= 256),
+    "Invalid FVP cluster count"
+);
+
+impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
+    const POWER_DOMAIN_COUNT: usize =
+        1 + FVP_CLUSTER_COUNT + FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER;
     const MAX_POWER_LEVEL: usize = 2;
 
-    const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::empty();
+    const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::NODE_HW_STATE
+        .union(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND);
 
     type PlatformPowerState = FvpPowerState;
 
     fn topology() -> &'static [usize] {
-        &[1, 2, 4, 4]
+        const TOPOLOGY: [usize; 2 + FVP_CLUSTER_COUNT] = {
+            let mut topology = [0; 2 + FVP_CLUSTER_COUNT];
+
+            topology[0] = 1;
+            topology[1] = FVP_CLUSTER_COUNT;
+
+            let mut i = 0;
+            loop {
+                if i >= FVP_CLUSTER_COUNT {
+                    break;
+                }
+                topology[i + 2] = FVP_MAX_CPUS_PER_CLUSTER;
+                i += 1;
+            }
+            topology
+        };
+
+        &TOPOLOGY
     }
 
-    fn try_parse_power_state(_power_state: PowerState) -> Option<PsciCompositePowerState> {
-        todo!()
+    /// Based on 6.5 Recommended StateID Encoding
+    fn try_parse_power_state(power_state: PowerState) -> Option<PsciCompositePowerState> {
+        const POWER_LEVEL_STATE_MASK: u32 = 0x0000_0fff;
+
+        let states = match power_state {
+            PowerState::StandbyOrRetention(0x01) => [
+                FvpPowerState::Retention,
+                FvpPowerState::Run,
+                FvpPowerState::Run,
+            ],
+            PowerState::PowerDown(power_downstate) => {
+                match power_downstate & POWER_LEVEL_STATE_MASK {
+                    0x002 => [FvpPowerState::Off, FvpPowerState::Run, FvpPowerState::Run],
+                    0x022 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
+                    0x222 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Off],
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        };
+
+        Some(PsciCompositePowerState { states })
     }
 
-    fn cpu_standby(&self, _cpu_state: FvpPowerState) {
-        todo!()
+    fn cpu_standby(&self, cpu_state: FvpPowerState) {
+        assert!(cpu_state.power_state_type() == PowerStateType::StandbyOrRetention);
+
+        // Enter standby state. DSB is good practice before using WFI to enter low power states.
+        dsb_ish();
+        wfi();
     }
 
-    fn power_domain_suspend(&self, _target_state: &PsciCompositePowerState) {
-        todo!()
+    fn power_domain_suspend(&self, target_state: &PsciCompositePowerState) {
+        // FVP has retention only at cpu level. Just return as nothing is to be done for retention.
+        if target_state.cpu_level_state() == FvpPowerState::Retention {
+            return;
+        }
+
+        assert_eq!(target_state.cpu_level_state(), FvpPowerState::Off);
+
+        let mpidr = read_mpidr_el1().bits() as u32;
+
+        self.power_controller.lock().enable_wakeup_requests(mpidr);
+
+        // Prevent interrupts from spuriously waking up this cpu.
+        self.gic_cpu_interface_disable();
+
+        // The Redistributor is not powered off as it can potentially prevent wake up events
+        // reaching the CPUIF and/or might lead to losing register context.
+
+        if target_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
+            self.cluster_off(mpidr);
+        }
+
+        // Perform the common system specific operations.
+        if target_state.highest_level_state() == FvpPowerState::Off {
+            self.save_system_power_domain();
+        }
+
+        self.power_controller.lock().power_off_processor(mpidr);
     }
 
-    fn power_domain_suspend_finish(&self, _target_state: &PsciCompositePowerState) {
-        todo!()
+    fn power_domain_suspend_finish(&self, target_state: &PsciCompositePowerState) {
+        // Nothing to be done on waking up from retention at CPU level.
+        if target_state.cpu_level_state() == FvpPowerState::Retention {
+            return;
+        }
+
+        self.power_domain_on_finish_common(target_state);
+        self.gic_cpu_interface_enable();
     }
 
-    fn power_domain_off(&self, _target_state: &PsciCompositePowerState) {
-        todo!()
+    fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
+        assert_eq!(FvpPowerState::Off, target_state.cpu_level_state());
+
+        self.gic_cpu_interface_disable();
+        self.gic_redistributor_disable();
+
+        let mpidr = read_mpidr_el1().bits() as u32;
+        self.power_controller.lock().power_off_processor(mpidr);
+
+        if target_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
+            self.cluster_off(mpidr);
+        }
     }
 
-    fn power_domain_on(&self, _mpidr: Mpidr) -> Result<(), ErrorCode> {
-        todo!()
+    fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode> {
+        let raw_mpidr: u32 = mpidr.try_into().map_err(ErrorCode::from)?;
+
+        // Ensure that we do not cancel an inflight power off request for the
+        // target cpu. That would leave it in a zombie wfi. Wait for it to power
+        // off and then program the power controller to turn that CPU on.
+        loop {
+            let psysr = self.power_controller.lock().system_status(raw_mpidr);
+            if !psysr.contains(SystemStatus::L0) {
+                break;
+            }
+        }
+
+        self.power_controller.lock().power_on_processor(raw_mpidr);
+
+        Ok(())
     }
 
-    fn power_domain_on_finish(&self, _target_state: &PsciCompositePowerState) {
-        todo!()
+    fn power_domain_on_finish(&self, target_state: &PsciCompositePowerState) {
+        self.power_domain_on_finish_common(target_state);
+        self.gic_redistributor_enable();
+        self.gic_cpu_interface_enable();
     }
 
     fn system_off(&self) -> ! {
-        todo!()
+        self.system
+            .lock()
+            .write_system_configuration(SystemConfigFunction::Shutdown);
+        wfi();
+        unreachable!("expected system off did not happen");
     }
 
     fn system_reset(&self) -> ! {
-        todo!()
+        self.system
+            .lock()
+            .write_system_configuration(SystemConfigFunction::Reboot);
+        wfi();
+        unreachable!("expected system reset did not happen");
+    }
+
+    fn node_hw_state(&self, target_cpu: Mpidr, power_level: u32) -> Result<HwState, ErrorCode> {
+        let raw_mpidr: u32 = target_cpu.try_into().map_err(ErrorCode::from)?;
+
+        let status_flag = match power_level as usize {
+            PsciCompositePowerState::CPU_POWER_LEVEL => SystemStatus::L0,
+            Self::CLUSTER_POWER_LEVEL => {
+                // Use L1 affinity if MPIDR_EL1.MT bit is not set else use L2 affinity.
+                if raw_mpidr & 0x1 == 0 {
+                    SystemStatus::L1
+                } else {
+                    SystemStatus::L2
+                }
+            }
+            _ => return Err(ErrorCode::InvalidParameters),
+        };
+
+        let psysr = self.power_controller.lock().system_status(raw_mpidr);
+        Ok(if psysr.contains(status_flag) {
+            HwState::On
+        } else {
+            HwState::Off
+        })
+    }
+
+    fn sys_suspend_power_state(&self) -> PsciCompositePowerState {
+        PsciCompositePowerState::OFF
+    }
+
+    /// Validates a non-secure entry point, optional.
+    fn is_valid_ns_entrypoint(&self, entry: &EntryPoint) -> bool {
+        let entrypoint = entry.entry_point_address() as usize;
+
+        MemoryMap::DRAM0.contains(&entrypoint) || MemoryMap::DRAM1.contains(&entrypoint)
     }
 }
 

@@ -147,6 +147,16 @@ It then uses standard cargo:: directives to make Cargo aware of this new file. T
 filesystem access is confined to the expected OUT_DIR, and it does not execute any external or arbitrary shell commands.
 """
 
+[[audits.arm-cci]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.1.0"
+notes = """
+The crate uses safe-mmio to access the peripheral registers.
+The unsafe assembly block only contains barrier instructions that does not violate safety guarantees.
+The driver provides functions for entering and exiting cache coherency. This requires further actions from the caller that are described in the safety comments.
+"""
+
 [[audits.arm-ffa]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -168,6 +178,24 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.0 -> 0.3.1"
 notes = "No significant change, only metadata and clippy lints."
+
+[[audits.arm-fvp-base-pac]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.1.3"
+notes = """
+The crate uses safe-mmio to access the peripheral registers.
+The user can obtain multiple Peripherals instances via an unsafe function. In this case the callers responsibility to not use the same peripheral multiple times, as described in the safety requirement.
+"""
+
+[[audits.arm-generic-timer]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.1.0"
+notes = """
+The crate uses safe-mmio to access the peripheral registers.
+It provies an unsafe function for generating interrupt, where the required safety conditions are properly described.
+"""
 
 [[audits.arm-gic]]
 who = "Jeremi Miller <jeremimiller@google.com>"
@@ -222,6 +250,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.1.2 -> 0.1.3"
 notes = "No source change, only metadata."
+
+[[audits.arm-sp805]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+version = "0.1.1"
+notes = "The crate uses safe-mmio to access the peripheral registers. It does not have any unsafe code."
 
 [[audits.autocfg]]
 who = "Andrew Walbran <qwandor@google.com>"

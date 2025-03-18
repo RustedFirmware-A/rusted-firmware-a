@@ -4,6 +4,7 @@
 
 use super::Platform;
 use crate::{
+    aarch64::{dsb_sy, wfi},
     context::EntryPointInfo,
     gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
@@ -214,8 +215,11 @@ unsafe impl PsciPlatformInterface for QemuPsciPlatformImpl {
         todo!()
     }
 
-    fn cpu_standby(&self, _cpu_state: QemuPowerState) {
-        todo!()
+    fn cpu_standby(&self, cpu_state: QemuPowerState) {
+        assert_eq!(cpu_state, QemuPowerState::Standby);
+
+        dsb_sy();
+        wfi();
     }
 
     fn power_domain_suspend(&self, _target_state: &PsciCompositePowerState) {

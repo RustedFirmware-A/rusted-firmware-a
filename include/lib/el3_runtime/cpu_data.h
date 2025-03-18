@@ -11,13 +11,7 @@
 
 #include <bl31/ehf.h>
 
-/* Size of psci_cpu_data structure */
-#define PSCI_CPU_DATA_SIZE		12
-
 #ifdef __aarch64__
-
-/* 8-bytes aligned size of psci_cpu_data structure */
-#define PSCI_CPU_DATA_SIZE_ALIGNED	((PSCI_CPU_DATA_SIZE + 7) & ~7)
 
 #if ENABLE_RME
 /* Size of cpu_context array */
@@ -31,12 +25,10 @@
 
 #if ENABLE_PAUTH
 /* 8-bytes aligned offset of apiakey[2], size 16 bytes */
-#define	CPU_DATA_APIAKEY_OFFSET		(0x8 + PSCI_CPU_DATA_SIZE_ALIGNED \
-					     + CPU_DATA_CPU_OPS_PTR)
+#define	CPU_DATA_APIAKEY_OFFSET		(0x8 + CPU_DATA_CPU_OPS_PTR)
 #define CPU_DATA_CRASH_BUF_OFFSET	(0x10 + CPU_DATA_APIAKEY_OFFSET)
 #else /* ENABLE_PAUTH */
-#define CPU_DATA_CRASH_BUF_OFFSET	(0x8 + PSCI_CPU_DATA_SIZE_ALIGNED \
-					     + CPU_DATA_CPU_OPS_PTR)
+#define CPU_DATA_CRASH_BUF_OFFSET	(0x8 + CPU_DATA_CPU_OPS_PTR)
 #endif /* ENABLE_PAUTH */
 
 /* need enough space in crash buffer to save 8 registers */
@@ -48,7 +40,7 @@
 #error "Crash reporting is not supported in AArch32"
 #endif
 #define CPU_DATA_CPU_OPS_PTR		0x0
-#define CPU_DATA_CRASH_BUF_OFFSET	(0x4 + PSCI_CPU_DATA_SIZE)
+#define CPU_DATA_CRASH_BUF_OFFSET	(0x4)
 
 #endif	/* __aarch64__ */
 
@@ -121,7 +113,6 @@ typedef struct cpu_data {
 	void *cpu_context[CPU_DATA_CONTEXT_NUM];
 #endif /* __aarch64__ */
 	uintptr_t cpu_ops_ptr;
-	struct psci_cpu_data psci_svc_cpu_data;
 #if ENABLE_PAUTH
 	uint64_t apiakey[2];
 #endif

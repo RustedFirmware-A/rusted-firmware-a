@@ -24,8 +24,7 @@ if "$clippy" != "clippy"; then
 fi
 
 must() {
-    $@
-    if [[ $? -ne 0 ]]; then
+    if ! $@; then
         echo -- "$@" > /dev/stderr
         exit 1
     fi
@@ -43,5 +42,3 @@ done
 
 must cargo vet
 must cargo fmt
-
-exit 0

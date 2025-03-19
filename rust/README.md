@@ -34,7 +34,7 @@ $ sudo apt install qemu-system-arm
 Build C BL1 and BL2 and Rust BL31:
 
 ```sh
-$ CC=clang make PLAT=qemu RUST=1 DEBUG=1
+$ CC=clang make PLAT=qemu RUST=1 DEBUG=1 NEED_BL32=yes
 ```
 
 Build Rust BL31 and run in QEMU:

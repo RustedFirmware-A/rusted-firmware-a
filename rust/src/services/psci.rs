@@ -9,6 +9,7 @@ use super::{owns, Service};
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},
+    pagetable,
     platform::{plat_calc_core_pos, Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     smccc::{FunctionId as OtherFunctionId, OwningEntityNumber, SmcReturn},
     sysregs::{read_isr_el1, MpidrEl1},
@@ -1724,8 +1725,9 @@ mod tests {
 #[unsafe(no_mangle)]
 extern "C" fn psci_warmboot_entrypoint() {
     // TODO: Initialise scr_el3?
-    // TODO: enable MMU, via `setup_mmu_cfg`.
     info!("psci_warmboot_entrypoint");
+    pagetable::enable();
+    info!("MMU enabled");
     // TODO: Initialise context if this is the first this CPU has run.
     // TODO: Set up GIC redistributor
     // TODO: Set next world appropriately.

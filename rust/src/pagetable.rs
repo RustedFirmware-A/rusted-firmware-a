@@ -133,6 +133,11 @@ pub fn init() {
     });
 }
 
+/// Enables the MMU for a newly booted core, assuming the page table is already initialised.
+pub fn enable() {
+    setup_mmu_cfg(PAGE_TABLE.get().unwrap().lock().root_address());
+}
+
 /// Creates the page table and maps initial regions needed for boot, including any platform-specific
 /// regions.
 fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {

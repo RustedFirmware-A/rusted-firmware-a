@@ -22,7 +22,7 @@ use arm_gic::{
     gicv3::{GicV3, SecureIntGroup},
     {IntId, Trigger},
 };
-use arm_pl011_uart::{OwnedMmioPointer, PL011Registers, Uart};
+use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 use core::ptr::NonNull;
 use gicv3::{GicConfig, SecureInterruptConfig};
@@ -81,7 +81,7 @@ impl Platform for Qemu {
         // accesses that address range. The address remains valid after turning on the MMU
         // because of the identity mapping of the `DEVICE1` region.
         let uart_pointer =
-            unsafe { OwnedMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
+            unsafe { UniqueMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
         logger::init(Uart::new(uart_pointer), LevelFilter::Trace)
             .expect("Failed to initialise logger");
     }

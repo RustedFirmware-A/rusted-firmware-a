@@ -103,6 +103,16 @@ a conflict between the American English and British English spellings of a word,
 English spelling. However, for proper nouns, such as the names of companies, use the existing
 spelling.
 
+Rustdoc comments for functions and methods should begin with a summary fragment starting with a
+verb. This should be phrased such that it could be preceded by "This function". For example:
+
+```rust
+/// Computes the sum of the given numbers.
+fn sum(numbers: &[u32]) -> u32 {
+    //...
+}
+```
+
 ### Copyrights
 
 At the top of each source code file, put a copyright header in this format:

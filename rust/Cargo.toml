@@ -34,7 +34,7 @@ arm-gic = "0.2.2"
 arm-gic = { version = "0.2.2", features = ["fakes"] }
 
 [build-dependencies]
-cc = "1.0.79"
+cc = "=1.2.16"
 
 [features]
 default = ["sel2"]

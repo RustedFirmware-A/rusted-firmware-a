@@ -13,7 +13,8 @@ automated check, please go right ahead and push a change to Gerrit.
 
 As part of meeting [the RF-A threat model][1], we aim to have as little `unsafe` code as possible.
 Keep `unsafe` as short as possible, and always write a safety comment explaining how the code
-upholds Rust’s safety guarantees. (The `undocumented_unsafe_blocks` lint is set to “deny”.)
+upholds Rust’s safety guarantees. (The `undocumented_unsafe_blocks` and `missing_safety_doc` Clippy
+lints are set to “deny”.)
 
 Safety comments should make specific and verifiable claims about the validity of pointers, the
 block’s (non-)impingement on memory safety and type safety, and (where applicable) how the block

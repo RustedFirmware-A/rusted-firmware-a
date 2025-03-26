@@ -44,6 +44,7 @@ sel2 = []
 [lints.clippy]
 unreadable_literal = "deny"
 undocumented_unsafe_blocks = "deny"
+missing_safety_doc = "deny"
 
 [lints.rust]
 missing_docs = "deny"

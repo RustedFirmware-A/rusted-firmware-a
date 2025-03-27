@@ -7,7 +7,7 @@
 use std::env;
 
 /// The list of all supported platforms.
-pub const PLATFORMS: &[&str] = &["qemu"];
+pub const PLATFORMS: &[&str] = &["fvp", "qemu"];
 
 fn main() {
     let platform = env::var("CARGO_CFG_PLATFORM").expect("Missing platform name");

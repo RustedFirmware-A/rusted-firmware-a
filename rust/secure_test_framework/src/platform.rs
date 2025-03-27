@@ -2,11 +2,15 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+#[cfg(platform = "fvp")]
+mod fvp;
 #[cfg(platform = "qemu")]
 mod qemu;
 
 use core::fmt::Write;
 
+#[cfg(platform = "fvp")]
+pub type PlatformImpl = fvp::Fvp;
 #[cfg(platform = "qemu")]
 pub type PlatformImpl = qemu::Qemu;
 

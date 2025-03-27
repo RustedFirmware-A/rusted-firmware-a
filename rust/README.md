@@ -19,6 +19,7 @@ $ cargo install cargo-binutils
 $ git clone ssh://$TF_USERNAME@review.trustedfirmware.org:29418/RF-A/rusted-firmware-a
 $ cd rusted-firmware-a
 ```
+
 Also fetch the Trusted Firmware-A repository and record its path into the `TFA`
 environment variable:
 
@@ -98,7 +99,7 @@ to download this or any other FVP.
 Build C BL1 and BL2, Rust BL31 and FIP, then run everything in FVP:
 
 ```sh
-$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512" \
+$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=0" \
     DEBUG=1 fvp
 ```
 

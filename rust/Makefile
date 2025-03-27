@@ -5,6 +5,7 @@
 BL1 := target/bl1.bin
 BL2 := target/bl2.bin
 BL31_BIN := target/bl31.bin
+BL32 := target/bl32.bin
 BL33 := target/bl33.bin
 FIP := target/fip.bin
 BL31_ELF := target/bl31.elf
@@ -12,7 +13,7 @@ BL31_ELF := target/bl31.elf
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
 
-.PHONY: all clean clippy clippy-test qemu qemu-build qemu-wait fvp fvp-build build build-bl33 list_platforms
+.PHONY: all clean clippy clippy-test qemu qemu-build qemu-wait fvp fvp-build build build-stf list_platforms
 
 PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
@@ -51,8 +52,8 @@ $(BL2):
 	mkdir -p target
 	ln -fsr $(TFA)/build/$(PLAT)/$(BUILDTYPE)/bl2.bin $@
 
-$(FIP): $(BL2) build $(BL33)
-	make -C $(TFA) $(TFA_FLAGS) PLAT=$(PLAT) DEBUG=$(DEBUG) BL33=$(PWD)/$(BL33) fip
+$(FIP): $(BL2) build $(BL32) $(BL33)
+	make -C $(TFA) $(TFA_FLAGS) PLAT=$(PLAT) DEBUG=$(DEBUG) BL32=$(PWD)/$(BL32) BL33=$(PWD)/$(BL33) fip
 	mkdir -p target
 	cp $(TFA)/build/$(PLAT)/$(BUILDTYPE)/fip.bin $@
 #	Replace existing BL31 image by RF-A into the FIP image.
@@ -63,11 +64,14 @@ build:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $(BL31_BIN)
 	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 
-build-bl33: $(BL33)
-$(BL33):
+build-stf:
+	cd secure_test_framework && RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build --target $(TARGET)
+$(BL32): build-stf
 	mkdir -p target
-# fiptool refuses to include empty files in FIPs
-	echo "dummy content" > $(BL33)
+	cd secure_test_framework && RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy --target $(TARGET) --bin bl32 -- -O binary ../$@
+$(BL33): build-stf
+	mkdir -p target
+	cd secure_test_framework && RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy --target $(TARGET) --bin bl33 -- -O binary ../$@
 
 clippy-test:
 	cargo clippy --tests --features "$(FEATURES)"
@@ -83,7 +87,7 @@ QEMU_FLAGS = -machine virt,gic-version=3,secure=on,virtualization=on -cpu max -m
 	-gdb tcp:localhost:$(GDB_PORT) \
 	-display none -bios bl1.bin \
 	-smp 4
-QEMU_DEPS = $(BL1) $(BL2) build $(BL33)
+QEMU_DEPS = $(BL1) $(BL2) $(BL32) $(BL33) build
 
 qemu-build: $(QEMU_DEPS)
 
@@ -121,6 +125,7 @@ fvp: $(BL1) $(FIP)
 
 clean:
 	cargo clean
+	cd secure_test_framework && cargo clean
 	rm -f target/*.bin
 
 list_platforms:
@@ -142,7 +147,7 @@ help:
 	@echo
 	@echo "  all          Build all binaries for the specified platform."
 	@echo "  build        Build BL31 for the specified platform."
-	@echo "  build-bl33   Create a dummy BL33 file."
+	@echo "  build-stf    Build the Secure Test Framework."
 	@echo "  clean        Clean the build for all platforms."
 	@echo "  clippy       Lint the Rust source tree for the specified platform."
 	@echo "  clippy-test  Lint the Rust source tree for the test configuration."

@@ -1,0 +1,31 @@
+[package]
+name = "rf-a-secure-test-framework"
+version = "0.1.0"
+edition = "2024"
+authors = ["Andrew Walbran <qwandor@google.com>"]
+rust-version = "1.85"
+
+[dependencies]
+aarch64-rt = { version = "0.1.1", default-features = false }
+arm-pl011-uart = "0.3.1"
+bitflags = "2.3.2"
+log = "0.4.19"
+spin = "0.10.0"
+smccc = "0.2.0"
+
+[[bin]]
+name = "bl32"
+path = "src/bl32.rs"
+
+[[bin]]
+name = "bl33"
+path = "src/bl33.rs"
+
+[lints.clippy]
+missing_safety_doc = "deny"
+undocumented_unsafe_blocks = "deny"
+unreadable_literal = "deny"
+
+[lints.rust]
+missing_docs = "deny"
+unsafe_op_in_unsafe_fn = "deny"

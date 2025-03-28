@@ -6,5 +6,5 @@
 
 MEMORY
 {
-	image : ORIGIN = 0xe0a0000, LENGTH = 0x3d000
+	image : ORIGIN = 0xe0a0000, LENGTH = 0x60000
 }

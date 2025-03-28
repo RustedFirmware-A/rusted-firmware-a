@@ -9,7 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ba0820a68948e3655dbde1071b421d9ae8c08afb58e274b72c22e8a981c548c"
 dependencies = [
  "cfg-if",
- "smccc",
 ]
 
 [[package]]

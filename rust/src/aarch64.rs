@@ -33,6 +33,15 @@ pub fn isb() {
     }
 }
 
+/// Causes an event to be signaled to all cores within a multiprocessor system.
+pub fn sev() {
+    // SAFETY: `sev` does not violate safe Rust guarantees.
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!("sev");
+    }
+}
+
 /// Issues a translation lookaside buffer invalidate (`tlbi`) instruction that invalidates all TLB
 /// entries for EL3 (`alle3`).
 pub fn tlbi_alle3() {

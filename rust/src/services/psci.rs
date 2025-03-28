@@ -982,7 +982,7 @@ impl From<ErrorCode> for SmcReturn {
 ///
 /// For any valid MPIDR this will return a unique value less than `Platform::CORE_COUNT`.
 /// For any invalid MPIDR it will return `None`.
-fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<usize> {
+pub fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<usize> {
     // The PSCI MPIDR value doesn't include the MT or U bits, but they might be important for how
     // the platform validates MPIDR values and calculates core position, so add them in.
     let mpidr = MpidrEl1::from_psci_mpidr(psci_mpidr.into());

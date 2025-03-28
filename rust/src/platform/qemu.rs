@@ -4,17 +4,19 @@
 
 use super::Platform;
 use crate::{
-    aarch64::{dsb_sy, wfi},
+    aarch64::{dsb_sy, sev, wfi},
     context::{CoresImpl, EntryPointInfo},
     debug::DEBUG,
     gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
+    platform::plat_calc_core_pos,
     semihosting::{semihosting_exit, AdpStopped},
     services::{
         arch::WorkaroundSupport,
         psci::{
-            PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
-            PsciPlatformInterface, PsciPlatformOptionalFeatures,
+            bl31_warm_entrypoint, try_get_cpu_index_by_mpidr, PlatformPowerStateInterface,
+            PowerStateType, PsciCompositePowerState, PsciPlatformInterface,
+            PsciPlatformOptionalFeatures,
         },
     },
     sysregs::{IccSre, MpidrEl1, Spsr},
@@ -45,6 +47,16 @@ const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEV
 const GICD_BASE: usize = 0x0800_0000;
 const GICC_BASE: usize = 0x0801_0000;
 const GICR_BASE: usize = 0x080A_0000;
+
+/// Base address of the trusted mailbox.
+/// The mailbox has a storage buffer at its base, and a doorbell for each CPU.
+/// The size of the mailbox (TRUSTED_MAILBOX_SIZE) is 8 for the buffer plus memory reserved for the
+/// doorbells, or holding pens, (HOLD_SIZE) which is equal to Qemu::CORE_COUNT * 8.
+const TRUSTED_MAILBOX_BASE: *mut u64 = SHARED_RAM_BASE as _;
+/// Base address of the CPU doorbells.
+const HOLD_BASE: *mut u64 = (SHARED_RAM_BASE + 8) as _;
+const HOLD_STATE_WAIT: u64 = 0;
+const HOLD_STATE_GO: u64 = 1;
 
 /// Base address of the secure world PL011 UART, aka. UART1.
 const PL011_BASE_ADDRESS: *mut PL011Registers = 0x0904_0000 as _;
@@ -234,8 +246,21 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         todo!()
     }
 
-    fn power_domain_on(&self, _mpidr: Mpidr) -> Result<(), ErrorCode> {
-        todo!()
+    fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode> {
+        let cpu_index = try_get_cpu_index_by_mpidr(mpidr).ok_or(ErrorCode::InvalidParameters)?;
+        debug_assert!(cpu_index < Qemu::CORE_COUNT);
+        // SAFETY: HOLD_BASE is a valid address and adding cpu_index does not make it go out of
+        // bounds of HOLD_BASE + HOLD_SIZE, since cpu_index is guaranteed to be smaller than
+        // CORE_COUNT. Additionally, writing the warm boot entry point to the mailbox base address
+        // and writing HOLD_STATE_GO to the hold address of the appropriate CPU doesn't violate
+        // Rust's safety guarantees, as this memory region is only used for the trusted mailbox.
+        unsafe {
+            *TRUSTED_MAILBOX_BASE = bl31_warm_entrypoint as u64;
+            let cpu_hold_addr = HOLD_BASE.add(cpu_index);
+            *cpu_hold_addr = HOLD_STATE_GO;
+        }
+        sev();
+        Ok(())
     }
 
     fn power_domain_on_finish(&self, _target_state: &PsciCompositePowerState) {

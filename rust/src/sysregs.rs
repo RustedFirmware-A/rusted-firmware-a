@@ -15,6 +15,17 @@ use bitflags::bitflags;
 #[cfg(not(test))]
 use core::arch::asm;
 
+/// Constants for MPIDR fields.
+pub mod mpidr {
+    pub const CLUSTER_MASK: u64 = 0x0000_ff00;
+    pub const CPU_MASK: u64 = 0x0000_00ff;
+    pub const AFFINITY_BITS: usize = 8;
+    pub const AFF0_SHIFT: u8 = 0;
+    pub const AFF1_SHIFT: u8 = 8;
+    pub const AFF2_SHIFT: u8 = 16;
+    pub const MT_MASK: u64 = 1 << 24;
+}
+
 /// Implements a similar interface to `bitflags` on some newtype.
 macro_rules! bitflagslike {
     ($typename:ty: $inner:ty) => {

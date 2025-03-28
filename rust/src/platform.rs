@@ -10,6 +10,7 @@ mod qemu;
 mod test;
 
 use arm_gic::gicv3::GicV3;
+use arm_psci::Mpidr;
 #[cfg(platform = "fvp")]
 pub use fvp::Fvp as PlatformImpl;
 #[cfg(not(test))]
@@ -32,6 +33,17 @@ pub type LoggerWriter = <PlatformImpl as Platform>::LoggerWriter;
 
 pub type PsciPlatformImpl = <PlatformImpl as Platform>::PsciPlatformImpl;
 pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface>::PlatformPowerState;
+
+unsafe extern "C" {
+    /// Given a valid MPIDR value, returns the corresponding linear core index.
+    ///
+    /// The implementation must never return the same index for two different valid MPIDR values,
+    /// and must never return a value greater than or equal to the corresponding
+    /// `Platform::CORE_COUNT`.
+    ///
+    /// For an invalid MPIDR value no guarantees are made about the return value.
+    pub safe fn plat_calc_core_pos(mpidr: u64) -> usize;
+}
 
 /// The hooks implemented by all platforms.
 pub trait Platform {
@@ -76,6 +88,9 @@ pub trait Platform {
     /// Returns the entry point for the realm world.
     #[cfg(feature = "rme")]
     fn realm_entry_point() -> EntryPointInfo;
+
+    /// Returns whether the given MPIDR is valid for this platform.
+    fn mpidr_is_valid(mpidr: Mpidr) -> bool;
 
     /// Returns an option with a PSCI platform implementation handle. The function should only be
     /// called once, when it returns `Some`. All subsequent calls must return `None`.

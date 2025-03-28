@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    platform::{exception_free, Platform, PlatformImpl},
-    services::psci::Psci,
+    platform::{exception_free, plat_calc_core_pos, Platform, PlatformImpl},
     smccc::SmcReturn,
     sysregs::{
         read_actlr_el1, read_actlr_el2, read_afsr0_el1, read_afsr0_el2, read_afsr1_el1,
@@ -13,15 +12,15 @@ use crate::{
         read_elr_el2, read_esr_el1, read_esr_el2, read_far_el1, read_far_el2, read_hacr_el2,
         read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
         read_ich_vmcr_el2, read_mair_el1, read_mair_el2, read_mdccint_el1, read_mdcr_el2,
-        read_mdscr_el1, read_par_el1, read_scr_el3, read_sctlr_el1, read_sctlr_el2, read_sp_el1,
-        read_sp_el2, read_spsr_el1, read_spsr_el2, read_tcr_el1, read_tcr_el2, read_tpidr_el0,
-        read_tpidr_el1, read_tpidr_el2, read_tpidrro_el0, read_ttbr0_el1, read_ttbr0_el2,
-        read_ttbr1_el1, read_vbar_el1, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2,
-        read_vtcr_el2, read_vttbr_el2, write_actlr_el1, write_actlr_el2, write_afsr0_el1,
-        write_afsr0_el2, write_afsr1_el1, write_afsr1_el2, write_amair_el1, write_amair_el2,
-        write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el1, write_cpacr_el1,
-        write_cptr_el2, write_csselr_el1, write_elr_el1, write_elr_el2, write_esr_el1,
-        write_esr_el2, write_far_el1, write_far_el2, write_hacr_el2, write_hcr_el2,
+        read_mdscr_el1, read_mpidr_el1, read_par_el1, read_scr_el3, read_sctlr_el1, read_sctlr_el2,
+        read_sp_el1, read_sp_el2, read_spsr_el1, read_spsr_el2, read_tcr_el1, read_tcr_el2,
+        read_tpidr_el0, read_tpidr_el1, read_tpidr_el2, read_tpidrro_el0, read_ttbr0_el1,
+        read_ttbr0_el2, read_ttbr1_el1, read_vbar_el1, read_vbar_el2, read_vmpidr_el2,
+        read_vpidr_el2, read_vtcr_el2, read_vttbr_el2, write_actlr_el1, write_actlr_el2,
+        write_afsr0_el1, write_afsr0_el2, write_afsr1_el1, write_afsr1_el2, write_amair_el1,
+        write_amair_el2, write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el1,
+        write_cpacr_el1, write_cptr_el2, write_csselr_el1, write_elr_el1, write_elr_el2,
+        write_esr_el1, write_esr_el2, write_far_el1, write_far_el2, write_hacr_el2, write_hcr_el2,
         write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_mair_el1,
         write_mair_el2, write_mdccint_el1, write_mdcr_el2, write_mdscr_el1, write_par_el1,
         write_scr_el3, write_sctlr_el1, write_sctlr_el2, write_sp_el1, write_sp_el2, write_sp_el3,
@@ -31,11 +30,12 @@ use crate::{
         write_vtcr_el2, write_vttbr_el2, Esr, HcrEl2, IccSre, ScrEl3, SctlrEl1, Spsr,
     },
 };
+use arm_psci::Mpidr;
 use core::{
     cell::{RefCell, RefMut},
     ptr::null_mut,
 };
-use percore::{ExceptionFree, ExceptionLock, PerCore};
+use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
 
 /// The number of contexts to store for each CPU core, one per security state.
 const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
@@ -67,6 +67,29 @@ impl World {
             (true, true) => World::Realm,
             _ => panic!("Invalid combination of NS and NSE in scr_el3"),
         }
+    }
+}
+
+/// Implementation of the `Cores` trait to get the index of the current CPU core.
+pub struct CoresImpl;
+
+// SAFETY: This implementation never returns the same index for different cores because
+// `try_get_cpu_index_by_mpidr` is guaranteed not to.
+unsafe impl Cores for CoresImpl {
+    fn core_index() -> usize {
+        try_get_cpu_index_by_mpidr(Mpidr::from_register_value(read_mpidr_el1())).unwrap()
+    }
+}
+
+/// Returns the corresponding linear core index for the given MPIDR value.
+///
+/// For any valid MPIDR this will return a unique value less than `Platform::CORE_COUNT`.
+/// For any invalid MPIDR it will return `None`.
+pub fn try_get_cpu_index_by_mpidr(mpidr: Mpidr) -> Option<usize> {
+    if PlatformImpl::mpidr_is_valid(mpidr) {
+        Some(plat_calc_core_pos(mpidr.into()))
+    } else {
+        None
     }
 }
 
@@ -478,10 +501,13 @@ impl CpuState {
     }
 }
 
-static CPU_STATE: PerCore<ExceptionLock<RefCell<CpuState>>, Psci, { PlatformImpl::CORE_COUNT }> =
-    PerCore::new(
-        [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; PlatformImpl::CORE_COUNT],
-    );
+static CPU_STATE: PerCore<
+    ExceptionLock<RefCell<CpuState>>,
+    CoresImpl,
+    { PlatformImpl::CORE_COUNT },
+> = PerCore::new(
+    [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; PlatformImpl::CORE_COUNT],
+);
 
 /// Sets SP_EL3 to a pointer to the given CpuContext, ready for exception return.
 ///

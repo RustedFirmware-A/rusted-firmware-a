@@ -23,7 +23,7 @@ mod smccc;
 mod sysregs;
 
 use crate::platform::{Platform, PlatformImpl};
-use context::{initialise_contexts, set_initial_world, World};
+use context::{initialise_contexts, set_initial_world, CoresImpl, World};
 use log::info;
 use percore::Cores;
 use services::psci::Psci;
@@ -45,7 +45,7 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
         // SAFETY: This is the only place where GIC is created and there are no aliases.
         unsafe { PlatformImpl::create_gic() },
         &PlatformImpl::GIC_CONFIG,
-        Psci::core_index(),
+        CoresImpl::core_index(),
     );
     info!("GIC configured.");
 

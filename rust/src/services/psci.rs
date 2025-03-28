@@ -8,10 +8,10 @@ mod spmd_stub;
 use super::{owns, Service};
 use crate::{
     aarch64::{dsb_sy, wfi},
-    context::World,
+    context::{try_get_cpu_index_by_mpidr, CoresImpl, World},
     platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     smccc::{FunctionId as OtherFunctionId, OwningEntityNumber, SmcReturn},
-    sysregs::{read_isr_el1, read_mpidr_el1},
+    sysregs::read_isr_el1,
 };
 use arm_psci::{
     AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
@@ -69,13 +69,7 @@ pub trait PlatformPowerStateInterface:
 /// The interface contains mandatory and optional constants and functions. Whether the platform
 /// implements the optional functions has to be in sync with the reported optional features in the
 /// `FEATURES` constant.
-///
-/// # Safety
-///
-/// The `try_get_cpu_index_by_mpidr` implementation must never return the same index for two
-/// different valid MPIDR values, and must never return a value greater than or equal to the
-/// corresponding `Platform::CORE_COUNT`.
-pub unsafe trait PsciPlatformInterface {
+pub trait PsciPlatformInterface {
     /// Count of all power domains
     const POWER_DOMAIN_COUNT: usize;
     /// Maximal power level in the system
@@ -89,12 +83,6 @@ pub unsafe trait PsciPlatformInterface {
 
     /// Returns the power domain topology as the count of child nodes in a BFS traversal order.
     fn topology() -> &'static [usize];
-
-    /// Returns the corresponding linear core index for the given MPIDR value.
-    ///
-    /// For any valid MPIDR this must always return a unique value less than `Platform::CORE_COUNT`.
-    /// For any invalid MPIDR it should return `None`.
-    fn try_get_cpu_index_by_mpidr(mpidr: Mpidr) -> Option<usize>;
 
     /// Tries to convert extended PSCI power state value into `PsciCompositePowerState`.
     fn try_parse_power_state(power_state: PowerState) -> Option<PsciCompositePowerState>;
@@ -339,7 +327,7 @@ impl Psci {
 
         {
             // Init primary CPU
-            let cpu_index = Self::core_index();
+            let cpu_index = CoresImpl::core_index();
             let mut cpu = power_domain_tree.locked_cpu_node(cpu_index);
 
             power_domain_tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
@@ -369,7 +357,7 @@ impl Psci {
         power_state: PowerState,
         entry_point: EntryPoint,
     ) -> Result<(), ErrorCode> {
-        let cpu_index = Self::core_index();
+        let cpu_index = CoresImpl::core_index();
         let composite_state: PsciCompositePowerState =
             PsciPlatformImpl::try_parse_power_state(power_state)
                 .ok_or(ErrorCode::InvalidParameters)?;
@@ -504,7 +492,7 @@ impl Psci {
     /// Handles `CPU_OFF` PSCI call.
     /// On success, turns off the current CPU and does not return.
     fn cpu_off(&self) -> Result<(), ErrorCode> {
-        let cpu_index = Self::core_index();
+        let cpu_index = CoresImpl::core_index();
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
         let mut composite_state = PsciCompositePowerState::OFF;
 
@@ -530,8 +518,8 @@ impl Psci {
     /// Handles `CPU_ON` PSCI call by turning on the CPU identified by the given `target_cpu` MPIDR.
     /// The caller has to provide a valid non-secure entry point for the CPU.
     fn cpu_on(&self, target_cpu: Mpidr, entry: EntryPoint) -> Result<(), ErrorCode> {
-        let cpu_index = PsciPlatformImpl::try_get_cpu_index_by_mpidr(target_cpu)
-            .ok_or(ErrorCode::InvalidParameters)?;
+        let cpu_index =
+            try_get_cpu_index_by_mpidr(target_cpu).ok_or(ErrorCode::InvalidParameters)?;
 
         if !self.platform.is_valid_ns_entrypoint(&entry) {
             return Err(ErrorCode::InvalidAddress);
@@ -564,7 +552,7 @@ impl Psci {
     /// This function must be called when a CPU is powered up. It returns the non-secure entry
     /// point.
     pub fn handle_cpu_boot(&self) -> EntryPoint {
-        let cpu_index = Self::core_index();
+        let cpu_index = CoresImpl::core_index();
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
         let mut composite_state = PsciCompositePowerState::RUN;
 
@@ -626,8 +614,8 @@ impl Psci {
         target_affinity: Mpidr,
         lowest_affinity_level: u32,
     ) -> Result<AffinityInfo, ErrorCode> {
-        let cpu_index = PsciPlatformImpl::try_get_cpu_index_by_mpidr(target_affinity)
-            .ok_or(ErrorCode::InvalidParameters)?;
+        let cpu_index =
+            try_get_cpu_index_by_mpidr(target_affinity).ok_or(ErrorCode::InvalidParameters)?;
 
         if lowest_affinity_level as usize > PsciCompositePowerState::CPU_POWER_LEVEL {
             // We don't support levels higher than CPU_POWER_LEVEL.
@@ -808,7 +796,7 @@ impl Psci {
             return Err(ErrorCode::NotSupported);
         }
 
-        if PsciPlatformImpl::try_get_cpu_index_by_mpidr(target_cpu).is_none()
+        if try_get_cpu_index_by_mpidr(target_cpu).is_none()
             || power_level as usize > PsciPlatformImpl::MAX_POWER_LEVEL
         {
             return Err(ErrorCode::InvalidParameters);
@@ -824,7 +812,7 @@ impl Psci {
             return Err(ErrorCode::NotSupported);
         }
 
-        let cpu_index = Self::core_index();
+        let cpu_index = CoresImpl::core_index();
 
         if !self.power_domain_tree.is_last_cpu(cpu_index) {
             return Err(ErrorCode::Denied);
@@ -949,15 +937,6 @@ impl Psci {
             }
             Err(error) => log::error!("Failed to parse PSCI event response: {:?}", error),
         }
-    }
-}
-
-// SAFETY: This implementation never returns the same index for different cores because
-// `try_get_cpu_index_by_mpidr` is guaranteed not to.
-unsafe impl Cores for Psci {
-    fn core_index() -> usize {
-        PsciPlatformImpl::try_get_cpu_index_by_mpidr(Mpidr::from_register_value(read_mpidr_el1()))
-            .unwrap()
     }
 }
 

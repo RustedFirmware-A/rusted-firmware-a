@@ -29,6 +29,14 @@ const DEVICE0_BASE: usize = 0x0200_0000;
 const DEVICE0_SIZE: usize = 0x1000;
 const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE);
 
+// The levels of the power topology System, SoC, Cluster, Core.
+const SYSTEM_DOMAIN_INDEX: u8 = 0;
+const SOCS_PER_SYSTEM: usize = 2;
+const CLUSTERS_PER_SOC: usize = 2;
+// Each cluster has 3 cores except the last one which has 4.
+const CORES_PER_CLUSTER: usize = 3;
+const CORES_PER_CLUSTER_LAST: usize = 4;
+
 /// A fake platform for unit tests.
 pub struct TestPlatform;
 
@@ -77,6 +85,30 @@ impl Platform for TestPlatform {
             pc: 0x2000_0000,
             spsr: 0x3c9,
             args: Default::default(),
+        }
+    }
+
+    fn mpidr_is_valid(mpidr: Mpidr) -> bool {
+        let system_index = mpidr.aff3.unwrap_or(SYSTEM_DOMAIN_INDEX);
+        let soc_index = mpidr.aff2 as usize;
+        let cluster_index = mpidr.aff1 as usize;
+        let core_index = mpidr.aff0 as usize;
+
+        // Validate System, SoC and Cluster indexes
+        if system_index != SYSTEM_DOMAIN_INDEX
+            || soc_index >= SOCS_PER_SYSTEM
+            || cluster_index >= CLUSTERS_PER_SOC
+        {
+            return false;
+        }
+
+        // Validate Core index
+        let is_last_cluster =
+            soc_index == SOCS_PER_SYSTEM - 1 && cluster_index == CLUSTERS_PER_SOC - 1;
+        if is_last_cluster {
+            core_index < CORES_PER_CLUSTER_LAST
+        } else {
+            core_index < CORES_PER_CLUSTER
         }
     }
 
@@ -177,10 +209,7 @@ impl TestPsciPlatformImpl {
     }
 }
 
-// SAFETY: The implementation of `try_get_cpu_index_by_mpidr` never returns the same index for
-// different cores because tests only run on a single thread, no matter which core is being faked
-// through the fake MPIDR_EL1 system register value.
-unsafe impl PsciPlatformInterface for TestPsciPlatformImpl {
+impl PsciPlatformInterface for TestPsciPlatformImpl {
     const POWER_DOMAIN_COUNT: usize = 20;
 
     const MAX_POWER_LEVEL: usize = 3;
@@ -191,40 +220,6 @@ unsafe impl PsciPlatformInterface for TestPsciPlatformImpl {
 
     fn topology() -> &'static [usize] {
         &[1, 2, 2, 2, 3, 3, 3, 4]
-    }
-
-    fn try_get_cpu_index_by_mpidr(mpidr: Mpidr) -> Option<usize> {
-        // The levels of the power topology System, SoC, Cluster, Core.
-        const SYSTEM_DOMAIN_INDEX: u8 = 0;
-        const SOCS_PER_SYSTEM: usize = 2;
-        const CLUSTERS_PER_SOC: usize = 2;
-        // Each cluster has 3 cores except the last one which has 4.
-        const CORES_PER_CLUSTER: usize = 3;
-        const CORES_PER_CLUSTER_LAST: usize = 4;
-
-        let system_index = mpidr.aff3.unwrap_or(SYSTEM_DOMAIN_INDEX);
-        let soc_index = mpidr.aff2 as usize;
-        let cluster_index = mpidr.aff1 as usize;
-        let core_index = mpidr.aff0 as usize;
-
-        // Validate System, SoC and Cluster indexes
-        if system_index != SYSTEM_DOMAIN_INDEX
-            || soc_index >= SOCS_PER_SYSTEM
-            || cluster_index >= CLUSTERS_PER_SOC
-        {
-            return None;
-        }
-
-        // Validate Core index
-        let is_last_cluster =
-            soc_index == SOCS_PER_SYSTEM - 1 && cluster_index == CLUSTERS_PER_SOC - 1;
-        if (!is_last_cluster && core_index >= CORES_PER_CLUSTER)
-            || (is_last_cluster && core_index >= CORES_PER_CLUSTER_LAST)
-        {
-            return None;
-        }
-
-        Some(((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index)
     }
 
     fn try_parse_power_state(power_state: PowerState) -> Option<PsciCompositePowerState> {
@@ -317,6 +312,19 @@ unsafe impl PsciPlatformInterface for TestPsciPlatformImpl {
     fn sys_suspend_power_state(&self) -> PsciCompositePowerState {
         PsciCompositePowerState::OFF
     }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn plat_calc_core_pos(mpidr: u64) -> usize {
+    let mpidr = Mpidr::from_register_value(mpidr);
+
+    assert!(TestPlatform::mpidr_is_valid(mpidr));
+
+    let soc_index = mpidr.aff2 as usize;
+    let cluster_index = mpidr.aff1 as usize;
+    let core_index = mpidr.aff0 as usize;
+
+    ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
 }
 
 #[cfg(test)]

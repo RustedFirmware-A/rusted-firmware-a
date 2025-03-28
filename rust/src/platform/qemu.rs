@@ -5,18 +5,18 @@
 use super::Platform;
 use crate::{
     aarch64::{dsb_sy, wfi},
-    context::EntryPointInfo,
+    context::{CoresImpl, EntryPointInfo},
     gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
     services::{
         arch::WorkaroundSupport,
         psci::{
-            PlatformPowerStateInterface, PowerStateType, Psci, PsciCompositePowerState,
+            PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
-    sysregs::Spsr,
+    sysregs::{mpidr, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
@@ -28,7 +28,7 @@ use arm_gic::{
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
-use core::ptr::NonNull;
+use core::{arch::global_asm, ptr::NonNull};
 use gicv3::{GicConfig, SecureInterruptConfig};
 use log::LevelFilter;
 use percore::Cores;
@@ -63,8 +63,9 @@ const HW_CONFIG_ADDRESS: u64 = 0;
 
 /// The number of CPU clusters.
 const CLUSTER_COUNT: usize = 1;
+const PLATFORM_CPU_PER_CLUSTER_SHIFT: usize = 2;
 /// The maximum number of CPUs in each cluster.
-const MAX_CPUS_PER_CLUSTER: usize = 4;
+const MAX_CPUS_PER_CLUSTER: usize = 1 << PLATFORM_CPU_PER_CLUSTER_SHIFT;
 
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
@@ -116,7 +117,7 @@ impl Platform for Qemu {
     }
 
     fn secure_entry_point() -> EntryPointInfo {
-        let core_linear_id = Psci::core_index() as u64;
+        let core_linear_id = CoresImpl::core_index() as u64;
         EntryPointInfo {
             pc: 0x0e10_0000,
             #[cfg(feature = "sel2")]
@@ -142,6 +143,13 @@ impl Platform for Qemu {
             spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
             args: Default::default(),
         }
+    }
+
+    fn mpidr_is_valid(mpidr: Mpidr) -> bool {
+        mpidr.aff3.unwrap_or_default() == 0
+            && mpidr.aff2 == 0
+            && usize::from(mpidr.aff1) < CLUSTER_COUNT
+            && usize::from(mpidr.aff0) < MAX_CPUS_PER_CLUSTER
     }
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
@@ -199,10 +207,7 @@ impl From<QemuPowerState> for usize {
 
 pub struct QemuPsciPlatformImpl;
 
-// SAFETY: The implementation of `try_get_cpu_index_by_mpidr` never returns the same index for
-// different cores because each core has a cluster ID and CPU ID in its MPIDR, and we have a
-// suitable MAX_CPUS_PER_CLUSTER value to avoid overlap.
-unsafe impl PsciPlatformInterface for QemuPsciPlatformImpl {
+impl PsciPlatformInterface for QemuPsciPlatformImpl {
     const POWER_DOMAIN_COUNT: usize = 1 + CLUSTER_COUNT + Qemu::CORE_COUNT;
     const MAX_POWER_LEVEL: usize = 2;
 
@@ -253,17 +258,20 @@ unsafe impl PsciPlatformInterface for QemuPsciPlatformImpl {
     fn system_reset(&self) -> ! {
         todo!()
     }
-
-    fn try_get_cpu_index_by_mpidr(mpidr: Mpidr) -> Option<usize> {
-        // TODO: Ensure that this logic is always the same as the assembly `plat_my_core_pos` /
-        // `plat_qemu_calc_core_pos`. Can they be combined somehow? The assembly version is needed
-        // because it is called from `plat_get_my_stack` before the stack is set up.
-        let cluster_id = usize::from(mpidr.aff1);
-        let cpu_id = usize::from(mpidr.aff0);
-        if cluster_id < CLUSTER_COUNT && cpu_id < MAX_CPUS_PER_CLUSTER {
-            Some(cluster_id * MAX_CPUS_PER_CLUSTER + cpu_id)
-        } else {
-            None
-        }
-    }
 }
+
+// With this function: CorePos = (ClusterId * 4) + CoreId
+global_asm!(
+    include_str!("../asm_macros_common.S"),
+    ".globl plat_calc_core_pos",
+    "func plat_calc_core_pos",
+        "and	x1, x0, #{MPIDR_CPU_MASK}",
+        "and	x0, x0, #{MPIDR_CLUSTER_MASK}",
+        "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
+        "ret",
+    "endfunc plat_calc_core_pos",
+    MPIDR_CPU_MASK = const mpidr::CPU_MASK,
+    MPIDR_CLUSTER_MASK = const mpidr::CLUSTER_MASK,
+    MPIDR_AFFINITY_BITS = const mpidr::AFFINITY_BITS,
+    PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
+);

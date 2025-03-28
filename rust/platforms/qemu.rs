@@ -15,7 +15,7 @@ impl Builder for QemuBuilder {
             build
                 .include("../plat/qemu/common/include")
                 .include("../plat/qemu/qemu/include")
-                .file("../plat/qemu/common/aarch64/plat_helpers.S");
+                .file("platforms/qemu/plat_helpers.S");
             Ok(())
         }
     }

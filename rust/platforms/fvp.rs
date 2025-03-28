@@ -14,7 +14,7 @@ pub struct FvpBuilder;
 impl Builder for FvpBuilder {
     fn configure_build(&self, build: &mut Build) -> BuildResult {
         build
-            .file("../plat/arm/common/aarch64/arm_helpers.S")
+            .file("platforms/fvp/arm_helpers.S")
             .include("../include/plat/arm/common")
             .include("../plat/arm/board/fvp/include");
 

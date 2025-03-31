@@ -198,7 +198,7 @@ fn setup_mmu_cfg(root_address: PhysicalAddress) {
     // SAFETY: `sctlr` is a valid and safe value for the EL3 system control register. At this point,
     // the MMU is turned off (as `assert!`ed above), the translation table base register has been
     // set to a valid address, and we are about to turn the MMU on with a safe configuration
-    // (`SCTLR_C | SCTLR_WXN`).
+    // (`SctlrEl3::C | SctlrEl3::WXN`).
     unsafe {
         write_sctlr_el3(sctlr);
     }

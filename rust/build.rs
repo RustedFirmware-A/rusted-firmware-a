@@ -5,9 +5,9 @@
 //! Build script for RF-A.
 
 mod platforms;
-use platforms::{get_builder, PLATFORMS};
 
 use cc::Build;
+use platforms::{get_builder, PLATFORMS};
 use std::env;
 
 fn build_libtfa(platform: &str) {
@@ -57,15 +57,12 @@ fn build_libtfa(platform: &str) {
 fn setup_linker(platform: &String) {
     println!("cargo:rustc-link-arg=-Timage.ld");
 
-    // Select the linker scripts.
-    // image.ld is common to all platforms.
-    // It gets supplemented by the platform linker script. Some platforms have
-    // multiple of those, depending on the enabled features. */
-    #[allow(unused)]
-    let mut linker_name = platform.clone();
-
+    // Select the linker scripts. image.ld is common to all platforms. It gets supplemented by the
+    // platform linker script. Some platforms have multiple linker scripts, depending on the enabled
+    // features.
+    let linker_name = platform.clone();
     #[cfg(feature = "rme")]
-    linker_name.push_str("-rme");
+    let linker_name = linker_name + "-rme";
 
     println!(
         "cargo:rustc-link-arg=-Tplatforms/{}/{}.ld",

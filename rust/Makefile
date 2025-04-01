@@ -10,7 +10,7 @@ FIP := target/fip.bin
 BL31_ELF := target/bl31.elf
 
 # cargo features to enable. See Cargo.toml for available features.
-FEATURES := sel2
+FEATURES ?= sel2
 
 .PHONY: all clean clippy clippy-test qemu qemu-wait fvp build build-bl33 list_platforms
 

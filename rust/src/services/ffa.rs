@@ -62,6 +62,8 @@ fn version(world: World, _input_version: Version) -> Interface {
         World::Secure => Interface::VersionOut {
             output_version: FFA_VERSION_1_1,
         },
+        #[cfg(feature = "rme")]
+        World::Realm => todo!(),
     }
 }
 

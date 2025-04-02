@@ -12,7 +12,7 @@ BL31_ELF := target/bl31.elf
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
 
-.PHONY: all clean clippy clippy-test qemu qemu-wait fvp build build-bl33 list_platforms
+.PHONY: all clean clippy clippy-test qemu qemu-build qemu-wait fvp fvp-build build build-bl33 list_platforms
 
 PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
@@ -35,7 +35,7 @@ else
 	CARGO_FLAGS += --release
 endif
 
-all: build build-bl33
+all: $(PLAT)-build
 
 $(BL1):
 	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl1.bin $@
@@ -70,6 +70,8 @@ QEMU_FLAGS = -machine virt,gic-version=3,secure=on,virtualization=on -cpu max -m
 	-smp 4
 QEMU_DEPS = $(BL1) $(BL2) build build-bl33
 
+qemu-build: $(QEMU_DEPS)
+
 qemu: $(QEMU_DEPS)
 	cd target && $(QEMU) $(QEMU_FLAGS)
 
@@ -79,6 +81,8 @@ qemu-wait: $(QEMU_DEPS)
 gdb: $(QEMU_DEPS)
 	gdb-multiarch target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 \
 		--eval-command="target remote :$(GDB_PORT)"
+
+fvp-build: $(BL1) $(FIP)
 
 fvp: $(BL1) $(FIP)
 	FVP_Base_RevC-2xAEMvA \
@@ -121,13 +125,15 @@ help:
 	@echo
 	@echo "Supported targets:"
 	@echo
-	@echo "  all          Build BL31 bootloader binary and create dummy BL33 file."
+	@echo "  all          Build all binaries for the specified platform."
 	@echo "  build        Build BL31 for the specified platform."
 	@echo "  build-bl33   Create a dummy BL33 file."
 	@echo "  clean        Clean the build for all platforms."
 	@echo "  clippy       Lint the Rust source tree for the specified platform."
 	@echo "  clippy-test  Lint the Rust source tree for the test configuration."
+	@echo "  fvp-build    Build all binaries for the FVP platform."
 	@echo "  fvp          Run fvp. Target should be invoked after binaries are built."
 	@echo "  gdb          Attach gdb to a running BL31."
+	@echo "  qemu-build   Build all binaries for the QEMU platform."
 	@echo "  qemu         Run qemu. Target should be invoked after binaries are built."
 	@echo "  qemu-wait    Run qemu and wait for a debugger to be attached. (See gdb.)"

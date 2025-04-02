@@ -28,6 +28,8 @@ endif
 TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS := --target $(TARGET) --no-default-features --features "$(FEATURES)"
 
+# Make a release build by default.
+DEBUG ?= 0
 ifeq ($(DEBUG), 1)
 	BUILDTYPE := debug
 else
@@ -37,19 +39,32 @@ endif
 
 all: $(PLAT)-build
 
+TFA ?= $(error $$TFA must point to your TF-A source repository)
+
 $(BL1):
-	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl1.bin $@
+	make -C $(TFA) $(TFA_FLAGS) PLAT=$(PLAT) DEBUG=$(DEBUG) bl1
+	mkdir -p target
+	ln -fsr $(TFA)/build/$(PLAT)/$(BUILDTYPE)/bl1.bin $@
+
 $(BL2):
-	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/bl2.bin $@
-$(FIP):
-	ln -fsr ../build/$(PLAT)/$(BUILDTYPE)/fip.bin $@
+	make -C $(TFA) $(TFA_FLAGS) PLAT=$(PLAT) DEBUG=$(DEBUG) bl2
+	mkdir -p target
+	ln -fsr $(TFA)/build/$(PLAT)/$(BUILDTYPE)/bl2.bin $@
+
+$(FIP): $(BL2) build $(BL33)
+	make -C $(TFA) $(TFA_FLAGS) PLAT=$(PLAT) DEBUG=$(DEBUG) BL33=$(PWD)/$(BL33) fip
+	mkdir -p target
+	cp $(TFA)/build/$(PLAT)/$(BUILDTYPE)/fip.bin $@
+#	Replace existing BL31 image by RF-A into the FIP image.
+	$(TFA)/tools/fiptool/fiptool update --soc-fw $(BL31_BIN) $@
 
 build:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build $(CARGO_FLAGS)
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy $(CARGO_FLAGS) -- -O binary $(BL31_BIN)
 	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 
-build-bl33:
+build-bl33: $(BL33)
+$(BL33):
 	mkdir -p target
 # fiptool refuses to include empty files in FIPs
 	echo "dummy content" > $(BL33)
@@ -68,7 +83,7 @@ QEMU_FLAGS = -machine virt,gic-version=3,secure=on,virtualization=on -cpu max -m
 	-gdb tcp:localhost:$(GDB_PORT) \
 	-display none -bios bl1.bin \
 	-smp 4
-QEMU_DEPS = $(BL1) $(BL2) build build-bl33
+QEMU_DEPS = $(BL1) $(BL2) build $(BL33)
 
 qemu-build: $(QEMU_DEPS)
 

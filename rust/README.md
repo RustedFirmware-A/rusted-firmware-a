@@ -16,9 +16,15 @@ $ cargo install cargo-binutils
 [Add your SSH public key](https://review.trustedfirmware.org/settings/#SSHKeys) then get the source:
 
 ```sh
+$ git clone ssh://$TF_USERNAME@review.trustedfirmware.org:29418/RF-A/rusted-firmware-a
+$ cd rusted-firmware-a
+```
+Also fetch the Trusted Firmware-A repository and record its path into the `TFA`
+environment variable:
+
+```sh
 $ git clone ssh://$TF_USERNAME@review.trustedfirmware.org:29418/TF-A/trusted-firmware-a
-$ cd trusted-firmware-a
-$ git checkout tfa-next
+$ export TFA=`pwd`/trusted-firmware-a
 ```
 
 ### Getting started with QEMU
@@ -34,20 +40,14 @@ $ sudo apt install qemu-system-arm
 Build C BL1 and BL2 and Rust BL31:
 
 ```sh
-$ CC=clang make PLAT=qemu RUST=1 DEBUG=1 NEED_BL32=yes
+$ make TFA_FLAGS="CC=clang NEED_BL32=yes" \
+    PLAT=qemu DEBUG=1 all
 ```
 
 Build Rust BL31 and run in QEMU:
 
 ```sh
-$ cd rust
 $ make DEBUG=1 qemu
-```
-
-Build and run in QEMU from the top level directory:
-
-```sh
-$ make PLAT=qemu RUST=1 run
 ```
 
 ### Debugging with QEMU
@@ -78,7 +78,7 @@ $ GDB_PORT=4096 make PLAT=qemu DEBUG=1 gdb
 (This could be useful if you needed to run many instances of QEMU, such as to
 run many tests in parallel.)
 
-## Getting started with FVP
+### Getting started with FVP
 
 Arm [FVP](https://trustedfirmware-a.readthedocs.io/en/latest/glossary.html#term-FVP)s are complete
 simulations of an Arm system, including processor, memory and peripherals. They enable software
@@ -93,8 +93,27 @@ to download this or any other FVP.
 
 ### Build and run in FVP
 
-Build and run in FVP from the top level directory:
+#### Without RME support
+
+Build C BL1 and BL2, Rust BL31 and FIP, then run everything in FVP:
 
 ```sh
-$ make PLAT=fvp RUST=1 run
+$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512" \
+    DEBUG=1 fvp
 ```
+
+Note: By default, TF-A considers that the Base FVP platform has 256 kB of Trusted SRAM. Actually it
+can simulate up to 512 kB of Trusted SRAM, which is the configuration we use for RF-A (because a
+debug build of RF-A is too big to fit in 256 kB). The `FVP_TRUSTED_SRAM_SIZE=512` TF-A build flag is
+required to stop TF-A from complaining that RF-A does not fit.
+
+#### With RME support
+
+Build C BL1 and BL2 with RME support, Rust BL31 with RME support and FIP:
+
+```sh
+$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1" \
+    FEATURES=rme DEBUG=1 fvp
+```
+
+Running the FVP with RME through RF-A build system is not supported at this time.

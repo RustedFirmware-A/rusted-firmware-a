@@ -22,11 +22,8 @@ use arm_gic::gicv3::GicV3;
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use core::fmt;
 use log::LevelFilter;
-use percore::{Cores, ExceptionFree};
-use std::{
-    io::{stdout, Write},
-    sync::Mutex,
-};
+use percore::ExceptionFree;
+use std::io::{stdout, Write};
 
 const DEVICE0_BASE: usize = 0x0200_0000;
 const DEVICE0_SIZE: usize = 0x1000;
@@ -110,25 +107,6 @@ impl Platform for TestPlatform {
     }
 }
 
-static CPU_INDEX: Mutex<usize> = Mutex::new(0);
-
-impl TestPlatform {
-    // Set the CPU index to make the PSCI implementation assume it is executing on the specified
-    // CPU.
-    pub fn set_cpu_index(cpu_index: usize) {
-        *(CPU_INDEX.lock().unwrap()) = cpu_index;
-    }
-}
-
-// SAFETY: The `TestPlatform` pretends to have 1 core, and `core_index` always returns 0. This
-// trivially satisfies `Cores`' safety requirement that it not return the same index on different
-// cores.
-unsafe impl Cores for TestPlatform {
-    fn core_index() -> usize {
-        *CPU_INDEX.lock().unwrap()
-    }
-}
-
 /// Runs the given function and returns the result.
 ///
 /// This is a fake version of `percore::exception_free` for use in unit tests only, which must be
@@ -195,12 +173,14 @@ impl TestPsciPlatformImpl {
     pub const CPU_FREEZE_MAGIC: &str = "CPU_FREEZE_MAGIC";
 
     pub fn new() -> Self {
-        TestPlatform::set_cpu_index(0);
-        Self {}
+        Self
     }
 }
 
-impl PsciPlatformInterface for TestPsciPlatformImpl {
+// SAFETY: The implementation of `try_get_cpu_index_by_mpidr` never returns the same index for
+// different cores because tests only run on a single thread, no matter which core is being faked
+// through the fake MPIDR_EL1 system register value.
+unsafe impl PsciPlatformInterface for TestPsciPlatformImpl {
     const POWER_DOMAIN_COUNT: usize = 20;
 
     const MAX_POWER_LEVEL: usize = 3;
@@ -213,7 +193,7 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
         &[1, 2, 2, 2, 3, 3, 3, 4]
     }
 
-    fn try_get_cpu_index_by_mpidr(mpidr: &Mpidr) -> Option<usize> {
+    fn try_get_cpu_index_by_mpidr(mpidr: Mpidr) -> Option<usize> {
         // The levels of the power topology System, SoC, Cluster, Core.
         const SYSTEM_DOMAIN_INDEX: u8 = 0;
         const SOCS_PER_SYSTEM: usize = 2;

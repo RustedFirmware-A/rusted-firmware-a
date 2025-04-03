@@ -43,7 +43,7 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
         // SAFETY: This is the only place where GIC is created and there are no aliases.
         unsafe { PlatformImpl::create_gic() },
         &PlatformImpl::GIC_CONFIG,
-        PlatformImpl::core_index(),
+        Psci::core_index(),
     );
     info!("GIC configured.");
 

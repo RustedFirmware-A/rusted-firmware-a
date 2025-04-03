@@ -25,7 +25,6 @@ use crate::{
     pagetable::IdMap,
     services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
 };
-use percore::Cores;
 
 /// The code must use `platform::LoggerWriter` to avoid the 'ambiguous associated type' error that
 /// occurs when using `PlatformImpl::LoggerWriter` directly.
@@ -35,7 +34,7 @@ pub type PsciPlatformImpl = <PlatformImpl as Platform>::PsciPlatformImpl;
 pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface>::PlatformPowerState;
 
 /// The hooks implemented by all platforms.
-pub trait Platform: Cores {
+pub trait Platform {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
 

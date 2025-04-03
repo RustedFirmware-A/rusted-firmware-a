@@ -49,6 +49,7 @@ pub struct SystemRegisters {
     pub mdccint_el1: u64,
     pub mdcr_el2: u64,
     pub mdscr_el1: u64,
+    pub mpidr_el1: u64,
     pub par_el1: u64,
     pub scr_el3: ScrEl3,
     pub sctlr_el1: SctlrEl1,
@@ -117,6 +118,7 @@ impl SystemRegisters {
             mdccint_el1: 0,
             mdcr_el2: 0,
             mdscr_el1: 0,
+            mpidr_el1: 0,
             par_el1: 0,
             scr_el3: ScrEl3::empty(),
             sctlr_el1: SctlrEl1::empty(),
@@ -145,6 +147,11 @@ impl SystemRegisters {
             vtcr_el2: 0,
             vttbr_el2: 0,
         }
+    }
+
+    /// Reset the fake system registers to their initial state.
+    pub fn reset(&mut self) {
+        *self = Self::new();
     }
 }
 

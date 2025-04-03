@@ -4,6 +4,7 @@
 
 use crate::{
     platform::{exception_free, Platform, PlatformImpl},
+    services::psci::Psci,
     smccc::SmcReturn,
     sysregs::{
         read_actlr_el1, read_actlr_el2, read_afsr0_el1, read_afsr0_el2, read_afsr1_el1,
@@ -477,13 +478,10 @@ impl CpuState {
     }
 }
 
-static CPU_STATE: PerCore<
-    ExceptionLock<RefCell<CpuState>>,
-    PlatformImpl,
-    { PlatformImpl::CORE_COUNT },
-> = PerCore::new(
-    [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; PlatformImpl::CORE_COUNT],
-);
+static CPU_STATE: PerCore<ExceptionLock<RefCell<CpuState>>, Psci, { PlatformImpl::CORE_COUNT }> =
+    PerCore::new(
+        [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; PlatformImpl::CORE_COUNT],
+    );
 
 /// Sets SP_EL3 to a pointer to the given CpuContext, ready for exception return.
 ///

@@ -11,7 +11,7 @@ use crate::{
     services::{
         arch::WorkaroundSupport,
         psci::{
-            PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
+            PlatformPowerStateInterface, PowerStateType, Psci, PsciCompositePowerState,
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
@@ -57,11 +57,16 @@ const GICR_FRAME_SIZE: usize = 1 << 0x11;
 const TOS_FW_CONFIG_ADDRESS: u64 = 0;
 const HW_CONFIG_ADDRESS: u64 = 0;
 
+/// The number of CPU clusters.
+const CLUSTER_COUNT: usize = 1;
+/// The maximum number of CPUs in each cluster.
+const MAX_CPUS_PER_CLUSTER: usize = 4;
+
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
 
 impl Platform for Qemu {
-    const CORE_COUNT: usize = 4;
+    const CORE_COUNT: usize = CLUSTER_COUNT * MAX_CPUS_PER_CLUSTER;
 
     type LoggerWriter = Uart<'static>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
@@ -107,7 +112,7 @@ impl Platform for Qemu {
     }
 
     fn secure_entry_point() -> EntryPointInfo {
-        let core_linear_id = Self::core_index() as u64;
+        let core_linear_id = Psci::core_index() as u64;
         EntryPointInfo {
             pc: 0x0e10_0000,
             #[cfg(feature = "sel2")]
@@ -162,15 +167,6 @@ impl Platform for Qemu {
     }
 }
 
-// SAFETY: This implementation never returns the same index for different cores.
-unsafe impl Cores for Qemu {
-    fn core_index() -> usize {
-        // TODO: Implement this properly. Ensure that the safety invariant still holds, and update
-        // the comment to explain how.
-        0
-    }
-}
-
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
 pub enum QemuPowerState {
     PowerDown,
@@ -199,8 +195,11 @@ impl From<QemuPowerState> for usize {
 
 pub struct QemuPsciPlatformImpl;
 
-impl PsciPlatformInterface for QemuPsciPlatformImpl {
-    const POWER_DOMAIN_COUNT: usize = 6;
+// SAFETY: The implementation of `try_get_cpu_index_by_mpidr` never returns the same index for
+// different cores because each core has a cluster ID and CPU ID in its MPIDR, and we have a
+// suitable MAX_CPUS_PER_CLUSTER value to avoid overlap.
+unsafe impl PsciPlatformInterface for QemuPsciPlatformImpl {
+    const POWER_DOMAIN_COUNT: usize = 1 + CLUSTER_COUNT + Qemu::CORE_COUNT;
     const MAX_POWER_LEVEL: usize = 2;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::empty();
@@ -208,7 +207,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
     type PlatformPowerState = QemuPowerState;
 
     fn topology() -> &'static [usize] {
-        &[1, 1, 4]
+        &[1, CLUSTER_COUNT, MAX_CPUS_PER_CLUSTER]
     }
 
     fn try_parse_power_state(_power_state: PowerState) -> Option<PsciCompositePowerState> {
@@ -248,7 +247,16 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         todo!()
     }
 
-    fn try_get_cpu_index_by_mpidr(_mpidr: &Mpidr) -> Option<usize> {
-        todo!()
+    fn try_get_cpu_index_by_mpidr(mpidr: Mpidr) -> Option<usize> {
+        // TODO: Ensure that this logic is always the same as the assembly `plat_my_core_pos` /
+        // `plat_qemu_calc_core_pos`. Can they be combined somehow? The assembly version is needed
+        // because it is called from `plat_get_my_stack` before the stack is set up.
+        let cluster_id = usize::from(mpidr.aff1);
+        let cpu_id = usize::from(mpidr.aff0);
+        if cluster_id < CLUSTER_COUNT && cpu_id < MAX_CPUS_PER_CLUSTER {
+            Some(cluster_id * MAX_CPUS_PER_CLUSTER + cpu_id)
+        } else {
+            None
+        }
     }
 }

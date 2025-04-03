@@ -11,7 +11,7 @@ use crate::{
     context::World,
     platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     smccc::{FunctionId as OtherFunctionId, OwningEntityNumber, SmcReturn},
-    sysregs::read_isr_el1,
+    sysregs::{read_isr_el1, read_mpidr_el1},
 };
 use arm_psci::{
     AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
@@ -69,7 +69,13 @@ pub trait PlatformPowerStateInterface:
 /// The interface contains mandatory and optional constants and functions. Whether the platform
 /// implements the optional functions has to be in sync with the reported optional features in the
 /// `FEATURES` constant.
-pub trait PsciPlatformInterface {
+///
+/// # Safety
+///
+/// The `try_get_cpu_index_by_mpidr` implementation must never return the same index for two
+/// different valid MPIDR values, and must never return a value greater than or equal to the
+/// corresponding `Platform::CORE_COUNT`.
+pub unsafe trait PsciPlatformInterface {
     /// Count of all power domains
     const POWER_DOMAIN_COUNT: usize;
     /// Maximal power level in the system
@@ -84,8 +90,11 @@ pub trait PsciPlatformInterface {
     /// Returns the power domain topology as the count of child nodes in a BFS traversal order.
     fn topology() -> &'static [usize];
 
-    /// Tries to convert MPIDR to CPU index
-    fn try_get_cpu_index_by_mpidr(mpidr: &Mpidr) -> Option<usize>;
+    /// Returns the corresponding linear core index for the given MPIDR value.
+    ///
+    /// For any valid MPIDR this must always return a unique value less than `Platform::CORE_COUNT`.
+    /// For any invalid MPIDR it should return `None`.
+    fn try_get_cpu_index_by_mpidr(mpidr: Mpidr) -> Option<usize>;
 
     /// Tries to convert extended PSCI power state value into `PsciCompositePowerState`.
     fn try_parse_power_state(power_state: PowerState) -> Option<PsciCompositePowerState>;
@@ -330,7 +339,7 @@ impl Psci {
 
         {
             // Init primary CPU
-            let cpu_index = Self::local_cpu_index();
+            let cpu_index = Self::core_index();
             let mut cpu = power_domain_tree.locked_cpu_node(cpu_index);
 
             power_domain_tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
@@ -360,7 +369,7 @@ impl Psci {
         power_state: PowerState,
         entry_point: EntryPoint,
     ) -> Result<(), ErrorCode> {
-        let cpu_index = Self::local_cpu_index();
+        let cpu_index = Self::core_index();
         let composite_state: PsciCompositePowerState =
             PsciPlatformImpl::try_parse_power_state(power_state)
                 .ok_or(ErrorCode::InvalidParameters)?;
@@ -495,7 +504,7 @@ impl Psci {
     /// Handles `CPU_OFF` PSCI call.
     /// On success, turns off the current CPU and does not return.
     fn cpu_off(&self) -> Result<(), ErrorCode> {
-        let cpu_index = Self::local_cpu_index();
+        let cpu_index = Self::core_index();
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
         let mut composite_state = PsciCompositePowerState::OFF;
 
@@ -521,7 +530,7 @@ impl Psci {
     /// Handles `CPU_ON` PSCI call by turning on the CPU identified by the given `target_cpu` MPIDR.
     /// The caller has to provide a valid non-secure entry point for the CPU.
     fn cpu_on(&self, target_cpu: Mpidr, entry: EntryPoint) -> Result<(), ErrorCode> {
-        let cpu_index = PsciPlatformImpl::try_get_cpu_index_by_mpidr(&target_cpu)
+        let cpu_index = PsciPlatformImpl::try_get_cpu_index_by_mpidr(target_cpu)
             .ok_or(ErrorCode::InvalidParameters)?;
 
         if !self.platform.is_valid_ns_entrypoint(&entry) {
@@ -555,7 +564,7 @@ impl Psci {
     /// This function must be called when a CPU is powered up. It returns the non-secure entry
     /// point.
     pub fn handle_cpu_boot(&self) -> EntryPoint {
-        let cpu_index = Self::local_cpu_index();
+        let cpu_index = Self::core_index();
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
         let mut composite_state = PsciCompositePowerState::RUN;
 
@@ -617,7 +626,7 @@ impl Psci {
         target_affinity: Mpidr,
         lowest_affinity_level: u32,
     ) -> Result<AffinityInfo, ErrorCode> {
-        let cpu_index = PsciPlatformImpl::try_get_cpu_index_by_mpidr(&target_affinity)
+        let cpu_index = PsciPlatformImpl::try_get_cpu_index_by_mpidr(target_affinity)
             .ok_or(ErrorCode::InvalidParameters)?;
 
         if lowest_affinity_level as usize > PsciCompositePowerState::CPU_POWER_LEVEL {
@@ -799,7 +808,7 @@ impl Psci {
             return Err(ErrorCode::NotSupported);
         }
 
-        if PsciPlatformImpl::try_get_cpu_index_by_mpidr(&target_cpu).is_none()
+        if PsciPlatformImpl::try_get_cpu_index_by_mpidr(target_cpu).is_none()
             || power_level as usize > PsciPlatformImpl::MAX_POWER_LEVEL
         {
             return Err(ErrorCode::InvalidParameters);
@@ -815,7 +824,7 @@ impl Psci {
             return Err(ErrorCode::NotSupported);
         }
 
-        let cpu_index = Self::local_cpu_index();
+        let cpu_index = Self::core_index();
 
         if !self.power_domain_tree.is_last_cpu(cpu_index) {
             return Err(ErrorCode::Denied);
@@ -941,9 +950,14 @@ impl Psci {
             Err(error) => log::error!("Failed to parse PSCI event response: {:?}", error),
         }
     }
+}
 
-    fn local_cpu_index() -> usize {
-        PlatformImpl::core_index()
+// SAFETY: This implementation never returns the same index for different cores because
+// `try_get_cpu_index_by_mpidr` is guaranteed not to.
+unsafe impl Cores for Psci {
+    fn core_index() -> usize {
+        PsciPlatformImpl::try_get_cpu_index_by_mpidr(Mpidr::from_register_value(read_mpidr_el1()))
+            .unwrap()
     }
 }
 
@@ -986,10 +1000,34 @@ impl From<ErrorCode> for SmcReturn {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::sysregs::fake::SYSREGS;
     use arm_psci::ArchitecturalResetType;
-
-    use super::{PsciPlatformImpl, *};
     use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+
+    const ENTRY_POINT: EntryPoint = EntryPoint::Entry64 {
+        entry_point_address: 0x0123_4567_89ab_cdef,
+        context_id: 0xfedc_ba98_7654_3210,
+    };
+
+    const CPU0_MPIDR: Mpidr = Mpidr {
+        aff0: 0,
+        aff1: 0,
+        aff2: 0,
+        aff3: Some(0),
+    };
+    const CPU1_MPIDR: Mpidr = Mpidr {
+        aff0: 1,
+        aff1: 0,
+        aff2: 0,
+        aff3: Some(0),
+    };
+    const INVALID_MPIDR: Mpidr = Mpidr {
+        aff0: 100,
+        aff1: 100,
+        aff2: 100,
+        aff3: Some(100),
+    };
 
     #[test]
     fn psci_composite_power_state() {
@@ -1081,25 +1119,6 @@ mod tests {
         });
     }
 
-    const ENTRY_POINT: EntryPoint = EntryPoint::Entry64 {
-        entry_point_address: 0x0123_4567_89ab_cdef,
-        context_id: 0xfedc_ba98_7654_3210,
-    };
-
-    const CPU1_MPIDR: Mpidr = Mpidr {
-        aff0: 1,
-        aff1: 0,
-        aff2: 0,
-        aff3: Some(0),
-    };
-
-    const INVALID_MPIDR: Mpidr = Mpidr {
-        aff0: 100,
-        aff1: 100,
-        aff2: 100,
-        aff3: Some(100),
-    };
-
     /// The function expects the closure to power down the calling CPU. This would normally end in
     /// a function which never returns (`func() -> !`). This makes it impossible to test it so this
     /// function introduces a method for unwinding the power down call and enables further testing.
@@ -1176,15 +1195,17 @@ mod tests {
             psci.cpu_on(CPU1_MPIDR, ENTRY_POINT)
         );
 
-        PlatformImpl::set_cpu_index(1);
+        SYSREGS.lock().unwrap().mpidr_el1 = CPU1_MPIDR.into();
         let entry_point = psci.handle_cpu_boot();
         assert_eq!(entry_point, ENTRY_POINT);
 
-        PlatformImpl::set_cpu_index(0);
+        SYSREGS.lock().unwrap().mpidr_el1 = CPU0_MPIDR.into();
         assert_eq!(
             Err(ErrorCode::AlreadyOn),
             psci.cpu_on(CPU1_MPIDR, ENTRY_POINT)
         );
+
+        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
@@ -1193,12 +1214,14 @@ mod tests {
 
         assert_eq!(Ok(()), psci.cpu_on(CPU1_MPIDR, ENTRY_POINT));
 
-        PlatformImpl::set_cpu_index(1);
+        SYSREGS.lock().unwrap().mpidr_el1 = CPU1_MPIDR.into();
         psci.handle_cpu_boot();
 
         expect_cpu_power_down_wfi(|| {
             let _ = psci.cpu_off();
         });
+
+        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
@@ -1230,12 +1253,14 @@ mod tests {
             psci.affinity_info(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
         );
 
-        PlatformImpl::set_cpu_index(1);
+        SYSREGS.lock().unwrap().mpidr_el1 = CPU1_MPIDR.into();
         let _entry_point = psci.handle_cpu_boot();
         assert_eq!(
             Ok(AffinityInfo::On),
             psci.affinity_info(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
         );
+
+        SYSREGS.lock().unwrap().reset();
     }
 
     fn check_ancestor_state(psci: &Psci, cpu_index: usize, expected_states: &[PlatformPowerState]) {
@@ -1305,14 +1330,9 @@ mod tests {
         }
 
         // Boot secondary CPUs
-        for (cpu_index, cpu) in cpus.iter().enumerate().skip(1) {
-            let mpidr = Mpidr {
-                aff0: cpu.2,
-                aff1: cpu.1,
-                aff2: cpu.0,
-                aff3: Some(0),
-            };
-            PlatformImpl::set_cpu_index(cpu_index);
+        for cpu in cpus.iter().skip(1) {
+            let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
+            SYSREGS.lock().unwrap().mpidr_el1 = mpidr.into();
             assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
             assert_eq!(
                 Ok(AffinityInfo::On),
@@ -1334,8 +1354,9 @@ mod tests {
         }
 
         // Put second cluster in power down suspend
-        for (cpu_index, _cpu) in cpus.iter().enumerate().skip(6) {
-            PlatformImpl::set_cpu_index(cpu_index);
+        for cpu in cpus.iter().skip(6) {
+            let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
+            SYSREGS.lock().unwrap().mpidr_el1 = mpidr.into();
             expect_cpu_power_down_wfi(|| {
                 let _ = psci.cpu_suspend(PowerState::PowerDown(0), ENTRY_POINT);
             });
@@ -1355,8 +1376,9 @@ mod tests {
         }
 
         // Power down off all other CPUs
-        for (cpu_index, _cpu) in cpus.iter().enumerate().take(6) {
-            PlatformImpl::set_cpu_index(cpu_index);
+        for cpu in cpus.iter().take(6) {
+            let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
+            SYSREGS.lock().unwrap().mpidr_el1 = mpidr.into();
             expect_cpu_power_down_wfi(|| {
                 let _ = psci.cpu_suspend(PowerState::PowerDown(0), ENTRY_POINT);
             });
@@ -1376,7 +1398,7 @@ mod tests {
         }
 
         // Wake up CPU 0
-        PlatformImpl::set_cpu_index(0);
+        SYSREGS.lock().unwrap().mpidr_el1 = CPU0_MPIDR.into();
         assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
 
         // First CPU is on
@@ -1434,7 +1456,8 @@ mod tests {
         }
 
         // Wake up CPU 6
-        PlatformImpl::set_cpu_index(6);
+        let cpu6_mpidr = Mpidr::from_aff3210(0, cpus[6].0, cpus[6].1, cpus[6].2);
+        SYSREGS.lock().unwrap().mpidr_el1 = cpu6_mpidr.into();
         assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
 
         // CPU 0 is still on
@@ -1516,6 +1539,8 @@ mod tests {
                 ],
             );
         }
+
+        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]

@@ -12,7 +12,7 @@ use crate::{
     services::{
         arch::WorkaroundSupport,
         psci::{
-            PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
+            PlatformPowerStateInterface, PowerStateType, Psci, PsciCompositePowerState,
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
@@ -128,7 +128,7 @@ impl Platform for Fvp {
     }
 
     fn secure_entry_point() -> EntryPointInfo {
-        let core_linear_id = Self::core_index() as u64;
+        let core_linear_id = Psci::core_index() as u64;
         EntryPointInfo {
             pc: 0x0600_0000,
             #[cfg(feature = "sel2")]
@@ -158,7 +158,7 @@ impl Platform for Fvp {
 
     #[cfg(feature = "rme")]
     fn realm_entry_point() -> EntryPointInfo {
-        let core_linear_id = Self::core_index() as u64;
+        let core_linear_id = Psci::core_index() as u64;
         EntryPointInfo {
             pc: 0xfdc00000,
             spsr: SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H,
@@ -202,15 +202,6 @@ impl Platform for Fvp {
     }
 }
 
-// SAFETY: This implementation never returns the same index for different cores.
-unsafe impl Cores for Fvp {
-    fn core_index() -> usize {
-        // TODO: Implement this properly. Ensure that the safety invariant still holds, and update
-        // the comment to explain how.
-        0
-    }
-}
-
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
 pub enum FvpPowerState {
     PowerDown,
@@ -239,7 +230,9 @@ impl From<FvpPowerState> for usize {
 
 pub struct FvpPsciPlatformImpl;
 
-impl PsciPlatformInterface for FvpPsciPlatformImpl {
+// SAFETY: The dummy of `try_get_cpu_index_by_mpidr` is fine for now because we don't yet start
+// secondary cores on FVP.
+unsafe impl PsciPlatformInterface for FvpPsciPlatformImpl {
     const POWER_DOMAIN_COUNT: usize = 11;
     const MAX_POWER_LEVEL: usize = 2;
 
@@ -287,7 +280,8 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl {
         todo!()
     }
 
-    fn try_get_cpu_index_by_mpidr(_mpidr: &Mpidr) -> Option<usize> {
-        todo!()
+    fn try_get_cpu_index_by_mpidr(_mpidr: Mpidr) -> Option<usize> {
+        // TODO: Implement this properly.
+        Some(0)
     }
 }

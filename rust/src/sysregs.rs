@@ -176,6 +176,7 @@ macro_rules! read_write_sysreg {
     };
 }
 
+read_sysreg!(mpidr_el1, u64, safe read_mpidr_el1);
 read_write_sysreg!(actlr_el1, u64, safe read_actlr_el1, safe write_actlr_el1);
 read_write_sysreg!(actlr_el2, u64, safe read_actlr_el2, safe write_actlr_el2);
 read_write_sysreg!(afsr0_el1, u64, safe read_afsr0_el1, safe write_afsr0_el1);

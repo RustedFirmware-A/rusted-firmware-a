@@ -19,12 +19,17 @@ use arm_psci::{
     PsciFeature, ResetType, ReturnCode, SystemOff2Type, Version,
 };
 use bitflags::bitflags;
-use core::fmt::{Debug, Formatter};
+use core::fmt::{self, Debug, Formatter};
 use log::info;
 use percore::Cores;
 use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
 use spin::Once;
 use spmd_stub::SPMD;
+
+const FUNCTION_NUMBER_MIN: u16 = 0x0000;
+const FUNCTION_NUMBER_MAX: u16 = 0x001F;
+
+static PSCI: Once<Psci> = Once::new();
 
 bitflags! {
     /// Optional platform feature flags
@@ -311,7 +316,16 @@ pub struct Psci {
 }
 
 impl Psci {
-    pub fn new(platform: PsciPlatformImpl) -> Self {
+    /// Initialises the PSCI state.
+    ///
+    /// This should be called exactly once, before any other PSCI methods are called or any
+    /// secondary CPUs are started.
+    pub fn init() {
+        info!("Initializing PSCI");
+        PSCI.call_once(|| Self::new(PlatformImpl::psci_platform().unwrap()));
+    }
+
+    fn new(platform: PsciPlatformImpl) -> Self {
         let power_domain_tree = PowerDomainTree::new(PsciPlatformImpl::topology());
 
         {
@@ -933,16 +947,6 @@ impl Psci {
     }
 }
 
-const FUNCTION_NUMBER_MIN: u16 = 0x0000;
-const FUNCTION_NUMBER_MAX: u16 = 0x001F;
-
-static PSCI: Once<Psci> = Once::new();
-
-pub fn init() {
-    info!("Initialzing PSCI");
-    PSCI.call_once(|| Psci::new(PlatformImpl::psci_platform().unwrap()));
-}
-
 impl Service for Psci {
     owns!(
         OwningEntityNumber::STANDARD_SECURE,
@@ -962,16 +966,21 @@ impl Service for Psci {
             .unwrap()
             .handle_smc_inner([function.0 as u64, x1, x2, x3])
         {
-            Ok(result) => result,
-            Err(return_code) => u64::from(return_code),
+            Ok(result) => result.into(),
+            Err(return_code) => return_code.into(),
         }
-        .into()
     }
 }
 
 impl Debug for Psci {
-    fn fmt(&self, f: &mut Formatter) -> core::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.power_domain_tree.fmt(f)
+    }
+}
+
+impl From<ErrorCode> for SmcReturn {
+    fn from(value: ErrorCode) -> Self {
+        u64::from(value).into()
     }
 }
 

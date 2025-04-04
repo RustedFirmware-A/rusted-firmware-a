@@ -56,6 +56,7 @@ fn build_libtfa(platform: &str) {
 
 fn setup_linker(platform: &String) {
     println!("cargo:rustc-link-arg=-Timage.ld");
+    println!("cargo:rerun-if-changed=image.ld");
 
     // Select the linker scripts. image.ld is common to all platforms. It gets supplemented by the
     // platform linker script. Some platforms have multiple linker scripts, depending on the enabled
@@ -64,10 +65,9 @@ fn setup_linker(platform: &String) {
     #[cfg(feature = "rme")]
     let linker_name = linker_name + "-rme";
 
-    println!(
-        "cargo:rustc-link-arg=-Tplatforms/{}/{}.ld",
-        platform, linker_name
-    );
+    let linker_name = format!("platforms/{}/{}.ld", platform, linker_name);
+    println!("cargo:rustc-link-arg=-T{}", linker_name);
+    println!("cargo:rerun-if-changed={}", linker_name);
 }
 
 fn main() {

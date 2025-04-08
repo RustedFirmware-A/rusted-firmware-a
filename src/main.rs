@@ -29,10 +29,13 @@ mod smccc;
 mod stacks;
 mod sysregs;
 
-use crate::platform::{Platform, PlatformImpl};
-use context::initialise_contexts;
-use log::info;
-use services::Services;
+use crate::{
+    context::{CoresImpl, initialise_contexts, update_contexts_suspend},
+    platform::{Platform, PlatformImpl},
+    services::{Services, psci::WakeUpReason},
+};
+use log::{debug, info};
+use percore::Cores;
 
 #[unsafe(no_mangle)]
 extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
@@ -60,6 +63,55 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
     );
 
     Services::get().run_loop();
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn psci_warmboot_entrypoint() -> ! {
+    pagetable::enable();
+    debug!("Warmboot on core #{}", CoresImpl::core_index());
+
+    let services = Services::get();
+
+    match services.psci.handle_cpu_boot() {
+        WakeUpReason::CpuOn(psci_entrypoint) => {
+            // Power on for the first time or after CPU_OFF
+            debug!("Wakeup from CPU_OFF");
+
+            // TODO: Refactor handling of entrypoints to provide the warm boot entrypoints as well.
+            // Also, at least some parts of the entrypoint should be provided by the service that
+            // is responsible for a specific world (i.e. PC and args for SPMC come from the SPMD).
+            let mut non_secure_entry_point = PlatformImpl::non_secure_entry_point();
+            non_secure_entry_point.pc = psci_entrypoint.entry_point_address() as usize;
+            non_secure_entry_point.args.fill(0);
+            non_secure_entry_point.args[0] = psci_entrypoint.context_id();
+
+            let mut secure_entry_point = PlatformImpl::secure_entry_point();
+            secure_entry_point.pc = services.spmd.secondary_ep();
+            secure_entry_point.args.fill(0);
+            services.spmd.handle_wake_from_cpu_off();
+
+            #[cfg(feature = "rme")]
+            let realm_entry_point = PlatformImpl::realm_entry_point();
+
+            initialise_contexts(
+                &non_secure_entry_point,
+                &secure_entry_point,
+                #[cfg(feature = "rme")]
+                &realm_entry_point,
+            );
+        }
+        WakeUpReason::SuspendFinished(psci_entrypoint) => {
+            debug!("Wakeup from CPU_SUSPEND");
+
+            let secure_args = services.spmd.handle_wake_from_cpu_suspend();
+
+            // TODO: instead of modifying the context directly, should we rather pass the initial
+            // gpregs of each world as arguments to run_loop()?
+            update_contexts_suspend(psci_entrypoint, &secure_args);
+        }
+    }
+
+    services.run_loop()
 }
 
 #[cfg(all(target_arch = "aarch64", not(test)))]

@@ -3,15 +3,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 mod power_domain_tree;
-mod spmd_stub;
 
-use super::{Service, owns};
+#[cfg(not(test))]
+use crate::services::Services;
+#[cfg(test)]
+use crate::services::ffa::TestSpm;
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},
     cpu::cpu_power_down,
-    pagetable,
     platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl, plat_calc_core_pos},
+    services::{Service, owns},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SmcReturn},
     sysregs::{MpidrEl1, read_isr_el1},
 };
@@ -25,7 +27,6 @@ use core::fmt::{self, Debug, Formatter};
 use log::info;
 use percore::Cores;
 use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
-use spmd_stub::SPMD;
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0000;
 const FUNCTION_NUMBER_MAX: u16 = 0x001F;
@@ -180,11 +181,36 @@ pub trait PsciPlatformInterface {
     }
 }
 
+/// PSCI SPM interface.
+///
+/// Contains the callbacks that the PSCI implementation uses to inform the Secure World about power
+/// management events.
+pub trait PsciSpmInterface {
+    /// Forward a PSCI request to the SPM.
+    ///
+    /// The request should be forwarded by the SPMD to the SPMC if it resides in a separate
+    /// exception level, or forwarded by the SPMC in EL3 to the SPs.
+    fn forward_psci_request(&self, psci_request: &[u64; 4]) -> u64;
+
+    /// Notify the SPM about a CPU_OFF event.
+    ///
+    /// The PSCI service has received a CPU_OFF request, so the current core will be turned off.
+    /// Before calling this function, the PSCI request itself should be forwarded to SWd using
+    /// forward_psci_request()
+    fn notify_cpu_off(&self);
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerStateType {
     PowerDown,
     StandbyOrRetention,
     Run,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WakeUpReason {
+    CpuOn(EntryPoint),
+    SuspendFinished(EntryPoint),
 }
 
 /// Object for storing platform-specific power state for multiple power levels.
@@ -441,9 +467,9 @@ impl Psci {
 
                 if is_power_down_state {
                     if let Some(state) = power_state {
-                        self.notify_spmd(Function::CpuSuspend { state, entry });
+                        self.forward_to_spm(Function::CpuSuspend { state, entry });
                     } else {
-                        self.notify_spmd(Function::SystemSuspend { entry });
+                        self.forward_to_spm(Function::SystemSuspend { entry });
                     }
                     cpu.set_entry_point(entry);
 
@@ -499,7 +525,8 @@ impl Psci {
 
         self.power_domain_tree
             .with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
-                self.notify_spmd(Function::CpuOff);
+                self.forward_to_spm(Function::CpuOff);
+                Self::get_spm().notify_cpu_off();
                 cpu.set_local_state(PlatformPowerState::OFF);
                 composite_state.coordinate_state(cpu_index, &mut ancestors);
 
@@ -535,8 +562,6 @@ impl Psci {
             AffinityInfo::Off => {}
         }
 
-        self.notify_spmd(Function::CpuOn { target_cpu, entry });
-
         cpu.set_affinity_info(AffinityInfo::OnPending);
 
         match self.platform.power_domain_on(target_cpu) {
@@ -552,12 +577,12 @@ impl Psci {
     }
 
     /// This function must be called when a CPU is powered up. It returns the non-secure entry
-    /// point.
-    #[allow(unused)]
-    pub fn handle_cpu_boot(&self) -> EntryPoint {
+    /// point and the reason why the CPU was powered up.
+    pub fn handle_cpu_boot(&self) -> WakeUpReason {
         let cpu_index = CoresImpl::core_index();
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
         let mut composite_state = PsciCompositePowerState::RUN;
+        let mut wake_from_suspend = false;
 
         let affinity_info = cpu.affinity_info();
         if affinity_info == AffinityInfo::Off {
@@ -579,8 +604,6 @@ impl Psci {
                     // Finishing CPU_ON
                     self.platform.power_domain_on_finish(&composite_state);
 
-                    SPMD.handle_cold_boot();
-
                     cpu.set_affinity_info(AffinityInfo::On);
                 } else {
                     // Waking up from suspend
@@ -590,10 +613,10 @@ impl Psci {
                         PowerStateType::PowerDown
                     );
 
-                    SPMD.handle_warm_boot();
-
                     self.platform.power_domain_suspend_finish(&composite_state);
                     cpu.clear_highest_affected_level();
+
+                    wake_from_suspend = true;
                 }
 
                 cpu.set_local_state(PlatformPowerState::RUN);
@@ -608,7 +631,13 @@ impl Psci {
         let entry_point = cpu.pop_entry_point();
         drop(cpu); // Unlock before possible panic
 
-        entry_point.expect("entry point not set for booting CPU")
+        let entry_point = entry_point.expect("entry point not set for booting CPU");
+
+        if wake_from_suspend {
+            WakeUpReason::SuspendFinished(entry_point)
+        } else {
+            WakeUpReason::CpuOn(entry_point)
+        }
     }
 
     /// Handles `AFFINITY_INFO` PSCI call.
@@ -634,7 +663,7 @@ impl Psci {
     /// Handles `SYSTEM_OFF` PSCI call.
     /// Turns off the system and does not return.
     fn system_off(&self) -> ! {
-        self.notify_spmd(Function::SystemOff);
+        self.forward_to_spm(Function::SystemOff);
         self.platform.system_off();
     }
 
@@ -645,14 +674,14 @@ impl Psci {
             return Err(ErrorCode::NotSupported);
         }
 
-        self.notify_spmd(Function::SystemOff2 { off_type, cookie });
+        self.forward_to_spm(Function::SystemOff2 { off_type, cookie });
         self.platform.system_off2(off_type, cookie)
     }
 
     /// Handles `SYSTEM_RESET` PSCI call.
     /// Resets the system and does not return.
     fn system_reset(&self) -> ! {
-        self.notify_spmd(Function::SystemReset);
+        self.forward_to_spm(Function::SystemReset);
         self.platform.system_reset();
     }
 
@@ -663,7 +692,7 @@ impl Psci {
             return Err(ErrorCode::NotSupported);
         }
 
-        self.notify_spmd(Function::SystemReset2 { reset_type, cookie });
+        self.forward_to_spm(Function::SystemReset2 { reset_type, cookie });
         self.platform.system_reset2(reset_type, cookie)
     }
 
@@ -924,18 +953,29 @@ impl Psci {
         }
     }
 
-    /// Notify SPMD about the PSCI call.
-    fn notify_spmd(&self, function: Function) {
+    #[cfg(not(test))]
+    fn get_spm() -> &'static impl PsciSpmInterface {
+        &Services::get().spmd
+    }
+
+    #[cfg(test)]
+    fn get_spm() -> &'static impl PsciSpmInterface {
+        &TestSpm
+    }
+
+    /// Forward a PSCI request to the SPM.
+    fn forward_to_spm(&self, function: Function) {
         let mut psci_request = [0; 4];
         function.copy_to_array(&mut psci_request);
 
-        let result = SPMD.handle_psci_event(&psci_request);
+        let result = Self::get_spm().forward_psci_request(&psci_request);
+
         match ReturnCode::try_from(result as i32) {
             Ok(ReturnCode::Success) => {
                 // Nothing to do
             }
             Ok(ReturnCode::Error(error_code)) => {
-                // The SPMD cannot prevent the PSCI state change, so we only log the error.
+                // The SPM cannot prevent the PSCI state change, so we only log the error.
                 log::error!("SPMD return {error_code:?} on PSCI event {function:?}")
             }
             Err(error) => log::error!("Failed to parse PSCI event response: {error:?}"),
@@ -988,21 +1028,6 @@ pub fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<usize> {
         Some(plat_calc_core_pos(mpidr.bits()))
     } else {
         None
-    }
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn psci_warmboot_entrypoint() {
-    // TODO: Initialise scr_el3?
-    info!("psci_warmboot_entrypoint");
-    pagetable::enable();
-    info!("MMU enabled");
-    // TODO: Initialise context if this is the first time this CPU has run.
-    // TODO: Set up GIC redistributor
-    // TODO: Set next world appropriately.
-    // TODO: Call handle_cpu_boot and set non-secure entry point.
-    loop {
-        wfi();
     }
 }
 
@@ -1189,8 +1214,8 @@ mod tests {
             let _ = psci.cpu_suspend(PowerState::PowerDown(0), ENTRY_POINT);
         });
 
-        let entry_point = psci.handle_cpu_boot();
-        assert_eq!(entry_point, ENTRY_POINT);
+        let wakeup_reason = psci.handle_cpu_boot();
+        assert_eq!(wakeup_reason, WakeUpReason::SuspendFinished(ENTRY_POINT));
     }
 
     #[test]
@@ -1209,8 +1234,8 @@ mod tests {
         );
 
         SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU1_MPIDR.into());
-        let entry_point = psci.handle_cpu_boot();
-        assert_eq!(entry_point, ENTRY_POINT);
+        let wakeup_reason = psci.handle_cpu_boot();
+        assert_eq!(wakeup_reason, WakeUpReason::CpuOn(ENTRY_POINT));
 
         SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU0_MPIDR.into());
         assert_eq!(
@@ -1346,7 +1371,8 @@ mod tests {
         for cpu in cpus.iter().skip(1) {
             let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
             SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(mpidr.into());
-            assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
+            let wakeup_reason = psci.handle_cpu_boot();
+            assert_eq!(wakeup_reason, WakeUpReason::CpuOn(ENTRY_POINT));
             assert_eq!(
                 Ok(AffinityInfo::On),
                 psci.affinity_info(mpidr, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
@@ -1412,7 +1438,8 @@ mod tests {
 
         // Wake up CPU 0
         SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU0_MPIDR.into());
-        assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
+        let wakeup_reason = psci.handle_cpu_boot();
+        assert_eq!(wakeup_reason, WakeUpReason::SuspendFinished(ENTRY_POINT));
 
         // First CPU is on
         check_ancestor_state(
@@ -1471,7 +1498,8 @@ mod tests {
         // Wake up CPU 6
         let cpu6_mpidr = Mpidr::from_aff3210(0, cpus[6].0, cpus[6].1, cpus[6].2);
         SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(cpu6_mpidr.into());
-        assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
+        let wakeup_reason = psci.handle_cpu_boot();
+        assert_eq!(wakeup_reason, WakeUpReason::SuspendFinished(ENTRY_POINT));
 
         // CPU 0 is still on
         check_ancestor_state(

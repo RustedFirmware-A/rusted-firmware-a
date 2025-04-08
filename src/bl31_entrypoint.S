@@ -388,6 +388,5 @@ func bl31_warm_entrypoint
 
         // TODO: gpt_enable for RME to set up sysregs?
 
-        bl  psci_warmboot_entrypoint
-        b   el3_exit
+        b  psci_warmboot_entrypoint
 endfunc bl31_warm_entrypoint

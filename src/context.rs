@@ -35,6 +35,7 @@ use crate::{
     smccc::SmcReturn,
     sysregs::{Esr, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3},
 };
+use arm_psci::EntryPoint;
 use core::{
     cell::{RefCell, RefMut},
     ops::{Index, IndexMut},
@@ -685,6 +686,26 @@ fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     // SCR_NS + SCR_NSE = Realm state
     context.el3_state.scr_el3 |= ScrEl3::NS | ScrEl3::NSE;
     // TODO: FIQ and IRQ routing model.
+}
+
+/// Updates the CPU context of each world to resume after suspend.
+///
+/// When the CPU wakes up from a powerdown suspend state, lower ELs in each world expect a specific
+/// state for resuming their execution. This can be a different entry point or just arguments passed
+/// in registers.
+pub fn update_contexts_suspend(psci_entrypoint: EntryPoint, secure_args: &SmcReturn) {
+    exception_free(|token| {
+        let mut cpu_state = cpu_state(token);
+
+        cpu_state[World::NonSecure].el3_state.elr_el3 =
+            psci_entrypoint.entry_point_address() as usize;
+        cpu_state[World::NonSecure].gpregs.registers[0] = psci_entrypoint.context_id();
+        cpu_state[World::NonSecure].gpregs.registers[1..8].fill(0);
+
+        cpu_state[World::Secure].gpregs.registers[..18].copy_from_slice(secure_args.values());
+
+        // TODO: implement suspend handling for Realm
+    });
 }
 
 /// Information about the entry point for a next stage (e.g. BL32 or BL33).

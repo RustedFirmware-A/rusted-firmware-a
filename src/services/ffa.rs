@@ -5,12 +5,12 @@
 use crate::{
     context::{PerCoreState, World},
     platform::{Platform, PlatformImpl, exception_free},
-    services::{Service, owns},
+    services::{Service, owns, psci::PsciSpmInterface},
     smccc::{OwningEntityNumber, SmcReturn},
 };
 use arm_ffa::{
     DirectMsgArgs, FfaError, Interface, SecondaryEpRegisterAddr, SuccessArgsIdGet,
-    SuccessArgsSpmIdGet, TargetInfo, Version,
+    SuccessArgsSpmIdGet, TargetInfo, Version, WarmBootType,
 };
 use core::{
     cell::RefCell,
@@ -30,16 +30,18 @@ struct SpmdLocal {
 impl SpmdLocal {
     const fn new() -> Self {
         Self {
-            spmc_state: SpmcState::Boot,
+            spmc_state: SpmcState::Off,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpmcState {
+    Off,
     Boot,
     Runtime,
     SecureInterrupt,
+    PsciEventHandling,
 }
 
 /// Secure Partition Manager Dispatcher, defined by Arm Firmware Framework for A-Profile (FF-A)
@@ -73,6 +75,13 @@ impl Service for Spmd {
             }
         };
 
+        debug!("Handle FF-A call from NWd {in_msg:x?}");
+
+        let spmc_state =
+            exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
+
+        assert_eq!(spmc_state, SpmcState::Runtime);
+
         let (out_msg, next_world) = self.handle_non_secure_call(&in_msg);
 
         out_msg.to_regs(version, out_regs.values_mut());
@@ -99,9 +108,11 @@ impl Service for Spmd {
             exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
 
         let (out_msg, next_world) = match spmc_state {
+            SpmcState::Off => panic!(),
             SpmcState::Boot => self.handle_secure_call_boot(&in_msg),
             SpmcState::Runtime => self.handle_secure_call_runtime(&in_msg),
             SpmcState::SecureInterrupt => self.handle_secure_call_interrupt(&in_msg),
+            SpmcState::PsciEventHandling => self.handle_secure_call_psci_event(&in_msg),
         };
 
         if let Some(out_msg) = out_msg {
@@ -138,14 +149,20 @@ impl Spmd {
                 PlatformImpl::CORE_COUNT],
         );
 
-        Self {
+        let spmd = Self {
             spmc_id,
             spmc_version,
             spmc_primary_ep,
             // By default the secondary EP is same as primary
             spmc_secondary_ep: spmc_primary_ep.into(),
             core_local,
-        }
+        };
+
+        // This only runs once, on the primary core, at cold boot. Set the correct state before
+        // receiving the first message from SWd.
+        spmd.switch_spmc_local_state(SpmcState::Off, SpmcState::Boot);
+
+        spmd
     }
 
     #[allow(unused)]
@@ -153,9 +170,16 @@ impl Spmd {
         self.spmc_primary_ep
     }
 
-    #[allow(unused)]
     pub fn secondary_ep(&self) -> usize {
         self.spmc_secondary_ep.load(Relaxed)
+    }
+
+    fn switch_spmc_local_state(&self, expected_state: SpmcState, new_state: SpmcState) {
+        exception_free(|token| {
+            let spmc_state = &mut self.core_local.get().borrow_mut(token).spmc_state;
+            assert_eq!(*spmc_state, expected_state);
+            *spmc_state = new_state;
+        });
     }
 
     fn handle_secure_call_common(&self, in_msg: &Interface) -> (Option<Interface>, World) {
@@ -192,11 +216,7 @@ impl Spmd {
             },
             Interface::MsgWait { .. } => {
                 // Receiving this message for the first time means that SPMC init succeeded
-                exception_free(|token| {
-                    let mut spmd_state = self.core_local.get().borrow_mut(token);
-                    assert_eq!(spmd_state.spmc_state, SpmcState::Boot);
-                    spmd_state.spmc_state = SpmcState::Runtime;
-                });
+                self.switch_spmc_local_state(SpmcState::Boot, SpmcState::Runtime);
 
                 // In this case the FFA_MSG_WAIT message shouldn't be forwarded, because this is not
                 // a response to a call made by NWd.
@@ -286,11 +306,7 @@ impl Spmd {
     fn handle_secure_call_interrupt(&self, in_msg: &Interface) -> (Option<Interface>, World) {
         let out_msg = match in_msg {
             Interface::NormalWorldResume => {
-                exception_free(|token| {
-                    let mut spmd_state = self.core_local.get().borrow_mut(token);
-                    assert_eq!(spmd_state.spmc_state, SpmcState::SecureInterrupt);
-                    spmd_state.spmc_state = SpmcState::Runtime;
-                });
+                self.switch_spmc_local_state(SpmcState::SecureInterrupt, SpmcState::Runtime);
 
                 // Interrupt was handled, return to NWd which was preempted by a secure interrupt.
                 // Instead of forwarding the FFA_NORMAL_WORLD_RESUME message, NWd must be resumed
@@ -308,11 +324,33 @@ impl Spmd {
         (Some(out_msg), World::Secure)
     }
 
+    fn handle_secure_call_psci_event(&self, in_msg: &Interface) -> (Option<Interface>, World) {
+        let out_msg = match in_msg {
+            Interface::MsgSendDirectResp {
+                src_id,
+                dst_id: Self::OWN_ID,
+                args: DirectMsgArgs::PowerPsciResp { psci_status },
+            } if *src_id == self.spmc_id => {
+                if *psci_status != 0 {
+                    warn!("PSCI response from SPMC: {psci_status}")
+                }
+
+                self.switch_spmc_local_state(SpmcState::PsciEventHandling, SpmcState::Runtime);
+
+                return (None, World::NonSecure);
+            }
+            _ => {
+                warn!("Denied FF-A call from Secure World: {in_msg:x?}");
+                Interface::error(FfaError::Denied)
+            }
+        };
+
+        (Some(out_msg), World::Secure)
+    }
+
     fn handle_non_secure_call(&self, in_msg: &Interface) -> (Interface, World) {
         // By default return to the same world
         let mut next_world = World::NonSecure;
-
-        debug!("Handle FF-A call from NWd {in_msg:x?}");
 
         let out_msg = match in_msg {
             Interface::Version { input_version } => {
@@ -384,8 +422,6 @@ impl Spmd {
     }
 
     pub fn forward_secure_interrupt(&self) -> (SmcReturn, World) {
-        let mut out_regs = SmcReturn::from([0u64; 18]);
-
         let msg = Interface::Interrupt {
             // The endpoint and vCPU ID fields MBZ in this case
             target_info: TargetInfo {
@@ -396,14 +432,58 @@ impl Spmd {
             interrupt_id: 0,
         };
 
-        msg.to_regs(self.spmc_version, out_regs.values_mut());
+        self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::SecureInterrupt);
 
-        exception_free(|token| {
-            let mut spmd_state = self.core_local.get().borrow_mut(token);
-            assert_eq!(spmd_state.spmc_state, SpmcState::Runtime);
-            spmd_state.spmc_state = SpmcState::SecureInterrupt;
-        });
+        let mut out_regs = SmcReturn::from([0u64; 18]);
+        msg.to_regs(self.spmc_version, out_regs.values_mut());
 
         (out_regs, World::Secure)
     }
+
+    /// Notify the SPM that the current core was turned on for the first time or after CPU_OFF.
+    pub fn handle_wake_from_cpu_off(&self) {
+        self.switch_spmc_local_state(SpmcState::Off, SpmcState::Boot);
+    }
+
+    /// Notify the SPM that the current core woke up from suspend (CPU_SUSPEND, CPU_DEFAULT_SUSPEND
+    /// or SYSTEM_SUSPEND). Only applies for power down suspend states.
+    pub fn handle_wake_from_cpu_suspend(&self) -> SmcReturn {
+        let msg = Interface::MsgSendDirectReq {
+            src_id: Self::OWN_ID,
+            dst_id: self.spmc_id,
+            args: DirectMsgArgs::PowerWarmBootReq {
+                // TODO: what is the use case for WarmBootType::ExitFromLowPower?
+                boot_type: WarmBootType::ExitFromSuspend,
+            },
+        };
+
+        self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::PsciEventHandling);
+
+        let mut out_regs = SmcReturn::from([0u64; 18]);
+        msg.to_regs(self.spmc_version, out_regs.values_mut());
+
+        out_regs
+    }
+}
+
+impl PsciSpmInterface for Spmd {
+    fn forward_psci_request(&self, _psci_request: &[u64; 4]) -> u64 {
+        0
+    }
+
+    fn notify_cpu_off(&self) {
+        self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::Off);
+    }
+}
+
+#[cfg(test)]
+pub struct TestSpm;
+
+#[cfg(test)]
+impl PsciSpmInterface for TestSpm {
+    fn forward_psci_request(&self, _psci_request: &[u64; 4]) -> u64 {
+        0
+    }
+
+    fn notify_cpu_off(&self) {}
 }

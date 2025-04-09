@@ -590,7 +590,7 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     // SCR_EL3.EEL2: Set to one if S-EL2 is present and enabled.
     //
     // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
-    // aganst ERRATA_V2_3099206.
+    // against ERRATA_V2_3099206.
     context.el3_state.scr_el3 = ScrEl3::RES1 | ScrEl3::HCE | ScrEl3::EA | ScrEl3::SIF | ScrEl3::RW;
     #[cfg(feature = "sel2")]
     {

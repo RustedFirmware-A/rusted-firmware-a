@@ -66,7 +66,8 @@ QEMU_FLAGS = -machine virt,gic-version=3,secure=on,virtualization=on -cpu max -m
 	-chardev stdio,signal=off,mux=on,id=char0 -monitor chardev:char0 \
 	-serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \
 	-gdb tcp:localhost:$(GDB_PORT) \
-	-display none -bios bl1.bin
+	-display none -bios bl1.bin \
+	-smp 4
 QEMU_DEPS = $(BL1) $(BL2) build build-bl33
 
 qemu: $(QEMU_DEPS)

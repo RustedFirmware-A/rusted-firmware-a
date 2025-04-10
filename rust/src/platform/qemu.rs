@@ -29,7 +29,7 @@ use arm_gic::{
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 use core::{arch::global_asm, ptr::NonNull};
-use gicv3::{GicConfig, SecureInterruptConfig};
+use gicv3::GicConfig;
 use log::LevelFilter;
 use percore::Cores;
 
@@ -51,10 +51,6 @@ const PL011_BASE_ADDRESS: *mut PL011Registers = 0x0904_0000 as _;
 const GICD_BASE_ADDRESS: *mut Gicd = 0x800_0000 as _;
 /// Base address of the first GICv3 redistributor frame.
 const GICR_BASE_ADDRESS: *mut GicrSgi = 0x80A_0000 as _;
-/// Size of a single GIC redistributor frame (there is one per core).
-// TODO: Maybe GIC should infer the frame size based on info gicv3 vs gicv4.
-// Because I think only 1 << 0x11 and 1 << 0x12 values are allowed.
-const GICR_FRAME_SIZE: usize = 1 << 0x11;
 
 // TODO: Use the correct addresses here.
 /// The physical address of the SPMC manifest blob.
@@ -79,12 +75,7 @@ impl Platform for Qemu {
 
     const GIC_CONFIG: GicConfig = GicConfig {
         // TODO: Fill this with proper values.
-        secure_interrupts_config: &[SecureInterruptConfig {
-            id: IntId::spi(0),
-            priority: 0x81,
-            group: SecureIntGroup::Group1S,
-            trigger: Trigger::Level,
-        }],
+        interrupts_config: &[],
     };
 
     fn init_beforemmu() {
@@ -112,7 +103,7 @@ impl Platform for Qemu {
                 GICD_BASE_ADDRESS,
                 GICR_BASE_ADDRESS,
                 Qemu::CORE_COUNT,
-                GICR_FRAME_SIZE,
+                false,
             )
         }
     }

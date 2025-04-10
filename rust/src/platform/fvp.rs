@@ -29,16 +29,13 @@ use arm_gic::{
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 use core::{arch::global_asm, ptr::NonNull};
-use gicv3::SecureInterruptConfig;
 use log::LevelFilter;
 use percore::Cores;
 
+/// Base address of GICv3 distributor.
 const BASE_GICD_BASE: usize = 0x2f00_0000;
+/// Base address of GICv3 redistributor frame.
 const BASE_GICR_BASE: usize = 0x2f10_0000;
-/// Size of a single GIC redistributor frame (there is one per core).
-// TODO: Maybe GIC should infer the frame size based on info gicv3 vs gicv4.
-// Because I think only 1 << 0x11 and 1 << 0x12 values are allowed.
-const GICR_FRAME_SIZE: usize = 1 << 0x11;
 
 const DEVICE0_BASE: usize = 0x2000_0000;
 const DEVICE0_SIZE: usize = 0x0c20_0000;
@@ -92,12 +89,7 @@ impl Platform for Fvp {
 
     const GIC_CONFIG: gicv3::GicConfig = gicv3::GicConfig {
         // TODO: Fill this with proper values.
-        secure_interrupts_config: &[SecureInterruptConfig {
-            id: IntId::spi(0),
-            priority: 0x81,
-            group: SecureIntGroup::Group1S,
-            trigger: Trigger::Level,
-        }],
+        interrupts_config: &[],
     };
 
     fn init_beforemmu() {
@@ -126,7 +118,7 @@ impl Platform for Fvp {
                 BASE_GICD_BASE as *mut Gicd,
                 BASE_GICR_BASE as *mut GicrSgi,
                 Fvp::CORE_COUNT,
-                GICR_FRAME_SIZE,
+                false,
             )
         }
     }

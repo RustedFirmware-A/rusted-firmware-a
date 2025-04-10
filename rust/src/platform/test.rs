@@ -48,7 +48,7 @@ impl Platform for TestPlatform {
     type PsciPlatformImpl = TestPsciPlatformImpl;
 
     const GIC_CONFIG: GicConfig = GicConfig {
-        secure_interrupts_config: &[],
+        interrupts_config: &[],
     };
 
     fn init_beforemmu() {

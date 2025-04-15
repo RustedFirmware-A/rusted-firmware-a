@@ -218,7 +218,7 @@ fn init_cpu_interface(gic: &mut GicV3, core_index: usize) -> Result<(), GICRErro
 /// Initializes the gic by configuring the distributor, redistributor and cpu interface, and puts
 /// the global gic into GIC variable. This function should only be called once early in the boot
 /// process. Subsequent calls will be ignored.
-pub fn init(mut gic: GicV3, config: &GicConfig, core_index: usize) {
+pub fn init(mut gic: GicV3<'static>, config: &GicConfig, core_index: usize) {
     GIC.call_once(|| {
         init_distributor(&mut gic, config.secure_interrupts_config);
         init_redistributor(&mut gic, core_index, config.secure_interrupts_config);

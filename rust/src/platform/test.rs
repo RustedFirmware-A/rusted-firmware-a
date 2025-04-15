@@ -51,7 +51,7 @@ impl Platform for TestPlatform {
         map_region(idmap, &DEVICE0, MT_DEVICE);
     }
 
-    unsafe fn create_gic() -> GicV3 {
+    unsafe fn create_gic() -> GicV3<'static> {
         unimplemented!();
     }
 

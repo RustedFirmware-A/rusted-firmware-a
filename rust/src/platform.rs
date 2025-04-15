@@ -65,7 +65,7 @@ pub trait Platform {
     /// # Safety
     ///
     /// This must only be called once, to avoid creating aliases of the GIC driver.
-    unsafe fn create_gic() -> GicV3;
+    unsafe fn create_gic() -> GicV3<'static>;
 
     /// Returns the entry point for the secure world, i.e. BL32.
     fn secure_entry_point() -> EntryPointInfo;

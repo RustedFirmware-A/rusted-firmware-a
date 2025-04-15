@@ -20,7 +20,10 @@ use crate::{
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
-    gicv3::{GicV3, SecureIntGroup},
+    gicv3::{
+        registers::{Gicd, GicrSgi},
+        GicV3, SecureIntGroup,
+    },
     {IntId, Trigger},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
@@ -45,9 +48,9 @@ const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEV
 /// Base address of the primary PL011 UART.
 const PL011_BASE_ADDRESS: *mut PL011Registers = 0x0900_0000 as _;
 /// Base address of GICv3 distributor.
-const GICD_BASE_ADDRESS: *mut u64 = 0x800_0000 as _;
+const GICD_BASE_ADDRESS: *mut Gicd = 0x800_0000 as _;
 /// Base address of the first GICv3 redistributor frame.
-const GICR_BASE_ADDRESS: *mut u64 = 0x80A_0000 as _;
+const GICR_BASE_ADDRESS: *mut GicrSgi = 0x80A_0000 as _;
 /// Size of a single GIC redistributor frame (there is one per core).
 // TODO: Maybe GIC should infer the frame size based on info gicv3 vs gicv4.
 // Because I think only 1 << 0x11 and 1 << 0x12 values are allowed.
@@ -98,7 +101,7 @@ impl Platform for Qemu {
         map_region(idmap, &DEVICE1, MT_DEVICE);
     }
 
-    unsafe fn create_gic() -> GicV3 {
+    unsafe fn create_gic() -> GicV3<'static> {
         // SAFETY: `GICD_BASE_ADDRESS` and `GICR_BASE_ADDRESS` are base addresses of a GIC device,
         // and nothing else accesses that address range.
         // TODO: Powering on-off secondary cores will also access their GIC Redistributors.

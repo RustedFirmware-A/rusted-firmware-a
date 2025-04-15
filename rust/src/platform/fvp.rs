@@ -20,8 +20,11 @@ use crate::{
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
-    gicv3::{GicV3, SecureIntGroup},
-    IntId, Trigger,
+    gicv3::{
+        registers::{Gicd, GicrSgi},
+        GicV3, SecureIntGroup,
+    },
+    {IntId, Trigger},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
@@ -113,14 +116,14 @@ impl Platform for Fvp {
         map_region(idmap, &DEVICE1, MT_DEVICE);
     }
 
-    unsafe fn create_gic() -> GicV3 {
+    unsafe fn create_gic() -> GicV3<'static> {
         // SAFETY: `GICD_BASE_ADDRESS` and `GICR_BASE_ADDRESS` are base addresses of a GIC device,
         // and nothing else accesses that address range.
         // TODO: Powering on-off secondary cores will also access their GIC Redistributors.
         unsafe {
             GicV3::new(
-                BASE_GICD_BASE as *mut u64,
-                BASE_GICR_BASE as *mut u64,
+                BASE_GICD_BASE as *mut Gicd,
+                BASE_GICR_BASE as *mut GicrSgi,
                 Fvp::CORE_COUNT,
                 GICR_FRAME_SIZE,
             )

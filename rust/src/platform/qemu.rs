@@ -45,8 +45,8 @@ const SHARED_RAM: MemoryRegion =
 const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE);
 const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE);
 
-/// Base address of the primary PL011 UART.
-const PL011_BASE_ADDRESS: *mut PL011Registers = 0x0900_0000 as _;
+/// Base address of the secure world PL011 UART, aka. UART1.
+const PL011_BASE_ADDRESS: *mut PL011Registers = 0x0904_0000 as _;
 /// Base address of GICv3 distributor.
 const GICD_BASE_ADDRESS: *mut Gicd = 0x800_0000 as _;
 /// Base address of the first GICv3 redistributor frame.

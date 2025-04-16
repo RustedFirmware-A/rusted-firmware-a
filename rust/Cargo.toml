@@ -17,6 +17,7 @@ panic = "abort"
 opt-level = "s"
 lto = "thin"
 strip = true
+overflow-checks = true
 
 [dependencies]
 aarch64-paging = { version = "0.8.0", features = [], default-features = false }

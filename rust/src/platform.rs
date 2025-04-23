@@ -50,6 +50,9 @@ pub trait Platform {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
 
+    /// The size in bytes of the largest cache line across all the cache levels in the platform.
+    const CACHE_WRITEBACK_GRANULE: usize;
+
     /// The GIC configuration.
     const GIC_CONFIG: gicv3::GicConfig;
 

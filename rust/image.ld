@@ -72,11 +72,11 @@ SECTIONS
 		__BSS_END__ = .;
 	} >image
 
-	.stack (NOLOAD) : ALIGN(4096) {
-		boot_stack_begin = .;
-		. += 8 * 4096;
+	.stacks (NOLOAD) : ALIGN(4096) {
+		__STACKS_START__ = .;
+		*(.tzfw_normal_stacks)
+		__STACKS_END__ = .;
 		. = ALIGN(4096);
-		boot_stack_end = .;
 	} >image
 
 	. = ALIGN(4096);

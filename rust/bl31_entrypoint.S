@@ -211,9 +211,13 @@ func bl31_entrypoint
          * ---------------------------------------------------------------------
          */
         msr     spsel, #0
-        adrp    x0, boot_stack_end
-        add     x0, x0, :lo12:boot_stack_end
-        mov     sp, x0
+
+	/* ---------------------------------------------------------------------
+	 * Allocate a stack whose memory will be marked as Normal-IS-WBWA when
+	 * the MMU is enabled.
+	 * ---------------------------------------------------------------------
+	 */
+	bl	plat_set_my_stack
 
         mov     x0, x20
         mov     x1, x21

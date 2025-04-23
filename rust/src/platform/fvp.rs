@@ -85,6 +85,7 @@ pub struct Fvp;
 
 impl Platform for Fvp {
     const CORE_COUNT: usize = PLATFORM_CORE_COUNT;
+    const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
     type LoggerWriter = Uart<'static>;
     type PsciPlatformImpl = FvpPsciPlatformImpl;

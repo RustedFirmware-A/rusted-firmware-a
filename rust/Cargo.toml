@@ -9,6 +9,7 @@ authors = [
 rust-version = "1.82"
 
 [profile.dev]
+opt-level = "s"
 panic = "abort"
 
 [profile.release]
@@ -19,7 +20,7 @@ strip = true
 
 [dependencies]
 aarch64-paging = { version = "0.8.0", features = [], default-features = false }
-arrayvec = { version ="0.7.6", default-features = false }
+arrayvec = { version = "0.7.6", default-features = false }
 arm-psci = "0.1.1"
 bitflags = "2.3.2"
 log = "0.4.19"

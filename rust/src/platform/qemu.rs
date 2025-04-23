@@ -72,6 +72,7 @@ pub struct Qemu;
 
 impl Platform for Qemu {
     const CORE_COUNT: usize = CLUSTER_COUNT * MAX_CPUS_PER_CLUSTER;
+    const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
     type LoggerWriter = Uart<'static>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;

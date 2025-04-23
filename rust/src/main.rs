@@ -38,6 +38,8 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
     pagetable::init();
     info!("Page table activated.");
 
+    Psci::init();
+
     // Set up GIC.
     gicv3::init(
         // SAFETY: This is the only place where GIC is created and there are no aliases.
@@ -46,8 +48,6 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
         Psci::core_index(),
     );
     info!("GIC configured.");
-
-    Psci::init();
 
     let non_secure_entry_point = PlatformImpl::non_secure_entry_point();
     let secure_entry_point = PlatformImpl::secure_entry_point();

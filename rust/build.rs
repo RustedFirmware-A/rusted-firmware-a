@@ -36,7 +36,6 @@ fn build_libtfa(platform: &str) {
         .file("context.S")
         .file("crash_reporting.S")
         .file("debug.S")
-        .file("platform_helpers.S")
         .file("runtime_exceptions.S")
         .file("../drivers/arm/pl011/aarch64/pl011_console.S")
         .file("../lib/aarch64/cache_helpers.S")

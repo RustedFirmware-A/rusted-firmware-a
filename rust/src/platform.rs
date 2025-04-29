@@ -11,6 +11,7 @@ mod test;
 
 use arm_gic::gicv3::GicV3;
 use arm_psci::Mpidr;
+use core::arch::global_asm;
 #[cfg(platform = "fvp")]
 pub use fvp::Fvp as PlatformImpl;
 #[cfg(not(test))]
@@ -120,3 +121,10 @@ pub trait Platform {
     /// Returns whether this platform supports the arch WORKAROUND_4 SMC.
     fn arch_workaround_4_supported() -> WorkaroundSupport;
 }
+
+#[cfg(target_arch = "aarch64")]
+global_asm!(
+    include_str!("asm_macros_common.S"),
+    include_str!("platform_helpers.S"),
+    include_str!("asm_macros_common_purge.S"),
+);

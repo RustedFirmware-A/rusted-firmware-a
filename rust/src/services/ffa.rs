@@ -6,9 +6,9 @@ use arm_ffa::{FfaError, FuncId, Interface, Version};
 use log::{error, info};
 
 use crate::{
-    context::{switch_world, World},
+    context::World,
     services::{owns, Service},
-    smccc::{FunctionId, OwningEntityNumber, SmcReturn},
+    smccc::{OwningEntityNumber, SmcReturn},
 };
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0060;
@@ -26,63 +26,68 @@ impl Service for Ffa {
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
     );
 
-    fn handle_smc(
-        function: FunctionId,
-        x1: u64,
-        x2: u64,
-        x3: u64,
-        x4: u64,
-        world: World,
-    ) -> SmcReturn {
-        let regs = [function.0.into(), x1, x2, x3, x4, 0, 0, 0];
+    fn handle_non_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+        Ffa::handle_smc(regs, World::NonSecure)
+    }
 
-        let msg = match Interface::from_regs(FFA_VERSION_1_1, &regs) {
+    fn handle_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+        Ffa::handle_smc(regs, World::Secure)
+    }
+}
+
+impl Ffa {
+    pub(super) fn new() -> Self {
+        Self
+    }
+
+    fn handle_smc(regs: &[u64; 18], world: World) -> (SmcReturn, World) {
+        // TODO: forward SVE hint bit
+        let msg = match Interface::from_regs(FFA_VERSION_1_1, &regs[..8]) {
             Ok(msg) => msg,
             Err(e) => {
                 error!("Invalid FF-A call {:#x?}", e);
-                return Interface::error(e.into()).into();
+                return (Interface::error(e.into()).into(), world);
             }
         };
-        match msg {
+
+        let (resp, next_world) = match msg {
             Interface::Version { input_version } => version(world, input_version),
             Interface::MsgWait { .. } => msg_wait(world, 0),
-            _ => Interface::error(FfaError::NotSupported),
-        }
-        .into()
+            _ => (Interface::error(FfaError::NotSupported), world),
+        };
+
+        (resp.into(), next_world)
     }
 }
 
 /// Returns the version of the Firmware Framework implementation supported by RF-A.
-fn version(world: World, _input_version: Version) -> Interface {
-    match world {
-        // TODO: Implement this properly (Direct Message if needed)
-        World::NonSecure => Interface::VersionOut {
-            output_version: FFA_VERSION_1_0,
+fn version(world: World, _input_version: Version) -> (Interface, World) {
+    (
+        match world {
+            // TODO: Implement this properly (Direct Message if needed)
+            World::NonSecure => Interface::VersionOut {
+                output_version: FFA_VERSION_1_0,
+            },
+            World::Secure => Interface::VersionOut {
+                output_version: FFA_VERSION_1_1,
+            },
+            #[cfg(feature = "rme")]
+            World::Realm => panic!("version call from realm world"),
         },
-        World::Secure => Interface::VersionOut {
-            output_version: FFA_VERSION_1_1,
-        },
-        #[cfg(feature = "rme")]
-        World::Realm => todo!(),
-    }
+        world,
+    )
 }
 
-fn msg_wait(world: World, _flags: u32) -> Interface {
+fn msg_wait(world: World, _flags: u32) -> (Interface, World) {
     match world {
         World::Secure => {
             // TODO: Check flags and possibly update ownership of RX buffer.
             info!("Switching to normal world.");
-            switch_world(World::Secure, World::NonSecure);
-            // The return value here doesn't actually matter, because we are switching to non-secure
-            // world and the secure world saved register values will be overwritten with a new
-            // return value before switching back to secure world. This return value will only be
-            // seen by secure world if there is a bug where we fail to write an appropriate return
-            // value when next we switch to secure world, so make it an error code we can recognise.
-            Interface::error(FfaError::Denied)
+            (Interface::error(FfaError::Denied), World::NonSecure)
         }
         _ => {
             // FFA_MSG_WAIT is not allowed over SMC in the non-secure physical instance.
-            Interface::error(FfaError::NotSupported)
+            (Interface::error(FfaError::NotSupported), world)
         }
     }
 }

@@ -128,6 +128,11 @@ impl FunctionId {
         self.0 & SVE_HINT != 0
     }
 
+    /// Sets the SVE hint bit.
+    pub fn set_sve_hint(&mut self) {
+        self.0 |= SVE_HINT
+    }
+
     /// Clears the SVE hint bit.
     pub fn clear_sve_hint(&mut self) {
         self.0 &= !SVE_HINT
@@ -179,6 +184,11 @@ impl SmcReturn {
     /// Returns a slice containing the used values.
     pub fn values(&self) -> &[u64] {
         &self.values[0..self.used]
+    }
+
+    /// Returns true if no values are used.
+    pub fn is_empty(&self) -> bool {
+        self.used == 0
     }
 }
 

@@ -13,9 +13,9 @@
 	 * Set SCR_EL3.EA bit to enable SErrors at EL3
 	 */
 	.macro enable_serror_at_el3
-	mrs     x8, scr_el3
-	orr     x8, x8, #{SCR_EA_BIT}
-	msr     scr_el3, x8
+	mrs     x18, scr_el3
+	orr     x18, x18, #{SCR_EA_BIT}
+	msr     scr_el3, x18
 	.endm
 
 /* ------------------------------------------------------------------
@@ -52,11 +52,11 @@
 	str	x18, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_SP_EL0}]
 
 	/* PMUv3 is presumed to be always present */
-	mrs	x9, pmcr_el0
-	str	x9, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_PMCR_EL0}]
+	mrs	x18, pmcr_el0
+	str	x18, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_PMCR_EL0}]
 	/* Disable cycle counter when event counting is prohibited */
-	orr	x9, x9, #{PMCR_EL0_DP_BIT}
-	msr	pmcr_el0, x9
+	orr	x18, x18, #{PMCR_EL0_DP_BIT}
+	msr	pmcr_el0, x18
 	isb
 	.endm
 	/* save_gp_pmcr_pauth_regs */
@@ -169,9 +169,10 @@ endfunc restore_gp_pmcr_pauth_regs
 
 
 /* ------------------------------------------------------------------
- * This routine assumes that the SP_EL3 is pointing to a valid
- * context structure from where the gp regs and other special
- * registers can be retrieved.
+ * This routine assumes that x0 is pointing to a valid context structure
+ * from where the gp regs and other special registers can be retrieved.
+ * Also, it sets SP_EL3 to the value from x0, which will be used when
+ * handling the next exception to EL3.
  * ------------------------------------------------------------------
  */
 func el3_exit
@@ -182,14 +183,14 @@ func el3_exit
 .endif /* ENABLE_ASSERTIONS */
 
 	/* ----------------------------------------------------------
-	 * Save the current SP_EL0 i.e. the EL3 runtime stack which
-	 * will be used for handling the next SMC.
+	 * Save the current SP_EL0 i.e. the EL3 runtime stack and link register.
 	 * Then switch to SP_EL3.
 	 * ----------------------------------------------------------
 	 */
 	mov	x17, sp
 	msr	spsel, #{MODE_SP_ELX}
-	str	x17, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP}]
+	mov	sp, x0
+	stp	x17, x30, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP_LR}]
 
 	/* ----------------------------------------------------------
 	 * Restore CPTR_EL3.

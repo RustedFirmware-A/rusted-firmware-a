@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    context::{cpu_state, CpuData, GpRegs, World, CPU_DATA_CRASH_BUF_SIZE},
+    context::{cpu_state, world_context, CpuData, GpRegs, World, CPU_DATA_CRASH_BUF_SIZE},
     debug::DEBUG,
     platform::exception_free,
-    services::dispatch_smc,
-    smccc::FunctionId,
+    smccc::SmcReturn,
     sysregs::{
         is_feat_vhe_present, read_hcr_el2, read_vbar_el1, read_vbar_el2, write_elr_el1,
         write_elr_el2, write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2, Esr,
@@ -15,8 +14,11 @@ use crate::{
     },
 };
 #[cfg(target_arch = "aarch64")]
-use core::{arch::global_asm, mem::offset_of};
-use log::debug;
+use core::{
+    arch::{asm, global_asm},
+    mem::offset_of,
+};
+use log::trace;
 
 const TRAP_RET_UNHANDLED: i64 = -1;
 
@@ -152,26 +154,104 @@ fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
     new_spsr
 }
 
-/// Called from the exception handler in assembly to handle an SMC.
-#[unsafe(no_mangle)]
-extern "C" fn handle_smc(function: FunctionId, x1: u64, x2: u64, x3: u64, x4: u64) {
-    let world = World::from_scr();
-    debug!(
-        "Handling SMC {:?} ({:#0x}, {:#0x}, {:#0x}, {:#0x}) from world {:?}",
-        function, x1, x2, x3, x4, world,
-    );
+/// Describes the reason why execution returned to EL3 after running a lower EL.
+#[derive(Debug)]
+pub enum RunResult {
+    /// A lower EL has executed an SMC instruction.
+    Smc { regs: [u64; 18] },
+    /// An IRQ or FIQ routed to EL3 has been triggered while running in a lower EL.
+    Interrupt,
+    /// A lower EL tried to access a system register that was trapped to EL3.
+    SysregTrap,
+}
 
-    let ret = dispatch_smc(function, x1, x2, x3, x4, world);
+impl RunResult {
+    pub const SMC: u64 = 0;
+    pub const INTERRUPT: u64 = 1;
+    pub const SYSREG_TRAP: u64 = 2;
+}
 
-    // Write the return value back to the registers of the world that made the SMC call. Note that
-    // this might not be the same world as we are about to return to, as the handler might have
-    // switched worlds by calling `set_next_world_context`.
-    exception_free(|token| {
-        cpu_state(token)
-            .context_mut(world)
-            .gpregs
-            .write_return_value(&ret);
-    });
+/// Enters a lower EL in the specified world.
+///
+/// Exit EL3 and enter a lower EL by ERET. The caller must ensure that if necessary, the contents of
+/// the lower EL's system registers have already been restored (i.e. by calling
+/// [`crate::context::switch_world()`]). If the contents of one or more GP registers are specified
+/// in the `in_regs` parameter, those values will be copied into the lower EL's saved context before
+/// the ERET. After execution returns to EL3 by any exception, the reason for returning is checked
+/// and the appropriate result will be returned by this function.
+#[cfg(not(test))]
+pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
+    trace!("Entering world {:?} with args {:#x?}", world, in_regs);
+
+    if !in_regs.is_empty() {
+        exception_free(|token| {
+            cpu_state(token)
+                .context_mut(world)
+                .gpregs
+                .write_return_value(in_regs);
+        });
+    }
+
+    let context = world_context(world);
+    let mut out_values = [0u64; 18];
+    let mut return_reason: u64;
+
+    // SAFETY: The CPU context is always valid, and will only be used via this pointer by assembly
+    // code after the Rust code returns to prepare for the eret, and after the next exception before
+    // entering the Rust code again.
+    unsafe {
+        asm!(
+            // Save x19 and x29 manually as Rust won't let us specify them as clobbers.
+            "stp x19, x29, [sp, #-16]!",
+            "bl el3_exit",
+            "ldp x19, x29, [sp], #16",
+            inout("x0") context => out_values[0],
+            out("x1") out_values[1],
+            out("x2") out_values[2],
+            out("x3") out_values[3],
+            out("x4") out_values[4],
+            out("x5") out_values[5],
+            out("x6") out_values[6],
+            out("x7") out_values[7],
+            out("x8") out_values[8],
+            out("x9") out_values[9],
+            out("x10") out_values[10],
+            out("x11") out_values[11],
+            out("x12") out_values[12],
+            out("x13") out_values[13],
+            out("x14") out_values[14],
+            out("x15") out_values[15],
+            out("x16") out_values[16],
+            out("x17") out_values[17],
+            out("x18") return_reason,
+            out("x20") _,
+            out("x21") _,
+            out("x22") _,
+            out("x23") _,
+            out("x24") _,
+            out("x25") _,
+            out("x26") _,
+            out("x27") _,
+            out("x28") _,
+            out("x30") _,
+        );
+    }
+
+    let result = match return_reason {
+        RunResult::SMC => RunResult::Smc { regs: out_values },
+        RunResult::INTERRUPT => RunResult::Interrupt,
+        RunResult::SYSREG_TRAP => RunResult::SysregTrap,
+        r => panic!("unhandled enter world result: {}", r),
+    };
+
+    trace!("Returned from world {:?} with result {:#x?}", world, result);
+
+    result
+}
+
+#[cfg(test)]
+pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
+    unimplemented!()
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -190,62 +270,3 @@ global_asm!(
     SCTLR_EnIA_BIT = const SctlrEl3::ENIA.bits(),
     SCTLR_EnIB_BIT = const SctlrEl3::ENIB.bits(),
 );
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        services::arch::{SMCCC_VERSION, SMCCC_VERSION_1_5},
-        sysregs::{fake::SYSREGS, ScrEl3},
-    };
-
-    /// Tests the SMCCC arch version call as a simple example of SMC dispatch.
-    ///
-    /// The point of this isn't to test every individual SMC call, just that the common code in
-    /// `handle_smc` works. Individual SMC calls can be tested directly within their modules.
-    #[test]
-    fn handle_smc_arch_version() {
-        // Pretend to be coming from non-secure world.
-        SYSREGS.lock().unwrap().scr_el3 = ScrEl3::NS;
-
-        handle_smc(FunctionId(SMCCC_VERSION), 0, 0, 0, 0);
-
-        assert_eq!(
-            exception_free(|token| { cpu_state(token).context(World::NonSecure).gpregs.registers }),
-            [
-                SMCCC_VERSION_1_5 as u64,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-            ]
-        );
-    }
-}

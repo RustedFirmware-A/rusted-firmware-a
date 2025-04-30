@@ -157,16 +157,6 @@ impl SystemRegisters {
     }
 }
 
-/// Writes `value` to `sp_el3`.
-///
-/// # Safety
-///
-/// The caller must ensure that `value` is consistent with how the rest of RF-A uses `sp_el3`.
-pub unsafe fn write_sp_el3(value: usize) {
-    let mut regs = SYSREGS.lock().unwrap();
-    regs.sp_el3 = value;
-}
-
 /// Generates a public function named `$function_name` to read the fake system register `$sysreg` of
 /// type `$type`.
 macro_rules! read_sysreg {

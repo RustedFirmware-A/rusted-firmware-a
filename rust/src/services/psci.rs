@@ -11,7 +11,7 @@ use crate::{
     context::{CoresImpl, World},
     pagetable,
     platform::{plat_calc_core_pos, Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
-    smccc::{FunctionId as OtherFunctionId, OwningEntityNumber, SmcReturn},
+    smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SmcReturn},
     sysregs::{read_isr_el1, MpidrEl1},
 };
 use arm_psci::{
@@ -24,13 +24,10 @@ use core::fmt::{self, Debug, Formatter};
 use log::info;
 use percore::Cores;
 use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
-use spin::Once;
 use spmd_stub::SPMD;
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0000;
 const FUNCTION_NUMBER_MAX: u16 = 0x001F;
-
-static PSCI: Once<Psci> = Once::new();
 
 bitflags! {
     /// Optional platform feature flags
@@ -319,12 +316,9 @@ impl Psci {
     ///
     /// This should be called exactly once, before any other PSCI methods are called or any
     /// secondary CPUs are started.
-    pub fn init() {
+    pub(super) fn new(platform: PsciPlatformImpl) -> Self {
         info!("Initializing PSCI");
-        PSCI.call_once(|| Self::new(PlatformImpl::psci_platform().unwrap()));
-    }
 
-    fn new(platform: PsciPlatformImpl) -> Self {
         let power_domain_tree = PowerDomainTree::new(PsciPlatformImpl::topology());
 
         {
@@ -949,22 +943,18 @@ impl Service for Psci {
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
     );
 
-    fn handle_smc(
-        function: OtherFunctionId,
-        x1: u64,
-        x2: u64,
-        x3: u64,
-        _x4: u64,
-        _world: World,
-    ) -> SmcReturn {
-        match PSCI
-            .get()
-            .unwrap()
-            .handle_smc_inner([function.0 as u64, x1, x2, x3])
-        {
+    fn handle_non_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+        let mut in_regs: [u64; 4] = regs[..4].try_into().unwrap();
+        let mut function = SmcFunctionId(in_regs[0] as u32);
+        function.clear_sve_hint();
+        in_regs[0] = function.0.into();
+
+        let result = match self.handle_smc_inner(in_regs) {
             Ok(result) => result.into(),
             Err(return_code) => return_code.into(),
-        }
+        };
+
+        (result, World::NonSecure)
     }
 }
 

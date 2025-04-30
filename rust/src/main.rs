@@ -26,12 +26,12 @@ mod stacks;
 mod sysregs;
 
 use crate::platform::{Platform, PlatformImpl};
-use context::{initialise_contexts, set_initial_world, World};
+use context::initialise_contexts;
 use log::info;
-use services::psci::Psci;
+use services::Services;
 
 #[unsafe(no_mangle)]
-extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
+extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
     PlatformImpl::init_before_mmu();
     info!("Rust BL31 starting");
     info!("Parameters: {:#0x} {:#0x}", bl31_params, platform_params);
@@ -39,8 +39,6 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
     // Set up page table.
     pagetable::init();
     info!("Page table activated.");
-
-    Psci::init();
 
     // Set up GIC.
     gicv3::init();
@@ -56,6 +54,6 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
         #[cfg(feature = "rme")]
         &realm_entry_point,
     );
-    set_initial_world(World::Secure);
-    info!("Entering next stage...");
+
+    Services::get().run_loop();
 }

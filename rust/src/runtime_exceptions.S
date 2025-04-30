@@ -284,7 +284,7 @@ smc_handler32:
 	tbnz	x0, #FUNCID_CC_SHIFT, smc_prohibited
 
 sync_handler64:
-	/* NOTE: The code below must preserve x0-x4 */
+	/* NOTE: The code below must preserve x0-x17 */
 
 	/*
 	 * Save general purpose and ARMv8.3-PAuth registers (if enabled).
@@ -293,45 +293,44 @@ sync_handler64:
 	bl	prepare_el3_entry
 
 	/*
-	 * Restore the saved C runtime stack value which will become the new
-	 * SP_EL0 i.e. EL3 runtime stack. It was saved in the 'cpu_context'
-	 * structure prior to the last ERET from EL3.
+	 * Save SP_EL3. It points to the CpuContext structure that was set prior to the last ERET
+	 * from EL3.
 	 */
-	mov	x19, sp
-	ldr	x12, [x19, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP}]
+	mov	x28, sp
+
+	/*
+	 * Restore the saved runtime stack and the link register.
+	 * They were saved in the CpuContext structure prior to the last ERET from EL3.
+	 */
+	ldp	x29, x30, [x28, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP_LR}]
 
 	/* Switch to SP_EL0 */
 	msr	spsel, #{MODE_SP_EL0}
+	mov	sp, x29
 
 	/*
 	 * Save the SPSR_EL3 and ELR_EL3 in case there is a world
 	 * switch during SMC handling.
 	 * TODO: Revisit if all system registers can be saved later.
 	 */
-	mrs	x16, spsr_el3
-	mrs	x17, elr_el3
-	stp	x16, x17, [x19, #{CTX_EL3STATE_OFFSET} + {CTX_SPSR_EL3}]
+	mrs	x26, spsr_el3
+	mrs	x27, elr_el3
+	stp	x26, x27, [x28, #{CTX_EL3STATE_OFFSET} + {CTX_SPSR_EL3}]
+
+	/* TODO: the rest of the logic below (incl. sysreg_handler64) could be moved to Rust code */
 
 	/* check for system register traps */
-	mrs	x16, esr_el3
-	ubfx	x17, x16, #ESR_EC_SHIFT, #ESR_EC_LENGTH
-	cmp	x17, #EC_AARCH64_SYS
+	mrs	x26, esr_el3
+	ubfx	x27, x26, #ESR_EC_SHIFT, #ESR_EC_LENGTH
+	cmp	x27, #EC_AARCH64_SYS
 	b.eq	sysreg_handler64
 
-	mov	sp, x12
-
-	/*
-	 * Call the Secure Monitor Call handler and then drop directly into
-	 * el3_exit() which will program any remaining architectural state
-	 * prior to issuing the ERET to the desired lower EL.
-	 */
-	bl	handle_smc
-
-	b	el3_exit
+	/* Handling an SMC, set the return value to indicate this. */
+	mov	x18, #{RUN_RESULT_SMC}
+	ret
 
 sysreg_handler64:
-	mov	x0, x16		/* ESR_EL3, containing syndrome information */
-	mov	sp, x12		/* EL3 runtime stack, as loaded above */
+	mov	x0, x26		/* ESR_EL3, containing syndrome information */
 
 	/* int handle_sysreg_trap(uint64_t esr_el3); */
 	bl	handle_sysreg_trap
@@ -347,10 +346,11 @@ sysreg_handler64:
 
 	b.eq	1f	/* zero: do not change ELR_EL3 */
 	/* positive: advance the PC to continue after the instruction */
-	ldr	x1, [x19, #{CTX_EL3STATE_OFFSET} + {CTX_ELR_EL3}]
+	ldr	x1, [x28, #{CTX_EL3STATE_OFFSET} + {CTX_ELR_EL3}]
 	add	x1, x1, #4
-	str	x1, [x19, #{CTX_EL3STATE_OFFSET} + {CTX_ELR_EL3}]
+	str	x1, [x28, #{CTX_EL3STATE_OFFSET} + {CTX_ELR_EL3}]
 1:
+	mov	x0, x28
 	b	el3_exit
 2:
 	/*
@@ -361,6 +361,7 @@ sysreg_handler64:
 	tst	x0, #{SPSR_M_EXECUTION_STATE}
 	b.ne	elx_panic
 	bl	inject_undef64
+	mov	x0, x28
 	b	el3_exit
 
 smc_prohibited:
@@ -398,7 +399,7 @@ func handle_interrupt_exception
 	stp	x0, x1, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_SPSR_EL3}]
 
 	/* Switch to the runtime stack i.e. SP_EL0 */
-	ldr	x2, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP}]
+	ldr	x2, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP_LR}]
 	mov	x20, sp
 	msr	spsel, #{MODE_SP_EL0}
 	mov	sp, x2
@@ -416,6 +417,7 @@ func handle_interrupt_exception
 
 interrupt_exit:
 	/* Return from exception, possibly in a different security state */
+	mov	x0, x20
 	b	el3_exit
 endfunc handle_interrupt_exception
 

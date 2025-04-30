@@ -234,9 +234,7 @@ func bl31_entrypoint
         mov     x2, x22
         mov     x3, x23
 
-        bl  bl31_main
-
-        b   el3_exit
+        b       bl31_main
 endfunc bl31_entrypoint
 
 	/* --------------------------------------------------------------------

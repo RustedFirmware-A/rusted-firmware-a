@@ -8,13 +8,14 @@ pub mod psci;
 #[cfg(feature = "rme")]
 pub mod rmmd;
 
-#[cfg(feature = "rme")]
-use self::rmmd::Rmmd;
-use self::{arch::Arch, ffa::Ffa, psci::Psci};
 use crate::{
-    context::World,
+    context::{set_initial_world, switch_world, World},
+    exceptions::{enter_world, RunResult},
+    platform::{Platform, PlatformImpl},
     smccc::{FunctionId, SmcReturn, NOT_SUPPORTED},
 };
+use log::info;
+use spin::Once;
 
 /// Helper macro to define the range of SMC function ID values covered by a service
 #[macro_export]
@@ -22,7 +23,7 @@ macro_rules! owns {
     // service handles the entire Owning Entity Number (OEN)
     ($owning_entity:expr) => {
         #[inline(always)]
-        fn owns(function: $crate::smccc::FunctionId) -> bool {
+        fn owns(&self, function: $crate::smccc::FunctionId) -> bool {
             function.oen() == $owning_entity
                 && matches!(
                     function.call_type(),
@@ -34,7 +35,7 @@ macro_rules! owns {
     // range refers to the lower 16 bits [15:0] of the SMC FunctionId
     ($owning_entity:expr, $range:expr) => {
         #[inline(always)]
-        fn owns(function: $crate::smccc::FunctionId) -> bool {
+        fn owns(&self, function: $crate::smccc::FunctionId) -> bool {
             function.oen() == $owning_entity
                 && $range.contains(&function.number())
                 && matches!(
@@ -47,46 +48,177 @@ macro_rules! owns {
 pub(crate) use owns;
 
 /// A service which handles some range of SMC calls.
+///
+/// According to SMCCC v1.3+ the implementation must disregard the SVE hint bit in the function ID
+/// and consider it to be 0 for the purpose of function identification.
 pub trait Service {
     /// Returns whether this service is intended to handle the given function ID.
-    fn owns(function: FunctionId) -> bool;
+    fn owns(&self, function: FunctionId) -> bool;
 
-    /// Handles the given SMC call.
-    fn handle_smc(
-        function: FunctionId,
-        x1: u64,
-        x2: u64,
-        x3: u64,
-        x4: u64,
-        world: World,
-    ) -> SmcReturn;
+    /// Handles the given SMC call from Normal World.
+    fn handle_non_secure_smc(&self, _regs: &[u64; 18]) -> (SmcReturn, World) {
+        (NOT_SUPPORTED.into(), World::NonSecure)
+    }
+
+    /// Handles the given SMC call from Secure World.
+    fn handle_secure_smc(&self, _regs: &[u64; 18]) -> (SmcReturn, World) {
+        (NOT_SUPPORTED.into(), World::Secure)
+    }
+
+    /// Handles the given SMC call from Realm World.
+    #[cfg(feature = "rme")]
+    fn handle_realm_smc(&self, _regs: &[u64; 18]) -> (SmcReturn, World) {
+        (NOT_SUPPORTED.into(), World::Realm)
+    }
 }
 
-/// Calls the appropriate SMC handler based on the function ID, or returns `NOT_SUPPORTED` if there
-/// is no suitable handler.
-pub fn dispatch_smc(
-    mut function: FunctionId,
-    x1: u64,
-    x2: u64,
-    x3: u64,
-    x4: u64,
-    world: World,
-) -> SmcReturn {
-    function.clear_sve_hint();
+static SERVICES: Once<Services> = Once::new();
 
-    if !function.valid() {
-        NOT_SUPPORTED.into()
-    } else if Arch::owns(function) {
-        Arch::handle_smc(function, x1, x2, x3, x4, world)
-    } else if Psci::owns(function) {
-        Psci::handle_smc(function, x1, x2, x3, x4, world)
-    } else if Ffa::owns(function) {
-        Ffa::handle_smc(function, x1, x2, x3, x4, world)
-    } else {
-        #[cfg(feature = "rme")]
-        if Rmmd::owns(function) {
-            return Rmmd::handle_smc(function, x1, x2, x3, x4, world);
+/// Contains an instance of all of the currently implemented services.
+pub struct Services {
+    pub arch: arch::Arch,
+    pub ffa: ffa::Ffa,
+    pub psci: psci::Psci,
+    #[cfg(feature = "rme")]
+    pub rmmd: rmmd::Rmmd,
+}
+
+impl Services {
+    /// Returns a reference to the global Services instance.
+    ///
+    /// Also, initializes it if it hasn't been initialized yet.
+    pub fn get() -> &'static Self {
+        SERVICES.call_once(Services::new)
+    }
+
+    fn new() -> Self {
+        Self {
+            arch: arch::Arch::new(),
+            ffa: ffa::Ffa::new(),
+            psci: psci::Psci::new(PlatformImpl::psci_platform().unwrap()),
+            #[cfg(feature = "rme")]
+            rmmd: rmmd::Rmmd::new(),
         }
-        NOT_SUPPORTED.into()
+    }
+
+    fn handle_smc(&self, regs: &[u64; 18], world: World) -> (SmcReturn, World) {
+        let function = FunctionId(regs[0] as u32);
+
+        if !function.valid() {
+            return (NOT_SUPPORTED.into(), world);
+        }
+
+        let service: &dyn Service = if self.arch.owns(function) {
+            &self.arch
+        } else if self.psci.owns(function) {
+            &self.psci
+        } else if self.ffa.owns(function) {
+            &self.ffa
+        } else {
+            #[cfg(feature = "rme")]
+            if self.rmmd.owns(function) {
+                &self.rmmd
+            } else {
+                return (NOT_SUPPORTED.into(), world);
+            }
+
+            #[cfg(not(feature = "rme"))]
+            return (NOT_SUPPORTED.into(), world);
+        };
+
+        let (out_regs, next_world) = match world {
+            World::NonSecure => service.handle_non_secure_smc(regs),
+            World::Secure => service.handle_secure_smc(regs),
+            #[cfg(feature = "rme")]
+            World::Realm => service.handle_realm_smc(regs),
+        };
+
+        (out_regs, next_world)
+    }
+
+    fn per_world_loop(&self, mut regs: SmcReturn, world: World) -> (SmcReturn, World) {
+        let mut next_world;
+
+        loop {
+            (regs, next_world) = match enter_world(&regs, world) {
+                RunResult::Smc { regs } => self.handle_smc(&regs, world),
+                RunResult::Interrupt => panic!("Unhandled interrupt"), // TODO: handle interrupt
+                RunResult::SysregTrap => panic!("Unhandled sysreg trap"), //TODO: handle sysreg trap
+            };
+
+            if next_world != world {
+                break (regs, next_world);
+            }
+        }
+    }
+
+    /// The main runtime loop.
+    ///
+    /// This method is responsible for entering all worlds for the first time in the correct order.
+    /// After that, it will continuously process the results from a lower EL when it has returned to
+    /// EL3, switch to another world if necessary and enter a lower EL with the new arguments. The
+    /// initial entry to each world must happen with `SmcReturn::EMPTY` argument, in order to avoid
+    /// overwriting the contents of GP regs that have already been set by initialise_contexts() in
+    /// `bl31_main()`. This method doesn't return, it should be called on each core as the last step
+    /// of the boot process, i.e. after setting up MMU, GIC, etc.
+    pub fn run_loop(&self) -> ! {
+        let mut current_world = World::Secure;
+
+        info!("Booting Secure World");
+        set_initial_world(World::Secure);
+        // TODO: implement separate boot loop for Secure World
+        let (_, next_world) = self.per_world_loop(SmcReturn::EMPTY, World::Secure);
+        assert_eq!(next_world, World::NonSecure);
+
+        #[cfg(feature = "rme")]
+        {
+            info!("Booting Realm World");
+            switch_world(current_world, World::Realm);
+            current_world = World::Realm;
+            // TODO: implement separate boot loop for Realm World
+            let (_, next_world) = self.per_world_loop(SmcReturn::EMPTY, World::Realm);
+            assert_eq!(next_world, World::NonSecure);
+        }
+
+        let mut regs = SmcReturn::EMPTY;
+        let mut next_world = World::NonSecure;
+        info!("Booting Normal World");
+
+        loop {
+            switch_world(current_world, next_world);
+            current_world = next_world;
+            (regs, next_world) = self.per_world_loop(regs, current_world);
+            assert_ne!(current_world, next_world);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        services::arch::{SMCCC_VERSION, SMCCC_VERSION_1_5},
+        smccc::FunctionId,
+    };
+
+    /// Tests the SMCCC arch version call as a simple example of SMC dispatch.
+    ///
+    /// The point of this isn't to test every individual SMC call, just that the common code in
+    /// `handle_smc` works. Individual SMC calls can be tested directly within their modules.
+    #[test]
+    fn handle_smc_arch_version() {
+        let services = Services::new();
+        let mut regs = [0u64; 18];
+
+        let mut function = FunctionId(SMCCC_VERSION);
+
+        // Set the SVE hint bit to test if the handler will can treat this correctly.
+        function.set_sve_hint();
+        regs[0] = function.0.into();
+
+        let (result, new_world) = services.handle_smc(&regs, World::NonSecure);
+
+        assert_eq!(new_world, World::NonSecure);
+        assert_eq!(result.values(), [SMCCC_VERSION_1_5 as u64]);
     }
 }

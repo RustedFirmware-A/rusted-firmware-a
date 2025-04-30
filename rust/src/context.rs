@@ -30,11 +30,12 @@ use crate::sysregs::{
 };
 use crate::{
     debug::{DEBUG, ENABLE_ASSERTIONS},
+    exceptions::RunResult,
     platform::{exception_free, plat_calc_core_pos, Platform, PlatformImpl},
     smccc::{SmcReturn, NOT_SUPPORTED},
     sysregs::{
-        cptr_el3, pmcr, read_mpidr_el1, read_scr_el3, write_scr_el3, write_sp_el3, Esr, IccSre,
-        ScrEl3, Spsr, StackPointer,
+        cptr_el3, pmcr, read_mpidr_el1, read_scr_el3, write_scr_el3, Esr, IccSre, ScrEl3, Spsr,
+        StackPointer,
     },
 };
 use core::{
@@ -166,14 +167,16 @@ impl GpRegs {
 pub struct El3State {
     pub scr_el3: ScrEl3,
     esr_el3: Esr,
+    // The runtime_sp and runtime_lr fields must be adjacent, because assembly code uses ldp/stp
+    // instructions to load/store these together.
     runtime_sp: u64,
+    runtime_lr: u64,
     pub spsr_el3: Spsr,
     pub elr_el3: usize,
     pmcr_el0: u64,
     is_in_el3: u64,
     saved_elr_el3: u64,
     nested_ea_flag: u64,
-    _padding: u64,
 }
 
 impl El3State {
@@ -181,13 +184,13 @@ impl El3State {
         scr_el3: ScrEl3::empty(),
         esr_el3: Esr::empty(),
         runtime_sp: 0,
+        runtime_lr: 0,
         spsr_el3: Spsr::empty(),
         elr_el3: 0,
         pmcr_el0: 0,
         is_in_el3: 0,
         saved_elr_el3: 0,
         nested_ea_flag: 0,
-        _padding: 0,
     };
 }
 
@@ -516,31 +519,16 @@ static CPU_STATE: PerCore<
     [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; PlatformImpl::CORE_COUNT],
 );
 
-/// Sets SP_EL3 to a pointer to the given CpuContext, ready for exception return.
-///
-/// # Safety
-///
-/// The given context pointer must remain valid until a new next context is set.
-unsafe fn set_next_context(context: *mut CpuContext) {
-    // SAFETY: The caller guarantees that the context remains valid until it's replaced.
-    unsafe {
-        write_sp_el3(context as usize);
-    }
-}
-
-/// Selects the given world to run on the next exception return.
-///
-/// This works by setting `SP_EL3` to point to the appropriate `CpuContext` struct, so the
-/// exception return code will restore registers from it before the `eret`.
-fn set_next_world_context(world: World) {
-    // SAFETY: The CPU context is always valid, and will only be used via this pointer by assembly
-    // code after the Rust code returns to prepare for the eret, and after the next exception before
-    // entering the Rust code again.
-    unsafe { set_next_context(&raw mut (*CPU_STATE.get().as_ptr()).cpu_contexts[world.index()]) }
+/// Returns a raw pointer to the CPU context of the given world on the current core.
+pub fn world_context(world: World) -> *mut CpuContext {
+    // SAFETY: Getting the `CpuContext` pointer from a `CpuState` pointer requires the `CpuState`
+    // pointer to be valid. We know that this is always true, because we get it from
+    // `CPU_STATE.get().as_ptr()`.
+    unsafe { &raw mut (*CPU_STATE.get().as_ptr()).cpu_contexts[world.index()] }
 }
 
 /// Saves lower EL system registers from the current world, restores lower EL system registers of
-/// the given world, and sets the world to run on the next exception return.
+/// the given world.
 pub fn switch_world(old_world: World, new_world: World) {
     assert_ne!(old_world, new_world);
     exception_free(|token| {
@@ -548,11 +536,9 @@ pub fn switch_world(old_world: World, new_world: World) {
         cpu_state.context_mut(old_world).save_lower_el_sysregs();
         cpu_state.context(new_world).restore_lower_el_sysregs();
     });
-    set_next_world_context(new_world);
 }
 
-/// Restores lower EL system registers of the given world and then sets it as the world to run on
-/// the next exception return.
+/// Restores lower EL system registers of the given world.
 ///
 /// This doesn't save the current state of the lower EL system registers, so should only be used for
 /// initial boot where we don't care about their state.
@@ -566,7 +552,6 @@ pub fn set_initial_world(world: World) {
         write_scr_el3(context.el3_state.scr_el3);
         context.restore_lower_el_sysregs();
     });
-    set_next_world_context(world);
 }
 
 /// Returns a reference to the `CpuState` for the current CPU.
@@ -711,7 +696,7 @@ global_asm!(
     CTX_SCR_EL3 = const offset_of!(El3State, scr_el3),
     CTX_SPSR_EL3 = const offset_of!(El3State, spsr_el3),
     CTX_PERWORLD_EL3STATE_END = const size_of::<PerWorldContext>(),
-    CTX_RUNTIME_SP = const offset_of!(El3State, runtime_sp),
+    CTX_RUNTIME_SP_LR = const offset_of!(El3State, runtime_sp),
     CTX_CPTR_EL3 = const offset_of!(PerWorldContext, cptr_el3),
     CTX_ELR_EL3 = const offset_of!(El3State, elr_el3),
     CTX_SAVED_ELR_EL3 = const offset_of!(El3State, saved_elr_el3),
@@ -738,4 +723,5 @@ global_asm!(
     SPSR_M_EXECUTION_STATE = const Spsr::M_EXECUTION_STATE.bits(),
     INTR_TYPE_INVAL = const INTR_TYPE_INVAL,
     CPU_E_HANDLER_FUNC = const 0, // TODO
+    RUN_RESULT_SMC = const RunResult::SMC,
 );

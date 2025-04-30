@@ -47,23 +47,20 @@ pub struct Rmmd;
 impl Service for Rmmd {
     owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x01CF}
 
-    fn handle_smc(
-        function: FunctionId,
-        x1: u64,
-        _x2: u64,
-        _x3: u64,
-        _x4: u64,
-        world: World,
-    ) -> SmcReturn {
-        // Only handle SMCs originating from Realm world.
-        if world != World::Realm {
-            return NOT_SUPPORTED.into();
-        }
+    fn handle_realm_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+        let mut function = FunctionId(regs[0] as u32);
+        function.clear_sve_hint();
 
         match function.0 {
-            RMM_BOOT_COMPLETE => rmm_boot_complete(x1 as i32),
-            _ => NOT_SUPPORTED.into(),
+            RMM_BOOT_COMPLETE => (rmm_boot_complete(regs[1] as i32), World::NonSecure),
+            _ => (NOT_SUPPORTED.into(), World::Realm),
         }
+    }
+}
+
+impl Rmmd {
+    pub(super) fn new() -> Self {
+        Self
     }
 }
 

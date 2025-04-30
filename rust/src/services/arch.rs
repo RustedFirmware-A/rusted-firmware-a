@@ -33,23 +33,37 @@ pub struct Arch;
 impl Service for Arch {
     owns!(OwningEntityNumber::ARM_ARCHITECTURE);
 
-    fn handle_smc(
-        function: FunctionId,
-        x1: u64,
-        _x2: u64,
-        _x3: u64,
-        _x4: u64,
-        _world: World,
-    ) -> SmcReturn {
-        #[allow(clippy::unit_arg)]
+    fn handle_non_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+        (Self::handle_common_smc(regs), World::NonSecure)
+    }
+
+    fn handle_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+        (Self::handle_common_smc(regs), World::Secure)
+    }
+
+    #[cfg(feature = "rme")]
+    fn handle_realm_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+        (Self::handle_common_smc(regs), World::Realm)
+    }
+}
+
+impl Arch {
+    pub(super) fn new() -> Self {
+        Self
+    }
+
+    fn handle_common_smc(regs: &[u64; 18]) -> SmcReturn {
+        let mut function = FunctionId(regs[0] as u32);
+        function.clear_sve_hint();
+
         match function.0 {
             SMCCC_VERSION => version().into(),
-            SMCCC_ARCH_FEATURES => arch_features(x1 as u32).into(),
+            SMCCC_ARCH_FEATURES => arch_features(regs[1] as u32).into(),
             SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => {
-                arch_soc_id(x1 as u32, function.call_type())
+                arch_soc_id(regs[1] as u32, function.call_type())
             }
             SMCCC_ARCH_WORKAROUND_1 => arch_workaround_1().into(),
-            SMCCC_ARCH_WORKAROUND_2 => arch_workaround_2(x1 as u32).into(),
+            SMCCC_ARCH_WORKAROUND_2 => arch_workaround_2(regs[1] as u32).into(),
             SMCCC_ARCH_WORKAROUND_3 => arch_workaround_3().into(),
             _ => NOT_SUPPORTED.into(),
         }

@@ -14,12 +14,12 @@ set -o pipefail
 shopt -s extdebug
 
 vet=$(cargo --list | awk '$1 == "vet" { print $1 }')
-if "$vet" != "vet"; then
+if [[ "$vet" != "vet" ]]; then
     cargo install cargo-vet
 fi
 
 clippy=$(cargo --list | awk '$1 == "clippy" { print $1 }')
-if "$clippy" != "clippy"; then
+if [[ "$clippy" != "clippy" ]]; then
     rustup component add clippy-preview
 fi
 
@@ -33,9 +33,13 @@ must() {
 must cargo test
 must make clippy-test
 
+# NOTE: If we add even a few more supported configurations, we're going to want a permutation
+# function to generate them all.
 for platform in qemu fvp; do
     for debug in 1 0; do
-        must make DEBUG="$debug" PLAT="$platform" build
+        for features in "" "sel2" "rme" "sel2 rme"; do
+            must make DEBUG="$debug" PLAT="$platform" FEATURES="\"$features\"" build
+        done
     done
     must make PLAT="$platform" clippy
 done

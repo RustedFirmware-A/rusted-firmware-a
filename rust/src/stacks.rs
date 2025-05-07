@@ -54,6 +54,7 @@ global_asm!(
     ".align TZ_COUNT",
     "platform_normal_stacks:",
     ".space (({PLATFORM_CORE_COUNT}) * ({STACK_SIZE})), 0",
+    include_str!("asm_macros_common_purge.S"),
 
     STACK_SIZE = const STACK_SIZE,
     PLATFORM_CORE_COUNT = const PlatformImpl::CORE_COUNT,

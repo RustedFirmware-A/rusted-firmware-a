@@ -5,6 +5,10 @@
  */
 
 /*
+ * This file defines macros that must be purged in asm_macros_common_purge.S.
+ */
+
+/*
  * This macro is used to create a function label and place the
  * code into a separate text section based on the function name
  * to enable elimination of unused code during linking. It also adds

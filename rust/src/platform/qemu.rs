@@ -262,6 +262,7 @@ global_asm!(
         "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
         "ret",
     "endfunc plat_calc_core_pos",
+    include_str!("../asm_macros_common_purge.S"),
     MPIDR_CPU_MASK = const mpidr::CPU_MASK,
     MPIDR_CLUSTER_MASK = const mpidr::CLUSTER_MASK,
     MPIDR_AFFINITY_BITS = const mpidr::AFFINITY_BITS,

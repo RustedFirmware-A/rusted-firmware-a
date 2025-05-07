@@ -308,6 +308,7 @@ global_asm!(
         "madd	x0, x1, x5, x0",
         "ret",
     "endfunc plat_calc_core_pos",
+    include_str!("../asm_macros_common_purge.S"),
     MPIDR_MT_MASK = const mpidr::MT_MASK,
     MPIDR_AFF0_SHIFT = const mpidr::AFF0_SHIFT,
     MPIDR_AFF1_SHIFT = const mpidr::AFF1_SHIFT,

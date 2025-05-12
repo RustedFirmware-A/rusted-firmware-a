@@ -12,3 +12,4 @@
 
 .purgem func
 .purgem endfunc
+.purgem no_ret

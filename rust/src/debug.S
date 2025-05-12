@@ -1,12 +1,8 @@
 /*
- * Copyright (c) 2014-2023 Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2014-2025 Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-
-#include <arch.h>
-#include <asm_macros.S>
-#include <common/debug.h>
 
 	.globl	asm_print_str
 	.globl	asm_print_hex
@@ -17,11 +13,11 @@
 	.globl	elx_panic
 
 /* Since the max decimal input number is 65536 */
-#define MAX_DEC_DIVISOR		10000
-/* The offset to add to get ascii for numerals '0 - 9' */
-#define ASCII_OFFSET_NUM	0x30
+.set MAX_DEC_DIVISOR, 10000
+/* The offset to add to get ASCII for numerals '0' – '9' */
+.set ASCII_OFFSET_NUM, 0x30
 
-#if ENABLE_ASSERTIONS
+.if {ENABLE_ASSERTIONS}
 .section .rodata.assert_str, "aS"
 assert_msg1:
 	.asciz "ASSERT: File "
@@ -58,7 +54,7 @@ dec_print_loop:
  * ---------------------------------------------------------------------------
  */
 func asm_assert
-#if LOG_LEVEL >= LOG_LEVEL_INFO
+.if {LOG_LEVEL} >= {LOG_LEVEL_INFO}
 	/*
 	 * Only print the output if LOG_LEVEL is higher or equal to
 	 * LOG_LEVEL_INFO, which is the default value for builds with DEBUG=1.
@@ -87,10 +83,10 @@ func asm_assert
 	asm_print_line_dec
 	bl	plat_crash_console_flush
 _assert_loop:
-#endif /* LOG_LEVEL >= LOG_LEVEL_INFO */
+.endif /* LOG_LEVEL >= LOG_LEVEL_INFO */
 	no_ret	plat_panic_handler
 endfunc asm_assert
-#endif /* ENABLE_ASSERTIONS */
+.endif /* ENABLE_ASSERTIONS */
 
 /*
  * This function prints a string from address in x4.

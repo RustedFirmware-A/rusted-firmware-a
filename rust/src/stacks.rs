@@ -3,7 +3,10 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::platform::{Platform, PlatformImpl};
+use crate::{
+    debug::DEBUG,
+    platform::{Platform, PlatformImpl},
+};
 use core::arch::global_asm;
 
 /// The number of bytes of stack space to reserve for each core.
@@ -56,6 +59,7 @@ global_asm!(
     ".space (({PLATFORM_CORE_COUNT}) * ({STACK_SIZE})), 0",
     include_str!("asm_macros_common_purge.S"),
 
+    DEBUG = const DEBUG as i32,
     STACK_SIZE = const STACK_SIZE,
     PLATFORM_CORE_COUNT = const PlatformImpl::CORE_COUNT,
     CACHE_WRITEBACK_GRANULE = const PlatformImpl::CACHE_WRITEBACK_GRANULE,

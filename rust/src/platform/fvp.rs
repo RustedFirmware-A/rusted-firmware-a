@@ -7,6 +7,7 @@ include!("../../platforms/fvp/config.rs");
 use super::Platform;
 use crate::{
     context::{CoresImpl, EntryPointInfo},
+    debug::DEBUG,
     gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::{
@@ -309,6 +310,7 @@ global_asm!(
         "ret",
     "endfunc plat_calc_core_pos",
     include_str!("../asm_macros_common_purge.S"),
+    DEBUG = const DEBUG as i32,
     MPIDR_MT_MASK = const mpidr::MT_MASK,
     MPIDR_AFF0_SHIFT = const mpidr::AFF0_SHIFT,
     MPIDR_AFF1_SHIFT = const mpidr::AFF1_SHIFT,

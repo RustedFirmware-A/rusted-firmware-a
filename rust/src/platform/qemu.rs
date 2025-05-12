@@ -6,6 +6,7 @@ use super::Platform;
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, EntryPointInfo},
+    debug::DEBUG,
     gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
@@ -263,6 +264,7 @@ global_asm!(
         "ret",
     "endfunc plat_calc_core_pos",
     include_str!("../asm_macros_common_purge.S"),
+    DEBUG = const DEBUG as i32,
     MPIDR_CPU_MASK = const mpidr::CPU_MASK,
     MPIDR_CLUSTER_MASK = const mpidr::CLUSTER_MASK,
     MPIDR_AFFINITY_BITS = const mpidr::AFFINITY_BITS,

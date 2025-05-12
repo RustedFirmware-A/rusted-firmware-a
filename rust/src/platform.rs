@@ -23,6 +23,7 @@ pub use test::{exception_free, TestPlatform as PlatformImpl};
 
 use crate::{
     context::EntryPointInfo,
+    debug::DEBUG,
     gicv3,
     pagetable::IdMap,
     services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
@@ -127,4 +128,5 @@ global_asm!(
     include_str!("asm_macros_common.S"),
     include_str!("platform_helpers.S"),
     include_str!("asm_macros_common_purge.S"),
+    DEBUG = const DEBUG as i32,
 );

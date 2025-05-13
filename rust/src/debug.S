@@ -19,10 +19,8 @@
 
 .if {ENABLE_ASSERTIONS}
 .section .rodata.assert_str, "aS"
-assert_msg1:
-	.asciz "ASSERT: File "
-assert_msg2:
-	.asciz " Line "
+assert_msg:
+	.asciz "ASSERT: "
 
 	/*
 	 * This macro is intended to be used to print the
@@ -48,9 +46,8 @@ dec_print_loop:
  * Assertion support in assembly.
  * The below function helps to support assertions in assembly where we do not
  * have a C runtime stack. Arguments to the function are :
- * x0 - File name
- * x1 - Line no
- * Clobber list : x30, x0, x1, x2, x3, x4, x5, x6.
+ * x0 - Message
+ * Clobber list : x30, x0, x1, x2, x3, x4, x5.
  * ---------------------------------------------------------------------------
  */
 func asm_assert
@@ -60,7 +57,6 @@ func asm_assert
 	 * LOG_LEVEL_INFO, which is the default value for builds with DEBUG=1.
 	 */
 	mov	x5, x0
-	mov	x6, x1
 
 	/* Ensure the console is initialized */
 	bl	plat_crash_console_init
@@ -69,18 +65,11 @@ func asm_assert
 	cbz	x0, _assert_loop
 
 	/* The console is initialized */
-	adr	x4, assert_msg1
+	adr	x4, assert_msg
 	bl	asm_print_str
 	mov	x4, x5
 	bl	asm_print_str
-	adr	x4, assert_msg2
-	bl	asm_print_str
 
-	/* Check if line number higher than max permitted */
-	tst	x6, #~0xffff
-	b.ne	_assert_loop
-	mov	x4, x6
-	asm_print_line_dec
 	bl	plat_crash_console_flush
 _assert_loop:
 .endif /* LOG_LEVEL >= LOG_LEVEL_INFO */

@@ -13,3 +13,8 @@
 .purgem func
 .purgem endfunc
 .purgem no_ret
+.purgem synchronize_errors
+.purgem exception_return
+.purgem _mov_imm16
+.purgem mov_imm
+.purgem ASM_ASSERT

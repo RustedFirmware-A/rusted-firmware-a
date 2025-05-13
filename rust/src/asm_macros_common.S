@@ -70,3 +70,89 @@
 		nop
 	.endif
 .endm
+
+	/*
+	 * Helper macro to generate the best mov/movk combinations according
+	 * the value to be moved. The 16 bits from '_shift' are tested and
+	 * if not zero, they are moved into '_reg' without affecting
+	 * other bits.
+	 */
+	.macro _mov_imm16 _reg, _val, _shift
+		.if (\_val >> \_shift) & 0xffff
+			.if (\_val & (1 << \_shift - 1))
+				movk	\_reg, (\_val >> \_shift) & 0xffff, LSL \_shift
+			.else
+				mov	\_reg, \_val & (0xffff << \_shift)
+			.endif
+		.endif
+	.endm
+
+	/*
+	 * Helper macro to load arbitrary values into 32 or 64-bit registers
+	 * which generates the best mov/movk combinations. Many base addresses
+	 * are 64KB aligned the macro will eliminate updating bits 15:0 in
+	 * that case
+	 */
+	.macro mov_imm _reg, _val
+		.if (\_val) == 0
+			mov	\_reg, #0
+		.else
+			_mov_imm16	\_reg, (\_val), 0
+			_mov_imm16	\_reg, (\_val), 16
+			_mov_imm16	\_reg, (\_val), 32
+			_mov_imm16	\_reg, (\_val), 48
+		.endif
+	.endm
+
+/* TODO: Set this to 1. As of Arm v8.5, it is mandatory. */
+.set ENABLE_FEAT_SB, 0
+
+	/*
+	 * Macro for mitigating against speculative execution beyond ERET. Uses the
+	 * speculation barrier instruction introduced by FEAT_SB, if it's enabled.
+	 */
+	.macro exception_return
+	eret
+.if ENABLE_FEAT_SB
+	sb_barrier_insn
+.else
+	dsb	nsh
+	isb
+.endif
+	.endm
+
+/* TODO: Set this to 1. As of Arm v8.2, it is mandatory. */
+.set ENABLE_FEAT_RAS, 0
+
+	/* Macro for error synchronization on exception boundries.
+	 * With FEAT_RAS enabled, it is assumed that FEAT_IESB is also present
+	 * and enabled.
+	 * FEAT_IESB provides an implicit error synchronization event at exception
+	 * entry and exception return, so there is no need for any explicit instruction.
+	 */
+	.macro synchronize_errors
+.if !ENABLE_FEAT_RAS
+	/* Complete any stores that may return an abort */
+	dsb	sy
+	/* Synchronise the CPU context with the completion of the dsb */
+	isb
+.endif
+	.endm
+
+	/*
+	 * Assembler macro to enable asm_assert. Use this macro wherever
+	 * assert is required in assembly. Please note that the macro makes
+	 * use of label '300' to provide the logic and the caller
+	 * should make sure that this label is not used to branch prior
+	 * to calling this macro.
+	 */
+.macro ASM_ASSERT _cc:req, message:req, message_name=assert_message
+	.pushsection .rodata.str1.1, "aS"
+	.L_\message_name:
+			.string	"\message"
+	.popsection
+	b.\_cc	300f
+	adr	x0, .L_\message_name
+	b	asm_assert
+300:
+.endm

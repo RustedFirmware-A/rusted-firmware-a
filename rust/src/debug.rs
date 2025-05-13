@@ -9,6 +9,9 @@ use log::LevelFilter;
 /// True if the build is configured with debug assertions on.
 pub const DEBUG: bool = cfg!(debug_assertions);
 
+// TODO: Make this equal to `DEBUG` once we stop building assembly files from build.rs with a different value.
+pub const ENABLE_ASSERTIONS: bool = true;
+
 #[cfg(target_arch = "aarch64")]
 global_asm!(
     include_str!("asm_macros_common.S"),
@@ -17,7 +20,5 @@ global_asm!(
     DEBUG = const DEBUG as i32,
     LOG_LEVEL_INFO = const LevelFilter::Info as u32,
     LOG_LEVEL = const build_time_log_level() as u32,
-    // TODO: We'll put this back to being `DEBUG as u32` in a subsequent change after the change to
-    // move context.S into Rust merges.
-    ENABLE_ASSERTIONS = const 1_u32,
+    ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
 );

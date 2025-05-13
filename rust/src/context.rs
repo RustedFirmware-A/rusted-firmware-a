@@ -29,14 +29,18 @@ use crate::sysregs::{
     write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, HcrEl2,
 };
 use crate::{
+    debug::{DEBUG, ENABLE_ASSERTIONS},
     platform::{exception_free, plat_calc_core_pos, Platform, PlatformImpl},
     smccc::SmcReturn,
     sysregs::{
-        read_mpidr_el1, read_scr_el3, write_scr_el3, write_sp_el3, Esr, IccSre, ScrEl3, Spsr,
+        cptr_el3, pmcr, read_mpidr_el1, read_scr_el3, write_scr_el3, write_sp_el3, Esr, IccSre,
+        ScrEl3, Spsr, StackPointer,
     },
 };
 use core::{
+    arch::global_asm,
     cell::{RefCell, RefMut},
+    mem::{offset_of, size_of},
     ptr::null_mut,
 };
 use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
@@ -45,6 +49,9 @@ use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
 const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
 
 const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
+
+// TODO: Let this be controlled by the platform or a cargo feature.
+const ERRATA_SPECULATIVE_AT: bool = false;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -656,3 +663,65 @@ pub struct EntryPointInfo {
     /// Boot arguments to pass in `x0`-`x7`.
     pub args: [u64; 8],
 }
+
+const WORD_SIZE: usize = size_of::<usize>();
+
+#[cfg(not(feature = "sel2"))]
+const CTX_EL1_SYSREGS_OFFSET: usize = offset_of!(CpuContext, el1_sysregs);
+#[cfg(not(feature = "sel2"))]
+const CTX_SCTLR_EL1: usize = offset_of!(El1Sysregs, sctlr_el1);
+
+// These are not actually used because we don't support ERRATA_SPECULATIVE_AT and S-EL2 together,
+// but we still need to define some values to substitute into context.S.
+#[cfg(feature = "sel2")]
+const CTX_EL1_SYSREGS_OFFSET: usize = 0;
+#[cfg(feature = "sel2")]
+const CTX_SCTLR_EL1: usize = 0;
+
+// ERRATA_SPECULATIVE_AT requires El1Sysregs.
+#[cfg(feature = "sel2")]
+const _: () = assert!(!ERRATA_SPECULATIVE_AT);
+
+#[cfg(target_arch = "aarch64")]
+global_asm!(
+    include_str!("asm_macros_common.S"),
+    include_str!("context.S"),
+    include_str!("asm_macros_common_purge.S"),
+    ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
+    DEBUG = const DEBUG as u32,
+    ERRATA_SPECULATIVE_AT = const ERRATA_SPECULATIVE_AT as u32,
+    SCR_EA_BIT = const ScrEl3::EA.bits(),
+    PMCR_EL0_DP_BIT = const pmcr::DP,
+    MODE_SP_EL0 = const StackPointer::El0 as u8,
+    MODE_SP_ELX = const StackPointer::ElX as u8,
+    CPTR_EZ_BIT = const cptr_el3::EZ,
+    SCR_NSE_SHIFT = const 62,
+    CTX_NESTED_EA_FLAG = const offset_of!(El3State, nested_ea_flag),
+    CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),
+    CTX_EL3STATE_OFFSET = const offset_of!(CpuContext, el3_state),
+    CTX_EL1_SYSREGS_OFFSET = const CTX_EL1_SYSREGS_OFFSET,
+    CTX_SCTLR_EL1 = const CTX_SCTLR_EL1,
+    CTX_PMCR_EL0 = const offset_of!(El3State, pmcr_el0),
+    CTX_SCR_EL3 = const offset_of!(El3State, scr_el3),
+    CTX_SPSR_EL3 = const offset_of!(El3State, spsr_el3),
+    CTX_PERWORLD_EL3STATE_END = const size_of::<PerWorldContext>(),
+    CTX_RUNTIME_SP = const offset_of!(El3State, runtime_sp),
+    CTX_CPTR_EL3 = const offset_of!(PerWorldContext, cptr_el3),
+    CTX_GPREG_X0 = const 0,
+    CTX_GPREG_X2 = const 2 * WORD_SIZE,
+    CTX_GPREG_X4 = const 4 * WORD_SIZE,
+    CTX_GPREG_X6 = const 6 * WORD_SIZE,
+    CTX_GPREG_X8 = const 8 * WORD_SIZE,
+    CTX_GPREG_X10 = const 10 * WORD_SIZE,
+    CTX_GPREG_X12 = const 12 * WORD_SIZE,
+    CTX_GPREG_X14 = const 14 * WORD_SIZE,
+    CTX_GPREG_X16 = const 16 * WORD_SIZE,
+    CTX_GPREG_X18 = const 18 * WORD_SIZE,
+    CTX_GPREG_X20 = const 20 * WORD_SIZE,
+    CTX_GPREG_X22 = const 22 * WORD_SIZE,
+    CTX_GPREG_X24 = const 24 * WORD_SIZE,
+    CTX_GPREG_X26 = const 26 * WORD_SIZE,
+    CTX_GPREG_X28 = const 28 * WORD_SIZE,
+    CTX_GPREG_LR = const 30 * WORD_SIZE,
+    CTX_GPREG_SP_EL0 = const 31 * WORD_SIZE,
+);

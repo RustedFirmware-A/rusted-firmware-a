@@ -16,6 +16,18 @@ use bitflags::bitflags;
 #[cfg(not(test))]
 use core::arch::asm;
 
+/// Constants for PMCR_EL0 fields.
+pub mod pmcr {
+    /// Disable cycle counter when event counting is prohibited.
+    pub const DP: u64 = 1 << 5;
+}
+
+/// Constants for CPTR_EL3 fields.
+pub mod cptr_el3 {
+    /// Do not trap SVE instructions.
+    pub const EZ: u64 = 1 << 8;
+}
+
 /// Implements a similar interface to `bitflags` on some newtype.
 macro_rules! bitflagslike {
     ($typename:ty: $inner:ty) => {
@@ -340,10 +352,12 @@ pub unsafe fn write_sp_el3(value: usize) {
     // SAFETY: The caller guarantees that the value is a valid `sp_el3`.
     unsafe {
         asm!(
-            "msr spsel, #1",
+            "msr spsel, #{SP_ELX}",
             "mov sp, {value}",
-            "msr spsel, #0",
+            "msr spsel, #{SP_EL0}",
             value = in(reg) value,
+            SP_EL0 = const StackPointer::El0 as u8,
+            SP_ELX = const StackPointer::ElX as u8,
         )
     }
 }
@@ -404,7 +418,9 @@ pub enum ExceptionLevel {
     El3 = 3,
 }
 
+/// Values for SPSEL.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[repr(u8)]
 pub enum StackPointer {
     El0 = 0,
     ElX = 1,

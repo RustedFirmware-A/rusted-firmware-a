@@ -30,7 +30,6 @@ use arm_gic::{
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 use core::{arch::global_asm, ptr::NonNull};
-use log::LevelFilter;
 use percore::Cores;
 
 /// Base address of GICv3 distributor.
@@ -93,14 +92,13 @@ impl Platform for Fvp {
         interrupts_config: &[],
     };
 
-    fn init_beforemmu() {
+    fn init_before_mmu() {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
         // accesses that address range. The address remains valid after turning on the MMU
         // because of the identity mapping of the `V2M_MAP_IOFPGA` region.
         let uart_pointer =
             unsafe { UniqueMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
-        logger::init(Uart::new(uart_pointer), LevelFilter::Trace)
-            .expect("Failed to initialise logger");
+        logger::init(Uart::new(uart_pointer)).expect("Failed to initialise logger");
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {

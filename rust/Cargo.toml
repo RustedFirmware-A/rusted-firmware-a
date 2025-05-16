@@ -24,7 +24,7 @@ aarch64-paging = { version = "0.8.0", features = [], default-features = false }
 arrayvec = { version = "0.7.6", default-features = false }
 arm-psci = "0.1.1"
 bitflags = "2.3.2"
-log = "0.4.19"
+log = "0.4.27"
 percore = "0.1.0"
 arm-pl011-uart = { version = "0.3", default-features = false }
 spin = { version = "0.9.8", default-features = false, features = [

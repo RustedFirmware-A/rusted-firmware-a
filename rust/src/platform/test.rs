@@ -21,7 +21,6 @@ use aarch64_paging::paging::MemoryRegion;
 use arm_gic::gicv3::GicV3;
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use core::fmt;
-use log::LevelFilter;
 use percore::ExceptionFree;
 use std::io::{stdout, Write};
 
@@ -51,9 +50,8 @@ impl Platform for TestPlatform {
         interrupts_config: &[],
     };
 
-    fn init_beforemmu() {
-        logger::init(DummyLoggerWriter {}, LevelFilter::Trace)
-            .expect("Failed to initialise logger");
+    fn init_before_mmu() {
+        logger::init(DummyLoggerWriter {}).expect("Failed to initialise logger");
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {

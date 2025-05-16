@@ -71,7 +71,7 @@ pub trait Platform {
     /// MMU is enabled.
     ///
     /// Any logs sent before this is called will be ignored.
-    fn init_beforemmu();
+    fn init_before_mmu();
 
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.

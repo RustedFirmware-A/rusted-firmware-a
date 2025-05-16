@@ -3,10 +3,10 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::platform::LoggerWriter;
+use crate::{debug::DEBUG, platform::LoggerWriter};
 use core::fmt::Write;
 #[cfg(not(test))]
-use core::panic::PanicInfo;
+use core::{option_env, panic::PanicInfo};
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
 use spin::{mutex::SpinMutex, Once};
 
@@ -29,12 +29,12 @@ impl Log for Logger {
 }
 
 /// Initialises logger.
-pub fn init(writer: LoggerWriter, max_level: LevelFilter) -> Result<(), SetLoggerError> {
+pub fn init(writer: LoggerWriter) -> Result<(), SetLoggerError> {
     let logger = LOGGER.call_once(|| Logger {
         writer: SpinMutex::new(writer),
     });
     log::set_logger(logger)?;
-    log::set_max_level(max_level);
+    log::set_max_level(build_time_log_level());
     Ok(())
 }
 
@@ -46,4 +46,31 @@ fn panic(info: &PanicInfo) -> ! {
         let _ = writeln!(logger.writer.lock(), "{}", info);
     }
     loop {}
+}
+
+/// Returns the logging [`LevelFilter`] set by the build-time environment variable `LOG_LEVEL`.
+/// `LOG_LEVEL` can have the lower-case string values "off", "error", "warn", "info", "debug", or
+/// "trace", corresponding to the named values of [`LevelFilter`]. If `LOG_LEVEL` is absent or has
+/// some other value, this function returns `LevelFilter::Trace` if [`DEBUG`] is true, otherwise
+/// `LevelFilter::Info`.
+pub const fn build_time_log_level() -> LevelFilter {
+    let level = match option_env!("LOG_LEVEL") {
+        Some(level) => level,
+        None => "",
+    };
+    match level.as_bytes() {
+        b"off" => LevelFilter::Off,
+        b"error" => LevelFilter::Error,
+        b"warn" => LevelFilter::Warn,
+        b"info" => LevelFilter::Info,
+        b"debug" => LevelFilter::Debug,
+        b"trace" => LevelFilter::Trace,
+        _ => {
+            if DEBUG {
+                LevelFilter::Trace
+            } else {
+                LevelFilter::Info
+            }
+        }
+    }
 }

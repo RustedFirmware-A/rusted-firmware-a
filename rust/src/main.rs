@@ -33,7 +33,7 @@ use services::psci::Psci;
 
 #[unsafe(no_mangle)]
 extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) {
-    PlatformImpl::init_beforemmu();
+    PlatformImpl::init_before_mmu();
     info!("Rust BL31 starting");
     info!("Parameters: {:#0x} {:#0x}", bl31_params, platform_params);
 

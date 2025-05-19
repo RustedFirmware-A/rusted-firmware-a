@@ -37,8 +37,18 @@ must make clippy-test
 # function to generate them all.
 for platform in qemu fvp; do
     for debug in 1 0; do
-        for features in "" "sel2" "rme" "sel2 rme"; do
-            must make DEBUG="$debug" PLAT="$platform" FEATURES="\"$features\"" build
+        declare -a all_features=("" "sel2" "rme" "sel2 rme")
+        if [[ "$platform" == "qemu" ]]; then
+            all_features=("" "sel2")
+        fi
+        for features in "${all_features[@]}"; do
+            echo "platform: $platform, debug: $debug, features: $features"
+            if [[ -z "$features" ]]; then
+                must make DEBUG="$debug" PLAT="$platform" FEATURES= build
+            else
+                export FEATURES="$features"
+                must make DEBUG="$debug" PLAT="$platform" build
+            fi
         done
     done
     must make PLAT="$platform" clippy

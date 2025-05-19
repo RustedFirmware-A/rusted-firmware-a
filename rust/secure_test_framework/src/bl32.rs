@@ -7,6 +7,7 @@
 #![no_main]
 #![no_std]
 
+mod exceptions;
 mod expect;
 mod ffa;
 mod logger;
@@ -15,8 +16,8 @@ mod secure_tests;
 mod util;
 
 use crate::{
-    ffa::direct_response,
-    ffa::msg_wait,
+    exceptions::set_exception_vector,
+    ffa::{direct_response, msg_wait},
     platform::{Platform, PlatformImpl},
     secure_tests::run_test,
     util::{current_el, NORMAL_WORLD_ID, SECURE_WORLD_ID, TEST_FAILURE, TEST_PANIC, TEST_SUCCESS},
@@ -36,6 +37,8 @@ entry!(bl32_main, 4);
 fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     let log_sink = PlatformImpl::make_log_sink();
     logger::init(log_sink, LevelFilter::Trace).unwrap();
+
+    set_exception_vector();
 
     info!(
         "Rust BL32 starting at EL {} with args {:#x}, {:#x}, {:#x}, {:#x}",

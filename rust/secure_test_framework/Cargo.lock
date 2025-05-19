@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "aarch64-rt"
-version = "0.1.1"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32e14111f042299afd1960bf338ece94e69322015881f682693c8f55455514f9"
+checksum = "3be4edaff3b5ead5fb7e9ef0d72fa1e93b4052ec2410e0ebc93f6f360c9599ea"
 dependencies = [
  "cfg-if",
 ]

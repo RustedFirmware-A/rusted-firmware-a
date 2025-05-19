@@ -7,6 +7,7 @@
 #![no_main]
 #![no_std]
 
+mod exceptions;
 mod expect;
 mod ffa;
 mod logger;
@@ -15,6 +16,7 @@ mod platform;
 mod util;
 
 use crate::{
+    exceptions::set_exception_vector,
     ffa::direct_request,
     normal_world_tests::{run_test, NORMAL_TEST_COUNT},
     platform::{Platform, PlatformImpl},
@@ -39,6 +41,8 @@ entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     let log_sink = PlatformImpl::make_log_sink();
     logger::init(log_sink, LevelFilter::Trace).unwrap();
+
+    set_exception_vector();
 
     info!(
         "Rust BL33 starting at EL {} with args {:#x}, {:#x}, {:#x}, {:#x}",

@@ -384,7 +384,7 @@ bitflags! {
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     pub struct SctlrEl1: u64 {
         /// RES1 bits in the `sctlr_el1` register.
-        const RES1 = 1 << 29 | 1 << 28 | 1 << 23 | 1 << 22 | 1 << 20 | 1 << 11;
+        const RES1 = (1 << 29) | (1 << 28) | (1 << 23) | (1 << 22) | (1 << 20) | (1 << 11);
     }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -397,7 +397,7 @@ bitflags! {
         /// can force all memory regions that are writable to be treated as XN.
         const WXN = 1 << 19;
         /// RES1 bits in the `sctlr_el3` register.
-        const RES1 = 1 << 23 | 1 << 18;
+        const RES1 = (1 << 23) | (1 << 18);
     }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]

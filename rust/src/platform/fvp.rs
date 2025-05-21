@@ -155,7 +155,7 @@ impl Platform for Fvp {
     fn realm_entry_point() -> EntryPointInfo {
         let core_linear_id = CoresImpl::core_index() as u64;
         EntryPointInfo {
-            pc: 0xfdc00000,
+            pc: 0xfdc0_0000,
             spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
             args: [
                 core_linear_id,

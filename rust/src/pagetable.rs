@@ -172,7 +172,7 @@ pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attribut
 }
 
 fn setup_mmu_cfg(root_address: PhysicalAddress) {
-    let tcr = 0b101 << 16 // 48 bit physical address size (256 TiB).
+    let tcr = (0b101 << 16) // 48 bit physical address size (256 TiB).
         | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
     let ttbr0 = root_address.0;
 

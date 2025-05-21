@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+# Copyright (c) 2025, Google LLC. All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Checks out each commit, builds it in release mode, and tells you how big it is. You can use this
+# to pinpoint commits that made RF-A notably larger.
+
+set -o errexit
+set -o errtrace
+set -o nounset
+set -o pipefail
+shopt -s extdebug
+trap 'cleanup $?' ABRT ERR PIPE TERM EXIT
+
+rm -f err || true
+
+PLAT=${PLAT:-qemu}
+
+die() {
+    x=$?
+    echo "$1" > /dev/stderr
+    exit "$x"
+}
+
+cleanup() {
+    git checkout origin/tfa-next > /dev/null 2>> err || die "couldn't check out origin/tfa-next"
+}
+
+cleanup
+
+for commit in $(git log --pretty=format:"%h"); do
+    git checkout "$commit" > /dev/null 2>> err || die "couldn't check out $commit"
+    make PLAT="$PLAT" DEBUG=0 build > err 2>> err || die "couldn't build $commit"
+    size=$(stat --format="%s" target/aarch64-unknown-none-softfloat/release/rf-a-bl31 || die "unexpected object file")
+    printf "%10d\\t$commit\n" "$size"
+done
+
+cleanup

@@ -82,7 +82,7 @@ impl Platform for TestPlatform {
     fn realm_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x2000_0000,
-            spsr: 0x3c9,
+            spsr: Spsr::M_AARCH64_EL2H,
             args: Default::default(),
         }
     }

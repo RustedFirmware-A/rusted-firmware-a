@@ -634,6 +634,8 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
     context.el3_state.scr_el3 |= ScrEl3::NS;
+    // Route secure interrupts to EL3
+    context.el3_state.scr_el3 |= ScrEl3::FIQ;
     // TODO: FIQ and IRQ routing model.
 }
 
@@ -729,8 +731,8 @@ global_asm!(
     CTX_GPREG_SP_EL0 = const 31 * WORD_SIZE,
     ISR_A_SHIFT = const 8,
     SMC_UNK = const NOT_SUPPORTED,
-    INTR_TYPE_INVAL = const INTR_TYPE_INVAL,
     CPU_E_HANDLER_FUNC = const 0, // TODO
     RUN_RESULT_SMC = const RunResult::SMC,
     RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
+    RUN_RESULT_INTERRUPT = const RunResult::INTERRUPT,
 );

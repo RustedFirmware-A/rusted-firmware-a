@@ -20,21 +20,25 @@ use core::{
 };
 use log::trace;
 
+#[derive(Debug)]
+pub enum InterruptType {
+    El3,
+    Secure,
+    NonSecure,
+    Invalid,
+}
+
 // Exception vector offsets.
 const CURRENT_EL_SP0: usize = 0x0;
 const CURRENT_EL_SPX: usize = 0x200;
 const LOWER_EL_AARCH64: usize = 0x400;
 
 /// Returns the type of the highest priority pending interrupt at the interrupt controller.
-#[unsafe(no_mangle)]
-extern "C" fn plat_ic_get_pending_interrupt_type() -> u32 {
-    unimplemented!();
-}
-
-/// Called from the exception handler in assembly to handle an interrupt.
-#[unsafe(no_mangle)]
-extern "C" fn handle_interrupt(interrupt_type: u32) {
-    panic!("Unexpected interrupt of type {}", interrupt_type);
+pub fn plat_ic_get_pending_interrupt_type() -> InterruptType {
+    // TODO: this function should be replaced by a generic implementation that identifies the
+    // interrupt type based on the special INTID values (1020-1023) retrieved from ICC_HPPIR0_EL1.
+    // The current implementation is just a stub to enable testing.
+    InterruptType::Secure
 }
 
 /// Handler for injecting undefined exception to lower EL caused by the lower EL accessing system

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use arm_ffa::{FfaError, FuncId, Interface, Version};
+use arm_ffa::{FfaError, FuncId, Interface, TargetInfo, Version};
 use log::{error, info};
 
 use crate::{
@@ -57,6 +57,21 @@ impl Ffa {
         };
 
         (resp.into(), next_world)
+    }
+
+    pub fn forward_secure_interrupt(&self) -> (SmcReturn, World) {
+        let mut regs = [0u64; 18];
+
+        Interface::Interrupt {
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0,
+            },
+            interrupt_id: 0,
+        }
+        .to_regs(FFA_VERSION_1_1, &mut regs);
+
+        (regs.into(), World::Secure)
     }
 }
 

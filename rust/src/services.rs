@@ -10,7 +10,9 @@ pub mod rmmd;
 
 use crate::{
     context::{cpu_state, set_initial_world, switch_world, World},
-    exceptions::{enter_world, inject_undef64, RunResult},
+    exceptions::{
+        enter_world, inject_undef64, plat_ic_get_pending_interrupt_type, InterruptType, RunResult,
+    },
     platform::{exception_free, Platform, PlatformImpl},
     smccc::{FunctionId, SmcReturn, NOT_SUPPORTED},
     sysregs::Esr,
@@ -137,6 +139,22 @@ impl Services {
         (out_regs, next_world)
     }
 
+    fn handle_interrupt(&self, interrupt_type: InterruptType, world: World) -> (SmcReturn, World) {
+        match (interrupt_type, world) {
+            // TODO: call interrupt handler when Group 0 interrupt hits while running in NWd. E.g:
+            // (InterruptType::El3, World::NonSecure) => plat_group0_interrupt_handler(),
+            // Group 0 interrupts hitting in SWd should be catched by the SPMC and passed to EL3
+            // synchronously, by invoking FFA_EL3_INTR_HANDLE.
+            (InterruptType::Secure, World::NonSecure) => self.ffa.forward_secure_interrupt(),
+            (InterruptType::Invalid, _) => {
+                // If the interrupt controller reports a spurious interrupt then return to where we
+                // came from.
+                (SmcReturn::EMPTY, world)
+            }
+            _ => panic!("Unsupported interrupt routing"),
+        }
+    }
+
     fn handle_sysreg_trap(&self, esr: Esr, world: World) {
         // Default behaviour is to repeat the same instruction, unless the trap handler requests
         // stepping to the next one.
@@ -165,7 +183,10 @@ impl Services {
         loop {
             (regs, next_world) = match enter_world(&regs, world) {
                 RunResult::Smc { regs } => self.handle_smc(&regs, world),
-                RunResult::Interrupt => panic!("Unhandled interrupt"), // TODO: handle interrupt
+                RunResult::Interrupt => {
+                    let interrupt_type = plat_ic_get_pending_interrupt_type();
+                    self.handle_interrupt(interrupt_type, world)
+                }
                 RunResult::SysregTrap { esr } => {
                     self.handle_sysreg_trap(esr, world);
                     (SmcReturn::EMPTY, world)

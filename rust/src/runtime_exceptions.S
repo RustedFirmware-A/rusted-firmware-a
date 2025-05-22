@@ -367,27 +367,14 @@ func handle_interrupt_exception
 	mrs	x1, elr_el3
 	stp	x0, x1, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_SPSR_EL3}]
 
-	/* Switch to the runtime stack i.e. SP_EL0 */
-	ldr	x2, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP_LR}]
-	mov	x20, sp
+	/* Switch to the runtime stack i.e. SP_EL0 and load runtime link register */
+	ldp	x2, x30, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP_LR}]
 	msr	spsel, #{MODE_SP_EL0}
 	mov	sp, x2
 
-	/*
-	 * Find out whether this is a valid interrupt type.
-	 * If the interrupt controller reports a spurious interrupt then return
-	 * to where we came from.
-	 */
-	bl	plat_ic_get_pending_interrupt_type
-	cmp	x0, #{INTR_TYPE_INVAL}
-	b.eq	interrupt_exit
-
-	bl	handle_interrupt
-
-interrupt_exit:
-	/* Return from exception, possibly in a different security state */
-	mov	x0, x20
-	b	el3_exit
+	/* Handling an interrupt, set the return value to indicate this. */
+	mov	x18, #{RUN_RESULT_INTERRUPT}
+	ret
 endfunc handle_interrupt_exception
 
 func imp_def_el3_handler

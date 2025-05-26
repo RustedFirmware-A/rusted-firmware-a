@@ -65,7 +65,10 @@ impl Platform for TestPlatform {
     fn secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x4000_0000,
-            spsr: Spsr::M_AARCH64_EL1T,
+            #[cfg(feature = "sel2")]
+            spsr: Spsr::M_AARCH64_EL2H,
+            #[cfg(not(feature = "sel2"))]
+            spsr: Spsr::M_AARCH64_EL1H,
             args: Default::default(),
         }
     }
@@ -73,7 +76,7 @@ impl Platform for TestPlatform {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x6000_0000,
-            spsr: Spsr::M_AARCH64_EL1T,
+            spsr: Spsr::M_AARCH64_EL2H,
             args: Default::default(),
         }
     }

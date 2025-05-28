@@ -48,7 +48,11 @@ use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
 /// The number of contexts to store for each CPU core, one per security state.
 const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
 
-const CPU_DATA_CRASH_BUF_SIZE: usize = 64;
+/// The number of registers which can be saved in the crash buffer.
+const CPU_DATA_CRASH_BUF_COUNT: usize = 8;
+
+/// The size in bytes of the CPU crash buffer.
+pub const CPU_DATA_CRASH_BUF_SIZE: usize = CPU_DATA_CRASH_BUF_COUNT * size_of::<u64>();
 
 // TODO: Let this be controlled by the platform or a cargo feature.
 const ERRATA_SPECULATIVE_AT: bool = false;
@@ -463,17 +467,17 @@ impl PerWorldContext {
 
 #[derive(Clone, Debug)]
 #[repr(C, align(64))]
-struct CpuData {
+pub struct CpuData {
     cpu_context: [*mut u8; CPU_DATA_CONTEXT_NUM],
     cpu_ops_ptr: usize,
-    crash_buf: [u64; CPU_DATA_CRASH_BUF_SIZE >> 3],
+    pub crash_buf: [u64; CPU_DATA_CRASH_BUF_COUNT],
 }
 
 impl CpuData {
     const EMPTY: Self = Self {
         cpu_context: [null_mut(); CPU_DATA_CONTEXT_NUM],
         cpu_ops_ptr: 0,
-        crash_buf: [0; CPU_DATA_CRASH_BUF_SIZE >> 3],
+        crash_buf: [0; CPU_DATA_CRASH_BUF_COUNT],
     };
 }
 

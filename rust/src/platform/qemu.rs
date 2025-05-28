@@ -17,19 +17,16 @@ use crate::{
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
-    sysregs::{MpidrEl1, Spsr},
+    sysregs::{IccSre, MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
-use arm_gic::{
-    gicv3::{
-        registers::{Gicd, GicrSgi},
-        GicV3, SecureIntGroup,
-    },
-    {IntId, Trigger},
+use arm_gic::gicv3::{
+    registers::{Gicd, GicrSgi},
+    GicV3,
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
-use core::{arch::global_asm, ptr::NonNull};
+use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
 use gicv3::GicConfig;
 use percore::Cores;
 
@@ -45,12 +42,16 @@ const SHARED_RAM: MemoryRegion =
 const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE);
 const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE);
 
+const GICD_BASE: usize = 0x0800_0000;
+const GICC_BASE: usize = 0x0801_0000;
+const GICR_BASE: usize = 0x080A_0000;
+
 /// Base address of the secure world PL011 UART, aka. UART1.
 const PL011_BASE_ADDRESS: *mut PL011Registers = 0x0904_0000 as _;
 /// Base address of GICv3 distributor.
-const GICD_BASE_ADDRESS: *mut Gicd = 0x800_0000 as _;
+const GICD_BASE_ADDRESS: *mut Gicd = GICD_BASE as _;
 /// Base address of the first GICv3 redistributor frame.
-const GICR_BASE_ADDRESS: *mut GicrSgi = 0x80A_0000 as _;
+const GICR_BASE_ADDRESS: *mut GicrSgi = GICR_BASE as _;
 
 // TODO: Use the correct addresses here.
 /// The physical address of the SPMC manifest blob.
@@ -254,6 +255,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 // With this function: CorePos = (ClusterId * 4) + CoreId
 global_asm!(
     include_str!("../asm_macros_common.S"),
+    include_str!("../arm_macros.S"),
     ".globl plat_calc_core_pos",
     "func plat_calc_core_pos",
         "and	x1, x0, #{MPIDR_CPU_MASK}",
@@ -261,10 +263,16 @@ global_asm!(
         "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
         "ret",
     "endfunc plat_calc_core_pos",
+    include_str!("qemu/crash_print_regs.S"),
+    include_str!("../arm_macros_purge.S"),
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
     MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK,
     MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK,
     MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
     PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
+    ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
+    GICC_BASE = const GICC_BASE,
+    GICD_BASE = const GICD_BASE,
+    GICD_ISPENDR = const offset_of!(Gicd, ispendr),
 );

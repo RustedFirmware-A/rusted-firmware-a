@@ -3,16 +3,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    context::{cpu_state, World},
+    context::{cpu_state, CpuData, GpRegs, World, CPU_DATA_CRASH_BUF_SIZE},
+    debug::DEBUG,
     platform::exception_free,
     services::dispatch_smc,
     smccc::FunctionId,
     sysregs::{
         is_feat_vhe_present, read_hcr_el2, read_vbar_el1, read_vbar_el2, write_elr_el1,
         write_elr_el2, write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2, Esr,
-        ExceptionLevel, HcrEl2, ScrEl3, Spsr, StackPointer,
+        ExceptionLevel, HcrEl2, ScrEl3, SctlrEl3, Spsr, StackPointer,
     },
 };
+#[cfg(target_arch = "aarch64")]
+use core::{arch::global_asm, mem::offset_of};
 use log::debug;
 
 const TRAP_RET_UNHANDLED: i64 = -1;
@@ -170,6 +173,23 @@ extern "C" fn handle_smc(function: FunctionId, x1: u64, x2: u64, x3: u64, x4: u6
             .write_return_value(&ret);
     });
 }
+
+#[cfg(target_arch = "aarch64")]
+global_asm!(
+    include_str!("asm_macros_common.S"),
+    include_str!("crash_reporting.S"),
+    include_str!("asm_macros_common_purge.S"),
+    DEBUG = const DEBUG as u32,
+    MODE_SP_ELX = const 1,
+    CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),
+    CTX_GPREG_X0 = const 0,
+    CPU_DATA_CRASH_BUF_OFFSET = const offset_of!(CpuData, crash_buf),
+    CPU_DATA_CRASH_BUF_SIZE = const CPU_DATA_CRASH_BUF_SIZE,
+    REGSZ = const 8,
+    MODE_EL2 = const 2,
+    SCTLR_EnIA_BIT = const SctlrEl3::ENIA.bits(),
+    SCTLR_EnIB_BIT = const SctlrEl3::ENIB.bits(),
+);
 
 #[cfg(test)]
 mod tests {

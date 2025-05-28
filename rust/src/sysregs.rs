@@ -449,6 +449,8 @@ bitflags! {
         const WXN = 1 << 19;
         /// RES1 bits in the `sctlr_el3` register.
         const RES1 = (1 << 23) | (1 << 18);
+        const ENIB = 1 << 30;
+        const ENIA = 1 << 31;
     }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]

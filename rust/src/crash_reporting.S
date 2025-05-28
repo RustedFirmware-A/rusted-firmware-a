@@ -5,19 +5,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <plat_macros.S>
-#include <platform_def.h>
-
-#include <arch.h>
-#include <asm_macros.S>
-#include <context.h>
-#include <lib/el3_runtime/cpu_data.h>
-#include <lib/utils_def.h>
-
 	.globl	report_unhandled_exception
 	.globl	report_unhandled_interrupt
 	.globl	report_el3_panic
 	.globl	report_elx_panic
+	.globl	str_in_crash_buf_print
 
 	/* ------------------------------------------------------
 	 * The below section deals with dumping the system state
@@ -31,25 +23,14 @@ print_spacer:
 	.asciz	"             = 0x"
 
 gp_regs:
-	.asciz	"x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7",\
-		"x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15",\
-		"x16", "x17", "x18", "x19", "x20", "x21", "x22",\
-		"x23", "x24", "x25", "x26", "x27", "x28", "x29", ""
+	.asciz	"x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7",	"x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15",	"x16", "x17", "x18", "x19", "x20", "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28", "x29", ""
 el3_sys_regs:
-	.asciz	"scr_el3", "sctlr_el3", "cptr_el3", "tcr_el3",\
-		"daif", "mair_el3", "spsr_el3", "elr_el3", "ttbr0_el3",\
-		"esr_el3", "far_el3", ""
+	.asciz	"scr_el3", "sctlr_el3", "cptr_el3", "tcr_el3", "daif", "mair_el3", "spsr_el3", "elr_el3", "ttbr0_el3", "esr_el3", "far_el3", ""
 
 non_el3_sys_regs:
-	.asciz	"spsr_el1", "elr_el1", "spsr_abt", "spsr_und",\
-		"spsr_irq", "spsr_fiq", "sctlr_el1", "actlr_el1", "cpacr_el1",\
-		"csselr_el1", "sp_el1", "esr_el1", "ttbr0_el1", "ttbr1_el1",\
-		"mair_el1", "amair_el1", "tcr_el1", "tpidr_el1", "tpidr_el0",\
-		"tpidrro_el0",  "par_el1", "mpidr_el1", "afsr0_el1", "afsr1_el1",\
-		"contextidr_el1", "vbar_el1", "cntp_ctl_el0", "cntp_cval_el0",\
-		"cntv_ctl_el0", "cntv_cval_el0", "cntkctl_el1", "sp_el0", "isr_el1", ""
+	.asciz	"spsr_el1", "elr_el1", "spsr_abt", "spsr_und", "spsr_irq", "spsr_fiq", "sctlr_el1", "actlr_el1", "cpacr_el1", "csselr_el1", "sp_el1", "esr_el1", "ttbr0_el1", "ttbr1_el1", "mair_el1", "amair_el1", "tcr_el1", "tpidr_el1", "tpidr_el0", "tpidrro_el0",  "par_el1", "mpidr_el1", "afsr0_el1", "afsr1_el1", "contextidr_el1", "vbar_el1", "cntp_ctl_el0", "cntp_cval_el0", "cntv_ctl_el0", "cntv_cval_el0", "cntkctl_el1", "sp_el0", "isr_el1", ""
 
-panic_msg:
+crash_panic_msg:
 	.asciz "PANIC in EL3.\nx30"
 excpt_msg:
 	.asciz "Unhandled Exception in EL3.\nx30"
@@ -75,7 +56,7 @@ func size_controlled_print
 test_size_list:
 	/* Calculate x5 always as it will be clobbered by asm_print_hex */
 	mrs	x5, tpidr_el3
-	add	x5, x5, #CPU_DATA_CRASH_BUF_SIZE
+	add	x5, x5, #{CPU_DATA_CRASH_BUF_SIZE}
 	/* Test whether we have reached end of crash buf */
 	cmp	x7, x5
 	b.eq	exit_size_print
@@ -90,7 +71,7 @@ test_size_list:
 	/* update x6 with the updated list pointer */
 	mov	x6, x4
 	bl	print_alignment
-	ldr	x4, [x7], #REGSZ
+	ldr	x4, [x7], #{REGSZ}
 	bl	asm_print_hex
 	bl	asm_print_newline
 	b	test_size_list
@@ -126,9 +107,9 @@ func str_in_crash_buf_print
 	/* restore the crash buf address in x0 */
 	mrs	x0, tpidr_el3
 	stp	x8, x9, [x0]
-	stp	x10, x11, [x0, #REGSZ * 2]
-	stp	x12, x13, [x0, #REGSZ * 4]
-	stp	x14, x15, [x0, #REGSZ * 6]
+	stp	x10, x11, [x0, #{REGSZ} * 2]
+	stp	x12, x13, [x0, #{REGSZ} * 4]
+	stp	x14, x15, [x0, #{REGSZ} * 6]
 	b	size_controlled_print
 endfunc str_in_crash_buf_print
 
@@ -145,10 +126,10 @@ endfunc str_in_crash_buf_print
 	/* tpidr_el3 contains the address to cpu_data structure */
 	mrs	x0, tpidr_el3
 	/* Calculate the Crash buffer offset in cpu_data */
-	add	x0, x0, #CPU_DATA_CRASH_BUF_OFFSET
+	add	x0, x0, #{CPU_DATA_CRASH_BUF_OFFSET}
 	/* Store crash buffer address in tpidr_el3 */
 	msr	tpidr_el3, x0
-	str	x1, [x0, #REGSZ]
+	str	x1, [x0, #{REGSZ}]
 	mov	x1, sp
 	str	x1, [x0]
 	.endm
@@ -196,7 +177,7 @@ endfunc report_unhandled_interrupt
 	 * -----------------------------------------------------
 	 */
 func report_elx_panic
-	msr	spsel, #MODE_SP_ELX
+	msr	spsel, #{MODE_SP_ELX}
 
 	/* Print the crash message */
 	adr	x4, excpt_msg_el
@@ -205,7 +186,7 @@ func report_elx_panic
 	/* Report x0 - x29 values stored in 'gpregs_ctx' structure */
 	/* Store the ascii list pointer in x6 */
 	adr	x6, gp_regs
-	add	x7, sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X0
+	add	x7, sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X0}
 
 print_next:
 	ldrb	w4, [x6]
@@ -219,7 +200,7 @@ print_next:
 	/* Update x6 with the updated list pointer */
 	mov	x6, x4
 	bl	print_alignment
-	ldr	x4, [x7], #REGSZ
+	ldr	x4, [x7], #{REGSZ}
 	bl	asm_print_hex
 	bl	asm_print_newline
 	b	print_next
@@ -241,7 +222,7 @@ print_x30:
 	 * TCR_ELx register.
 	 * ----------------------------------------------------------------
 	 */
-	cmp	x8, #MODE_EL2
+	cmp	x8, #{MODE_EL2}
 	b.lt	from_el1	/* EL1 */
 	mrs	x2, sctlr_el2
 	mrs	x1, tcr_el2
@@ -252,7 +233,7 @@ print_x30:
 	 * ----------------------------------------------------------------
 	 */
 test_pauth:
-	tst	x2, #(SCTLR_EnIA_BIT | SCTLR_EnIB_BIT)
+	tst	x2, #({SCTLR_EnIA_BIT} | {SCTLR_EnIB_BIT})
 	b.eq	no_pauth
 
 	/* Demangle address */
@@ -270,7 +251,7 @@ no_pauth:
 	/* tpidr_el3 contains the address to cpu_data structure */
 	mrs	x0, tpidr_el3
 	/* Calculate the Crash buffer offset in cpu_data */
-	add	x0, x0, #CPU_DATA_CRASH_BUF_OFFSET
+	add	x0, x0, #{CPU_DATA_CRASH_BUF_OFFSET}
 	/* Store crash buffer address in tpidr_el3 */
 	msr	tpidr_el3, x0
 
@@ -292,9 +273,9 @@ endfunc	report_elx_panic
 	 * -----------------------------------------------------
 	 */
 func report_el3_panic
-	msr	spsel, #MODE_SP_ELX
+	msr	spsel, #{MODE_SP_ELX}
 	prepare_crash_buf_save_x0_x1
-	adr	x0, panic_msg
+	adr	x0, crash_panic_msg
 	mov	sp, x0
 	/* Fall through to 'do_crash_reporting' */
 
@@ -321,9 +302,9 @@ do_crash_reporting:
 	/* Retrieve the crash buf from tpidr_el3 */
 	mrs	x0, tpidr_el3
 	/* Store x2 - x6, x30 in the crash buffer */
-	stp	x2, x3, [x0, #REGSZ * 2]
-	stp	x4, x5, [x0, #REGSZ * 4]
-	stp	x6, x30, [x0, #REGSZ * 6]
+	stp	x2, x3, [x0, #{REGSZ} * 2]
+	stp	x4, x5, [x0, #{REGSZ} * 4]
+	stp	x6, x30, [x0, #{REGSZ} * 6]
 	/* Initialize the crash console */
 	bl	plat_crash_console_init
 	/* Verify the console is initialized */
@@ -337,14 +318,14 @@ do_crash_reporting:
 	/* Load the crash buf address */
 	mrs	x0, tpidr_el3
 	/* Report x30 first from the crash buf */
-	ldr	x4, [x0, #REGSZ * 7]
+	ldr	x4, [x0, #{REGSZ} * 7]
 
 	bl	asm_print_hex
 	bl	asm_print_newline
 	/* Load the crash buf address */
 	mrs	x0, tpidr_el3
 	/* Now mov x7 into crash buf */
-	str	x7, [x0, #REGSZ * 7]
+	str	x7, [x0, #{REGSZ} * 7]
 
 	/* Report x0 - x29 values stored in crash buf */
 	/* Store the ascii list pointer in x6 */
@@ -357,15 +338,15 @@ do_crash_reporting:
 	mrs	x0, tpidr_el3
 	/* Store the rest of gp regs and print */
 	stp	x16, x17, [x0]
-	stp	x18, x19, [x0, #REGSZ * 2]
-	stp	x20, x21, [x0, #REGSZ * 4]
-	stp	x22, x23, [x0, #REGSZ * 6]
+	stp	x18, x19, [x0, #{REGSZ} * 2]
+	stp	x20, x21, [x0, #{REGSZ} * 4]
+	stp	x22, x23, [x0, #{REGSZ} * 6]
 	bl	size_controlled_print
 	/* Load the crash buf address */
 	mrs	x0, tpidr_el3
 	stp	x24, x25, [x0]
-	stp	x26, x27, [x0, #REGSZ * 2]
-	stp	x28, x29, [x0, #REGSZ * 4]
+	stp	x26, x27, [x0, #{REGSZ} * 2]
+	stp	x28, x29, [x0, #{REGSZ} * 4]
 	bl	size_controlled_print
 
 	/* Print the el3 sys registers */
@@ -431,7 +412,7 @@ print_el3_sys_regs:
 	bl	str_in_crash_buf_print
 
 	/* Print some platform registers */
-	plat_crash_print_regs
+	bl	plat_crash_print_regs
 
 	bl	plat_crash_console_flush
 

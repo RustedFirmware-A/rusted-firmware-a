@@ -17,25 +17,31 @@ use crate::{
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
-    sysregs::{MpidrEl1, Spsr},
+    sysregs::{IccSre, MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
-use arm_gic::{
-    gicv3::{
-        registers::{Gicd, GicrSgi},
-        GicV3, SecureIntGroup,
-    },
-    {IntId, Trigger},
+use arm_gic::gicv3::{
+    registers::{Gicd, GicrSgi},
+    GicV3,
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
-use core::{arch::global_asm, ptr::NonNull};
+use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
 use percore::Cores;
+
+const BLD_GIC_VE_MMAP: u32 = 0x0;
 
 /// Base address of GICv3 distributor.
 const BASE_GICD_BASE: usize = 0x2f00_0000;
 /// Base address of GICv3 redistributor frame.
 const BASE_GICR_BASE: usize = 0x2f10_0000;
+const BASE_GICC_BASE: usize = 0x2c00_0000;
+const VE_GICD_BASE: usize = 0x2c00_1000;
+const VE_GICC_BASE: usize = 0x2c00_2000;
+
+const V2M_SYSREGS_BASE: usize = 0x1c01_0000;
+const V2M_SYS_ID: usize = 0x0;
+const V2M_SYS_ID_BLD_SHIFT: u32 = 12;
 
 const DEVICE0_BASE: usize = 0x2000_0000;
 const DEVICE0_SIZE: usize = 0x0c20_0000;
@@ -290,6 +296,7 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl {
 
 global_asm!(
     include_str!("../asm_macros_common.S"),
+    include_str!("../arm_macros.S"),
     // Calculates core linear index as: ClusterId * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU +
     // CPUId * FVP_MAX_PE_PER_CPU + ThreadId
     ".globl plat_calc_core_pos",
@@ -312,8 +319,12 @@ global_asm!(
         "madd	x0, x1, x5, x0",
         "ret",
     "endfunc plat_calc_core_pos",
+    include_str!("fvp/crash_print_regs.S"),
+    include_str!("../arm_macros_purge.S"),
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
+    ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
+    GICD_ISPENDR = const offset_of!(Gicd, ispendr),
     MPIDR_MT_MASK = const MpidrEl1::MT.bits(),
     MPIDR_AFF0_SHIFT = const MpidrEl1::AFF0_SHIFT,
     MPIDR_AFF1_SHIFT = const MpidrEl1::AFF1_SHIFT,
@@ -321,4 +332,12 @@ global_asm!(
     FVP_MAX_CPUS_PER_CLUSTER = const FVP_MAX_CPUS_PER_CLUSTER,
     MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
     FVP_MAX_PE_PER_CPU = const FVP_MAX_PE_PER_CPU,
+    V2M_SYSREGS_BASE = const V2M_SYSREGS_BASE,
+    V2M_SYS_ID = const V2M_SYS_ID,
+    V2M_SYS_ID_BLD_SHIFT = const V2M_SYS_ID_BLD_SHIFT,
+    BLD_GIC_VE_MMAP = const BLD_GIC_VE_MMAP,
+    BASE_GICC_BASE = const BASE_GICC_BASE,
+    BASE_GICD_BASE = const BASE_GICD_BASE,
+    VE_GICC_BASE = const VE_GICC_BASE,
+    VE_GICD_BASE = const VE_GICD_BASE,
 );

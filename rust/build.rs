@@ -33,7 +33,6 @@ fn build_libtfa(platform: &str) {
         .include("../include/lib/libc")
         .include("../include/plat/arm/common/aarch64")
         .file("bl31_entrypoint.S")
-        .file("crash_reporting.S")
         .file("runtime_exceptions.S")
         .file("../drivers/arm/pl011/aarch64/pl011_console.S")
         .file("../lib/aarch64/cache_helpers.S")

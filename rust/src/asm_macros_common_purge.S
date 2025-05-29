@@ -13,6 +13,9 @@
 .purgem func
 .purgem endfunc
 .purgem no_ret
+.purgem vector_base
+.purgem vector_entry
+.purgem end_vector_entry
 .purgem synchronize_errors
 .purgem exception_return
 .purgem _mov_imm16

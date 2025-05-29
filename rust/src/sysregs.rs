@@ -505,6 +505,9 @@ impl Spsr {
     /// Exception was taken with PSTATE.SP set to SP_ELx.
     pub const SP_ELX: Self = Self(1);
 
+    /// Exception was taken from AArch32 state.
+    pub const M_EXECUTION_STATE: Self = Self(1 << 4);
+
     /// FIQ interrupt mask.
     pub const F: Self = Self(1 << 6);
     /// IRQ interrupt mask.

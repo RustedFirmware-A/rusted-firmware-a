@@ -31,7 +31,7 @@ use crate::sysregs::{
 use crate::{
     debug::{DEBUG, ENABLE_ASSERTIONS},
     platform::{exception_free, plat_calc_core_pos, Platform, PlatformImpl},
-    smccc::SmcReturn,
+    smccc::{SmcReturn, NOT_SUPPORTED},
     sysregs::{
         cptr_el3, pmcr, read_mpidr_el1, read_scr_el3, write_scr_el3, write_sp_el3, Esr, IccSre,
         ScrEl3, Spsr, StackPointer,
@@ -669,6 +669,7 @@ pub struct EntryPointInfo {
 }
 
 const WORD_SIZE: usize = size_of::<usize>();
+const INTR_TYPE_INVAL: u32 = 3;
 
 #[cfg(not(feature = "sel2"))]
 const CTX_EL1_SYSREGS_OFFSET: usize = offset_of!(CpuContext, el1_sysregs);
@@ -690,6 +691,7 @@ const _: () = assert!(!ERRATA_SPECULATIVE_AT);
 global_asm!(
     include_str!("asm_macros_common.S"),
     include_str!("context.S"),
+    include_str!("runtime_exceptions.S"),
     include_str!("asm_macros_common_purge.S"),
     ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
     DEBUG = const DEBUG as u32,
@@ -711,6 +713,8 @@ global_asm!(
     CTX_PERWORLD_EL3STATE_END = const size_of::<PerWorldContext>(),
     CTX_RUNTIME_SP = const offset_of!(El3State, runtime_sp),
     CTX_CPTR_EL3 = const offset_of!(PerWorldContext, cptr_el3),
+    CTX_ELR_EL3 = const offset_of!(El3State, elr_el3),
+    CTX_SAVED_ELR_EL3 = const offset_of!(El3State, saved_elr_el3),
     CTX_GPREG_X0 = const 0,
     CTX_GPREG_X2 = const 2 * WORD_SIZE,
     CTX_GPREG_X4 = const 4 * WORD_SIZE,
@@ -726,6 +730,12 @@ global_asm!(
     CTX_GPREG_X24 = const 24 * WORD_SIZE,
     CTX_GPREG_X26 = const 26 * WORD_SIZE,
     CTX_GPREG_X28 = const 28 * WORD_SIZE,
+    CTX_GPREG_X29 = const 29 * WORD_SIZE,
     CTX_GPREG_LR = const 30 * WORD_SIZE,
     CTX_GPREG_SP_EL0 = const 31 * WORD_SIZE,
+    ISR_A_SHIFT = const 8,
+    SMC_UNK = const NOT_SUPPORTED,
+    SPSR_M_EXECUTION_STATE = const Spsr::M_EXECUTION_STATE.bits(),
+    INTR_TYPE_INVAL = const INTR_TYPE_INVAL,
+    CPU_E_HANDLER_FUNC = const 0, // TODO
 );

@@ -41,16 +41,48 @@
 	.globl	fiq_aarch32
 	.globl	serror_aarch32
 
+	.set DAIF_ABT_BIT, (1 << 2)
+	.set ESR_EC_SHIFT, 26
+	.set ESR_EC_LENGTH, 6
+	.set EC_AARCH32_SMC, 0x13
+	.set EC_AARCH64_SMC, 0x17
+	.set EC_AARCH64_SYS, 0x18
+	.set EC_IMP_DEF_EL3, 0x1f
+	.set FUNCID_CC_SHIFT, 30
+	.set ASYNC_EA_REPLAY_COUNTER, 100
+
+	.macro	apply_at_speculative_wa
+.if {ERRATA_SPECULATIVE_AT}
+	/*
+	 * This function expects x30 has been saved.
+	 * Also, save x29 which will be used in the called function.
+	 */
+	str	x29, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X29}]
+	bl	save_and_update_ptw_el1_sys_regs
+	ldr	x29, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X29}]
+.endif
+	.endm
+
+	/*
+	 * Macro to unmask External Aborts by changing PSTATE.A bit.
+	 * Put explicit synchronization event to ensure newly unmasked interrupt
+	 * is taken immediately.
+	 */
+	.macro  unmask_async_ea
+	msr     daifclr, #DAIF_ABT_BIT
+	isb
+	.endm
+
 	/*
 	 * Save LR and make x30 available as most of the routines in vector entry
 	 * need a free register
 	 */
 	.macro save_x30
-	str	x30, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_LR]
+	str	x30, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_LR}]
 	.endm
 
 	.macro restore_x30
-	ldr	x30, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_LR]
+	ldr	x30, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_LR}]
 	.endm
 
 	/*
@@ -60,7 +92,7 @@
 	.macro	sync_and_handle_pending_serror
 	synchronize_errors
 	mrs	x30, ISR_EL1
-	tbz	x30, #ISR_A_SHIFT, 2f
+	tbz	x30, #{ISR_A_SHIFT}, 2f
 1:
 	/* This function never returns, but need LR for decision making */
 	bl	reflect_pending_async_ea_to_lower_el
@@ -266,10 +298,10 @@ sync_handler64:
 	 * structure prior to the last ERET from EL3.
 	 */
 	mov	x19, sp
-	ldr	x12, [x19, #CTX_EL3STATE_OFFSET + CTX_RUNTIME_SP]
+	ldr	x12, [x19, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP}]
 
 	/* Switch to SP_EL0 */
-	msr	spsel, #MODE_SP_EL0
+	msr	spsel, #{MODE_SP_EL0}
 
 	/*
 	 * Save the SPSR_EL3 and ELR_EL3 in case there is a world
@@ -278,7 +310,7 @@ sync_handler64:
 	 */
 	mrs	x16, spsr_el3
 	mrs	x17, elr_el3
-	stp	x16, x17, [x19, #CTX_EL3STATE_OFFSET + CTX_SPSR_EL3]
+	stp	x16, x17, [x19, #{CTX_EL3STATE_OFFSET} + {CTX_SPSR_EL3}]
 
 	/* check for system register traps */
 	mrs	x16, esr_el3
@@ -315,9 +347,9 @@ sysreg_handler64:
 
 	b.eq	1f	/* zero: do not change ELR_EL3 */
 	/* positive: advance the PC to continue after the instruction */
-	ldr	x1, [x19, #CTX_EL3STATE_OFFSET + CTX_ELR_EL3]
+	ldr	x1, [x19, #{CTX_EL3STATE_OFFSET} + {CTX_ELR_EL3}]
 	add	x1, x1, #4
-	str	x1, [x19, #CTX_EL3STATE_OFFSET + CTX_ELR_EL3]
+	str	x1, [x19, #{CTX_EL3STATE_OFFSET} + {CTX_ELR_EL3}]
 1:
 	b	el3_exit
 2:
@@ -326,24 +358,24 @@ sysreg_handler64:
 	 * EL in AArch64 mode, for AArch32 mode it will do elx_panic as before.
 	 */
 	mrs	x0, spsr_el3
-	tst	x0, #(SPSR_M_MASK << SPSR_M_SHIFT)
+	tst	x0, #{SPSR_M_EXECUTION_STATE}
 	b.ne	elx_panic
 	bl	inject_undef64
 	b	el3_exit
 
 smc_prohibited:
 	restore_ptw_el1_sys_regs
-	ldp	x28, x29, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X28]
-	ldr	x30, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_LR]
-	mov	x0, #SMC_UNK
+	ldp	x28, x29, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X28}]
+	ldr	x30, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_LR}]
+	mov	x0, #{SMC_UNK}
 	exception_return
 
-#if DEBUG
+.if {DEBUG}
 rt_svc_fw_critical_error:
 	/* Switch to SP_ELx */
-	msr	spsel, #MODE_SP_ELX
+	msr	spsel, #{MODE_SP_ELX}
 	no_ret	report_unhandled_exception
-#endif
+.endif
 endfunc sync_exception_handler
 
 	/* ---------------------------------------------------------------------
@@ -363,12 +395,12 @@ func handle_interrupt_exception
 	/* Save the EL3 system registers needed to return from this exception */
 	mrs	x0, spsr_el3
 	mrs	x1, elr_el3
-	stp	x0, x1, [sp, #CTX_EL3STATE_OFFSET + CTX_SPSR_EL3]
+	stp	x0, x1, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_SPSR_EL3}]
 
 	/* Switch to the runtime stack i.e. SP_EL0 */
-	ldr	x2, [sp, #CTX_EL3STATE_OFFSET + CTX_RUNTIME_SP]
+	ldr	x2, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP}]
 	mov	x20, sp
-	msr	spsel, #MODE_SP_EL0
+	msr	spsel, #{MODE_SP_EL0}
 	mov	sp, x2
 
 	/*
@@ -377,7 +409,7 @@ func handle_interrupt_exception
 	 * to where we came from.
 	 */
 	bl	plat_ic_get_pending_interrupt_type
-	cmp	x0, #INTR_TYPE_INVAL
+	cmp	x0, #{INTR_TYPE_INVAL}
 	b.eq	interrupt_exit
 
 	bl	handle_interrupt
@@ -389,15 +421,15 @@ endfunc handle_interrupt_exception
 
 func imp_def_el3_handler
 	/* Save GP registers */
-	stp	x0, x1, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X0]
-	stp	x2, x3, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X2]
-	stp	x4, x5, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X4]
+	stp	x0, x1, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X0}]
+	stp	x2, x3, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X2}]
+	stp	x4, x5, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X4}]
 
 	/* Get the cpu_ops pointer */
 	bl	get_cpu_ops_ptr
 
 	/* Get the cpu_ops exception handler */
-	ldr	x0, [x0, #CPU_E_HANDLER_FUNC]
+	ldr	x0, [x0, #{CPU_E_HANDLER_FUNC}]
 
 	/*
 	 * If the reserved function pointer is NULL, this CPU does not have an
@@ -408,9 +440,9 @@ func imp_def_el3_handler
 	ubfx	x1, x1, #ESR_EC_SHIFT, #ESR_EC_LENGTH
 	blr	x0
 el3_handler_exit:
-	ldp	x0, x1, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X0]
-	ldp	x2, x3, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X2]
-	ldp	x4, x5, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X4]
+	ldp	x0, x1, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X0}]
+	ldp	x2, x3, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X2}]
+	ldp	x4, x5, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X4}]
 	restore_x30
 	no_ret	report_unhandled_exception
 endfunc imp_def_el3_handler
@@ -448,19 +480,19 @@ func reflect_pending_async_ea_to_lower_el
 	 * ELs, we can remove the el3_panic and handle the original exception first and
 	 * inject SError to lower EL before ereting back.
 	 */
-	stp	x28, x29, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X28]
-	ldr	x29, [sp, #CTX_EL3STATE_OFFSET + CTX_SAVED_ELR_EL3]
+	stp	x28, x29, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X28}]
+	ldr	x29, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_SAVED_ELR_EL3}]
 	mrs	x28, elr_el3
 	cmp	x29, x28
 	b.eq	check_loop_ctr
-	str	x28, [sp, #CTX_EL3STATE_OFFSET + CTX_SAVED_ELR_EL3]
+	str	x28, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_SAVED_ELR_EL3}]
 	/* Zero the loop counter */
-	str	xzr, [sp, #CTX_EL3STATE_OFFSET + CTX_NESTED_EA_FLAG]
+	str	xzr, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_NESTED_EA_FLAG}]
 	b	skip_loop_ctr
 check_loop_ctr:
-	ldr	x29, [sp, #CTX_EL3STATE_OFFSET + CTX_NESTED_EA_FLAG]
+	ldr	x29, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_NESTED_EA_FLAG}]
 	add	x29, x29, #1
-	str	x29, [sp, #CTX_EL3STATE_OFFSET + CTX_NESTED_EA_FLAG]
+	str	x29, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_NESTED_EA_FLAG}]
 	cmp	x29, #ASYNC_EA_REPLAY_COUNTER
 	b.ge	el3_panic
 skip_loop_ctr:
@@ -490,7 +522,7 @@ subtract_elr_el3:
 	sub	x28, x28, #4
 skip_smc_check:
 	msr	elr_el3, x28
-	ldp	x28, x29, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X28]
-	ldr	x30, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_LR]
+	ldp	x28, x29, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X28}]
+	ldr	x30, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_LR}]
 	exception_return
 endfunc reflect_pending_async_ea_to_lower_el

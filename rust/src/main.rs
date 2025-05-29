@@ -26,9 +26,8 @@ mod stacks;
 mod sysregs;
 
 use crate::platform::{Platform, PlatformImpl};
-use context::{initialise_contexts, set_initial_world, CoresImpl, World};
+use context::{initialise_contexts, set_initial_world, World};
 use log::info;
-use percore::Cores;
 use services::psci::Psci;
 
 #[unsafe(no_mangle)]

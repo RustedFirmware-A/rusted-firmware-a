@@ -1,4 +1,4 @@
-// Copyright (c) 2024, Google LLC. All rights reserved.
+// Copyright The Rusted Firmware-A Contributors.
 //
 // SPDX-License-Identifier: BSD-3-Clause
 

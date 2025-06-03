@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Google LLC and Contributors. All rights reserved.
+ * Copyright The Rusted Firmware-A Contributors.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */

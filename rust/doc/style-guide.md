@@ -118,7 +118,7 @@ fn sum(numbers: &[u32]) -> u32 {
 
 At the top of each source code file, put a copyright header in this format:
 
-> Copyright (c) [XXXX–]YYYY, &lt;Owner&gt;. All rights reserved.
+> Copyright The Rusted Firmware-A Contributors.
 >
 > SPDX-License-Identifier: BSD-3-Clause
 

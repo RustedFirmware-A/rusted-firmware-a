@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2025 Arm Limited and Contributors. All rights reserved.
+ * Copyright The Rusted Firmware-A Contributors.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */

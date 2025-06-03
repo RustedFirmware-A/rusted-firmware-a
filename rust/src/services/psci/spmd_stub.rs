@@ -1,4 +1,5 @@
-// Copyright (c) 2025, Arm Ltd. All rights reserved.
+// Copyright The Rusted Firmware-A Contributors.
+//
 // SPDX-License-Identifier: BSD-3-Clause
 
 //! Dummy SPMD implementing for PSCI testing.

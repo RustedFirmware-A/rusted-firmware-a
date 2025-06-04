@@ -10,7 +10,6 @@ mod qemu;
 mod test;
 
 use arm_gic::gicv3::GicV3;
-use arm_psci::Mpidr;
 use core::arch::global_asm;
 #[cfg(platform = "fvp")]
 pub use fvp::Fvp as PlatformImpl;
@@ -27,6 +26,7 @@ use crate::{
     gicv3,
     pagetable::IdMap,
     services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
+    sysregs::MpidrEl1,
 };
 
 /// The code must use `platform::LoggerWriter` to avoid the 'ambiguous associated type' error that
@@ -95,7 +95,7 @@ pub trait Platform {
     fn realm_entry_point() -> EntryPointInfo;
 
     /// Returns whether the given MPIDR is valid for this platform.
-    fn mpidr_is_valid(mpidr: Mpidr) -> bool;
+    fn mpidr_is_valid(mpidr: MpidrEl1) -> bool;
 
     /// Returns an option with a PSCI platform implementation handle. The function should only be
     /// called once, when it returns `Some`. All subsequent calls must return `None`.

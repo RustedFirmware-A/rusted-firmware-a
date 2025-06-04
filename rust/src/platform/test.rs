@@ -15,7 +15,7 @@ use crate::{
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
-    sysregs::Spsr,
+    sysregs::{MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::gicv3::GicV3;
@@ -30,7 +30,7 @@ const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEV
 
 // The levels of the power topology System, SoC, Cluster, Core.
 const SYSTEM_DOMAIN_INDEX: u8 = 0;
-const SOCS_PER_SYSTEM: usize = 2;
+const SOCS_PER_SYSTEM: u8 = 2;
 const CLUSTERS_PER_SOC: usize = 2;
 // Each cluster has 3 cores except the last one which has 4.
 const CORES_PER_CLUSTER: usize = 3;
@@ -90,11 +90,11 @@ impl Platform for TestPlatform {
         }
     }
 
-    fn mpidr_is_valid(mpidr: Mpidr) -> bool {
-        let system_index = mpidr.aff3.unwrap_or(SYSTEM_DOMAIN_INDEX);
-        let soc_index = mpidr.aff2 as usize;
-        let cluster_index = mpidr.aff1 as usize;
-        let core_index = mpidr.aff0 as usize;
+    fn mpidr_is_valid(mpidr: MpidrEl1) -> bool {
+        let system_index = mpidr.aff3();
+        let soc_index = mpidr.aff2();
+        let cluster_index = usize::from(mpidr.aff1());
+        let core_index = usize::from(mpidr.aff0());
 
         // Validate System, SoC and Cluster indexes
         if system_index != SYSTEM_DOMAIN_INDEX
@@ -318,13 +318,13 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
 
 #[unsafe(no_mangle)]
 extern "C" fn plat_calc_core_pos(mpidr: u64) -> usize {
-    let mpidr = Mpidr::from_register_value(mpidr);
+    let mpidr = MpidrEl1::from_bits_retain(mpidr);
 
     assert!(TestPlatform::mpidr_is_valid(mpidr));
 
-    let soc_index = mpidr.aff2 as usize;
-    let cluster_index = mpidr.aff1 as usize;
-    let core_index = mpidr.aff0 as usize;
+    let soc_index = usize::from(mpidr.aff2());
+    let cluster_index = usize::from(mpidr.aff1());
+    let core_index = usize::from(mpidr.aff0());
 
     ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
 }

@@ -4,7 +4,7 @@
 
 //! Fake implementations of system register getters and setters for unit tests.
 
-use super::{Esr, HcrEl2, IccSre, ScrEl3, SctlrEl1, SctlrEl3, Spsr};
+use super::{Esr, HcrEl2, IccSre, MpidrEl1, ScrEl3, SctlrEl1, SctlrEl3, Spsr};
 use std::sync::Mutex;
 
 /// Values of fake system registers.
@@ -50,7 +50,7 @@ pub struct SystemRegisters {
     pub mdccint_el1: u64,
     pub mdcr_el2: u64,
     pub mdscr_el1: u64,
-    pub mpidr_el1: u64,
+    pub mpidr_el1: MpidrEl1,
     pub par_el1: u64,
     pub scr_el3: ScrEl3,
     pub sctlr_el1: SctlrEl1,
@@ -120,7 +120,7 @@ impl SystemRegisters {
             mdccint_el1: 0,
             mdcr_el2: 0,
             mdscr_el1: 0,
-            mpidr_el1: 0,
+            mpidr_el1: MpidrEl1::empty(),
             par_el1: 0,
             scr_el3: ScrEl3::empty(),
             sctlr_el1: SctlrEl1::empty(),

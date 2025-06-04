@@ -8,10 +8,10 @@ mod spmd_stub;
 use super::{owns, Service};
 use crate::{
     aarch64::{dsb_sy, wfi},
-    context::{try_get_cpu_index_by_mpidr, CoresImpl, World},
-    platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
+    context::{CoresImpl, World},
+    platform::{plat_calc_core_pos, Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     smccc::{FunctionId as OtherFunctionId, OwningEntityNumber, SmcReturn},
-    sysregs::read_isr_el1,
+    sysregs::{read_isr_el1, MpidrEl1},
 };
 use arm_psci::{
     AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
@@ -977,6 +977,21 @@ impl From<ErrorCode> for SmcReturn {
     }
 }
 
+/// Returns the corresponding linear core index for the given PSCI MPIDR value.
+///
+/// For any valid MPIDR this will return a unique value less than `Platform::CORE_COUNT`.
+/// For any invalid MPIDR it will return `None`.
+fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<usize> {
+    // The PSCI MPIDR value doesn't include the MT or U bits, but they might be important for how
+    // the platform validates MPIDR values and calculates core position, so add them in.
+    let mpidr = MpidrEl1::from_psci_mpidr(psci_mpidr.into());
+    if PlatformImpl::mpidr_is_valid(mpidr) {
+        Some(plat_calc_core_pos(mpidr.bits()))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1174,11 +1189,11 @@ mod tests {
             psci.cpu_on(CPU1_MPIDR, ENTRY_POINT)
         );
 
-        SYSREGS.lock().unwrap().mpidr_el1 = CPU1_MPIDR.into();
+        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU1_MPIDR.into());
         let entry_point = psci.handle_cpu_boot();
         assert_eq!(entry_point, ENTRY_POINT);
 
-        SYSREGS.lock().unwrap().mpidr_el1 = CPU0_MPIDR.into();
+        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU0_MPIDR.into());
         assert_eq!(
             Err(ErrorCode::AlreadyOn),
             psci.cpu_on(CPU1_MPIDR, ENTRY_POINT)
@@ -1193,7 +1208,7 @@ mod tests {
 
         assert_eq!(Ok(()), psci.cpu_on(CPU1_MPIDR, ENTRY_POINT));
 
-        SYSREGS.lock().unwrap().mpidr_el1 = CPU1_MPIDR.into();
+        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU1_MPIDR.into());
         psci.handle_cpu_boot();
 
         expect_cpu_power_down_wfi(|| {
@@ -1232,7 +1247,7 @@ mod tests {
             psci.affinity_info(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
         );
 
-        SYSREGS.lock().unwrap().mpidr_el1 = CPU1_MPIDR.into();
+        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU1_MPIDR.into());
         let _entry_point = psci.handle_cpu_boot();
         assert_eq!(
             Ok(AffinityInfo::On),
@@ -1311,7 +1326,7 @@ mod tests {
         // Boot secondary CPUs
         for cpu in cpus.iter().skip(1) {
             let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
-            SYSREGS.lock().unwrap().mpidr_el1 = mpidr.into();
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(mpidr.into());
             assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
             assert_eq!(
                 Ok(AffinityInfo::On),
@@ -1335,7 +1350,7 @@ mod tests {
         // Put second cluster in power down suspend
         for cpu in cpus.iter().skip(6) {
             let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
-            SYSREGS.lock().unwrap().mpidr_el1 = mpidr.into();
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(mpidr.into());
             expect_cpu_power_down_wfi(|| {
                 let _ = psci.cpu_suspend(PowerState::PowerDown(0), ENTRY_POINT);
             });
@@ -1357,7 +1372,7 @@ mod tests {
         // Power down off all other CPUs
         for cpu in cpus.iter().take(6) {
             let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
-            SYSREGS.lock().unwrap().mpidr_el1 = mpidr.into();
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(mpidr.into());
             expect_cpu_power_down_wfi(|| {
                 let _ = psci.cpu_suspend(PowerState::PowerDown(0), ENTRY_POINT);
             });
@@ -1377,7 +1392,7 @@ mod tests {
         }
 
         // Wake up CPU 0
-        SYSREGS.lock().unwrap().mpidr_el1 = CPU0_MPIDR.into();
+        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU0_MPIDR.into());
         assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
 
         // First CPU is on
@@ -1436,7 +1451,7 @@ mod tests {
 
         // Wake up CPU 6
         let cpu6_mpidr = Mpidr::from_aff3210(0, cpus[6].0, cpus[6].1, cpus[6].2);
-        SYSREGS.lock().unwrap().mpidr_el1 = cpu6_mpidr.into();
+        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(cpu6_mpidr.into());
         assert_eq!(ENTRY_POINT, psci.handle_cpu_boot());
 
         // CPU 0 is still on

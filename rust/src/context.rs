@@ -35,7 +35,6 @@ use crate::{
         read_mpidr_el1, read_scr_el3, write_scr_el3, write_sp_el3, Esr, IccSre, ScrEl3, Spsr,
     },
 };
-use arm_psci::Mpidr;
 use core::{
     cell::{RefCell, RefMut},
     ptr::null_mut,
@@ -79,22 +78,10 @@ impl World {
 pub struct CoresImpl;
 
 // SAFETY: This implementation never returns the same index for different cores because
-// `try_get_cpu_index_by_mpidr` is guaranteed not to.
+// `plat_calc_core_pos` is guaranteed not to.
 unsafe impl Cores for CoresImpl {
     fn core_index() -> usize {
-        try_get_cpu_index_by_mpidr(Mpidr::from_register_value(read_mpidr_el1())).unwrap()
-    }
-}
-
-/// Returns the corresponding linear core index for the given MPIDR value.
-///
-/// For any valid MPIDR this will return a unique value less than `Platform::CORE_COUNT`.
-/// For any invalid MPIDR it will return `None`.
-pub fn try_get_cpu_index_by_mpidr(mpidr: Mpidr) -> Option<usize> {
-    if PlatformImpl::mpidr_is_valid(mpidr) {
-        Some(plat_calc_core_pos(mpidr.into()))
-    } else {
-        None
+        plat_calc_core_pos(read_mpidr_el1().bits())
     }
 }
 

@@ -11,20 +11,10 @@ pub mod fake;
 #[cfg(test)]
 pub use fake::write_sp_el3;
 
+use arm_psci::Mpidr;
 use bitflags::bitflags;
 #[cfg(not(test))]
 use core::arch::asm;
-
-/// Constants for MPIDR fields.
-pub mod mpidr {
-    pub const CLUSTER_MASK: u64 = 0x0000_ff00;
-    pub const CPU_MASK: u64 = 0x0000_00ff;
-    pub const AFFINITY_BITS: usize = 8;
-    pub const AFF0_SHIFT: u8 = 0;
-    pub const AFF1_SHIFT: u8 = 8;
-    pub const AFF2_SHIFT: u8 = 16;
-    pub const MT_MASK: u64 = 1 << 24;
-}
 
 /// Implements a similar interface to `bitflags` on some newtype.
 macro_rules! bitflagslike {
@@ -242,7 +232,7 @@ macro_rules! read_write_sysreg {
 }
 
 read_sysreg!(id_aa64mmfr1_el1, u64, safe read_id_aa64mmfr1_el1);
-read_sysreg!(mpidr_el1, u64, safe read_mpidr_el1);
+read_sysreg!(mpidr_el1, u64: MpidrEl1, safe read_mpidr_el1);
 read_write_sysreg!(actlr_el1, u64, safe read_actlr_el1, safe write_actlr_el1);
 read_write_sysreg!(actlr_el2, u64, safe read_actlr_el2, safe write_actlr_el2);
 read_write_sysreg!(afsr0_el1, u64, safe read_afsr0_el1, safe write_afsr0_el1);
@@ -498,6 +488,55 @@ bitflagslike!(Esr: u64);
 
 impl Esr {
     pub const IL: Self = Self(1 << 25);
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MpidrEl1(u64);
+
+bitflagslike!(MpidrEl1: u64);
+
+impl MpidrEl1 {
+    pub const AFF0_MASK: u64 = 0x0000_00ff;
+    pub const AFF1_MASK: u64 = 0x0000_ff00;
+    pub const AFFINITY_BITS: usize = 8;
+    pub const AFF0_SHIFT: u8 = 0;
+    pub const AFF1_SHIFT: u8 = 8;
+    pub const AFF2_SHIFT: u8 = 16;
+    pub const AFF3_SHIFT: u8 = 32;
+    pub const MT: Self = Self(1 << 24);
+    pub const U: Self = Self(1 << 30);
+
+    /// Converts a PSCI MPIDR value into the equivalent `MpidrEL1` value.
+    ///
+    /// This reads the MT and U bits from the current CPU's MPIDR_EL1 value and combines them with
+    /// the affinity values from the given `psci_mpidr`.
+    ///
+    /// This assumes that the MPIDR_EL1 values of all CPUs in a system have the same values for the
+    /// MT and U bits.
+    pub fn from_psci_mpidr(psci_mpidr: u64) -> Self {
+        let mpidr_el1 = read_mpidr_el1();
+        Self(psci_mpidr) | (mpidr_el1 & (Self::MT | Self::U))
+    }
+
+    pub fn aff0(self) -> u8 {
+        (self.0 >> Self::AFF0_SHIFT) as u8
+    }
+
+    pub fn aff1(self) -> u8 {
+        (self.0 >> Self::AFF1_SHIFT) as u8
+    }
+
+    pub fn aff2(self) -> u8 {
+        (self.0 >> Self::AFF2_SHIFT) as u8
+    }
+
+    pub fn aff3(self) -> u8 {
+        (self.0 >> Self::AFF3_SHIFT) as u8
+    }
+
+    pub fn mt(self) -> bool {
+        self & Self::MT != Self::empty()
+    }
 }
 
 pub fn is_feat_vhe_present() -> bool {

@@ -17,7 +17,7 @@ use crate::{
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
-    sysregs::{mpidr, Spsr},
+    sysregs::{MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
@@ -136,11 +136,11 @@ impl Platform for Qemu {
         }
     }
 
-    fn mpidr_is_valid(mpidr: Mpidr) -> bool {
-        mpidr.aff3.unwrap_or_default() == 0
-            && mpidr.aff2 == 0
-            && usize::from(mpidr.aff1) < CLUSTER_COUNT
-            && usize::from(mpidr.aff0) < MAX_CPUS_PER_CLUSTER
+    fn mpidr_is_valid(mpidr: MpidrEl1) -> bool {
+        mpidr.aff3() == 0
+            && mpidr.aff2() == 0
+            && usize::from(mpidr.aff1()) < CLUSTER_COUNT
+            && usize::from(mpidr.aff0()) < MAX_CPUS_PER_CLUSTER
     }
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
@@ -263,8 +263,8 @@ global_asm!(
     "endfunc plat_calc_core_pos",
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
-    MPIDR_CPU_MASK = const mpidr::CPU_MASK,
-    MPIDR_CLUSTER_MASK = const mpidr::CLUSTER_MASK,
-    MPIDR_AFFINITY_BITS = const mpidr::AFFINITY_BITS,
+    MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK,
+    MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK,
+    MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
     PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
 );

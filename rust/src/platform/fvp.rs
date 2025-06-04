@@ -17,7 +17,7 @@ use crate::{
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
     },
-    sysregs::{mpidr, Spsr},
+    sysregs::{MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
@@ -170,13 +170,18 @@ impl Platform for Fvp {
         }
     }
 
-    fn mpidr_is_valid(mpidr: Mpidr) -> bool {
-        // TODO: Read MT bit during setup and shift affinity fields here if appropriate. For now
-        // this assumes that the MT bit is set.
-        mpidr.aff3.unwrap_or_default() == 0
-            && usize::from(mpidr.aff2) < FVP_CLUSTER_COUNT
-            && usize::from(mpidr.aff1) < FVP_MAX_CPUS_PER_CLUSTER
-            && usize::from(mpidr.aff0) < FVP_MAX_PE_PER_CPU
+    fn mpidr_is_valid(mpidr: MpidrEl1) -> bool {
+        if mpidr.mt() {
+            mpidr.aff3() == 0
+                && usize::from(mpidr.aff2()) < FVP_CLUSTER_COUNT
+                && usize::from(mpidr.aff1()) < FVP_MAX_CPUS_PER_CLUSTER
+                && usize::from(mpidr.aff0()) < FVP_MAX_PE_PER_CPU
+        } else {
+            mpidr.aff3() == 0
+                && mpidr.aff2() == 0
+                && usize::from(mpidr.aff1()) < FVP_CLUSTER_COUNT
+                && usize::from(mpidr.aff0()) < FVP_MAX_CPUS_PER_CLUSTER
+        }
     }
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
@@ -309,11 +314,11 @@ global_asm!(
     "endfunc plat_calc_core_pos",
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
-    MPIDR_MT_MASK = const mpidr::MT_MASK,
-    MPIDR_AFF0_SHIFT = const mpidr::AFF0_SHIFT,
-    MPIDR_AFF1_SHIFT = const mpidr::AFF1_SHIFT,
-    MPIDR_AFF2_SHIFT = const mpidr::AFF2_SHIFT,
+    MPIDR_MT_MASK = const MpidrEl1::MT.bits(),
+    MPIDR_AFF0_SHIFT = const MpidrEl1::AFF0_SHIFT,
+    MPIDR_AFF1_SHIFT = const MpidrEl1::AFF1_SHIFT,
+    MPIDR_AFF2_SHIFT = const MpidrEl1::AFF2_SHIFT,
     FVP_MAX_CPUS_PER_CLUSTER = const FVP_MAX_CPUS_PER_CLUSTER,
-    MPIDR_AFFINITY_BITS = const mpidr::AFFINITY_BITS,
+    MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
     FVP_MAX_PE_PER_CPU = const FVP_MAX_PE_PER_CPU,
 );

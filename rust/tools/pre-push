@@ -33,22 +33,16 @@ must() {
 must cargo test
 must make clippy-test
 
-# NOTE: If we add even a few more supported configurations, we're going to want a permutation
-# function to generate them all.
-for platform in qemu fvp; do
+declare -a all_platforms=($(make --silent list_platforms))
+for platform in "${all_platforms[@]}"; do
     for debug in 1 0; do
-        declare -a all_features=("" "sel2" "rme" "sel2 rme")
-        if [[ "$platform" == "qemu" ]]; then
-            all_features=("" "sel2")
-        fi
+
+        IFS=" " read -a all_features <<< "$(make PLAT="$platform" --silent list_features)"
+
         for features in "${all_features[@]}"; do
+            features=$(echo $features | sed "s/'//g")
             echo "platform: $platform, debug: $debug, features: $features"
-            if [[ -z "$features" ]]; then
-                must make DEBUG="$debug" PLAT="$platform" FEATURES= build
-            else
-                export FEATURES="$features"
-                must make DEBUG="$debug" PLAT="$platform" build
-            fi
+            must make FEATURES=$features DEBUG="$debug" PLAT="$platform" build
         done
     done
     must make PLAT="$platform" clippy

@@ -13,7 +13,7 @@ BL31_ELF := target/bl31.elf
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
 
-.PHONY: all clean clippy clippy-test qemu qemu-build qemu-wait fvp fvp-build build build-stf list_platforms
+.PHONY: all clean clippy clippy-test qemu qemu-build qemu-wait fvp fvp-build build build-stf list_platforms list_features
 
 PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
@@ -131,6 +131,15 @@ clean:
 list_platforms:
 	@echo "${PLATFORMS_AVAILABLE}"
 
+list_features:
+# NOTE: If we add even a few more supported configurations, we're going to want a permutation
+# function to generate them all.
+ifeq (${PLAT}, qemu)
+	@echo "''  'sel2'"
+else ifeq (${PLAT}, fvp)
+	@echo "'' 'sel2' 'rme' 'sel2,rme'"
+endif
+
 help:
 	@echo "usage: ${MAKE} PLAT=<platform> [VAR=<value> [...]] <target> [...]"
 	@echo
@@ -145,15 +154,17 @@ help:
 	@echo
 	@echo "Supported targets:"
 	@echo
-	@echo "  all          Build all binaries for the specified platform."
-	@echo "  build        Build BL31 for the specified platform."
-	@echo "  build-stf    Build the Secure Test Framework."
-	@echo "  clean        Clean the build for all platforms."
-	@echo "  clippy       Lint the Rust source tree for the specified platform."
-	@echo "  clippy-test  Lint the Rust source tree for the test configuration."
-	@echo "  fvp-build    Build all binaries for the FVP platform."
-	@echo "  fvp          Run fvp. Target should be invoked after binaries are built."
-	@echo "  gdb          Attach gdb to a running BL31."
-	@echo "  qemu-build   Build all binaries for the QEMU platform."
-	@echo "  qemu         Run qemu. Target should be invoked after binaries are built."
-	@echo "  qemu-wait    Run qemu and wait for a debugger to be attached. (See gdb.)"
+	@echo "  all          	Build all binaries for the specified platform."
+	@echo "  build       	Build BL31 for the specified platform."
+	@echo "  build-stf   	Build the Secure Test Framework."
+	@echo "  clean        	Clean the build for all platforms."
+	@echo "  clippy       	Lint the Rust source tree for the specified platform."
+	@echo "  clippy-test 	Lint the Rust source tree for the test configuration."
+	@echo "  fvp-build    	Build all binaries for the FVP platform."
+	@echo "  fvp          	Run fvp. Target should be invoked after binaries are built."
+	@echo "  gdb          	Attach gdb to a running BL31."
+	@echo "  list_features  List all possible FEATURE combinations for the given platform."
+	@echo "  list_platforms List all supported platforms."
+	@echo "  qemu-build   	Build all binaries for the QEMU platform."
+	@echo "  qemu         	Run qemu. Target should be invoked after binaries are built."
+	@echo "  qemu-wait    	Run qemu and wait for a debugger to be attached. (See gdb.)"

@@ -139,6 +139,12 @@ preconditions. Other uses of `unsafe` are in tests, such as to mutate a `static
 mut`.
 """
 
+[[audits.syn]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "ub-risk-2"]
+version = "2.0.87"
+notes = "Extensive unsafe code in buffer.rs is probably fine, but not very well documented. Unsafe APIs aren't exposed at least."
+
 [[audits.thiserror]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

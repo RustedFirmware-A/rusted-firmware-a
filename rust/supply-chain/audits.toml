@@ -88,6 +88,11 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "0.1.0"
 
+[[audits.arm-psci]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+version = "0.1.2"
+
 [[audits.cc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"

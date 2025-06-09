@@ -19,3 +19,11 @@ ub-risk-4 = "ub-risk-4"
 
 [policy.rf-a-bl31]
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+
+[[exemptions.cc]]
+version = "1.2.16"
+criteria = ["safe-to-deploy", "ub-risk-2"]
+
+[[exemptions.shlex]]
+version = "1.3.0"
+criteria = "safe-to-deploy"

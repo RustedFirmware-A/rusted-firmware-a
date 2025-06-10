@@ -45,7 +45,7 @@ impl Service for Ffa {
         };
         match msg {
             Interface::Version { input_version } => version(world, input_version),
-            Interface::MsgWait => msg_wait(world, 0),
+            Interface::MsgWait { .. } => msg_wait(world, 0),
             _ => Interface::error(FfaError::NotSupported),
         }
         .into()

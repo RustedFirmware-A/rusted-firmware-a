@@ -41,7 +41,7 @@ $ sudo apt install qemu-system-arm
 Build C BL1 and BL2 and Rust BL31:
 
 ```sh
-$ make TFA_FLAGS="CC=clang NEED_BL32=yes" \
+$ make TFA_FLAGS="CC=clang NEED_BL32=yes NEED_BL31=no" \
     PLAT=qemu DEBUG=1 all
 ```
 
@@ -99,7 +99,7 @@ to download this or any other FVP.
 Build C BL1 and BL2, Rust BL31 and FIP, then run everything in FVP:
 
 ```sh
-$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=0" \
+$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=0 NEED_BL31=no" \
     DEBUG=1 fvp
 ```
 
@@ -113,7 +113,7 @@ required to stop TF-A from complaining that RF-A does not fit.
 Build C BL1 and BL2 with RME support, Rust BL31 with RME support and FIP:
 
 ```sh
-$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1" \
+$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 NEED_BL31=no" \
     FEATURES=rme DEBUG=1 fvp
 ```
 

@@ -11,7 +11,7 @@ pub fn set_exception_vector() {
         // SAFETY: vector_table is a valid exception vector table, provided by aarch64-rt.
         1 => unsafe {
             asm!(
-                "adr x9, vector_table",
+                "adr x9, vector_table_el1",
                 "msr vbar_el1, x9",
                 options(nomem, nostack),
                 out("x9") _,
@@ -20,7 +20,7 @@ pub fn set_exception_vector() {
         // SAFETY: vector_table is a valid exception vector table, provided by aarch64-rt.
         2 => unsafe {
             asm!(
-                "adr x9, vector_table",
+                "adr x9, vector_table_el2",
                 "msr vbar_el2, x9",
                 options(nomem, nostack),
                 out("x9") _,
@@ -77,18 +77,32 @@ extern "C" fn serr_lower(_elr: u64, _spsr: u64) {
 
 fn esr() -> u64 {
     let mut esr: u64;
-    // SAFETY: This only reads a system register.
-    unsafe {
-        asm!("mrs {esr}, esr_el1", esr = out(reg) esr);
+    if current_el() == 2 {
+        // SAFETY: This only reads a system register.
+        unsafe {
+            asm!("mrs {esr}, esr_el2", esr = out(reg) esr);
+        }
+    } else {
+        // SAFETY: This only reads a system register.
+        unsafe {
+            asm!("mrs {esr}, esr_el1", esr = out(reg) esr);
+        }
     }
     esr
 }
 
 fn far() -> u64 {
     let mut far: u64;
-    // SAFETY: This only reads a system register.
-    unsafe {
-        asm!("mrs {far}, far_el1", far = out(reg) far);
+    if current_el() == 2 {
+        // SAFETY: This only reads a system register.
+        unsafe {
+            asm!("mrs {far}, far_el2", far = out(reg) far);
+        }
+    } else {
+        // SAFETY: This only reads a system register.
+        unsafe {
+            asm!("mrs {far}, far_el1", far = out(reg) far);
+        }
     }
     far
 }

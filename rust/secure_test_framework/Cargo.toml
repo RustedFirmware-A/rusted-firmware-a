@@ -6,7 +6,7 @@ authors = ["Andrew Walbran <qwandor@google.com>"]
 rust-version = "1.85"
 
 [dependencies]
-aarch64-rt = { version = "0.1.3", default-features = false, features = [
+aarch64-rt = { version = "0.2.0", default-features = false, features = [
   "exceptions",
 ] }
 arm-ffa = "0.2.0"
@@ -14,7 +14,7 @@ arm-pl011-uart = "0.3.1"
 bitflags = "2.3.2"
 log = "0.4.19"
 spin = "0.10.0"
-smccc = "0.2.0"
+smccc = "0.2.1"
 
 [[bin]]
 name = "bl32"

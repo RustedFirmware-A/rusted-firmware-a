@@ -88,6 +88,11 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "0.1.0"
 
+[[audits.arm-ffa]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.1.0 -> 0.2.1"
+
 [[audits.arm-pl011-uart]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
@@ -97,6 +102,11 @@ version = "0.3.1"
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "0.1.2"
+
+[[audits.bitflags]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.9.0 -> 2.9.1"
 
 [[audits.cc]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -168,6 +178,11 @@ access inside `*Guard`s, and `debug_assert`s that check the safety
 preconditions. Other uses of `unsafe` are in tests, such as to mutate a `static
 mut`.
 """
+
+[[audits.spin]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.9.8 -> 0.10.0"
 
 [[audits.syn]]
 who = "Andrew Walbran <qwandor@google.com>"

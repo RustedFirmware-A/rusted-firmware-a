@@ -118,3 +118,55 @@ $ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1" \
 ```
 
 Running the FVP with RME through RF-A build system is not supported at this time.
+
+# Arm trademark notice
+
+Arm is a registered trademark of Arm Limited (or its subsidiaries or affiliates).
+
+This project uses some of the Arm product, service or technology trademarks, as listed in the
+[Trademark List][1], in accordance with the [Arm Trademark Use Guidelines][2].
+
+In particular, this project may use the following trademarks:
+* AMBA®
+* Arm®
+* Arm7™ (including Arm7 processor family trademarks)
+* Arm9™ (including Arm9 processor family trademarks)
+* Arm11™ (including Arm11 processor family trademarks)
+* Arm SystemReady™
+* Artisan®
+* Assertive Display™
+* big.LITTLE™
+* Cordio®
+* CoreLink™
+* CoreSight™
+* Corstone™
+* Cortex®
+* CryptoCell™
+* CryptoIsland™
+* DesignStart™
+* DynamIQ™
+* Ethos™
+* Helium™
+* Immortalis™
+* Iridix™
+* Jazelle®
+* Keil®
+* Kleidi™
+* Mali™
+* Mbed™
+* Mbed Enabled™
+* Neon™
+* Neoverse™
+* POP™
+* SecurCore®
+* Socrates™
+* Thumb®
+* TrustZone®
+* ULINK™
+* µVision®
+
+Subsequent uses of these trademarks throughout this repository do not need to be prefixed with the
+Arm word trademark.
+
+[1]: https://www.arm.com/company/policies/trademarks/arm-trademark-list
+[2]: https://www.arm.com/company/policies/trademarks/guidelines-trademarks

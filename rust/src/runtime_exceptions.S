@@ -317,8 +317,6 @@ sync_handler64:
 	mrs	x27, elr_el3
 	stp	x26, x27, [x28, #{CTX_EL3STATE_OFFSET} + {CTX_SPSR_EL3}]
 
-	/* TODO: the rest of the logic below (incl. sysreg_handler64) could be moved to Rust code */
-
 	/* check for system register traps */
 	mrs	x26, esr_el3
 	ubfx	x27, x26, #ESR_EC_SHIFT, #ESR_EC_LENGTH
@@ -330,39 +328,10 @@ sync_handler64:
 	ret
 
 sysreg_handler64:
-	mov	x0, x26		/* ESR_EL3, containing syndrome information */
-
-	/* int handle_sysreg_trap(uint64_t esr_el3); */
-	bl	handle_sysreg_trap
-	/*
-	 * returns:
-	 *   -1: unhandled trap, UNDEF injection into lower EL
-	 *    0: handled trap, return to the trapping instruction (repeating it)
-	 *    1: handled trap, return to the next instruction
-	 */
-
-	tst	w0, w0
-	b.mi	2f	/* negative: undefined exception injection */
-
-	b.eq	1f	/* zero: do not change ELR_EL3 */
-	/* positive: advance the PC to continue after the instruction */
-	ldr	x1, [x28, #{CTX_EL3STATE_OFFSET} + {CTX_ELR_EL3}]
-	add	x1, x1, #4
-	str	x1, [x28, #{CTX_EL3STATE_OFFSET} + {CTX_ELR_EL3}]
-1:
-	mov	x0, x28
-	b	el3_exit
-2:
-	/*
-	 * UNDEF injection to lower EL, the support is only provided for lower
-	 * EL in AArch64 mode, for AArch32 mode it will do elx_panic as before.
-	 */
-	mrs	x0, spsr_el3
-	tst	x0, #{SPSR_M_EXECUTION_STATE}
-	b.ne	elx_panic
-	bl	inject_undef64
-	mov	x0, x28
-	b	el3_exit
+	/* Handling a sysreg trap, set the return value to indicate this. */
+	mov	x18, #{RUN_RESULT_SYSREG_TRAP}
+	mov	x20, x26 /* ESR_EL3, containing syndrome information */
+	ret
 
 smc_prohibited:
 	restore_ptw_el1_sys_regs

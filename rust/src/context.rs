@@ -132,6 +132,16 @@ impl CpuContext {
         #[cfg(not(feature = "sel2"))]
         self.el1_sysregs.restore();
     }
+
+    /// Skips an instruction in a lower EL.
+    ///
+    /// Increases ELR_EL3 in the saved context by the size of an instruction. After exception return
+    /// the execution in lower EL will continue from the next instruction instead of repeating the
+    /// one that has caused the trap.
+    /// Should only be used by [`crate::services::Services::handle_sysreg_trap()`].
+    pub fn skip_lower_el_instruction(&mut self) {
+        self.el3_state.elr_el3 += core::mem::size_of::<u32>();
+    }
 }
 
 /// AArch64 general purpose register context structure. Usually x0-x18 and lr are saved as the
@@ -698,7 +708,6 @@ global_asm!(
     CTX_PERWORLD_EL3STATE_END = const size_of::<PerWorldContext>(),
     CTX_RUNTIME_SP_LR = const offset_of!(El3State, runtime_sp),
     CTX_CPTR_EL3 = const offset_of!(PerWorldContext, cptr_el3),
-    CTX_ELR_EL3 = const offset_of!(El3State, elr_el3),
     CTX_SAVED_ELR_EL3 = const offset_of!(El3State, saved_elr_el3),
     CTX_GPREG_X0 = const 0,
     CTX_GPREG_X2 = const 2 * WORD_SIZE,
@@ -720,8 +729,8 @@ global_asm!(
     CTX_GPREG_SP_EL0 = const 31 * WORD_SIZE,
     ISR_A_SHIFT = const 8,
     SMC_UNK = const NOT_SUPPORTED,
-    SPSR_M_EXECUTION_STATE = const Spsr::M_EXECUTION_STATE.bits(),
     INTR_TYPE_INVAL = const INTR_TYPE_INVAL,
     CPU_E_HANDLER_FUNC = const 0, // TODO
     RUN_RESULT_SMC = const RunResult::SMC,
+    RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
 );

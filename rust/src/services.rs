@@ -9,10 +9,11 @@ pub mod psci;
 pub mod rmmd;
 
 use crate::{
-    context::{set_initial_world, switch_world, World},
-    exceptions::{enter_world, RunResult},
-    platform::{Platform, PlatformImpl},
+    context::{cpu_state, set_initial_world, switch_world, World},
+    exceptions::{enter_world, inject_undef64, RunResult},
+    platform::{exception_free, Platform, PlatformImpl},
     smccc::{FunctionId, SmcReturn, NOT_SUPPORTED},
+    sysregs::Esr,
 };
 use log::info;
 use spin::Once;
@@ -136,6 +137,28 @@ impl Services {
         (out_regs, next_world)
     }
 
+    fn handle_sysreg_trap(&self, esr: Esr, world: World) {
+        // Default behaviour is to repeat the same instruction, unless the trap handler requests
+        // stepping to the next one.
+        let mut step_to_next_instr = false;
+
+        match esr & Esr::ISS_SYSREG_OPCODE_MASK {
+            // TODO: add trap handlers, should set step_to_next_instr as necessary
+            _ => {
+                inject_undef64(world);
+                return;
+            }
+        }
+
+        if step_to_next_instr {
+            exception_free(|token| {
+                cpu_state(token)
+                    .context_mut(world)
+                    .skip_lower_el_instruction();
+            })
+        }
+    }
+
     fn per_world_loop(&self, mut regs: SmcReturn, world: World) -> (SmcReturn, World) {
         let mut next_world;
 
@@ -143,7 +166,10 @@ impl Services {
             (regs, next_world) = match enter_world(&regs, world) {
                 RunResult::Smc { regs } => self.handle_smc(&regs, world),
                 RunResult::Interrupt => panic!("Unhandled interrupt"), // TODO: handle interrupt
-                RunResult::SysregTrap => panic!("Unhandled sysreg trap"), //TODO: handle sysreg trap
+                RunResult::SysregTrap { esr } => {
+                    self.handle_sysreg_trap(esr, world);
+                    (SmcReturn::EMPTY, world)
+                }
             };
 
             if next_world != world {

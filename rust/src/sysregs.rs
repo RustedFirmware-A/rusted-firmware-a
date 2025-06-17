@@ -532,6 +532,7 @@ pub struct Esr(u64);
 bitflagslike!(Esr: u64);
 
 impl Esr {
+    pub const ISS_SYSREG_OPCODE_MASK: Self = Self(0x003f_fc1e);
     pub const IL: Self = Self(1 << 25);
 }
 

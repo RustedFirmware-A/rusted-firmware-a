@@ -53,9 +53,9 @@ const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
 
 /// Attribute bits which are RES1 for the EL3 translation regime, as we configure it.
 ///
-/// From Arm ARM K.a, D8.3.1.2 Fig. D8-16: lower attributes AP[1] bit 6
+/// From Arm ARM K.a, D8.3.1.2 Fig. D8-16: lower attributes AP\[1\] bit 6
 /// and D8.4.1.2.1 Stage 1 data accesses using Direct permissions:
-/// "For a stage 1 translation that supports one Exception level, AP[1] is RES1."
+/// "For a stage 1 translation that supports one Exception level, AP\[1\] is RES1."
 const EL3_RES1: Attributes = Attributes::USER;
 
 /// Attribute bit for NSE aka Root state for FEAT_RME

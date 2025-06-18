@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 //! Implementation of a subset of the Arm semihosting calls.
-//! See https://github.com/ARM-software/abi-aa/blob/main/semihosting/semihosting.rst.
+//! See <https://github.com/ARM-software/abi-aa/blob/main/semihosting/semihosting.rst>
 
 #[cfg(not(test))]
 use core::arch::asm;

@@ -121,7 +121,7 @@ fn is_secure_trap_without_sel2(scr: ScrEl3) -> bool {
 /// Explicitly create all bits of SPSR to get PSTATE at exception return.
 ///
 /// The code is based on "Aarch64.exceptions.takeexception" described in DDI0602 revision 2023-06.
-/// https://developer.arm.com/documentation/ddi0602/2023-06/Shared-Pseudocode/aarch64-exceptions-takeexception
+/// <https://developer.arm.com/documentation/ddi0602/2023-06/Shared-Pseudocode/aarch64-exceptions-takeexception>
 ///
 /// NOTE: This piece of code must be reviewed every release to ensure that we keep up with new ARCH
 /// features which introduces a new SPSR bit.

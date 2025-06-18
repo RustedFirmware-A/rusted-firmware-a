@@ -13,7 +13,7 @@ BL31_ELF := target/bl31.elf
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
 
-.PHONY: all clean clippy clippy-test qemu qemu-build qemu-wait fvp fvp-build build build-stf list_platforms list_features
+.PHONY: all cargo-doc clean clippy clippy-test qemu qemu-build qemu-wait fvp fvp-build build build-stf list_platforms list_features
 
 PLATFORMS_AVAILABLE := fvp qemu
 PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
@@ -75,6 +75,10 @@ $(BL33): build-stf
 
 clippy-test:
 	cargo clippy --tests --features "$(FEATURES)"
+
+cargo-doc:
+	RUSTDOCFLAGS="-D warnings --cfg platform=\"${PLAT}\"" RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo doc --target $(TARGET) --no-deps  \
+	--features "$(FEATURES)"
 
 clippy:
 	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo clippy $(CARGO_FLAGS)
@@ -157,6 +161,7 @@ help:
 	@echo "  all          	Build all binaries for the specified platform."
 	@echo "  build       	Build BL31 for the specified platform."
 	@echo "  build-stf   	Build the Secure Test Framework."
+	@echo "  cargo-doc   	Run `cargo doc` checks for the given platform"
 	@echo "  clean        	Clean the build for all platforms."
 	@echo "  clippy       	Lint the Rust source tree for the specified platform."
 	@echo "  clippy-test 	Lint the Rust source tree for the test configuration."

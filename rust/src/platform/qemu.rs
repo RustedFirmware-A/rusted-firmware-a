@@ -47,7 +47,6 @@ const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEV
 const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE);
 
 const GICD_BASE: usize = 0x0800_0000;
-const GICC_BASE: usize = 0x0801_0000;
 const GICR_BASE: usize = 0x080A_0000;
 
 /// Base address of the trusted mailbox.
@@ -308,7 +307,6 @@ global_asm!(
     MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
     PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
     ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
-    GICC_BASE = const GICC_BASE,
     GICD_BASE = const GICD_BASE,
     GICD_ISPENDR = const offset_of!(Gicd, ispendr),
 );

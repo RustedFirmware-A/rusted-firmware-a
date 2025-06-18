@@ -17,7 +17,6 @@
 func plat_crash_print_regs
 	/* Save the lr */
 	mov x11, lr
-	mov_imm	x17, {GICC_BASE}
 	mov_imm	x16, {GICD_BASE}
 	arm_print_gic_regs
 	mov lr, x11

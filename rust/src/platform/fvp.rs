@@ -38,9 +38,7 @@ const BLD_GIC_VE_MMAP: u32 = 0x0;
 const BASE_GICD_BASE: usize = 0x2f00_0000;
 /// Base address of GICv3 redistributor frame.
 const BASE_GICR_BASE: usize = 0x2f10_0000;
-const BASE_GICC_BASE: usize = 0x2c00_0000;
 const VE_GICD_BASE: usize = 0x2c00_1000;
-const VE_GICC_BASE: usize = 0x2c00_2000;
 
 const V2M_SYSREGS_BASE: usize = 0x1c01_0000;
 const V2M_SYS_ID: usize = 0x0;
@@ -343,8 +341,6 @@ global_asm!(
     V2M_SYS_ID = const V2M_SYS_ID,
     V2M_SYS_ID_BLD_SHIFT = const V2M_SYS_ID_BLD_SHIFT,
     BLD_GIC_VE_MMAP = const BLD_GIC_VE_MMAP,
-    BASE_GICC_BASE = const BASE_GICC_BASE,
     BASE_GICD_BASE = const BASE_GICD_BASE,
-    VE_GICC_BASE = const VE_GICC_BASE,
     VE_GICD_BASE = const VE_GICD_BASE,
 );

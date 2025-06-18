@@ -26,11 +26,9 @@ func plat_crash_print_regs
 	cmp	w16, #{BLD_GIC_VE_MMAP}
 	b.eq	use_ve_mmap
 	/* Assume Base Cortex mmap */
-	mov_imm	x17, {BASE_GICC_BASE}
 	mov_imm	x16, {BASE_GICD_BASE}
 	b	print_gic_regs
 use_ve_mmap:
-	mov_imm	x17, {VE_GICC_BASE}
 	mov_imm	x16, {VE_GICD_BASE}
 print_gic_regs:
 	arm_print_gic_regs

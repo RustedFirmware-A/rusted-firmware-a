@@ -13,6 +13,7 @@
 .purgem func
 .purgem endfunc
 .purgem no_ret
+.purgem dcache_line_size
 .purgem vector_base
 .purgem vector_entry
 .purgem end_vector_entry

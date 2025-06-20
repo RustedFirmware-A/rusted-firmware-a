@@ -293,6 +293,19 @@ impl IdMap {
     }
 }
 
+#[cfg(target_arch = "aarch64")]
+mod asm {
+    use crate::debug::DEBUG;
+    use core::arch::global_asm;
+
+    global_asm!(
+        include_str!("asm_macros_common.S"),
+        include_str!("cache_helpers.S"),
+        include_str!("asm_macros_common_purge.S"),
+        DEBUG = const DEBUG as i32,
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

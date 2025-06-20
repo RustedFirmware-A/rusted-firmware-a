@@ -71,6 +71,13 @@
 	.endif
 .endm
 
+	.macro	dcache_line_size  reg, tmp
+	mrs	\tmp, ctr_el0
+	ubfx	\tmp, \tmp, #16, #4
+	mov	\reg, #4
+	lsl	\reg, \reg, \tmp
+	.endm
+
 	/*
 	 * Declare the exception vector table, enforcing it is aligned on a
 	 * 2KB boundary, as required by the ARMv8 architecture.

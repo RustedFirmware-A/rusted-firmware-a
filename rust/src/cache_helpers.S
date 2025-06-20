@@ -1,10 +1,9 @@
 /*
+ * Copyright The Rusted Firmware-A Contributors.
  * Copyright (c) 2013-2022, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-
-#include <asm_macros.S>
 
 	.globl	inv_dcache_range
 

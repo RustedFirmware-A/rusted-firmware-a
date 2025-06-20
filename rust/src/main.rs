@@ -57,3 +57,21 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
 
     Services::get().run_loop();
 }
+
+#[cfg(target_arch = "aarch64")]
+mod asm {
+    use crate::{
+        debug::{DEBUG, ENABLE_ASSERTIONS},
+        sysregs::SctlrEl3,
+    };
+    use core::arch::global_asm;
+
+    global_asm!(
+        include_str!("asm_macros_common.S"),
+        include_str!("misc_helpers.S"),
+        include_str!("asm_macros_common_purge.S"),
+        ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
+        DEBUG = const DEBUG as i32,
+        SCTLR_M_BIT = const SctlrEl3::M.bits(),
+    );
+}

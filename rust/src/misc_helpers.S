@@ -1,11 +1,9 @@
 /*
+ * Copyright The Rusted Firmware-A Contributors.
  * Copyright (c) 2013-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
-
-#include <asm_macros.S>
-#include <assert_macros.S>
 
 	.globl	zeromem
 
@@ -124,21 +122,16 @@ func zeromem_dczva
 	tmp1         .req x4
 	tmp2         .req x5
 
-#if ENABLE_ASSERTIONS
+.if {ENABLE_ASSERTIONS}
 	/*
 	 * Check for M bit (MMU enabled) of the current SCTLR_EL(1|3)
 	 * register value and panic if the MMU is disabled.
 	 */
-#if defined(IMAGE_BL1) || defined(IMAGE_BL31) || (defined(IMAGE_BL2) && \
-	BL2_RUNS_AT_EL3)
 	mrs	tmp1, sctlr_el3
-#else
-	mrs	tmp1, sctlr_el1
-#endif
 
-	tst	tmp1, #SCTLR_M_BIT
-	ASM_ASSERT(ne)
-#endif /* ENABLE_ASSERTIONS */
+	tst	tmp1, #{SCTLR_M_BIT}
+	ASM_ASSERT ne, "MMU disabled", assume_mmu_enabled
+.endif /* ENABLE_ASSERTIONS */
 
 	/* stop_address is the address past the last to zero */
 	add	stop_address, cursor, length
@@ -157,14 +150,14 @@ func zeromem_dczva
 	mov	tmp2, #(1 << 2)
 	lsl	block_size, tmp2, block_size
 
-#if ENABLE_ASSERTIONS
+.if {ENABLE_ASSERTIONS}
 	/*
 	 * Assumes block size is at least 16 bytes to avoid manual realignment
 	 * of the cursor at the end of the DCZVA loop.
 	 */
 	cmp	block_size, #16
-	ASM_ASSERT(hs)
-#endif
+	ASM_ASSERT hs, "block size must be at least 16 bytes", assume_block_size
+.endif
 	/*
 	 * Not worth doing all the setup for a region less than a block and
 	 * protects against zeroing a whole block when the area to zero is

@@ -43,6 +43,11 @@ TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS += --target $(TARGET)
 CARGO_FEATURE_FLAGS := --no-default-features --features "$(FEATURES)"
 
+TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\"
+
+TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh" cargo
+STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" cargo
+
 all: $(PLAT)-build
 
 TFA ?= $(error $$TFA must point to your TF-A source repository)
@@ -65,12 +70,12 @@ $(FIP): $(BL2) build $(BL32) $(BL33)
 	$(TFA)/tools/fiptool/fiptool update --soc-fw $(BL31_BIN) $@
 
 build:
-	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C target-feature=+vh" cargo build $(CARGO_FLAGS) $(CARGO_FEATURE_FLAGS)
+	$(TARGET_CARGO) build $(CARGO_FLAGS) $(CARGO_FEATURE_FLAGS)
 	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
 
 build-stf:
-	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C link-args=-znostart-stop-gc" cargo build --package rf-a-secure-test-framework $(CARGO_FLAGS)
+	$(STF_CARGO) build --package rf-a-secure-test-framework $(CARGO_FLAGS)
 $(BL32): build-stf
 	$(OBJCOPY) target/$(TARGET)/$(BUILDTYPE)/bl32 -O binary $@
 $(BL33): build-stf
@@ -84,7 +89,7 @@ cargo-doc:
 	--features "$(FEATURES)"
 
 clippy:
-	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C target-feature=+vh" cargo clippy $(CARGO_FLAGS)
+	$(TARGET_CARGO) clippy $(CARGO_FLAGS)
 
 QEMU = qemu-system-aarch64
 GDB_PORT ?= 1234

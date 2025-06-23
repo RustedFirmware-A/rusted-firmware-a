@@ -83,6 +83,50 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.8.0"
 
+[[audits.aarch64-paging]]
+who = "Pranjal Shrivastava <praan@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.8.0 -> 0.9.1"
+notes = """
+\"safe-to-deploy\"
+
+The crate introduces no new side effects like network or filesystem access.
+Its functionality remains tightly sandboxed to memory management operations.
+The risk profile of the crate has not increased.
+
+The unsafe code is contained and justified by the need to interface directly
+with hardware-level architecture, a standard practice for these kinds of utilities.
+The changes do not introduce any new security vulnerabilities.
+
+\"does-not-implement-crypto\"
+
+Inspection reveals that the crate in question does not attempt to implement any
+cryptographic algorithms on its own.
+
+Inspection confirms that no new functionality related to cryptographic algorithms
+has been introduced to the crate. The crate's scope remains strictly focused on
+low-level AArch64 page table manipulation.
+
+\"ub-risk-2\"
+
+Negligible unsoundness
+
+The crate already contained unsafe code, which is necessary for its core purpose
+of interacting with CPU system registers. It therefore cannot be ub-risk-0.
+
+The introduction of unsafe fn activate_raw() is a refactoring, not an addition of
+new unsafe behavior. The asm! block it contains is the same necessary unsafe operation
+that existed previously which is now improved by making the unsafety explicit for
+callers who need more granular control (e.g., for multicore scenarios).
+
+The change to Descriptor::flags() is a safety improvement, as it removes multiple
+.unwrap() calls, thus eliminating potential panic points from the codebase.
+
+No new complex or difficult-to-reason-about unsafe logic has been added.
+The risk of introducing Undefined Behavior remains negligible and is inherent to the
+crate's low-level function.
+"""
+
 [[audits.arm-ffa]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

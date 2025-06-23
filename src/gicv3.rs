@@ -21,10 +21,10 @@ use spin::{Once, mutex::SpinMutex};
 const GIC_HIGHEST_NS_PRIORITY: u8 = 0x80;
 const GIC_PRI_MASK: u8 = 0xff;
 
-static GIC: Once<Gic> = Once::new();
+pub static GIC: Once<Gic> = Once::new();
 
-struct Gic<'a> {
-    gic: SpinMutex<GicV3<'a>>,
+pub struct Gic<'a> {
+    pub gic: SpinMutex<GicV3<'a>>,
     /// Redistributor indices by core ID.
     redistributor_indices: [usize; PlatformImpl::CORE_COUNT],
 }
@@ -172,21 +172,35 @@ fn init_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
     // not supported, the SRE bit is RAO/WI.
     let icc_sre = IccSre::DIB | IccSre::DFB | IccSre::EN | IccSre::SRE;
 
-    // SAFETY: This is the only place we set `icc_sre_el3`, and we set the SRE bit, so it is never
-    // changed from 1 to 0.
+    // SAFETY: This is the only place we set the SRE bit of `icc_sre_el3` to 1 and no other place
+    // is permitted to change it from 1 to 0.
     unsafe { write_icc_sre_el3(icc_sre) };
 
     // Program the idle priority in the PMR.
     GicV3::set_priority_mask(GIC_PRI_MASK);
 
-    // Enable Group0 interrupts.
     GicV3::enable_group0(true);
-
-    // Enable Group1 Secure interrupts.
     GicV3::enable_group1(true);
 
     isb();
     dsb_sy();
+    Ok(())
+}
+
+/// Disables the GIC CPU interface of the calling CPU using system register accesses.
+pub fn disable_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
+    GicV3::enable_group0(false);
+    GicV3::enable_group1(false);
+
+    // Synchronize accesses to group enable registers.
+    isb();
+
+    // Ensure visibility of system register writes.
+    dsb_sy();
+
+    // TODO: enable errata wa 2384374
+
+    gic.redistributor_mark_core_asleep(current_redistributor_index())?;
     Ok(())
 }
 

@@ -24,7 +24,7 @@ strip = true
 overflow-checks = true
 
 [dependencies]
-aarch64-paging = { version = "0.9.1", features = [], default-features = false }
+aarch64-paging = { version = "0.10.0", default-features = false }
 arrayvec = { version = "0.7.6", default-features = false }
 arm-psci = "0.1.1"
 bitflags = "2.9.1"

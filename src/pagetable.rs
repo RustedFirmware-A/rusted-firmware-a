@@ -288,7 +288,7 @@ impl IdMap {
     }
 
     fn mark_active(&mut self) {
-        self.mapping.mark_active(0);
+        self.mapping.mark_active();
     }
 
     fn root_address(&self) -> PhysicalAddress {
@@ -323,5 +323,7 @@ mod tests {
         let mut idmap = init_page_table(page_heap);
         assert_ne!(idmap.root_address().0, 0);
         idmap.mark_active();
+        // `aarch64-paging` will detect the dropped idmap and panic
+        core::mem::forget(idmap);
     }
 }

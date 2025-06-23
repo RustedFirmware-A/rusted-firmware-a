@@ -10,6 +10,8 @@ BL33 := target/bl33.bin
 FIP := target/fip.bin
 BL31_ELF := target/bl31.elf
 
+OBJCOPY ?= rust-objcopy
+
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
 
@@ -38,7 +40,8 @@ else
 endif
 
 TARGET := aarch64-unknown-none-softfloat
-CARGO_FLAGS += --target $(TARGET) --no-default-features --features "$(FEATURES)"
+CARGO_FLAGS += --target $(TARGET)
+CARGO_FEATURE_FLAGS := --no-default-features --features "$(FEATURES)"
 
 all: $(PLAT)-build
 
@@ -62,18 +65,16 @@ $(FIP): $(BL2) build $(BL32) $(BL33)
 	$(TFA)/tools/fiptool/fiptool update --soc-fw $(BL31_BIN) $@
 
 build:
-	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C target-feature=+vh" cargo build $(CARGO_FLAGS)
-	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C target-feature=+vh" cargo objcopy $(CARGO_FLAGS) -- -O binary $(BL31_BIN)
+	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C target-feature=+vh" cargo build $(CARGO_FLAGS) $(CARGO_FEATURE_FLAGS)
 	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
+	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
 
 build-stf:
-	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C link-args=-znostart-stop-gc" cargo build --package rf-a-secure-test-framework --target $(TARGET)
+	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C link-args=-znostart-stop-gc" cargo build --package rf-a-secure-test-framework $(CARGO_FLAGS)
 $(BL32): build-stf
-	mkdir -p target
-	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C link-args=-znostart-stop-gc" cargo objcopy --package rf-a-secure-test-framework --target $(TARGET) --bin bl32 -- -O binary $@
+	$(OBJCOPY) target/$(TARGET)/$(BUILDTYPE)/bl32 -O binary $@
 $(BL33): build-stf
-	mkdir -p target
-	RUSTFLAGS="--cfg platform=\"${PLAT}\" -C link-args=-znostart-stop-gc" cargo objcopy --package rf-a-secure-test-framework --target $(TARGET) --bin bl33 -- -O binary $@
+	$(OBJCOPY) target/$(TARGET)/$(BUILDTYPE)/bl33 -O binary $@
 
 clippy-test:
 	cargo clippy --tests --features "$(FEATURES)"

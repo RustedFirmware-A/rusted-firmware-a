@@ -11,6 +11,7 @@ FIP := target/fip.bin
 BL31_ELF := target/bl31.elf
 
 OBJCOPY ?= rust-objcopy
+CARGO ?= cargo
 
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
@@ -45,8 +46,8 @@ CARGO_FEATURE_FLAGS := --no-default-features --features "$(FEATURES)"
 
 TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\"
 
-TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh" cargo
-STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" cargo
+TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh" $(CARGO)
+STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" $(CARGO)
 
 all: $(PLAT)-build
 
@@ -82,7 +83,7 @@ $(BL33): build-stf
 	$(OBJCOPY) target/$(TARGET)/$(BUILDTYPE)/bl33 -O binary $@
 
 clippy-test:
-	cargo clippy --tests --features "$(FEATURES)"
+	$(CARGO) clippy --tests --features "$(FEATURES)"
 
 cargo-doc:
 	RUSTDOCFLAGS="-D warnings --cfg platform=\"${PLAT}\"" RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo doc --target $(TARGET) --no-deps  \
@@ -136,7 +137,7 @@ fvp: $(BL1) $(FIP)
 	  -C bp.flashloader0.fname=$(FIP)
 
 clean:
-	cargo clean
+	$(CARGO) clean
 	rm -f target/*.bin
 
 list_platforms:

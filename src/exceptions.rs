@@ -131,7 +131,10 @@ fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
     // NZCV bits are unchanged
     new_spsr |= old_spsr & Spsr::NZCV;
 
-    // TODO: Add support for BTI, SSBS, NMI, PAN, UAO, MTE2, EBEP, SEBEP and GCS.
+    // BTYPE bits should be cleared to ensure that when injecting an undefined exception,
+    // BTI does not trigger when performing an exception return as it will be unexpected.
+
+    // TODO: Add support for SSBS, NMI, PAN, UAO, MTE2, EBEP, SEBEP and GCS.
 
     new_spsr
 }

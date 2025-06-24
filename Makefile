@@ -9,7 +9,6 @@ FIP := target/fip.bin
 BL31_ELF := target/bl31.elf
 
 OBJCOPY ?= rust-objcopy
-CARGO ?= cargo
 
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
@@ -43,6 +42,24 @@ TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS += --target $(TARGET)
 
 TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\"
+
+# Whether to build core + friends. Primarily needed for special sanitizers or
+# optimizations. Requires a nightly Cargo.
+BUILD_STD ?= 0
+
+# Whether to enable BTI support in EL3. Flagged out only because it requires a nightly compiler.
+BTI_EL3 ?= 0
+ifeq ($(BTI_EL3), 1)
+	BUILD_STD = 1
+	TARGET_RUSTFLAGS += -Zbranch-protection=bti --cfg bti
+endif
+
+ifeq ($(BUILD_STD), 1)
+	CARGO_FLAGS += -Zbuild-std=core,compiler_builtins,alloc
+	CARGO ?= cargo +nightly
+else
+	CARGO ?= cargo
+endif
 
 TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh" $(CARGO)
 STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" $(CARGO)

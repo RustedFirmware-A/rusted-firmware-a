@@ -41,6 +41,8 @@
 .cfi_startproc
 .align \_align
 \_name:
+	/* Make function callable through function pointer with BTI */
+	bti c
 .endm
 
 /*

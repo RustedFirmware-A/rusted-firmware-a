@@ -34,6 +34,7 @@ fn main() {
         "cargo::rustc-check-cfg=cfg(platform, values(\"{}\"))",
         PLATFORMS.join("\", \""),
     );
+    println!("cargo::rustc-check-cfg=cfg(bti)");
 
     if env::var("CARGO_CFG_TARGET_OS").unwrap() == "none" {
         let platform = env::var("CARGO_CFG_PLATFORM").expect("Missing platform name");

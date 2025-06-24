@@ -427,8 +427,9 @@ unsafe extern "C" fn plat_secondary_cold_boot_setup() -> ! {
         "ldr x1, ={HOLD_STATE_WAIT}",
         "str x1, [x2, x0]",
         "ldr x0, ={TRUSTED_MAILBOX_BASE}",
-        "ldr x1, [x0]",
-        "br  x1",
+        "ldr x16, [x0]",
+    // x16 is chosen to make this bti c compatible, not just bti j
+        "br  x16",
     "1:",
         "wfe",
         "b   0b",

@@ -110,7 +110,14 @@ pub const MT_MEMORY: Attributes = IWTRWA_OWTRWA_NTR
     .union(Attributes::INNER_SHAREABLE);
 
 /// Attributes used for code (i.e. text) mappings.
-pub const MT_CODE: Attributes = MT_MEMORY.union(Attributes::READ_ONLY);
+pub const MT_CODE: Attributes = {
+    let attrs = MT_MEMORY.union(Attributes::READ_ONLY);
+    if cfg!(bti) {
+        attrs.union(Attributes::GP)
+    } else {
+        attrs
+    }
+};
 
 /// Attributes used for read-only data mappings.
 pub const MT_RO_DATA: Attributes = MT_MEMORY

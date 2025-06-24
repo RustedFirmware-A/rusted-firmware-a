@@ -203,6 +203,49 @@ feasibly dynamically check its callers; therefore callers are on their own to
 meet the (clear, straightforward) safety contract.
 """
 
+[[audits.safe-mmio]]
+who = "Pranjal Shrivastava <praan@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.1.0 -> 0.2.5"
+notes = """
+\"safe-to-deploy\"
+
+The crate has no functionality related to filesystems, networking, or other ambient capabilities.
+Its scope is strictly limited to MMIO.
+
+The changes introduced between versions 0.1.0 and 0.2.5 are focused on enhancing the safety,
+correctness, and ergonomics of the API. By providing a stronger type system for MMIO fields and
+addressing a platform-specific compiler bug, these changes make the crate more safe to deploy, not less.
+
+An attacker cannot manipulate the runtime behavior of the unsafe sections. The inline assembly is fixed,
+and the pointers are controlled by the user of the crate, who is already operating in a privileged context
+where they can provide raw memory addresses. The crate provides the tools to do this more safely.
+
+\"does-not-implement-crypto\"
+
+The purpose of the crate is to provide safe, low-level access to Memory-Mapped I/O (MMIO).
+A review of all changes confirms that no cryptographic algorithms have been added. The crate's
+functionality is strictly limited to hardware register access patterns.
+
+\"ub-risk-2\"
+
+Negligible unsoundness
+
+The crate inherently requires unsafe code to perform its function of interacting with raw memory addresses.
+Therefore, it cannot be ub-risk-0.
+
+The most significant new unsafe code is the inline assembly in aarch64_mmio.rs. This change is not arbitrary;
+it is a specific, targeted workaround for a documented compiler issue on AArch64.
+
+The introduction of the ReadOnly, WriteOnly, ReadPure, etc., wrapper types is a significant safety improvement.
+It moves the verification of access permissions from runtime to compile-time, reducing the surface area for
+programmer error.
+
+The unsafe blocks are well-justified by the low-level nature of the crate. The API is designed to build safe
+abstractions on top of these necessary unsafe primitives. The risk of UB remains negligible and is not increased
+by this delta.
+"""
+
 [[audits.shlex]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["does-not-implement-crypto", "ub-risk-2"]

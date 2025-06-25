@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    aarch64::{dsb_ish, isb, tlbi_alle3},
+    aarch64::{dsb_ish, dsb_sy, isb, tlbi_alle3},
     layout::{bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end, bl31_end, bl31_start},
     platform::{Platform, PlatformImpl},
     sysregs::{
@@ -229,6 +229,21 @@ unsafe fn setup_mmu_cfg(root_address: PhysicalAddress) {
         write_sctlr_el3(sctlr);
     }
     isb();
+}
+
+/// # Safety
+///
+/// Caller must guarantee that it is safe to disable the MMU at the time of calling this function.
+pub unsafe fn disable_mmu_el3() {
+    let mut sctlr_el3 = read_sctlr_el3();
+    sctlr_el3.remove(SctlrEl3::C | SctlrEl3::M);
+    // SAFETY: `sctlr` is a valid and safe value for the EL3 system control register. Caller
+    // promises that we can safely disable the MMU.
+    unsafe {
+        write_sctlr_el3(sctlr_el3);
+    }
+    isb();
+    dsb_sy();
 }
 
 struct IdTranslation {

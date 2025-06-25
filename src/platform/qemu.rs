@@ -9,7 +9,7 @@ use crate::{
     debug::DEBUG,
     gicv3::{GicConfig, InterruptConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
-    pagetable::{IdMap, MT_DEVICE, map_region},
+    pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
     semihosting::{AdpStopped, semihosting_exit},
     services::{
         arch::WorkaroundSupport,
@@ -59,8 +59,8 @@ const TRUSTED_MAILBOX_BASE: usize = SHARED_RAM_BASE;
 const HOLD_ENTRYPOINT: *mut unsafe extern "C" fn() = TRUSTED_MAILBOX_BASE as _;
 /// Base address of hold entries for secondary cores. Writing `HOLD_STATE_GO` to the entry for a
 /// secondary core will cause it to be released from its holding pen and jump to `*HOLD_ENTRYPOINT`.
-const HOLD_BASE: *mut u64 = (TRUSTED_MAILBOX_BASE + 8) as _;
-#[allow(unused)]
+const HOLD_BASE: usize = TRUSTED_MAILBOX_BASE + 8;
+const HOLD_ENTRY_SHIFT: u64 = 3;
 const HOLD_STATE_WAIT: u64 = 0;
 const HOLD_STATE_GO: u64 = 1;
 
@@ -290,6 +290,15 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         todo!()
     }
 
+    fn power_domain_power_down_wfi(&self, _target_state: &PsciCompositePowerState) -> ! {
+        // SAFETY: `disable_mmu_el3` is safe to call here as the CPU is about to be switched off.
+        // `plat_secondary_cold_boot_setup` is trusted assembly.
+        unsafe {
+            disable_mmu_el3();
+            plat_secondary_cold_boot_setup();
+        }
+    }
+
     fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode> {
         let cpu_index = try_get_cpu_index_by_mpidr(mpidr).ok_or(ErrorCode::InvalidParameters)?;
         debug_assert!(cpu_index < Qemu::CORE_COUNT);
@@ -300,7 +309,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         // Rust's safety guarantees, as this memory region is only used for the trusted mailbox.
         unsafe {
             *HOLD_ENTRYPOINT = bl31_warm_entrypoint;
-            let cpu_hold_addr = HOLD_BASE.add(cpu_index);
+            let cpu_hold_addr = (HOLD_BASE as *mut u64).add(cpu_index);
             *cpu_hold_addr = HOLD_STATE_GO;
         }
         sev();
@@ -321,10 +330,10 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
     }
 }
 
-// With this function: CorePos = (ClusterId * 4) + CoreId
 global_asm!(
     include_str!("../asm_macros_common.S"),
     include_str!("../arm_macros.S"),
+    // With this function: CorePos = (ClusterId * 4) + CoreId
     ".globl plat_calc_core_pos",
     "func plat_calc_core_pos",
         "and	x1, x0, #{MPIDR_CPU_MASK}",
@@ -332,6 +341,36 @@ global_asm!(
         "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
         "ret",
     "endfunc plat_calc_core_pos",
+
+    /* -----------------------------------------------------
+     * void plat_secondary_cold_boot_setup (void);
+     *
+     * This function sets up the holding pen mechanism on
+     * this core. It waits for an event and then checks the
+     * value in the core's holding pen. If the core receives
+     * a HOLD_STATE_GO signal, it jumps to the location
+     * provided in the mailbox (TRUSTED_MAILBOX_BASE).
+     * -----------------------------------------------------
+     */
+
+    ".globl plat_secondary_cold_boot_setup",
+    "func plat_secondary_cold_boot_setup",
+        "bl  plat_my_core_pos",
+        "lsl x0, x0, #{HOLD_ENTRY_SHIFT}",
+        "ldr x2, ={HOLD_BASE}",
+    "poll_mailbox:",
+        "ldr x1, [x2, x0]",
+        "cbz x1, 1f",
+        "ldr x1, ={HOLD_STATE_WAIT}",
+        "str x1, [x2, x0]",
+        "ldr x0, ={TRUSTED_MAILBOX_BASE}",
+        "ldr x1, [x0]",
+        "br  x1",
+    "1:",
+        "wfe",
+        "b   poll_mailbox",
+    "endfunc plat_secondary_cold_boot_setup",
+
     include_str!("qemu/crash_print_regs.S"),
     include_str!("../arm_macros_purge.S"),
     include_str!("../asm_macros_common_purge.S"),
@@ -343,4 +382,12 @@ global_asm!(
     ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
     GICD_BASE = const GICD_BASE,
     GICD_ISPENDR = const offset_of!(Gicd, ispendr),
+    TRUSTED_MAILBOX_BASE = const SHARED_RAM_BASE,
+    HOLD_BASE = const HOLD_BASE,
+    HOLD_ENTRY_SHIFT = const HOLD_ENTRY_SHIFT,
+    HOLD_STATE_WAIT = const HOLD_STATE_WAIT,
 );
+
+unsafe extern "C" {
+    pub unsafe fn plat_secondary_cold_boot_setup() -> !;
+}

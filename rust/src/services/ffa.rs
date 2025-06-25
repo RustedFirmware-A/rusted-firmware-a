@@ -22,19 +22,24 @@ use percore::{ExceptionLock, PerCore};
 const FUNCTION_NUMBER_MIN: u16 = 0x0060;
 const FUNCTION_NUMBER_MAX: u16 = 0x00FF;
 
-/// Core local state of the SPMD service
+/// Core-local state of the SPMD service
 struct SpmdLocal {
-    spmc_initialized: bool, // TODO: add enum for SPMC state
-    secure_interrupt_in_progress: bool,
+    spmc_state: SpmcState,
 }
 
 impl SpmdLocal {
     const fn new() -> Self {
         Self {
-            spmc_initialized: false,
-            secure_interrupt_in_progress: false,
+            spmc_state: SpmcState::Boot,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SpmcState {
+    Boot,
+    Runtime,
+    SecureInterrupt,
 }
 
 /// Secure Partition Manager Dispatcher, defined by Arm Firmware Framework for A-Profile (FF-A)
@@ -98,18 +103,22 @@ impl Service for Spmd {
             }
         };
 
-        let (out_msg, next_world) = self.handle_secure_call(&in_msg);
+        debug!("Handle FF-A call from SWd {:#x?}", in_msg);
 
-        // TODO: this is a workaround. Receiving this message from the SPMC means that we have to
-        // resume NWd execution after it was preempted by a secure interrupt. Simply forwarding this
-        // call to NWd would mean that the function ID gets written to NWd's x0, but in this case we
-        // must not modify NWd's state. This can be achieved by returning SmcReturn with the count of
-        // used values set to 0. Is there a more ergonomic way to do this?
-        if matches!(out_msg, Interface::NormalWorldResume) {
-            return (SmcReturn::EMPTY, World::NonSecure);
+        let spmc_state =
+            exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
+
+        let (out_msg, next_world) = match spmc_state {
+            SpmcState::Boot => self.handle_secure_call_boot(&in_msg),
+            SpmcState::Runtime => self.handle_secure_call_runtime(&in_msg),
+            SpmcState::SecureInterrupt => self.handle_secure_call_interrupt(&in_msg),
+        };
+
+        if let Some(out_msg) = out_msg {
+            out_msg.to_regs(version, out_regs.values_mut());
+        } else {
+            out_regs = SmcReturn::EMPTY;
         }
-
-        out_msg.to_regs(version, out_regs.values_mut());
 
         (out_regs, next_world)
     }
@@ -157,30 +166,8 @@ impl Spmd {
         self.spmc_secondary_ep.load(Relaxed)
     }
 
-    fn handle_secure_call(&self, in_msg: &Interface) -> (Interface, World) {
-        // By default return to the same world
-        let mut next_world = World::Secure;
-
-        debug!("Handle FF-A call from SWd {:#x?}", in_msg);
-
+    fn handle_secure_call_common(&self, in_msg: &Interface) -> (Option<Interface>, World) {
         let out_msg = match in_msg {
-            Interface::Error { error_code, .. } => {
-                // If we get this at boot, it means the SPMC init failed
-                exception_free(|token| {
-                    let spmd_state = self.core_local.get().borrow_mut(token);
-                    if !spmd_state.spmc_initialized {
-                        // TODO: should we return an error instead of panic?
-                        panic!("SPMC init failed with error {}", error_code);
-                    }
-                });
-
-                // Otherwise forward to NWd
-                next_world = World::NonSecure;
-                *in_msg
-            }
-            Interface::Version { input_version } => Interface::VersionOut {
-                output_version: Self::VERSION.min(*input_version),
-            },
             Interface::Features { .. } => {
                 // TODO: add list of supported features
                 Interface::success32_noargs()
@@ -193,29 +180,69 @@ impl Spmd {
                 target_info: TargetInfo::default(),
                 args: SuccessArgsSpmIdGet { id: Self::OWN_ID }.into(),
             },
+            _ => {
+                warn!("Unsupported FF-A call from Secure World: {:#x?}", in_msg);
+                Interface::error(FfaError::NotSupported)
+            }
+        };
+
+        (Some(out_msg), World::Secure)
+    }
+
+    fn handle_secure_call_boot(&self, in_msg: &Interface) -> (Option<Interface>, World) {
+        let out_msg = match in_msg {
+            Interface::Error { error_code, .. } => {
+                // TODO: should we return an error instead of panic?
+                panic!("SPMC init failed with error {}", error_code);
+            }
+            Interface::Version { input_version } => Interface::VersionOut {
+                output_version: Self::VERSION.min(*input_version),
+            },
             Interface::MsgWait { .. } => {
                 // Receiving this message for the first time means that SPMC init succeeded
                 exception_free(|token| {
-                    self.core_local.get().borrow_mut(token).spmc_initialized = true;
+                    let mut spmd_state = self.core_local.get().borrow_mut(token);
+                    assert_eq!(spmd_state.spmc_state, SpmcState::Boot);
+                    spmd_state.spmc_state = SpmcState::Runtime;
                 });
 
-                // Forward to NWd
-                next_world = World::NonSecure;
-                *in_msg
+                // In this case the FFA_MSG_WAIT message shouldn't be forwarded, because this is not
+                // a response to a call made by NWd.
+                return (None, World::NonSecure);
             }
+            Interface::SecondaryEpRegister { entrypoint } => {
+                // TODO: check if the entrypoint is within the range of the SPMC's memory range
+                // TODO: return Denied error if this is called on a secondary core
+                let secondary_ep = match entrypoint {
+                    SecondaryEpRegisterAddr::Addr32(addr) => *addr as usize,
+                    SecondaryEpRegisterAddr::Addr64(addr) => *addr as usize,
+                };
+                self.spmc_secondary_ep.store(secondary_ep, Relaxed);
+                Interface::success32_noargs()
+            }
+            Interface::Features { .. }
+            | Interface::IdGet
+            | Interface::SpmIdGet
+            | Interface::PartitionInfoGetRegs { .. } => {
+                return self.handle_secure_call_common(in_msg)
+            }
+            _ => {
+                warn!("Denied FF-A call from Secure World: {:#x?}", in_msg);
+                Interface::error(FfaError::Denied)
+            }
+        };
+
+        (Some(out_msg), World::Secure)
+    }
+
+    fn handle_secure_call_runtime(&self, in_msg: &Interface) -> (Option<Interface>, World) {
+        // By default return to the same world
+        let mut next_world = World::Secure;
+
+        let out_msg = match in_msg {
             Interface::NormalWorldResume => {
-                exception_free(|token| {
-                    let mut spmd_state = self.core_local.get().borrow_mut(token);
-                    if spmd_state.secure_interrupt_in_progress {
-                        // Interrupt was handled, return to NWd
-                        spmd_state.secure_interrupt_in_progress = false;
-                        next_world = World::NonSecure;
-                        *in_msg
-                    } else {
-                        // Normal world execution was not preempted
-                        Interface::error(FfaError::Denied)
-                    }
-                })
+                // Normal world execution was not preempted
+                Interface::error(FfaError::Denied)
             }
             Interface::MsgSendDirectResp {
                 src_id,
@@ -239,17 +266,16 @@ impl Spmd {
                     *in_msg
                 }
             }
-            Interface::SecondaryEpRegister { entrypoint } => {
-                // TODO: check if the entrypoint is within the range of the SPMC's memory range
-                let secondary_ep = match entrypoint {
-                    SecondaryEpRegisterAddr::Addr32(addr) => *addr as usize,
-                    SecondaryEpRegisterAddr::Addr64(addr) => *addr as usize,
-                };
-                self.spmc_secondary_ep.store(secondary_ep, Relaxed);
-                Interface::success32_noargs()
+            Interface::Features { .. }
+            | Interface::IdGet
+            | Interface::SpmIdGet
+            | Interface::PartitionInfoGetRegs { .. } => {
+                return self.handle_secure_call_common(in_msg)
             }
-            Interface::Success { .. }
+            Interface::Error { .. }
+            | Interface::Success { .. }
             | Interface::Interrupt { .. }
+            | Interface::MsgWait { .. }
             | Interface::Yield
             | Interface::MemRetrieveResp { .. } => {
                 // Forward to NWd
@@ -262,7 +288,32 @@ impl Spmd {
             }
         };
 
-        (out_msg, next_world)
+        (Some(out_msg), next_world)
+    }
+
+    fn handle_secure_call_interrupt(&self, in_msg: &Interface) -> (Option<Interface>, World) {
+        let out_msg = match in_msg {
+            Interface::NormalWorldResume => {
+                exception_free(|token| {
+                    let mut spmd_state = self.core_local.get().borrow_mut(token);
+                    assert_eq!(spmd_state.spmc_state, SpmcState::SecureInterrupt);
+                    spmd_state.spmc_state = SpmcState::Runtime;
+                });
+
+                // Interrupt was handled, return to NWd which was preempted by a secure interrupt.
+                // Instead of forwarding the FFA_NORMAL_WORLD_RESUME message, NWd must be resumed
+                // without any modification to its context. Returning None here will be converted to
+                // SmcReturn::EMPTY by handle_secure_smc(), which means that no register will get
+                // overwritten in NWd's context.
+                return (None, World::NonSecure);
+            }
+            _ => {
+                warn!("Denied FF-A call from Secure World: {:#x?}", in_msg);
+                Interface::error(FfaError::Denied)
+            }
+        };
+
+        (Some(out_msg), World::Secure)
     }
 
     fn handle_non_secure_call(&self, in_msg: &Interface) -> (Interface, World) {
@@ -363,7 +414,8 @@ impl Spmd {
 
         exception_free(|token| {
             let mut spmd_state = self.core_local.get().borrow_mut(token);
-            spmd_state.secure_interrupt_in_progress = true;
+            assert_eq!(spmd_state.spmc_state, SpmcState::Runtime);
+            spmd_state.spmc_state = SpmcState::SecureInterrupt;
         });
 
         (out_regs, World::Secure)

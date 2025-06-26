@@ -137,6 +137,17 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.0 -> 0.2.1"
 
+[[audits.arm-gic]]
+who = "Jeremi Miller <jeremimiller@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.4.0"
+notes = """
+`arm-gic` is a driver for the arm Generic Interrupt Controller.
+`does-not-implement-crypto`: The crate doesn't contain any cryptographic implementations.
+`safe-to-deploy`: The crate is a low-level driver that interacts with registers. It doesn't contain complex logic and it won't accept complex inputs.
+`ub-risk-2`: The crate contains several unsafe blocks, for MMIO and to call assembly instructions. They are well commented and simple to reason about. While in some cases the caller has to promise safety of the block, this is standard in this kind of crates.
+"""
+
 [[audits.arm-pl011-uart]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]

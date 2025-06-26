@@ -8,7 +8,8 @@ use super::Platform;
 use crate::{
     context::{CoresImpl, EntryPointInfo},
     debug::DEBUG,
-    gicv3, logger,
+    gicv3,
+    logger::{self, LockedWriter},
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::{
         arch::WorkaroundSupport,
@@ -91,7 +92,7 @@ impl Platform for Fvp {
     const CORE_COUNT: usize = PLATFORM_CORE_COUNT;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
-    type LoggerWriter = Uart<'static>;
+    type LogSinkImpl = LockedWriter<Uart<'static>>;
     type PsciPlatformImpl = FvpPsciPlatformImpl;
 
     const GIC_CONFIG: gicv3::GicConfig = gicv3::GicConfig {
@@ -105,7 +106,8 @@ impl Platform for Fvp {
         // because of the identity mapping of the `V2M_MAP_IOFPGA` region.
         let uart_pointer =
             unsafe { UniqueMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
-        logger::init(Uart::new(uart_pointer)).expect("Failed to initialise logger");
+        logger::init(LockedWriter::new(Uart::new(uart_pointer)))
+            .expect("Failed to initialise logger");
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {

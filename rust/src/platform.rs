@@ -12,6 +12,7 @@ mod test;
 use crate::{
     context::EntryPointInfo,
     gicv3,
+    logger::LogSink,
     pagetable::IdMap,
     services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
     sysregs::MpidrEl1,
@@ -26,9 +27,8 @@ pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
 pub use test::{exception_free, TestPlatform as PlatformImpl};
 
-/// The code must use `platform::LoggerWriter` to avoid the 'ambiguous associated type' error that
-/// occurs when using `PlatformImpl::LoggerWriter` directly.
-pub type LoggerWriter = <PlatformImpl as Platform>::LoggerWriter;
+/// Type alias for convenience, to avoid having to use the complicated type name everywhere.
+pub type LogSinkImpl = <PlatformImpl as Platform>::LogSinkImpl;
 
 pub type PsciPlatformImpl = <PlatformImpl as Platform>::PsciPlatformImpl;
 pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface>::PlatformPowerState;
@@ -58,8 +58,8 @@ pub trait Platform {
     /// The number of pages to reserve for the page heap.
     const PAGE_HEAP_PAGE_COUNT: usize = 5;
 
-    /// Platform dependent Write implementation type for Logger.
-    type LoggerWriter: core::fmt::Write;
+    /// Platform dependent LogSink implementation type for Logger.
+    type LogSinkImpl: LogSink;
 
     /// Platform dependent PsciPlatformInterface implementation type.
     type PsciPlatformImpl: PsciPlatformInterface;

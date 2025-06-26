@@ -7,7 +7,7 @@ use crate::{
     aarch64::sev,
     context::EntryPointInfo,
     gicv3::GicConfig,
-    logger,
+    logger::{self, LogSink},
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::{
         arch::WorkaroundSupport,
@@ -44,7 +44,7 @@ impl Platform for TestPlatform {
     const CORE_COUNT: usize = 13;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
-    type LoggerWriter = DummyLoggerWriter;
+    type LogSinkImpl = StdOutSink;
     type PsciPlatformImpl = TestPsciPlatformImpl;
 
     const GIC_CONFIG: GicConfig = GicConfig {
@@ -52,7 +52,7 @@ impl Platform for TestPlatform {
     };
 
     fn init_before_mmu() {
-        logger::init(DummyLoggerWriter {}).expect("Failed to initialise logger");
+        logger::init(StdOutSink).expect("Failed to initialise logger");
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {
@@ -157,13 +157,12 @@ pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
     f(token)
 }
 
-pub struct DummyLoggerWriter;
+/// A log sink for tests which writes logs to standard output.
+pub struct StdOutSink;
 
-impl fmt::Write for DummyLoggerWriter {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let mut stdout = stdout();
-        stdout.write_all(s.as_bytes()).unwrap();
-        Ok(())
+impl LogSink for StdOutSink {
+    fn write_fmt(&self, args: fmt::Arguments) {
+        stdout().write_fmt(args).unwrap();
     }
 }
 
@@ -338,11 +337,10 @@ extern "C" fn plat_calc_core_pos(mpidr: u64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::fmt::Write;
 
     #[test]
     fn test_basic_logging() {
-        let mut writer = DummyLoggerWriter {};
-        writeln!(writer, "hello").unwrap();
+        let writer = StdOutSink;
+        writeln!(writer, "hello");
     }
 }

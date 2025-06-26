@@ -7,7 +7,8 @@ use crate::{
     aarch64::{dsb_sy, sev, wfi},
     context::{CoresImpl, EntryPointInfo},
     debug::DEBUG,
-    gicv3, info, logger,
+    gicv3::GicConfig,
+    logger::{self, inmemory::PerCoreMemoryLogger, HybridLogger, LockedWriter},
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
     services::{
@@ -31,7 +32,6 @@ use arm_gic::{
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
-use gicv3::GicConfig;
 use percore::Cores;
 
 const DEVICE0_BASE: usize = 0x0800_0000;
@@ -82,6 +82,15 @@ const PLATFORM_CPU_PER_CLUSTER_SHIFT: usize = 2;
 /// The maximum number of CPUs in each cluster.
 const MAX_CPUS_PER_CLUSTER: usize = 1 << PLATFORM_CPU_PER_CLUSTER_SHIFT;
 
+/// The per-core log buffer size in bytes.
+const LOG_BUFFER_SIZE: usize = 1024;
+
+/// The per-core in-memory logger.
+///
+/// This is here in a static rather than on the stack because it will be quite large, and we may
+/// want to move it to DRAM rather than SRAM.
+static MEMORY_LOGGER: PerCoreMemoryLogger<LOG_BUFFER_SIZE> = PerCoreMemoryLogger::new();
+
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
 
@@ -89,7 +98,8 @@ impl Platform for Qemu {
     const CORE_COUNT: usize = CLUSTER_COUNT * MAX_CPUS_PER_CLUSTER;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
-    type LoggerWriter = Uart<'static>;
+    type LogSinkImpl =
+        HybridLogger<&'static PerCoreMemoryLogger<LOG_BUFFER_SIZE>, LockedWriter<Uart<'static>>>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
 
     const GIC_CONFIG: GicConfig = GicConfig {
@@ -103,7 +113,11 @@ impl Platform for Qemu {
         // because of the identity mapping of the `DEVICE1` region.
         let uart_pointer =
             unsafe { UniqueMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
-        logger::init(Uart::new(uart_pointer)).expect("Failed to initialise logger");
+        logger::init(HybridLogger::new(
+            &MEMORY_LOGGER,
+            LockedWriter::new(Uart::new(uart_pointer)),
+        ))
+        .expect("Failed to initialise logger");
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {

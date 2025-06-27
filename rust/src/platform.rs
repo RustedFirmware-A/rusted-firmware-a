@@ -9,8 +9,14 @@ mod qemu;
 #[cfg(test)]
 mod test;
 
+use crate::{
+    context::EntryPointInfo,
+    gicv3,
+    pagetable::IdMap,
+    services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
+    sysregs::MpidrEl1,
+};
 use arm_gic::gicv3::GicV3;
-use core::arch::global_asm;
 #[cfg(platform = "fvp")]
 pub use fvp::Fvp as PlatformImpl;
 #[cfg(not(test))]
@@ -19,15 +25,6 @@ pub use percore::exception_free;
 pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
 pub use test::{exception_free, TestPlatform as PlatformImpl};
-
-use crate::{
-    context::EntryPointInfo,
-    debug::DEBUG,
-    gicv3,
-    pagetable::IdMap,
-    services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
-    sysregs::MpidrEl1,
-};
 
 /// The code must use `platform::LoggerWriter` to avoid the 'ambiguous associated type' error that
 /// occurs when using `PlatformImpl::LoggerWriter` directly.
@@ -124,9 +121,14 @@ pub trait Platform {
 }
 
 #[cfg(target_arch = "aarch64")]
-global_asm!(
-    include_str!("asm_macros_common.S"),
-    include_str!("platform_helpers.S"),
-    include_str!("asm_macros_common_purge.S"),
-    DEBUG = const DEBUG as i32,
-);
+mod asm {
+    use crate::debug::DEBUG;
+    use core::arch::global_asm;
+
+    global_asm!(
+        include_str!("asm_macros_common.S"),
+        include_str!("platform_helpers.S"),
+        include_str!("asm_macros_common_purge.S"),
+        DEBUG = const DEBUG as i32,
+    );
+}

@@ -985,6 +985,26 @@ pub fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<usize> {
     }
 }
 
+#[unsafe(no_mangle)]
+extern "C" fn psci_warmboot_entrypoint() {
+    // TODO: Initialise scr_el3?
+    info!("psci_warmboot_entrypoint");
+    pagetable::enable();
+    info!("MMU enabled");
+    // TODO: Initialise context if this is the first time this CPU has run.
+    // TODO: Set up GIC redistributor
+    // TODO: Set next world appropriately.
+    // TODO: Call handle_cpu_boot and set non-secure entry point.
+    loop {
+        wfi();
+    }
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub unsafe fn bl31_warm_entrypoint();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1712,23 +1732,4 @@ mod tests {
         // Not last CPU
         assert_eq!(Err(ErrorCode::Denied), psci.system_suspend(ENTRY_POINT));
     }
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn psci_warmboot_entrypoint() {
-    // TODO: Initialise scr_el3?
-    info!("psci_warmboot_entrypoint");
-    pagetable::enable();
-    info!("MMU enabled");
-    // TODO: Initialise context if this is the first this CPU has run.
-    // TODO: Set up GIC redistributor
-    // TODO: Set next world appropriately.
-    // TODO: Call handle_cpu_boot and set non-secure entry point.
-    loop {
-        wfi();
-    }
-}
-
-unsafe extern "C" {
-    pub unsafe fn bl31_warm_entrypoint();
 }

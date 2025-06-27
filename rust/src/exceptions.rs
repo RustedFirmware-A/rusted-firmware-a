@@ -2,22 +2,19 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+use crate::context::world_context;
 use crate::{
-    context::{cpu_state, world_context, CpuData, GpRegs, World, CPU_DATA_CRASH_BUF_SIZE},
-    debug::DEBUG,
+    context::{cpu_state, World},
     platform::exception_free,
     smccc::SmcReturn,
     sysregs::{
         is_feat_vhe_present, read_hcr_el2, read_vbar_el1, read_vbar_el2, write_elr_el1,
         write_elr_el2, write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2, Esr,
-        ExceptionLevel, HcrEl2, ScrEl3, SctlrEl3, Spsr, StackPointer,
+        ExceptionLevel, HcrEl2, ScrEl3, Spsr, StackPointer,
     },
 };
-#[cfg(target_arch = "aarch64")]
-use core::{
-    arch::{asm, global_asm},
-    mem::offset_of,
-};
+#[cfg(not(test))]
+use core::arch::asm;
 use log::trace;
 
 #[derive(Debug)]
@@ -179,7 +176,6 @@ impl RunResult {
 /// in the `in_regs` parameter, those values will be copied into the lower EL's saved context before
 /// the ERET. After execution returns to EL3 by any exception, the reason for returning is checked
 /// and the appropriate result will be returned by this function.
-#[cfg(not(test))]
 pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
     trace!("Entering world {:?} with args {:#x?}", world, in_regs);
 
@@ -193,13 +189,14 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
     }
 
     let context = world_context(world);
-    let mut out_values = [0u64; 18];
-    let mut return_reason: u64;
-    let mut esr: u64;
+    let mut out_values = [0; 18];
+    let return_reason: u64;
+    let esr: u64;
 
     // SAFETY: The CPU context is always valid, and will only be used via this pointer by assembly
     // code after the Rust code returns to prepare for the eret, and after the next exception before
     // entering the Rust code again.
+    #[cfg(not(test))]
     unsafe {
         asm!(
             // Save x19 and x29 manually as Rust won't let us specify them as clobbers.
@@ -237,6 +234,13 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
             out("x30") _,
         );
     }
+    #[cfg(test)]
+    {
+        let _ = context;
+        out_values[0] = 42;
+        return_reason = RunResult::SMC;
+        esr = 0;
+    }
 
     let result = match return_reason {
         RunResult::SMC => RunResult::Smc { regs: out_values },
@@ -252,24 +256,28 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
     result
 }
 
-#[cfg(test)]
-pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
-    unimplemented!()
-}
-
 #[cfg(target_arch = "aarch64")]
-global_asm!(
-    include_str!("asm_macros_common.S"),
-    include_str!("crash_reporting.S"),
-    include_str!("asm_macros_common_purge.S"),
-    DEBUG = const DEBUG as u32,
-    MODE_SP_ELX = const 1,
-    CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),
-    CTX_GPREG_X0 = const 0,
-    CPU_DATA_CRASH_BUF_OFFSET = const offset_of!(CpuData, crash_buf),
-    CPU_DATA_CRASH_BUF_SIZE = const CPU_DATA_CRASH_BUF_SIZE,
-    REGSZ = const 8,
-    MODE_EL2 = const 2,
-    SCTLR_EnIA_BIT = const SctlrEl3::ENIA.bits(),
-    SCTLR_EnIB_BIT = const SctlrEl3::ENIB.bits(),
-);
+mod asm {
+    use crate::{
+        context::{CpuData, CrashBuf, GpRegs},
+        debug::DEBUG,
+        sysregs::SctlrEl3,
+    };
+    use core::{arch::global_asm, mem::offset_of};
+
+    global_asm!(
+        include_str!("asm_macros_common.S"),
+        include_str!("crash_reporting.S"),
+        include_str!("asm_macros_common_purge.S"),
+        DEBUG = const DEBUG as u32,
+        MODE_SP_ELX = const 1,
+        CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),
+        CTX_GPREG_X0 = const 0,
+        CPU_DATA_CRASH_BUF_OFFSET = const offset_of!(CpuData, crash_buf),
+        CPU_DATA_CRASH_BUF_SIZE = const size_of::<CrashBuf>(),
+        REGSZ = const 8,
+        MODE_EL2 = const 2,
+        SCTLR_EnIA_BIT = const SctlrEl3::ENIA.bits(),
+        SCTLR_EnIB_BIT = const SctlrEl3::ENIB.bits(),
+    );
+}

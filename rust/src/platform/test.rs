@@ -4,6 +4,7 @@
 
 use super::Platform;
 use crate::{
+    aarch64::sev,
     context::EntryPointInfo,
     gicv3::GicConfig,
     logger,
@@ -266,6 +267,7 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
     }
 
     fn power_domain_on(&self, _mpidr: Mpidr) -> Result<(), ErrorCode> {
+        sev();
         Ok(())
     }
 

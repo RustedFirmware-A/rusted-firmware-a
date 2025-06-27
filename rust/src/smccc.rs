@@ -129,6 +129,7 @@ impl FunctionId {
     }
 
     /// Sets the SVE hint bit.
+    #[allow(unused)]
     pub fn set_sve_hint(&mut self) {
         self.0 |= SVE_HINT
     }

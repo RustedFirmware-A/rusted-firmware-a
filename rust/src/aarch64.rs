@@ -38,7 +38,7 @@ pub fn sev() {
     // SAFETY: `sev` does not violate safe Rust guarantees.
     #[cfg(target_arch = "aarch64")]
     unsafe {
-        asm!("sev");
+        asm!("sev", options(nostack));
     }
 }
 

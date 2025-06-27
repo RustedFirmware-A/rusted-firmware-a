@@ -366,7 +366,7 @@ bitflags! {
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     pub struct ScrEl3: u64 {
         /// RES1 bits in the `scr_el3` register.
-        const RES1 = 1 << 4 | 1 << 5;
+        const RES1 = (1 << 4) | (1 << 5);
         const NS = 1 << 0;
         const IRQ = 1 << 1;
         const FIQ = 1 << 2;

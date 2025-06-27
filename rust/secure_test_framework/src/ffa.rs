@@ -21,6 +21,7 @@ pub fn msg_wait(flags: Option<MsgWaitFlags>) -> Result<Interface, Error> {
 }
 
 /// Sends a direct message request.
+#[allow(unused)]
 pub fn direct_request(
     source: u16,
     destination: u16,
@@ -34,6 +35,7 @@ pub fn direct_request(
 }
 
 /// Sends a direct message response.
+#[allow(unused)]
 pub fn direct_response(
     source: u16,
     destination: u16,

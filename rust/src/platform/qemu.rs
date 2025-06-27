@@ -9,7 +9,6 @@ use crate::{
     debug::DEBUG,
     gicv3, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
-    platform::plat_calc_core_pos,
     semihosting::{semihosting_exit, AdpStopped},
     services::{
         arch::WorkaroundSupport,
@@ -52,9 +51,14 @@ const GICR_BASE: usize = 0x080A_0000;
 /// The mailbox has a storage buffer at its base, and a doorbell for each CPU.
 /// The size of the mailbox (TRUSTED_MAILBOX_SIZE) is 8 for the buffer plus memory reserved for the
 /// doorbells, or holding pens, (HOLD_SIZE) which is equal to Qemu::CORE_COUNT * 8.
-const TRUSTED_MAILBOX_BASE: *mut u64 = SHARED_RAM_BASE as _;
-/// Base address of the CPU doorbells.
-const HOLD_BASE: *mut u64 = (SHARED_RAM_BASE + 8) as _;
+const TRUSTED_MAILBOX_BASE: usize = SHARED_RAM_BASE;
+/// Location to which to write the address that secondary cores should jump to after being released
+/// from their holding pens.
+const HOLD_ENTRYPOINT: *mut unsafe extern "C" fn() = TRUSTED_MAILBOX_BASE as _;
+/// Base address of hold entries for secondary cores. Writing `HOLD_STATE_GO` to the entry for a
+/// secondary core will cause it to be released from its holding pen and jump to `*HOLD_ENTRYPOINT`.
+const HOLD_BASE: *mut u64 = (TRUSTED_MAILBOX_BASE + 8) as _;
+#[allow(unused)]
 const HOLD_STATE_WAIT: u64 = 0;
 const HOLD_STATE_GO: u64 = 1;
 
@@ -255,7 +259,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         // and writing HOLD_STATE_GO to the hold address of the appropriate CPU doesn't violate
         // Rust's safety guarantees, as this memory region is only used for the trusted mailbox.
         unsafe {
-            *TRUSTED_MAILBOX_BASE = bl31_warm_entrypoint as u64;
+            *HOLD_ENTRYPOINT = bl31_warm_entrypoint;
             let cpu_hold_addr = HOLD_BASE.add(cpu_index);
             *cpu_hold_addr = HOLD_STATE_GO;
         }

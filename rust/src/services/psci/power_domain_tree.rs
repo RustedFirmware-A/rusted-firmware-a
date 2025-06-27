@@ -127,6 +127,7 @@ impl CpuPowerNode {
     }
 
     /// Set highest affected power level.
+    #[allow(unused)]
     pub fn set_highest_affected_level(&mut self, highest_affected_level: usize) {
         self.highest_affected_level = Some(highest_affected_level);
     }

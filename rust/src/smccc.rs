@@ -123,6 +123,7 @@ impl FunctionId {
     ///
     /// If this is true, the caller asserts that P0-P15, FFR and the bits with index greater than
     /// 127 in the Z0-Z31 registers do not contain any live state.
+    #[allow(unused)]
     pub fn sve_hint(self) -> bool {
         self.0 & SVE_HINT != 0
     }

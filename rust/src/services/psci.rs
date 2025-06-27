@@ -208,6 +208,7 @@ impl PsciCompositePowerState {
         states: [PlatformPowerState::RUN; PsciPlatformImpl::MAX_POWER_LEVEL + 1],
     };
 
+    #[allow(unused)]
     pub fn new(states: [PlatformPowerState; PsciPlatformImpl::MAX_POWER_LEVEL + 1]) -> Self {
         Self { states }
     }
@@ -552,6 +553,7 @@ impl Psci {
 
     /// This function must be called when a CPU is powered up. It returns the non-secure entry
     /// point.
+    #[allow(unused)]
     pub fn handle_cpu_boot(&self) -> EntryPoint {
         let cpu_index = CoresImpl::core_index();
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
@@ -1732,7 +1734,9 @@ extern "C" fn psci_warmboot_entrypoint() {
     // TODO: Set up GIC redistributor
     // TODO: Set next world appropriately.
     // TODO: Call handle_cpu_boot and set non-secure entry point.
-    loop {}
+    loop {
+        wfi();
+    }
 }
 
 unsafe extern "C" {

@@ -155,9 +155,7 @@ impl CpuPowerNode {
 
     /// Get and clear stored non-secure entry point of the CPU.
     pub fn pop_entry_point(&mut self) -> Option<EntryPoint> {
-        let mut entry_point = None;
-        core::mem::swap(&mut self.entry_point, &mut entry_point);
-        entry_point
+        self.entry_point.take()
     }
 }
 

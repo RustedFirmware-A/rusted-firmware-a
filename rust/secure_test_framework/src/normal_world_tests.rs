@@ -4,13 +4,13 @@
 
 //! Test cases to run in normal world.
 
-use crate::{expect_eq, ffa};
-use arm_ffa::{FfaError, Interface, TargetInfo};
+use crate::{expect_eq, ffa, util::NORMAL_WORLD_ID};
+use arm_ffa::{FfaError, Interface, SuccessArgsIdGet, TargetInfo};
 use log::{error, info};
-use smccc::{arch, psci, Smc};
+use smccc::{Smc, arch, psci};
 
 /// The number of normal world tests.
-pub const NORMAL_TEST_COUNT: u64 = 3;
+pub const NORMAL_TEST_COUNT: u64 = 4;
 
 /// Runs the test with the given index.
 pub fn run_test(index: u64) -> Result<(), ()> {
@@ -19,6 +19,7 @@ pub fn run_test(index: u64) -> Result<(), ()> {
         0 => test_smccc_arch(),
         1 => test_psci_version(),
         2 => test_no_msg_wait_from_normal_world(),
+        3 => test_ffa_id_get(),
         _ => {
             error!("Requested to run unknown test {}", index);
             Err(())
@@ -56,5 +57,15 @@ fn test_no_msg_wait_from_normal_world() -> Result<(), ()> {
             error_arg: 0
         })
     );
+    Ok(())
+}
+
+fn test_ffa_id_get() -> Result<(), ()> {
+    let id = match ffa::id_get().map_err(|_| ())? {
+        Interface::Success { args, .. } => SuccessArgsIdGet::try_from(args).map_err(|_| ())?.id,
+        _ => return Err(()),
+    };
+
+    expect_eq!(id, NORMAL_WORLD_ID);
     Ok(())
 }

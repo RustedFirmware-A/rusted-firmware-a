@@ -10,6 +10,12 @@ pub const NORMAL_WORLD_ID: u16 = 0;
 /// The partition ID of the secure world component.
 pub const SECURE_WORLD_ID: u16 = 1;
 
+/// Default ID for the SPMC
+pub const SPMC_DEFAULT_ID: u16 = 0x8000;
+
+/// Default ID for the SPMD
+pub const SPMD_DEFAULT_ID: u16 = 0xffff;
+
 /// Value returned in a direct message response for a test success.
 pub const TEST_SUCCESS: u64 = 0;
 

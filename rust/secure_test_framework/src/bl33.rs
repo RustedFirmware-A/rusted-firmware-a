@@ -18,15 +18,15 @@ mod util;
 use crate::{
     exceptions::set_exception_vector,
     ffa::direct_request,
-    normal_world_tests::{run_test, NORMAL_TEST_COUNT},
+    normal_world_tests::{NORMAL_TEST_COUNT, run_test},
     platform::{Platform, PlatformImpl},
-    util::{current_el, NORMAL_WORLD_ID, SECURE_WORLD_ID, TEST_FAILURE, TEST_PANIC, TEST_SUCCESS},
+    util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, TEST_FAILURE, TEST_PANIC, TEST_SUCCESS, current_el},
 };
 use aarch64_rt::entry;
 use arm_ffa::{DirectMsgArgs, Interface};
 use core::panic::PanicInfo;
-use log::{error, info, warn, LevelFilter};
-use smccc::{psci, Smc};
+use log::{LevelFilter, error, info, warn};
+use smccc::{Smc, psci};
 
 /// The version of FF-A which we support.
 const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0);
@@ -54,10 +54,10 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     );
 
     // Test what happens if we try a much higher version.
-    let el3_supported_ffa_version = ffa::version(HIGH_FFA_VERSION).expect("FFA_VERSION failed");
-    info!("EL3 supports FF-A version {}", el3_supported_ffa_version);
-    assert!(el3_supported_ffa_version >= FFA_VERSION);
-    assert!(el3_supported_ffa_version < HIGH_FFA_VERSION);
+    let spmc_supported_ffa_version = ffa::version(HIGH_FFA_VERSION).expect("FFA_VERSION failed");
+    info!("SPMC supports FF-A version {}", spmc_supported_ffa_version);
+    assert!(spmc_supported_ffa_version >= FFA_VERSION);
+    assert!(spmc_supported_ffa_version < HIGH_FFA_VERSION);
     // Negotiate the FF-A version we actually support. This must happen before any other FF-A calls.
     assert_eq!(ffa::version(FFA_VERSION), Ok(FFA_VERSION));
 

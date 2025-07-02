@@ -16,6 +16,14 @@ pub fn version(input_version: Version) -> Result<Version, arch::Error> {
     Ok(Version::try_from(output_version).unwrap())
 }
 
+pub fn id_get() -> Result<Interface, Error> {
+    call(Interface::IdGet)
+}
+
+pub fn spm_id_get() -> Result<Interface, Error> {
+    call(Interface::SpmIdGet)
+}
+
 pub fn msg_wait(flags: Option<MsgWaitFlags>) -> Result<Interface, Error> {
     call(Interface::MsgWait { flags })
 }

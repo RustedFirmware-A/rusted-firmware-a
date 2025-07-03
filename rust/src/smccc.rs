@@ -200,7 +200,16 @@ impl SmcReturn {
 
 impl Debug for SmcReturn {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_tuple("SmcReturn").field(&self.values()).finish()
+        write!(f, "SmcReturn([")?;
+        let values = self.values();
+        if let Some(first) = values.first() {
+            write!(f, "{:#x}", first)?;
+            for value in &values[1..] {
+                write!(f, ", {:#x}", value)?;
+            }
+        }
+        write!(f, "])")?;
+        Ok(())
     }
 }
 

@@ -15,6 +15,7 @@ use crate::{
 };
 #[cfg(not(test))]
 use core::arch::asm;
+use core::fmt::{self, Debug, Formatter};
 use log::trace;
 
 // Exception vector offsets.
@@ -136,7 +137,6 @@ fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
 }
 
 /// Describes the reason why execution returned to EL3 after running a lower EL.
-#[derive(Debug)]
 pub enum RunResult {
     /// A lower EL has executed an SMC instruction.
     Smc { regs: [u64; 18] },
@@ -152,6 +152,26 @@ impl RunResult {
     pub const SYSREG_TRAP: u64 = 2;
 }
 
+impl Debug for RunResult {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::Smc { regs } => {
+                write!(f, "Smc {{ regs: [")?;
+                if let Some(first) = regs.first() {
+                    write!(f, "{:#x}", first)?;
+                    for reg in &regs[1..] {
+                        write!(f, ", {:#x}", reg)?;
+                    }
+                }
+                write!(f, "] }}")?;
+                Ok(())
+            }
+            Self::Interrupt => write!(f, "Interrupt"),
+            Self::SysregTrap { esr } => f.debug_struct("SysregTrap").field("esr", esr).finish(),
+        }
+    }
+}
+
 /// Enters a lower EL in the specified world.
 ///
 /// Exit EL3 and enter a lower EL by ERET. The caller must ensure that if necessary, the contents of
@@ -161,7 +181,7 @@ impl RunResult {
 /// the ERET. After execution returns to EL3 by any exception, the reason for returning is checked
 /// and the appropriate result will be returned by this function.
 pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
-    trace!("Entering world {:?} with args {:#x?}", world, in_regs);
+    trace!("Entering world {:?} with args {:x?}", world, in_regs);
 
     if !in_regs.is_empty() {
         exception_free(|token| {
@@ -235,7 +255,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
         r => panic!("unhandled enter world result: {}", r),
     };
 
-    trace!("Returned from world {:?} with result {:#x?}", world, result);
+    trace!("Returned from world {:?} with result {:?}", world, result);
 
     result
 }
@@ -264,4 +284,32 @@ mod asm {
         SCTLR_EnIA_BIT = const SctlrEl3::ENIA.bits(),
         SCTLR_EnIB_BIT = const SctlrEl3::ENIB.bits(),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_result_debug_format() {
+        assert_eq!(
+            format!(
+                "{:?}",
+                RunResult::Smc {
+                    regs: [0, 1, 2, 0x42, 0x1234, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                }
+            ),
+            "Smc { regs: [0x0, 0x1, 0x2, 0x42, 0x1234, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0] }"
+        );
+        assert_eq!(format!("{:?}", RunResult::Interrupt), "Interrupt");
+        assert_eq!(
+            format!(
+                "{:?}",
+                RunResult::SysregTrap {
+                    esr: Esr::from_bits_retain(0x12345)
+                }
+            ),
+            "SysregTrap { esr: Esr(0x12345) }"
+        );
+    }
 }

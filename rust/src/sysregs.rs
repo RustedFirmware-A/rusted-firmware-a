@@ -12,6 +12,7 @@ use arm_psci::Mpidr;
 use bitflags::bitflags;
 #[cfg(not(test))]
 use core::arch::asm;
+use core::fmt::{self, Debug, Formatter};
 
 /// Constants for PMCR_EL0 fields.
 pub mod pmcr {
@@ -526,8 +527,14 @@ impl Spsr {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct Esr(u64);
+
+impl Debug for Esr {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "Esr({:#x})", self.0)
+    }
+}
 
 bitflagslike!(Esr: u64);
 

@@ -74,7 +74,7 @@ pub const fn build_time_log_level() -> LevelFilter {
         b"trace" => LevelFilter::Trace,
         _ => {
             if DEBUG {
-                LevelFilter::Trace
+                LevelFilter::Debug
             } else {
                 LevelFilter::Info
             }

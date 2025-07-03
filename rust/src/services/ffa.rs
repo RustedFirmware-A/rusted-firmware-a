@@ -72,7 +72,7 @@ impl Service for Spmd {
         let in_msg = match Interface::from_regs(version, in_regs) {
             Ok(msg) => msg,
             Err(e) => {
-                error!("Invalid FF-A call from Normal World {:#x?}", e);
+                error!("Invalid FF-A call from Normal World {}", e);
                 Interface::error(e.into()).to_regs(version, out_regs.values_mut());
                 return (out_regs, World::NonSecure);
             }
@@ -97,13 +97,13 @@ impl Service for Spmd {
         let in_msg = match Interface::from_regs(version, in_regs) {
             Ok(msg) => msg,
             Err(e) => {
-                error!("Invalid FF-A call from Secure World: {:#x?} ", e);
+                error!("Invalid FF-A call from Secure World: {} ", e);
                 Interface::error(e.into()).to_regs(version, out_regs.values_mut());
                 return (out_regs, World::Secure);
             }
         };
 
-        debug!("Handle FF-A call from SWd {:#x?}", in_msg);
+        debug!("Handle FF-A call from SWd {:x?}", in_msg);
 
         let spmc_state =
             exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
@@ -181,7 +181,7 @@ impl Spmd {
                 args: SuccessArgsSpmIdGet { id: Self::OWN_ID }.into(),
             },
             _ => {
-                warn!("Unsupported FF-A call from Secure World: {:#x?}", in_msg);
+                warn!("Unsupported FF-A call from Secure World: {:x?}", in_msg);
                 Interface::error(FfaError::NotSupported)
             }
         };
@@ -227,7 +227,7 @@ impl Spmd {
                 return self.handle_secure_call_common(in_msg)
             }
             _ => {
-                warn!("Denied FF-A call from Secure World: {:#x?}", in_msg);
+                warn!("Denied FF-A call from Secure World: {:x?}", in_msg);
                 Interface::error(FfaError::Denied)
             }
         };
@@ -283,7 +283,7 @@ impl Spmd {
                 *in_msg
             }
             _ => {
-                warn!("Unsupported FF-A call from Secure World: {:#x?}", in_msg);
+                warn!("Unsupported FF-A call from Secure World: {:x?}", in_msg);
                 Interface::error(FfaError::NotSupported)
             }
         };
@@ -308,7 +308,7 @@ impl Spmd {
                 return (None, World::NonSecure);
             }
             _ => {
-                warn!("Denied FF-A call from Secure World: {:#x?}", in_msg);
+                warn!("Denied FF-A call from Secure World: {:x?}", in_msg);
                 Interface::error(FfaError::Denied)
             }
         };
@@ -320,7 +320,7 @@ impl Spmd {
         // By default return to the same world
         let mut next_world = World::NonSecure;
 
-        debug!("Handle FF-A call from NWd {:#x?}", in_msg);
+        debug!("Handle FF-A call from NWd {:x?}", in_msg);
 
         let out_msg = match in_msg {
             Interface::Version { input_version } => {
@@ -383,7 +383,7 @@ impl Spmd {
                 *in_msg
             }
             _ => {
-                warn!("Unsupported FF-A call from Normal World: {:#x?}", in_msg);
+                warn!("Unsupported FF-A call from Normal World: {:x?}", in_msg);
                 Interface::error(FfaError::NotSupported)
             }
         };

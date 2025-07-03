@@ -6,7 +6,7 @@
 
 use crate::expect_eq;
 use log::{error, info};
-use smccc::{arch, psci, Smc};
+use smccc::{Smc, arch, psci};
 
 /// Runs the test with the given index.
 pub fn run_test(index: u64) -> Result<(), ()> {
@@ -31,9 +31,6 @@ fn test_smccc_arch() -> Result<(), ()> {
 }
 
 fn test_psci_version() -> Result<(), ()> {
-    expect_eq!(
-        psci::version::<Smc>(),
-        Ok(psci::Version { major: 1, minor: 3 })
-    );
+    expect_eq!(psci::version::<Smc>(), Err(psci::Error::NotSupported));
     Ok(())
 }

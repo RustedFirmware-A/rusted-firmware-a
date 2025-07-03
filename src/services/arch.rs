@@ -68,38 +68,7 @@ pub struct Arch<ArchPlatformImpl: ArchPlatform> {
 impl<ArchPlatformImpl: ArchPlatform> Service for Arch<ArchPlatformImpl> {
     owns!(OwningEntityNumber::ARM_ARCHITECTURE);
 
-    fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
-        Self::handle_common_smc(regs);
-        World::NonSecure
-    }
-
-    fn handle_secure_smc(&self, regs: &mut SmcReturn) -> World {
-        Self::handle_common_smc(regs);
-        World::Secure
-    }
-
-    #[cfg(feature = "rme")]
-    fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
-        Self::handle_common_smc(regs);
-        World::Realm
-    }
-}
-
-impl<ArchPlatformImpl: ArchPlatform> Default for Arch<ArchPlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<ArchPlatformImpl: ArchPlatform> Arch<ArchPlatformImpl> {
-    /// Creates a new instance of the `Arch` service.
-    pub const fn new() -> Self {
-        Self {
-            _platform: PhantomData,
-        }
-    }
-
-    fn handle_common_smc(regs: &mut SmcReturn) {
+    fn handle_smc(&self, regs: &mut SmcReturn, world: World) -> World {
         let in_regs = regs.values();
         let mut function = FunctionId(in_regs[0] as u32);
         function.clear_sve_hint();
@@ -123,6 +92,23 @@ impl<ArchPlatformImpl: ArchPlatform> Arch<ArchPlatformImpl> {
                 regs.mark_empty();
             }
             _ => regs.set_from(NOT_SUPPORTED),
+        }
+
+        world
+    }
+}
+
+impl<ArchPlatformImpl: ArchPlatform> Default for Arch<ArchPlatformImpl> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<ArchPlatformImpl: ArchPlatform> Arch<ArchPlatformImpl> {
+    /// Creates a new instance of the `Arch` service.
+    pub const fn new() -> Self {
+        Self {
+            _platform: PhantomData,
         }
     }
 

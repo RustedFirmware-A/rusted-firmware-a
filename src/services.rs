@@ -63,9 +63,25 @@ pub(crate) use owns;
 ///
 /// According to SMCCC v1.3+ the implementation must disregard the SVE hint bit in the function ID
 /// and consider it to be 0 for the purpose of function identification.
+///
+/// Implementors of this trait should either implement `handle_smc`, or some of the more specific
+/// `handle_*_smc` methods. There is no need to implement both.
 pub trait Service: Sync {
     /// Returns whether this service is intended to handle the given function ID.
     fn owns(&self, function: FunctionId) -> bool;
+
+    /// Handles the given SMC call from the given world.
+    ///
+    /// By default this will dispatch to the more specific `handle_*_smc` methods, but it may be
+    /// overridden to keep the handling logic in one place.
+    fn handle_smc(&self, regs: &mut SmcReturn, world: World) -> World {
+        match world {
+            World::NonSecure => self.handle_non_secure_smc(regs),
+            World::Secure => self.handle_secure_smc(regs),
+            #[cfg(feature = "rme")]
+            World::Realm => self.handle_realm_smc(regs),
+        }
+    }
 
     /// Handles the given SMC call from Normal World.
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
@@ -232,12 +248,7 @@ where
             return world;
         };
 
-        match world {
-            World::NonSecure => service.handle_non_secure_smc(regs),
-            World::Secure => service.handle_secure_smc(regs),
-            #[cfg(feature = "rme")]
-            World::Realm => service.handle_realm_smc(regs),
-        }
+        service.handle_smc(regs, world)
     }
 
     fn handle_interrupt(&self, regs: &mut SmcReturn, world: World) -> World {

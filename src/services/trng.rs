@@ -295,20 +295,33 @@ impl<
         TRNG_FN_NUM_MIN..=TRNG_FN_NUM_MAX
     );
 
-    fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
-        self.handle_smc_common(regs);
-        World::NonSecure
-    }
+    fn handle_smc(&self, regs: &mut SmcReturn, world: World) -> World {
+        let in_regs = regs.values();
+        let mut function = FunctionId(in_regs[0] as u32);
+        function.clear_sve_hint();
 
-    fn handle_secure_smc(&self, regs: &mut SmcReturn) -> World {
-        self.handle_smc_common(regs);
-        World::Secure
-    }
+        if TrngPlatformImpl::TRNG_UUID.is_nil() {
+            regs.set_from(TrngError::NotSupported);
+            return world;
+        }
 
-    #[cfg(feature = "rme")]
-    fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
-        self.handle_smc_common(regs);
-        World::Realm
+        match function.0 {
+            ARM_TRNG_VERSION => regs.set_from(TRNG_VERSION),
+            ARM_TRNG_FEATURES => {
+                let feature_id = in_regs[1] as u32;
+                if is_trng_fid(feature_id) {
+                    regs.set_from(SUCCESS);
+                } else {
+                    regs.set_from(TrngError::NotSupported)
+                };
+            }
+            ARM_TRNG_GET_UUID => regs.set_from(&TrngPlatformImpl::TRNG_UUID),
+            ARM_TRNG_RND32 => self.trng_rnd32(regs),
+            ARM_TRNG_RND64 => self.trng_rnd64(regs),
+            _ => regs.set_from(TrngError::NotSupported),
+        }
+
+        world
     }
 }
 
@@ -334,33 +347,6 @@ impl<
         TrngPlatformImpl::entropy_setup();
         Self {
             pool: SpinMutex::new(EntropyPool::new()),
-        }
-    }
-
-    fn handle_smc_common(&self, regs: &mut SmcReturn) {
-        let in_regs = regs.values();
-        let mut function = FunctionId(in_regs[0] as u32);
-        function.clear_sve_hint();
-
-        if TrngPlatformImpl::TRNG_UUID.is_nil() {
-            regs.set_from(TrngError::NotSupported);
-            return;
-        }
-
-        match function.0 {
-            ARM_TRNG_VERSION => regs.set_from(TRNG_VERSION),
-            ARM_TRNG_FEATURES => {
-                let feature_id = in_regs[1] as u32;
-                if is_trng_fid(feature_id) {
-                    regs.set_from(SUCCESS);
-                } else {
-                    regs.set_from(TrngError::NotSupported)
-                };
-            }
-            ARM_TRNG_GET_UUID => regs.set_from(&TrngPlatformImpl::TRNG_UUID),
-            ARM_TRNG_RND32 => self.trng_rnd32(regs),
-            ARM_TRNG_RND64 => self.trng_rnd64(regs),
-            _ => regs.set_from(TrngError::NotSupported),
         }
     }
 
@@ -531,7 +517,7 @@ mod tests {
 
         regs.set_from(ARM_TRNG_VERSION);
         expected.set_from(TRNG_VERSION);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
     }
 
@@ -544,13 +530,13 @@ mod tests {
         // Supported feature
         regs.set_args2(ARM_TRNG_FEATURES as u64, ARM_TRNG_RND32 as u64);
         expected.set_from(SUCCESS);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
 
         // Unsupported feature
         regs.set_args2(ARM_TRNG_FEATURES as u64, 0x8400_0000_u64);
         expected.set_from(TrngError::NotSupported);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
     }
 
@@ -560,7 +546,7 @@ mod tests {
         let mut regs = SmcReturn::EMPTY;
 
         regs.set_from(ARM_TRNG_GET_UUID);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         let actual_uuid = Uuid::from_u128_le(
             regs.values()[0] as u128
                 | ((regs.values()[1] as u128) << 32)
@@ -580,7 +566,7 @@ mod tests {
         // nbits == 0
         regs.set_args2(ARM_TRNG_RND32 as u64, 0);
         expected.set_from(TrngError::InvalidParams);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
 
         // nbits > max
@@ -590,7 +576,7 @@ mod tests {
             (TRNG_RND32_ENTROPY_MAXBITS + 1) as u64,
         );
         expected.set_from(TrngError::InvalidParams);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
     }
 
@@ -603,7 +589,7 @@ mod tests {
         // nbits = 0
         regs.set_args2(ARM_TRNG_RND64 as u64, 0);
         expected.set_from(TrngError::InvalidParams);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
 
         // nbits > max
@@ -612,7 +598,7 @@ mod tests {
             (TRNG_RND64_ENTROPY_MAXBITS + 1) as u64,
         );
         expected.set_from(TrngError::InvalidParams);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
     }
 
@@ -626,7 +612,7 @@ mod tests {
         regs.set_args2(ARM_TRNG_RND32 as u64, nbits);
         let expected_entropy = (1u64 << nbits).wrapping_sub(1);
         expected.set_args4(SUCCESS as u64, 0, 0, expected_entropy);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
 
         regs.set_args2(ARM_TRNG_RND32 as u64, TRNG_RND32_ENTROPY_MAXBITS as u64);
@@ -636,7 +622,7 @@ mod tests {
             u32::MAX as u64,
             u32::MAX as u64,
         );
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
     }
 
@@ -650,12 +636,12 @@ mod tests {
         regs.set_args2(ARM_TRNG_RND64 as u64, nbits);
         let expected_entropy: u64 = (1u64 << nbits).wrapping_sub(1);
         expected.set_args4(SUCCESS as u64, 0, 0, expected_entropy);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
 
         regs.set_args2(ARM_TRNG_RND64 as u64, TRNG_RND64_ENTROPY_MAXBITS as u64);
         expected.set_args4(SUCCESS as u64, u64::MAX, u64::MAX, u64::MAX);
-        trng.handle_smc_common(&mut regs);
+        trng.handle_smc(&mut regs, World::NonSecure);
         assert_eq!(regs, expected);
     }
 }

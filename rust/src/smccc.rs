@@ -167,7 +167,7 @@ impl Debug for FunctionId {
 }
 
 /// A value which can be returned from an SMC call by writing to the caller's registers.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Default, Eq, PartialEq)]
 pub struct SmcReturn {
     /// The number of elements from `values` that are actually used for this return.
     used: usize,
@@ -190,6 +190,12 @@ impl SmcReturn {
     /// Returns true if no values are used.
     pub fn is_empty(&self) -> bool {
         self.used == 0
+    }
+}
+
+impl Debug for SmcReturn {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_tuple("SmcReturn").field(&self.values()).finish()
     }
 }
 

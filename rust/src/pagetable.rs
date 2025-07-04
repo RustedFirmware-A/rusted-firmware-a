@@ -125,7 +125,11 @@ pub fn init() {
         let mut idmap = init_page_table(page_heap);
 
         info!("Setting MMU config");
-        setup_mmu_cfg(idmap.root_address());
+        // SAFETY: We pass the root address of `idmap`, which has just been initialised with
+        // appropriate mappings, and will remain valid forever.
+        unsafe {
+            setup_mmu_cfg(idmap.root_address());
+        }
         info!("Marking page table as active");
         idmap.mark_active();
 
@@ -135,7 +139,11 @@ pub fn init() {
 
 /// Enables the MMU for a newly booted core, assuming the page table is already initialised.
 pub fn enable() {
-    setup_mmu_cfg(PAGE_TABLE.get().unwrap().lock().root_address());
+    // SAFETY: We pass the root address of the IdMap from `PAGE_TABLE`, which has previously been
+    // initialised with appropriate mappings, and will remain valid forever.
+    unsafe {
+        setup_mmu_cfg(PAGE_TABLE.get().unwrap().lock().root_address());
+    }
 }
 
 /// Creates the page table and maps initial regions needed for boot, including any platform-specific
@@ -176,7 +184,11 @@ pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attribut
         .expect("Error mapping memory range");
 }
 
-fn setup_mmu_cfg(root_address: PhysicalAddress) {
+/// # Safety
+///
+/// `root_address` must be the physical address of a valid page table which maps all the memory that
+/// EL3 uses.
+unsafe fn setup_mmu_cfg(root_address: PhysicalAddress) {
     let tcr = (0b101 << 16) // 48 bit physical address size (256 TiB).
         | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
     let ttbr0 = root_address.0;

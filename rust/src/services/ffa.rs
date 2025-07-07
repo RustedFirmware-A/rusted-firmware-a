@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    context::{CoresImpl, World},
+    context::{PerCoreState, World},
     platform::{exception_free, Platform, PlatformImpl},
     services::{owns, Service},
     smccc::{OwningEntityNumber, SmcReturn},
@@ -48,7 +48,7 @@ pub struct Spmd {
     spmc_version: Version,
     spmc_primary_ep: usize,
     spmc_secondary_ep: AtomicUsize,
-    core_local: PerCore<ExceptionLock<RefCell<SpmdLocal>>, CoresImpl, { PlatformImpl::CORE_COUNT }>,
+    core_local: PerCoreState<SpmdLocal>,
 }
 
 impl Service for Spmd {

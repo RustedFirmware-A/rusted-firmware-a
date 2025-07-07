@@ -46,6 +46,10 @@ const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
 /// The number of registers which can be saved in the crash buffer.
 const CPU_DATA_CRASH_BUF_COUNT: usize = 8;
 
+/// Per-core mutable state.
+pub type PerCoreState<T> =
+    PerCore<ExceptionLock<RefCell<T>>, CoresImpl, { PlatformImpl::CORE_COUNT }>;
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum World {
@@ -511,11 +515,7 @@ impl CpuState {
     }
 }
 
-static CPU_STATE: PerCore<
-    ExceptionLock<RefCell<CpuState>>,
-    CoresImpl,
-    { PlatformImpl::CORE_COUNT },
-> = PerCore::new(
+static CPU_STATE: PerCoreState<CpuState> = PerCore::new(
     [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; PlatformImpl::CORE_COUNT],
 );
 

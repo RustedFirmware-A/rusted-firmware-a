@@ -29,6 +29,7 @@ use crate::sysregs::{
     write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, HcrEl2,
 };
 use crate::{
+    gicv3,
     platform::{exception_free, plat_calc_core_pos, Platform, PlatformImpl},
     smccc::SmcReturn,
     sysregs::{read_mpidr_el1, read_scr_el3, write_scr_el3, Esr, IccSre, ScrEl3, Spsr},
@@ -623,15 +624,15 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
     context.el3_state.scr_el3 |= ScrEl3::NS;
-    // Route secure interrupts to EL3
-    context.el3_state.scr_el3 |= ScrEl3::FIQ;
-    // TODO: FIQ and IRQ routing model.
+
+    gicv3::set_routing_model(&mut context.el3_state.scr_el3, World::NonSecure);
 }
 
 /// Initialises the given CPU context ready for booting S-EL2 or S-EL1.
 fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
-    // TODO: FIQ and IRQ routing model.
+
+    gicv3::set_routing_model(&mut context.el3_state.scr_el3, World::Secure);
 }
 
 /// Initialises the given CPU context ready for booting Realm world

@@ -6,11 +6,10 @@ use core::panic;
 
 use crate::{
     aarch64::{dsb_sy, isb},
-    context::CoresImpl,
+    context::{CoresImpl, World},
     platform::{Platform, PlatformImpl},
-    sysregs::{write_icc_sre_el3, IccSre},
+    sysregs::{write_icc_sre_el3, IccSre, ScrEl3},
 };
-
 use arm_gic::{
     gicv3::{registers::GicdCtlr, GICRError, GicV3, Group},
     IntId, Trigger,
@@ -196,4 +195,28 @@ pub fn init() {
 
         SpinMutex::new(gic)
     });
+}
+
+/// Configures interrupt-routing related flags in `scr_el3` bitflags.
+///
+/// While in NS-ELx:
+/// - G0 and G1s are signalled as FIQs and should go through EL3.
+/// - G1ns are signalled as IRQs and should be handled without a world switch.
+///
+/// While in S-ELx:
+/// - G1s are signalled as IRQs and should be handled without a world switch.
+/// - G0 and G1ns are signalled as FIQs and should not be routed until execution goes back to the NS world.
+pub fn set_routing_model(scr_el3: &mut ScrEl3, world: World) {
+    match world {
+        World::NonSecure => {
+            *scr_el3 |= ScrEl3::FIQ;
+            *scr_el3 -= ScrEl3::IRQ;
+        }
+        World::Secure => {
+            *scr_el3 -= ScrEl3::IRQ;
+            *scr_el3 -= ScrEl3::FIQ;
+        }
+        #[cfg(feature = "rme")]
+        World::Realm => todo!("Routing model for Realms not configured."),
+    }
 }

@@ -7,7 +7,7 @@ use crate::{
     aarch64::{dsb_sy, sev, wfi},
     context::{CoresImpl, EntryPointInfo},
     debug::DEBUG,
-    gicv3, logger,
+    gicv3, info, logger,
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
     services::{
@@ -21,9 +21,12 @@ use crate::{
     sysregs::{IccSre, MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
-use arm_gic::gicv3::{
-    registers::{Gicd, GicrSgi},
-    GicV3,
+use arm_gic::{
+    gicv3::{
+        registers::{Gicd, GicrSgi},
+        GicV3,
+    },
+    IntId,
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
@@ -122,6 +125,10 @@ impl Platform for Qemu {
                 false,
             )
         }
+    }
+
+    fn handle_group0_interrupt(int_id: IntId) {
+        todo!("Handle group0 interrupt {:?}", int_id)
     }
 
     fn secure_entry_point() -> EntryPointInfo {

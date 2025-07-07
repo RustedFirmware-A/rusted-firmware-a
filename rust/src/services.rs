@@ -10,9 +10,8 @@ pub mod rmmd;
 
 use crate::{
     context::{cpu_state, set_initial_world, switch_world, World},
-    exceptions::{
-        enter_world, inject_undef64, plat_ic_get_pending_interrupt_type, InterruptType, RunResult,
-    },
+    exceptions::{enter_world, inject_undef64, RunResult},
+    gicv3::{self, InterruptType},
     platform::{exception_free, Platform, PlatformImpl},
     smccc::{FunctionId, SmcReturn, NOT_SUPPORTED},
     sysregs::Esr,
@@ -139,19 +138,28 @@ impl Services {
         (out_regs, next_world)
     }
 
-    fn handle_interrupt(&self, interrupt_type: InterruptType, world: World) -> (SmcReturn, World) {
+    fn handle_interrupt(&self, world: World) -> (SmcReturn, World) {
+        let interrupt_type = gicv3::get_pending_interrupt_type();
+
         match (interrupt_type, world) {
-            // TODO: call interrupt handler when Group 0 interrupt hits while running in NWd. E.g:
-            // (InterruptType::El3, World::NonSecure) => plat_group0_interrupt_handler(),
+            (InterruptType::Secure, World::NonSecure) => self.spmd.forward_secure_interrupt(),
+            // TODO:
             // Group 0 interrupts hitting in SWd should be catched by the SPMC and passed to EL3
             // synchronously, by invoking FFA_EL3_INTR_HANDLE.
-            (InterruptType::Secure, World::NonSecure) => self.spmd.forward_secure_interrupt(),
+            (InterruptType::El3, World::Secure) => todo!(),
+            (InterruptType::El3, World::NonSecure) => {
+                gicv3::handle_group0_interrupt();
+                (SmcReturn::EMPTY, world)
+            }
             (InterruptType::Invalid, _) => {
                 // If the interrupt controller reports a spurious interrupt then return to where we
                 // came from.
                 (SmcReturn::EMPTY, world)
             }
-            _ => panic!("Unsupported interrupt routing"),
+            _ => panic!(
+                "Unsupported interrupt routing. Interrupt type: {:?} world: {:?}",
+                interrupt_type, world
+            ),
         }
     }
 
@@ -183,10 +191,7 @@ impl Services {
         loop {
             (regs, next_world) = match enter_world(&regs, world) {
                 RunResult::Smc { regs } => self.handle_smc(&regs, world),
-                RunResult::Interrupt => {
-                    let interrupt_type = plat_ic_get_pending_interrupt_type();
-                    self.handle_interrupt(interrupt_type, world)
-                }
+                RunResult::Interrupt => self.handle_interrupt(world),
                 RunResult::SysregTrap { esr } => {
                     self.handle_sysreg_trap(esr, world);
                     (SmcReturn::EMPTY, world)

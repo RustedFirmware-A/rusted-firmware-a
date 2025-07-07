@@ -16,7 +16,7 @@ use crate::{
     services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
     sysregs::MpidrEl1,
 };
-use arm_gic::gicv3::GicV3;
+use arm_gic::{gicv3::GicV3, IntId};
 #[cfg(platform = "fvp")]
 pub use fvp::Fvp as PlatformImpl;
 #[cfg(not(test))]
@@ -80,6 +80,12 @@ pub trait Platform {
     ///
     /// This must only be called once, to avoid creating aliases of the GIC driver.
     unsafe fn create_gic() -> GicV3<'static>;
+
+    /// Handles a Group 0 interrupt.
+    ///
+    /// Interrupt with id `int_id` has already been acknowledged at this point
+    /// and platform-independent code will set EOI after this function returns.
+    fn handle_group0_interrupt(int_id: IntId);
 
     /// Returns the entry point for the secure world, i.e. BL32.
     fn secure_entry_point() -> EntryPointInfo;

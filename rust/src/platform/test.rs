@@ -19,7 +19,7 @@ use crate::{
     sysregs::{MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
-use arm_gic::gicv3::GicV3;
+use arm_gic::{gicv3::GicV3, IntId};
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use core::fmt;
 use percore::ExceptionFree;
@@ -61,6 +61,10 @@ impl Platform for TestPlatform {
 
     unsafe fn create_gic() -> GicV3<'static> {
         unimplemented!();
+    }
+
+    fn handle_group0_interrupt(int_id: IntId) {
+        panic!("Received group 0 interrupt {:?}", int_id)
     }
 
     fn secure_entry_point() -> EntryPointInfo {

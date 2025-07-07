@@ -11,9 +11,10 @@ use crate::{
     sysregs::{write_icc_sre_el3, IccSre, ScrEl3},
 };
 use arm_gic::{
-    gicv3::{registers::GicdCtlr, GICRError, GicV3, Group},
+    gicv3::{registers::GicdCtlr, GICRError, GicV3, Group, InterruptGroup},
     IntId, Trigger,
 };
+use log::debug;
 use percore::Cores;
 use spin::{mutex::SpinMutex, Once};
 
@@ -61,6 +62,15 @@ impl GicConfig {
             .map(|(_, cfg)| *cfg)
             .unwrap_or_default()
     }
+}
+
+/// Specifies where an interrupt should be handled.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum InterruptType {
+    El3,
+    Secure,
+    NonSecure,
+    Invalid,
 }
 
 /// Configure all available Shared Peripheral Interrupts (SPIs).
@@ -219,4 +229,27 @@ pub fn set_routing_model(scr_el3: &mut ScrEl3, world: World) {
         #[cfg(feature = "rme")]
         World::Realm => todo!("Routing model for Realms not configured."),
     }
+}
+
+/// Returns the type of the highest priority pending group0 interrupt.
+pub fn get_pending_interrupt_type() -> InterruptType {
+    let int_id = GicV3::get_pending_interrupt(InterruptGroup::Group0);
+
+    match int_id {
+        None => InterruptType::Invalid,
+        Some(IntId::SPECIAL_SECURE) => InterruptType::Secure,
+        Some(IntId::SPECIAL_NONSECURE) => InterruptType::NonSecure,
+        Some(_) => InterruptType::El3,
+    }
+}
+
+/// Wraps a platform-specific group 0 interrupt handler.
+pub fn handle_group0_interrupt() {
+    let int_id = GicV3::get_and_acknowledge_interrupt(InterruptGroup::Group0).unwrap();
+    debug!("Group 0 interrupt {:?} acknowledged", int_id);
+
+    PlatformImpl::handle_group0_interrupt(int_id);
+
+    GicV3::end_interrupt(int_id, InterruptGroup::Group0);
+    debug!("Group 0 interrupt {:?} EOI", int_id);
 }

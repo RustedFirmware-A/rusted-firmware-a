@@ -20,9 +20,12 @@ use crate::{
     sysregs::{IccSre, MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
-use arm_gic::gicv3::{
-    registers::{Gicd, GicrSgi},
-    GicV3,
+use arm_gic::{
+    gicv3::{
+        registers::{Gicd, GicrSgi},
+        GicV3,
+    },
+    IntId,
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
@@ -126,6 +129,10 @@ impl Platform for Fvp {
                 false,
             )
         }
+    }
+
+    fn handle_group0_interrupt(int_id: IntId) {
+        todo!("Handle group0 interrupt {:?}", int_id)
     }
 
     fn secure_entry_point() -> EntryPointInfo {

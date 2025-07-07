@@ -32,10 +32,10 @@ spin = { version = "0.10.0", default-features = false, features = [
   "spin_mutex",
 ] }
 arm-ffa = { version = "0.3.0", default-features = false }
-arm-gic = "0.4.0"
+arm-gic = "0.5.0"
 
 [dev-dependencies]
-arm-gic = { version = "0.4.0", features = ["fakes"] }
+arm-gic = { version = "0.5.0", features = ["fakes"] }
 
 [build-dependencies]
 cc = "=1.2.16"

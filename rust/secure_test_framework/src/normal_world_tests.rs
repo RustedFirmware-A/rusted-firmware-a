@@ -4,13 +4,16 @@
 
 //! Test cases to run in normal world.
 
-use crate::{expect_eq, ffa, util::NORMAL_WORLD_ID};
-use arm_ffa::{FfaError, Interface, SuccessArgsIdGet, TargetInfo};
+use crate::{
+    expect_eq, ffa,
+    util::{NORMAL_WORLD_ID, SPMC_DEFAULT_ID},
+};
+use arm_ffa::{FfaError, Interface, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo};
 use log::{error, info};
 use smccc::{Smc, arch, psci};
 
 /// The number of normal world tests.
-pub const NORMAL_TEST_COUNT: u64 = 4;
+pub const NORMAL_TEST_COUNT: u64 = 5;
 
 /// Runs the test with the given index.
 pub fn run_test(index: u64) -> Result<(), ()> {
@@ -20,6 +23,7 @@ pub fn run_test(index: u64) -> Result<(), ()> {
         1 => test_psci_version(),
         2 => test_no_msg_wait_from_normal_world(),
         3 => test_ffa_id_get(),
+        4 => test_ffa_spm_id_get(),
         _ => {
             error!("Requested to run unknown test {}", index);
             Err(())
@@ -67,5 +71,16 @@ fn test_ffa_id_get() -> Result<(), ()> {
     };
 
     expect_eq!(id, NORMAL_WORLD_ID);
+    Ok(())
+}
+
+fn test_ffa_spm_id_get() -> Result<(), ()> {
+    let id = match ffa::spm_id_get().map_err(|_| ())? {
+        Interface::Success { args, .. } => SuccessArgsSpmIdGet::try_from(args).map_err(|_| ())?.id,
+        _ => return Err(()),
+    };
+
+    // TODO: parse manifest and test for that value.
+    expect_eq!(id, SPMC_DEFAULT_ID);
     Ok(())
 }

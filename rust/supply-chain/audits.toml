@@ -137,6 +137,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.0 -> 0.2.1"
 
+[[audits.arm-ffa]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.2.1 -> 0.3.0"
+notes = "There is no unsafe code in the diff, it's mostly fairly straightforward and mechanical parsing logic."
+
 [[audits.arm-gic]]
 who = "Jeremi Miller <jeremimiller@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

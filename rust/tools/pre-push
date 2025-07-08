@@ -50,3 +50,7 @@ done
 
 must cargo vet
 must cargo fmt
+
+cd secure_test_framework
+must cargo fmt
+cd -

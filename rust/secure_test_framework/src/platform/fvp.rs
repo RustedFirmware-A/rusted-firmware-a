@@ -6,8 +6,8 @@ use super::Platform;
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use core::{fmt::Write, ptr::NonNull};
 use spin::{
-    mutex::{SpinMutex, SpinMutexGuard},
     Once,
+    mutex::{SpinMutex, SpinMutexGuard},
 };
 
 /// Base address of the primary PL011 UART.

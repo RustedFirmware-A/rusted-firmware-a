@@ -16,22 +16,6 @@ pub const SPMC_DEFAULT_ID: u16 = 0x8000;
 /// Default ID for the SPMD
 pub const SPMD_DEFAULT_ID: u16 = 0xffff;
 
-/// Value sent by a direct message to run a secure test.
-pub const RUN_SECURE_TEST: u64 = 1;
-
-/// Value sent by a direct message to call a test helper.
-pub const RUN_TEST_HELPER: u64 = 2;
-
-/// Value returned in a direct message response for a test success.
-pub const TEST_SUCCESS: u64 = 0;
-
-/// Value returned in a direct message response for a test failure.
-pub const TEST_FAILURE: u64 = 1;
-
-/// Value returned in a direct message response for a test panic. No further tests should be run
-/// after this.
-pub const TEST_PANIC: u64 = 2;
-
 /// Returns the current exception level at which we are running.
 pub fn current_el() -> u8 {
     let current_el: u64;

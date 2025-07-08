@@ -20,6 +20,7 @@ spin = { version = "0.10.0", default-features = false, features = [
   "spin_mutex",
 ] }
 smccc = "0.2.2"
+thiserror = { version = "2.0.12", default-features = false }
 
 [[bin]]
 name = "bl32"

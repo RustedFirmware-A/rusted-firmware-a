@@ -14,6 +14,7 @@ mod gicv3;
 mod logger;
 mod normal_world_tests;
 mod platform;
+mod protocol;
 mod util;
 
 use crate::{
@@ -21,13 +22,11 @@ use crate::{
     ffa::direct_request,
     normal_world_tests::{NORMAL_TEST_COUNT, run_test},
     platform::{Platform, PlatformImpl},
-    util::{
-        NORMAL_WORLD_ID, RUN_SECURE_TEST, RUN_TEST_HELPER, SECURE_WORLD_ID, TEST_FAILURE,
-        TEST_PANIC, TEST_SUCCESS, current_el,
-    },
+    protocol::{Request, Response},
+    util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, current_el},
 };
 use aarch64_rt::entry;
-use arm_ffa::{DirectMsgArgs, Interface};
+use arm_ffa::Interface;
 use core::panic::PanicInfo;
 use log::{LevelFilter, error, info, warn};
 use smccc::{Smc, psci};
@@ -85,39 +84,20 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     let mut passing_secure_test_count = 0;
     for test_index in 0..SECURE_TEST_COUNT {
         info!("Requesting secure world test {} run...", test_index);
-        let result = direct_request(
-            NORMAL_WORLD_ID,
-            SECURE_WORLD_ID,
-            DirectMsgArgs::Args64([RUN_SECURE_TEST, test_index, 0, 0, 0]),
-        )
-        .expect("Failed to parse direct request response");
-        if let Interface::MsgSendDirectResp {
-            src_id,
-            dst_id,
-            args,
-        } = result
-        {
-            assert_eq!(src_id, SECURE_WORLD_ID);
-            assert_eq!(dst_id, NORMAL_WORLD_ID);
-            match args {
-                DirectMsgArgs::Args64([TEST_SUCCESS, ..]) => {
-                    info!("Secure world test {} passed", test_index);
-                    passing_secure_test_count += 1;
-                }
-                DirectMsgArgs::Args64([TEST_FAILURE, ..]) => {
-                    warn!("Secure world test {} failed", test_index);
-                }
-                DirectMsgArgs::Args64([TEST_PANIC, ..]) => {
-                    warn!("Secure world test {} panicked", test_index);
-                    // We can't continue running other tests after one panics.
-                    break;
-                }
-                _ => {
-                    warn!("Unexpected direct message response: {:?}", args);
-                }
+        match send_request(Request::RunSecureTest { test_index }) {
+            Ok(Response::Success { .. }) => {
+                info!("Secure world test {} passed", test_index);
+                passing_secure_test_count += 1;
             }
-        } else {
-            warn!("Unexpected response {:?}", result);
+            Ok(Response::Failure) => {
+                warn!("Secure world test {} failed", test_index);
+            }
+            Ok(Response::Panic) => {
+                warn!("Secure world test {} panicked", test_index);
+                // We can't continue running other tests after one panics.
+                break;
+            }
+            Err(()) => {}
         }
     }
     info!(
@@ -129,50 +109,51 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     panic!("PSCI_SYSTEM_OFF returned {:?}", ret);
 }
 
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    error!("{}", info);
-    let _ = psci::system_off::<Smc>();
-    loop {}
+/// Sends a direct request to the secure world and returns the response.
+///
+/// Panics if there is an error parsing the FF-A response or the endpoint IDs do not match what we
+/// expect. Returns an error if the response is not an FF-A direct message response or it can't be
+/// parsed as an STF response.
+fn send_request(request: Request) -> Result<Response, ()> {
+    let result = direct_request(NORMAL_WORLD_ID, SECURE_WORLD_ID, request.into())
+        .expect("Failed to parse direct request response");
+    let Interface::MsgSendDirectResp {
+        src_id,
+        dst_id,
+        args,
+    } = result
+    else {
+        warn!("Unexpected response {:?}", result);
+        return Err(());
+    };
+    assert_eq!(src_id, SECURE_WORLD_ID);
+    assert_eq!(dst_id, NORMAL_WORLD_ID);
+
+    Response::try_from(args).map_err(|e| {
+        warn!("{}", e);
+    })
 }
 
 /// Sends a direct request to the secure world to run the secure helper component for the given test
 /// index.
 fn call_test_helper(test_index: u64, args: [u64; 3]) -> Result<[u64; 4], ()> {
-    let result = direct_request(
-        NORMAL_WORLD_ID,
-        SECURE_WORLD_ID,
-        DirectMsgArgs::Args64([RUN_TEST_HELPER, test_index, args[0], args[1], args[2]]),
-    )
-    .expect("Failed to parse direct request response");
-    if let Interface::MsgSendDirectResp {
-        src_id,
-        dst_id,
-        args,
-    } = result
-    {
-        assert_eq!(src_id, SECURE_WORLD_ID);
-        assert_eq!(dst_id, NORMAL_WORLD_ID);
-        match args {
-            DirectMsgArgs::Args64([TEST_SUCCESS, ret0, ret1, ret2, ret3]) => {
-                Ok([ret0, ret1, ret2, ret3])
-            }
-            DirectMsgArgs::Args64([TEST_FAILURE, ..]) => {
-                warn!("Secure world test helper {} failed", test_index);
-                Err(())
-            }
-            DirectMsgArgs::Args64([TEST_PANIC, ..]) => {
-                // We can't continue running other tests after the secure world panics, so we panic
-                // too.
-                panic!("Secure world test helper {} panicked", test_index);
-            }
-            _ => {
-                warn!("Unexpected direct message response: {:?}", args);
-                Err(())
-            }
+    match send_request(Request::RunTestHelper { test_index, args })? {
+        Response::Success { return_value } => Ok(return_value),
+        Response::Failure => {
+            warn!("Secure world test helper {} failed", test_index);
+            Err(())
         }
-    } else {
-        warn!("Unexpected response {:?}", result);
-        Err(())
+        Response::Panic => {
+            // We can't continue running other tests after the secure world panics, so we panic
+            // too.
+            panic!("Secure world test helper {} panicked", test_index);
+        }
     }
+}
+
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    error!("{}", info);
+    let _ = psci::system_off::<Smc>();
+    loop {}
 }

@@ -14,6 +14,7 @@ mod gicv3;
 mod logger;
 mod normal_world_tests;
 mod platform;
+mod protocol;
 mod secure_tests;
 mod util;
 
@@ -23,11 +24,9 @@ use crate::{
     gicv3::handle_group1_interrupt,
     normal_world_tests::run_test_helper,
     platform::{Platform, PlatformImpl},
+    protocol::{ParseRequestError, Request, Response},
     secure_tests::run_test,
-    util::{
-        NORMAL_WORLD_ID, RUN_SECURE_TEST, RUN_TEST_HELPER, SECURE_WORLD_ID, SPMC_DEFAULT_ID,
-        SPMD_DEFAULT_ID, TEST_FAILURE, TEST_PANIC, TEST_SUCCESS, current_el,
-    },
+    util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, SPMC_DEFAULT_ID, SPMD_DEFAULT_ID, current_el},
 };
 use aarch64_rt::entry;
 use arm_ffa::{DirectMsgArgs, FfaError, Interface, SuccessArgsIdGet};
@@ -110,40 +109,17 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
                 args,
             } => {
                 let response_args = if src_id == NORMAL_WORLD_ID && dst_id == SECURE_WORLD_ID {
-                    let DirectMsgArgs::Args64(args) = args else {
-                        panic!("Received unexpected direct message type from Normal World.");
-                    };
-
-                    match args[0] {
-                        RUN_SECURE_TEST => {
-                            let test_index = args[1];
-                            let test_result = if run_test(test_index).is_ok() {
-                                TEST_SUCCESS
-                            } else {
-                                TEST_FAILURE
-                            };
-
-                            DirectMsgArgs::Args64([test_result, 0, 0, 0, 0])
-                        }
-                        RUN_TEST_HELPER => {
-                            let test_helper_index = args[1];
-                            DirectMsgArgs::Args64(
-                                match run_test_helper(
-                                    test_helper_index,
-                                    [args[2], args[3], args[4]],
-                                ) {
-                                    Ok([ret0, ret1, ret2, ret3]) => {
-                                        [TEST_SUCCESS, ret0, ret1, ret2, ret3]
-                                    }
-                                    Err(()) => [TEST_FAILURE, 0, 0, 0, 0],
-                                },
-                            )
-                        }
-                        command => {
-                            error!(
-                                "Received unexpected direct message command {command} from SPMD."
+                    match Request::try_from(args) {
+                        Ok(request) => handle_request(request).into(),
+                        Err(ParseRequestError::InvalidDirectMsgType(args)) => {
+                            panic!(
+                                "Received unexpected direct message type from Normal World: {:?}",
+                                args
                             );
-                            DirectMsgArgs::Args64([TEST_FAILURE, 0, 0, 0, 0])
+                        }
+                        Err(e @ ParseRequestError::InvalidRequestCode(_)) => {
+                            error!("{}", e);
+                            Response::Failure.into()
                         }
                     }
                 } else if src_id == spmd_id && dst_id == spmc_id {
@@ -181,6 +157,25 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     }
 }
 
+/// Handles a request from the normal world BL33.
+fn handle_request(request: Request) -> Response {
+    match request {
+        Request::RunSecureTest { test_index } => {
+            if run_test(test_index).is_ok() {
+                Response::Success {
+                    return_value: [0; 4],
+                }
+            } else {
+                Response::Failure
+            }
+        }
+        Request::RunTestHelper { test_index, args } => match run_test_helper(test_index, args) {
+            Ok(return_value) => Response::Success { return_value },
+            Err(()) => Response::Failure,
+        },
+    }
+}
+
 fn call_test_helper(_index: u64, _args: [u64; 3]) -> Result<[u64; 4], ()> {
     panic!("call_test_helper shouldn't be called from secure world tests");
 }
@@ -190,10 +185,6 @@ fn panic(info: &PanicInfo) -> ! {
     // Log the panic message
     error!("{}", info);
     // Tell normal world that the test failed.
-    let _ = direct_response(
-        SECURE_WORLD_ID,
-        NORMAL_WORLD_ID,
-        DirectMsgArgs::Args64([TEST_PANIC, 0, 0, 0, 0]),
-    );
+    let _ = direct_response(SECURE_WORLD_ID, NORMAL_WORLD_ID, Response::Panic.into());
     loop {}
 }

@@ -16,6 +16,12 @@ pub const SPMC_DEFAULT_ID: u16 = 0x8000;
 /// Default ID for the SPMD
 pub const SPMD_DEFAULT_ID: u16 = 0xffff;
 
+/// Value sent by a direct message to run a secure test.
+pub const RUN_SECURE_TEST: u64 = 1;
+
+/// Value sent by a direct message to call a test helper.
+pub const RUN_TEST_HELPER: u64 = 2;
+
 /// Value returned in a direct message response for a test success.
 pub const TEST_SUCCESS: u64 = 0;
 

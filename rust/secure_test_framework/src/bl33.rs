@@ -19,10 +19,12 @@ mod util;
 use crate::{
     exceptions::set_exception_vector,
     ffa::direct_request,
-    gicv3::init,
     normal_world_tests::{NORMAL_TEST_COUNT, run_test},
     platform::{Platform, PlatformImpl},
-    util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, TEST_FAILURE, TEST_PANIC, TEST_SUCCESS, current_el},
+    util::{
+        NORMAL_WORLD_ID, RUN_SECURE_TEST, RUN_TEST_HELPER, SECURE_WORLD_ID, TEST_FAILURE,
+        TEST_PANIC, TEST_SUCCESS, current_el,
+    },
 };
 use aarch64_rt::entry;
 use arm_ffa::{DirectMsgArgs, Interface};
@@ -86,7 +88,7 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
         let result = direct_request(
             NORMAL_WORLD_ID,
             SECURE_WORLD_ID,
-            DirectMsgArgs::Args64([test_index, 0, 0, 0, 0]),
+            DirectMsgArgs::Args64([RUN_SECURE_TEST, test_index, 0, 0, 0]),
         )
         .expect("Failed to parse direct request response");
         if let Interface::MsgSendDirectResp {
@@ -132,4 +134,45 @@ fn panic(info: &PanicInfo) -> ! {
     error!("{}", info);
     let _ = psci::system_off::<Smc>();
     loop {}
+}
+
+/// Sends a direct request to the secure world to run the secure helper component for the given test
+/// index.
+fn call_test_helper(test_index: u64, args: [u64; 3]) -> Result<[u64; 4], ()> {
+    let result = direct_request(
+        NORMAL_WORLD_ID,
+        SECURE_WORLD_ID,
+        DirectMsgArgs::Args64([RUN_TEST_HELPER, test_index, args[0], args[1], args[2]]),
+    )
+    .expect("Failed to parse direct request response");
+    if let Interface::MsgSendDirectResp {
+        src_id,
+        dst_id,
+        args,
+    } = result
+    {
+        assert_eq!(src_id, SECURE_WORLD_ID);
+        assert_eq!(dst_id, NORMAL_WORLD_ID);
+        match args {
+            DirectMsgArgs::Args64([TEST_SUCCESS, ret0, ret1, ret2, ret3]) => {
+                Ok([ret0, ret1, ret2, ret3])
+            }
+            DirectMsgArgs::Args64([TEST_FAILURE, ..]) => {
+                warn!("Secure world test helper {} failed", test_index);
+                Err(())
+            }
+            DirectMsgArgs::Args64([TEST_PANIC, ..]) => {
+                // We can't continue running other tests after the secure world panics, so we panic
+                // too.
+                panic!("Secure world test helper {} panicked", test_index);
+            }
+            _ => {
+                warn!("Unexpected direct message response: {:?}", args);
+                Err(())
+            }
+        }
+    } else {
+        warn!("Unexpected response {:?}", result);
+        Err(())
+    }
 }

@@ -13,9 +13,11 @@ use log::{error, info};
 use smccc::{Smc, arch, psci};
 
 /// The number of normal world tests.
+#[allow(unused)]
 pub const NORMAL_TEST_COUNT: u64 = 5;
 
 /// Runs the test with the given index.
+#[allow(unused)]
 pub fn run_test(index: u64) -> Result<(), ()> {
     info!("Running normal world test {}", index);
     match index {
@@ -26,6 +28,18 @@ pub fn run_test(index: u64) -> Result<(), ()> {
         4 => test_ffa_spm_id_get(),
         _ => {
             error!("Requested to run unknown test {}", index);
+            Err(())
+        }
+    }
+}
+
+/// Runs the secure world test helper for the normal world test with the given index.
+#[allow(unused)]
+pub fn run_test_helper(index: u64, args: [u64; 3]) -> Result<[u64; 4], ()> {
+    info!("Running secure world test helper {}", index);
+    match index {
+        _ => {
+            error!("Requested to run unknown test helper {}", index);
             Err(())
         }
     }

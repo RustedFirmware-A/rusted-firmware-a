@@ -28,18 +28,22 @@ const TEST_PANIC: u64 = 2;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Request {
     /// Run a secure test.
-    RunSecureTest { test_index: u64 },
+    RunSecureTest { test_index: usize },
     /// Run the secure helper component of a normal-world test.
-    RunTestHelper { test_index: u64, args: [u64; 3] },
+    RunTestHelper { test_index: usize, args: [u64; 3] },
 }
 
 impl From<Request> for DirectMsgArgs {
     fn from(request: Request) -> Self {
         DirectMsgArgs::Args64(match request {
-            Request::RunSecureTest { test_index } => [RUN_SECURE_TEST, test_index, 0, 0, 0],
-            Request::RunTestHelper { test_index, args } => {
-                [RUN_TEST_HELPER, test_index, args[0], args[1], args[2]]
-            }
+            Request::RunSecureTest { test_index } => [RUN_SECURE_TEST, test_index as u64, 0, 0, 0],
+            Request::RunTestHelper { test_index, args } => [
+                RUN_TEST_HELPER,
+                test_index as u64,
+                args[0],
+                args[1],
+                args[2],
+            ],
         })
     }
 }
@@ -51,10 +55,10 @@ impl TryFrom<DirectMsgArgs> for Request {
         if let DirectMsgArgs::Args64(args) = args {
             match args[0] {
                 RUN_SECURE_TEST => Ok(Self::RunSecureTest {
-                    test_index: args[1],
+                    test_index: args[1] as usize,
                 }),
                 RUN_TEST_HELPER => Ok(Self::RunTestHelper {
-                    test_index: args[1],
+                    test_index: args[1] as usize,
                     args: [args[2], args[3], args[4]],
                 }),
                 request_code => Err(ParseRequestError::InvalidRequestCode(request_code)),

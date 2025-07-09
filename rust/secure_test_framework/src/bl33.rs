@@ -10,17 +10,19 @@
 mod exceptions;
 mod expect;
 mod ffa;
+mod framework;
 mod gicv3;
 mod logger;
 mod normal_world_tests;
 mod platform;
 mod protocol;
+mod secure_tests;
 mod util;
 
 use crate::{
     exceptions::set_exception_vector,
     ffa::direct_request,
-    normal_world_tests::{NORMAL_TEST_COUNT, run_test},
+    framework::{NORMAL_WORLD_TESTS, SECURE_WORLD_TESTS, run_normal_world_test},
     platform::{Platform, PlatformImpl},
     protocol::{Request, Response},
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, current_el},
@@ -36,9 +38,6 @@ const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0);
 
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
-
-/// The number of tests in the BL32 component of STF.
-const SECURE_TEST_COUNT: u64 = 2;
 
 entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
@@ -67,23 +66,27 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     // Run normal world tests.
     let mut passing_normal_test_count = 0;
-    for test_index in 0..NORMAL_TEST_COUNT {
-        if run_test(test_index).is_ok() {
-            info!("Normal world test {} passed", test_index);
+    for (test_index, test) in NORMAL_WORLD_TESTS.iter().enumerate() {
+        if run_normal_world_test(test_index, test).is_ok() {
+            info!("Normal world test {} passed", test.name);
             passing_normal_test_count += 1;
         } else {
-            warn!("Normal world test {} failed", test_index);
+            warn!("Normal world test {} failed", test.name);
         }
     }
     info!(
         "{}/{} tests passed in normal world",
-        passing_normal_test_count, NORMAL_TEST_COUNT
+        passing_normal_test_count,
+        NORMAL_WORLD_TESTS.len()
     );
 
     // Run secure world tests.
     let mut passing_secure_test_count = 0;
-    for test_index in 0..SECURE_TEST_COUNT {
-        info!("Requesting secure world test {} run...", test_index);
+    for (test_index, test) in SECURE_WORLD_TESTS.iter().enumerate() {
+        info!(
+            "Requesting secure world test {} run: {}",
+            test_index, test.name
+        );
         match send_request(Request::RunSecureTest { test_index }) {
             Ok(Response::Success { .. }) => {
                 info!("Secure world test {} passed", test_index);
@@ -102,7 +105,8 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     }
     info!(
         "{}/{} tests passed in secure world",
-        passing_secure_test_count, SECURE_TEST_COUNT
+        passing_secure_test_count,
+        SECURE_WORLD_TESTS.len()
     );
 
     let ret = psci::system_off::<Smc>();
@@ -136,7 +140,7 @@ fn send_request(request: Request) -> Result<Response, ()> {
 
 /// Sends a direct request to the secure world to run the secure helper component for the given test
 /// index.
-fn call_test_helper(test_index: u64, args: [u64; 3]) -> Result<[u64; 4], ()> {
+fn call_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
     match send_request(Request::RunTestHelper { test_index, args })? {
         Response::Success { return_value } => Ok(return_value),
         Response::Failure => {

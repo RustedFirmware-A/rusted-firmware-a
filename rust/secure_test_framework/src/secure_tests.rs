@@ -4,23 +4,10 @@
 
 //! Test cases to run in secure world.
 
-use crate::expect_eq;
-use log::{error, info};
+use crate::{expect_eq, secure_world_test};
 use smccc::{Smc, arch, psci};
 
-/// Runs the test with the given index.
-pub fn run_test(index: u64) -> Result<(), ()> {
-    info!("Running secure world test {}", index);
-    match index {
-        0 => test_smccc_arch(),
-        1 => test_psci_version(),
-        _ => {
-            error!("Requested to run unknown test {}", index);
-            Err(())
-        }
-    }
-}
-
+secure_world_test!(test_smccc_arch);
 fn test_smccc_arch() -> Result<(), ()> {
     expect_eq!(
         arch::version::<Smc>(),
@@ -30,6 +17,7 @@ fn test_smccc_arch() -> Result<(), ()> {
     Ok(())
 }
 
+secure_world_test!(test_psci_version);
 fn test_psci_version() -> Result<(), ()> {
     expect_eq!(psci::version::<Smc>(), Err(psci::Error::NotSupported));
     Ok(())

@@ -10,6 +10,7 @@
 mod exceptions;
 mod expect;
 mod ffa;
+mod framework;
 mod gicv3;
 mod logger;
 mod normal_world_tests;
@@ -21,11 +22,10 @@ mod util;
 use crate::{
     exceptions::set_exception_vector,
     ffa::{direct_response, msg_wait, resume_normal_world},
+    framework::{run_secure_world_test, run_test_helper},
     gicv3::handle_group1_interrupt,
-    normal_world_tests::run_test_helper,
     platform::{Platform, PlatformImpl},
     protocol::{ParseRequestError, Request, Response},
-    secure_tests::run_test,
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, SPMC_DEFAULT_ID, SPMD_DEFAULT_ID, current_el},
 };
 use aarch64_rt::entry;
@@ -161,7 +161,7 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 fn handle_request(request: Request) -> Response {
     match request {
         Request::RunSecureTest { test_index } => {
-            if run_test(test_index).is_ok() {
+            if run_secure_world_test(test_index).is_ok() {
                 Response::Success {
                     return_value: [0; 4],
                 }
@@ -176,7 +176,7 @@ fn handle_request(request: Request) -> Response {
     }
 }
 
-fn call_test_helper(_index: u64, _args: [u64; 3]) -> Result<[u64; 4], ()> {
+fn call_test_helper(_index: usize, _args: [u64; 3]) -> Result<[u64; 4], ()> {
     panic!("call_test_helper shouldn't be called from secure world tests");
 }
 

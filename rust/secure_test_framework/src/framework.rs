@@ -1,0 +1,130 @@
+// Copyright The Rusted Firmware-A Contributors.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+//! Framework for registering and running tests and their helpers.
+
+use crate::call_test_helper;
+use linkme::distributed_slice;
+use log::{error, info};
+
+/// The normal world tests.
+#[distributed_slice]
+pub static NORMAL_WORLD_TESTS: [NormalWorldTest];
+
+/// The secure world tests.
+#[distributed_slice]
+pub static SECURE_WORLD_TESTS: [SecureWorldTest];
+
+/// A single normal-world test.
+pub struct NormalWorldTest {
+    pub name: &'static str,
+    pub functions: TestFunctions,
+}
+
+pub enum TestFunctions {
+    NormalWorldOnly {
+        function: fn() -> Result<(), ()>,
+    },
+    NormalWorldWithHelper {
+        function: fn(&TestHelperProxy) -> Result<(), ()>,
+        helper: fn([u64; 3]) -> Result<[u64; 4], ()>,
+    },
+}
+
+/// A single secure-world test.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SecureWorldTest {
+    pub name: &'static str,
+    pub function: fn() -> Result<(), ()>,
+}
+
+/// A proxy to call the secure-world helper function for a normal-world test.
+pub type TestHelperProxy = dyn Fn([u64; 3]) -> Result<[u64; 4], ()>;
+
+/// Runs the normal world test with the given index.
+///
+/// This should only be called from the normal world (BL33) part of STF.
+#[allow(unused)]
+pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> Result<(), ()> {
+    info!("Running normal world test {}: {}", test_index, test.name);
+    match test.functions {
+        TestFunctions::NormalWorldOnly { function } => function(),
+        TestFunctions::NormalWorldWithHelper { function, .. } => {
+            function(&move |args| call_test_helper(test_index, args))
+        }
+    }
+}
+
+/// Runs the secure world test with the given index.
+///
+/// This should only be called from the secure world (BL32) part of STF.
+#[allow(unused)]
+pub fn run_secure_world_test(test_index: usize) -> Result<(), ()> {
+    if let Some(test) = SECURE_WORLD_TESTS.get(test_index) {
+        info!("Running secure world test {}: {}", test_index, test.name);
+        (test.function)()
+    } else {
+        error!("Requested to run unknown test {}", test_index);
+        Err(())
+    }
+}
+
+/// Runs the secure world test helper for the normal world test with the given index.
+///
+/// This should only be called from the secure world (BL32) part of STF.
+#[allow(unused)]
+pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
+    info!("Running secure world test helper {}", test_index);
+    if let Some(test) = NORMAL_WORLD_TESTS.get(test_index) {
+        if let TestFunctions::NormalWorldWithHelper { helper, .. } = test.functions {
+            helper(args)
+        } else {
+            error!("Requested to run helper for test without one.");
+            Err(())
+        }
+    } else {
+        error!("Requested to run unknown test helper {}.", test_index);
+        Err(())
+    }
+}
+
+/// Registers a normal world test with the test framework.
+#[macro_export]
+macro_rules! normal_world_test {
+    ($function:ident) => {
+        paste::paste! {
+            #[linkme::distributed_slice($crate::framework::NORMAL_WORLD_TESTS)]
+            static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
+                name: ::core::stringify!($function),
+                functions: $crate::framework::TestFunctions::NormalWorldOnly { function: $function },
+            };
+        }
+    };
+    ($function:ident, $helper:ident) => {
+        paste::paste! {
+            #[linkme::distributed_slice($crate::framework::NORMAL_WORLD_TESTS)]
+            static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
+                name: ::core::stringify!($function),
+                functions: $crate::framework::TestFunctions::NormalWorldWithHelper {
+                    function: $function,
+                    helper: $helper,
+                },
+            };
+        }
+    };
+}
+
+/// Registers a secure world test with the test framework.
+#[macro_export]
+macro_rules! secure_world_test {
+    ($function:ident) => {
+        paste::paste! {
+            #[linkme::distributed_slice($crate::framework::SECURE_WORLD_TESTS)]
+            static [<_SECURE_WORLD_TEST_ $function:upper>]: $crate::framework::SecureWorldTest = $crate::framework::SecureWorldTest {
+                name: ::core::stringify!($function),
+                function: $function,
+            };
+        }
+    };
+}

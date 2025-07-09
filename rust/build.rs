@@ -49,10 +49,10 @@ fn build_libtfa(platform: &str) {
 }
 
 fn setup_linker(platform: &String) {
-    println!("cargo:rustc-link-arg=-Timage.ld");
-    println!("cargo:rerun-if-changed=image.ld");
+    println!("cargo:rustc-link-arg=-Tbl31.ld");
+    println!("cargo:rerun-if-changed=bl31.ld");
 
-    // Select the linker scripts. image.ld is common to all platforms. It gets supplemented by the
+    // Select the linker scripts. bl31.ld is common to all platforms. It gets supplemented by the
     // platform linker script. Some platforms have multiple linker scripts, depending on the enabled
     // features.
     let linker_name = platform.clone();

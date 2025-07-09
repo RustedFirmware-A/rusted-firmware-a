@@ -65,13 +65,13 @@ build:
 	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 
 build-stf:
-	cd secure_test_framework && RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build --target $(TARGET)
+	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo build --package rf-a-secure-test-framework --target $(TARGET)
 $(BL32): build-stf
 	mkdir -p target
-	cd secure_test_framework && RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy --target $(TARGET) --bin bl32 -- -O binary ../$@
+	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy --package rf-a-secure-test-framework --target $(TARGET) --bin bl32 -- -O binary $@
 $(BL33): build-stf
 	mkdir -p target
-	cd secure_test_framework && RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy --target $(TARGET) --bin bl33 -- -O binary ../$@
+	RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo objcopy --package rf-a-secure-test-framework --target $(TARGET) --bin bl33 -- -O binary $@
 
 clippy-test:
 	cargo clippy --tests --features "$(FEATURES)"
@@ -129,7 +129,6 @@ fvp: $(BL1) $(FIP)
 
 clean:
 	cargo clean
-	cd secure_test_framework && cargo clean
 	rm -f target/*.bin
 
 list_platforms:

@@ -1,3 +1,7 @@
+[workspace]
+resolver = "3"
+members = ["secure_test_framework"]
+
 [package]
 name = "rf-a-bl31"
 version = "0.1.0"

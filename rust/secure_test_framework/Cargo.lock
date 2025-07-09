@@ -4,18 +4,15 @@ version = 4
 
 [[package]]
 name = "aarch64-rt"
-version = "0.2.0"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ba0820a68948e3655dbde1071b421d9ae8c08afb58e274b72c22e8a981c548c"
-dependencies = [
- "cfg-if",
-]
+checksum = "683c4295f0608c531130ed6daf301785844c1f71eb126eb56343838968e728c5"
 
 [[package]]
 name = "arm-ffa"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72c8ef880075527d1c70b79f298ad37a9ab0f2b731d2bd7c1a02b0c61ba96eb9"
+checksum = "431cc66192ddcbdde5430534e721f0df52fe6c7af3000150aa33a5159c4e5734"
 dependencies = [
  "num_enum",
  "thiserror",
@@ -31,18 +28,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff5b0f1e39ec186e409c6fd80bbb83aa00622ca71c9c0561b5571df3b5f5391f"
 dependencies = [
  "bitflags",
- "embedded-hal-nb",
- "embedded-io",
  "safe-mmio",
  "thiserror",
  "zerocopy",
 ]
-
-[[package]]
-name = "autocfg"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "bitflags"
@@ -51,54 +40,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
 
 [[package]]
-name = "cfg-if"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
-
-[[package]]
-name = "embedded-hal"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
-
-[[package]]
-name = "embedded-hal-nb"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fba4268c14288c828995299e59b12babdbe170f6c6d73731af1b4648142e8605"
-dependencies = [
- "embedded-hal",
- "nb",
-]
-
-[[package]]
-name = "embedded-io"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
-
-[[package]]
-name = "lock_api"
-version = "0.4.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07af8b9cdd281b7915f413fa73f29ebd5d55d0d3f0155584dade1ff18cea1b17"
-dependencies = [
- "autocfg",
- "scopeguard",
-]
-
-[[package]]
 name = "log"
 version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
-
-[[package]]
-name = "nb"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 
 [[package]]
 name = "num_enum"
@@ -161,16 +106,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "scopeguard"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
-
-[[package]]
 name = "smccc"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87ed898c59fbfd740492e435cba30a08b74a68d1f1ebb5f1a4b17f6bc7782be8"
+checksum = "7c73e0ca8c566478040487791c9f488f86c5aec846ca1ab18484be8a1d8c55cd"
 dependencies = [
  "thiserror",
 ]
@@ -180,9 +119,6 @@ name = "spin"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
-dependencies = [
- "lock_api",
-]
 
 [[package]]
 name = "syn"

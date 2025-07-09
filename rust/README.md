@@ -103,10 +103,17 @@ $ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=0 NEED_BL3
     DEBUG=1 fvp
 ```
 
-Note: By default, TF-A considers that the Base FVP platform has 256 kB of Trusted SRAM. Actually it
-can simulate up to 512 kB of Trusted SRAM, which is the configuration we use for RF-A (because a
-debug build of RF-A is too big to fit in 256 kB). The `FVP_TRUSTED_SRAM_SIZE=512` TF-A build flag is
-required to stop TF-A from complaining that RF-A does not fit.
+**Note 1:** In the above command, the user may notice that we use `SPMD_SPM_AT_SEL2=0` even though
+the project is enabling S-EL2 using the default `sel2` feature.
+The `rusted-firmware-a` project is currently leveraging on the `trusted-firmware-a` project's build
+system and the latter requires a SP layout file for building with `SPMD_SPM_AT_SEL2=1`. We currently
+use the temporary workaround of building with `SPMD_SPM_AT_SEL2=0` to avoid using this sp layout
+file.
+
+**Note 2:** By default, TF-A considers that the Base FVP platform has 256 kB of Trusted SRAM.
+Actually it can simulate up to 512 kB of Trusted SRAM, which is the configuration we use for RF-A
+(because a debug build of RF-A is too big to fit in 256 kB). The `FVP_TRUSTED_SRAM_SIZE=512` TF-A
+build flag is required to stop TF-A from complaining that RF-A does not fit.
 
 #### With RME support
 

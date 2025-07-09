@@ -10,6 +10,7 @@
 mod exceptions;
 mod expect;
 mod ffa;
+mod gicv3;
 mod logger;
 mod platform;
 mod secure_tests;

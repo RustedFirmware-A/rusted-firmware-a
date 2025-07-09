@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+use crate::gicv3;
 use crate::util::current_el;
 use core::arch::asm;
 
@@ -42,7 +43,7 @@ extern "C" fn sync_exception_current(elr: u64, _spsr: u64) {
 
 #[unsafe(no_mangle)]
 extern "C" fn irq_current(_elr: u64, _spsr: u64) {
-    panic!("Unexpected irq_current");
+    gicv3::handle_group1_interrupt();
 }
 
 #[unsafe(no_mangle)]

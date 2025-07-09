@@ -160,9 +160,11 @@ version = "0.1.0"
 dependencies = [
  "aarch64-rt",
  "arm-ffa",
+ "arm-gic",
  "arm-pl011-uart",
  "bitflags",
  "log",
+ "percore",
  "smccc",
  "spin",
 ]

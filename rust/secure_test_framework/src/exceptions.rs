@@ -31,6 +31,29 @@ pub fn set_exception_vector() {
     }
 }
 
+/// Without this flag the CPU assumes the IRQ is meant for EL1.
+pub fn enable_irq_trapping_to_el2() {
+    let hcr_el2: u64;
+
+    // SAFETY: only RW system register hcr_el2 is accessed.
+    unsafe {
+        // Read the current value
+        asm!("mrs {}, hcr_el2", out(reg) hcr_el2, options(nomem, nostack));
+
+        // Set the IMO bit (bit 4)
+        let new_hcr_el2 = hcr_el2 | (1 << 4);
+
+        // Write the new value back
+        asm!(
+            "msr hcr_el2, {}",
+            "dsb sy",
+            "isb",
+            in(reg) new_hcr_el2,
+            options(nomem, nostack)
+        );
+    }
+}
+
 #[unsafe(no_mangle)]
 extern "C" fn sync_exception_current(elr: u64, _spsr: u64) {
     panic!(

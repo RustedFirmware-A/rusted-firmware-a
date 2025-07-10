@@ -19,6 +19,7 @@ mod util;
 use crate::{
     exceptions::set_exception_vector,
     ffa::direct_request,
+    gicv3::init,
     normal_world_tests::{NORMAL_TEST_COUNT, run_test},
     platform::{Platform, PlatformImpl},
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, TEST_FAILURE, TEST_PANIC, TEST_SUCCESS, current_el},
@@ -44,6 +45,7 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     logger::init(log_sink, LevelFilter::Trace).unwrap();
 
     set_exception_vector();
+    gicv3::init();
 
     info!(
         "Rust BL33 starting at EL {} with args {:#x}, {:#x}, {:#x}, {:#x}",

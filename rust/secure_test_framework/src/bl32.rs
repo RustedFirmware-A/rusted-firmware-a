@@ -19,6 +19,7 @@ mod util;
 use crate::{
     exceptions::set_exception_vector,
     ffa::{direct_response, msg_wait},
+    gicv3::init,
     platform::{Platform, PlatformImpl},
     secure_tests::run_test,
     util::{
@@ -43,6 +44,7 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     logger::init(log_sink, LevelFilter::Trace).unwrap();
 
     set_exception_vector();
+    gicv3::init();
 
     info!(
         "Rust BL32 starting at EL {} with args {:#x}, {:#x}, {:#x}, {:#x}",

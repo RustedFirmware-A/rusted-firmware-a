@@ -97,55 +97,57 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     let mut message = msg_wait(None).unwrap();
 
     loop {
-        let Interface::MsgSendDirectReq {
-            src_id,
-            dst_id,
-            args,
-        } = message
-        else {
-            panic!("Unexpected FF-A interface returned: {:?}", message);
-        };
+        match message {
+            Interface::MsgSendDirectReq {
+                src_id,
+                dst_id,
+                args,
+            } => {
+                let response_args = if src_id == NORMAL_WORLD_ID && dst_id == SECURE_WORLD_ID {
+                    let DirectMsgArgs::Args64(args) = args else {
+                        panic!("Received unexpected direct message type from Normal World.");
+                    };
 
-        let response_args = if src_id == NORMAL_WORLD_ID && dst_id == SECURE_WORLD_ID {
-            let DirectMsgArgs::Args64(args) = args else {
-                panic!("Received unexpected direct message type from Normal World.");
-            };
+                    let test_index = args[0];
+                    let test_result = if run_test(test_index).is_ok() {
+                        TEST_SUCCESS
+                    } else {
+                        TEST_FAILURE
+                    };
 
-            let test_index = args[0];
-            let test_result = if run_test(test_index).is_ok() {
-                TEST_SUCCESS
-            } else {
-                TEST_FAILURE
-            };
+                    DirectMsgArgs::Args64([test_result, 0, 0, 0, 0])
+                } else if src_id == spmd_id && dst_id == spmc_id {
+                    let DirectMsgArgs::VersionReq { version } = args else {
+                        panic!("Received unexpected direct message type from SPMD.");
+                    };
 
-            DirectMsgArgs::Args64([test_result, 0, 0, 0, 0])
-        } else if src_id == spmd_id && dst_id == spmc_id {
-            let DirectMsgArgs::VersionReq { version } = args else {
-                panic!("Received unexpected direct message type from SPMD.");
-            };
+                    let out_version = if version.is_compatible_to(&FFA_VERSION) {
+                        // If NWd queries a version that we're compatible with, return the same
+                        nwd_supported_ffa_version = version;
+                        info!(
+                            "Normal World supports FF-A version {}",
+                            nwd_supported_ffa_version
+                        );
+                        nwd_supported_ffa_version
+                    } else {
+                        // Otherwise return the highest version we do support
+                        FFA_VERSION
+                    };
 
-            let out_version = if version.is_compatible_to(&FFA_VERSION) {
-                // If NWd queries a version that we're compatible with, return the same
-                nwd_supported_ffa_version = version;
-                info!(
-                    "Normal World supports FF-A version {}",
-                    nwd_supported_ffa_version
-                );
-                nwd_supported_ffa_version
-            } else {
-                // Otherwise return the highest version we do support
-                FFA_VERSION
-            };
+                    DirectMsgArgs::VersionResp {
+                        version: Some(out_version),
+                    }
+                } else {
+                    panic!("Unexpected source ID ({src_id:#x}) or destination ID ({dst_id:#x})");
+                };
 
-            DirectMsgArgs::VersionResp {
-                version: Some(out_version),
+                // Return result and wait for the next test index.
+                message = direct_response(dst_id, src_id, response_args).unwrap();
             }
-        } else {
-            panic!("Unexpected source ID ({src_id:#x}) or destination ID ({dst_id:#x})");
-        };
-
-        // Return result and wait for the next test index.
-        message = direct_response(dst_id, src_id, response_args).unwrap();
+            _ => {
+                panic!("Unexpected FF-A interface returned: {:?}", message)
+            }
+        }
     }
 }
 

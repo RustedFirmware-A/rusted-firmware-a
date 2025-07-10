@@ -13,8 +13,7 @@ impl Builder for QemuBuilder {
             Err(format!("RME is not supported on {:?}", QemuBuilder::PLAT_NAME).into())
         } else {
             build
-                .include("../plat/qemu/common/include")
-                .include("../plat/qemu/qemu/include")
+                .include("platforms/qemu/include")
                 .file("platforms/qemu/plat_helpers.S");
             Ok(())
         }

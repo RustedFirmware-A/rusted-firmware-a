@@ -14,9 +14,8 @@ pub struct FvpBuilder;
 impl Builder for FvpBuilder {
     fn configure_build(&self, build: &mut Build) -> BuildResult {
         build
-            .file("platforms/fvp/arm_helpers.S")
-            .include("../include/plat/arm/common")
-            .include("../plat/arm/board/fvp/include");
+            .include("platforms/fvp/include/")
+            .file("platforms/fvp/arm_helpers.S");
 
         // TODO: Remove when .S files are re-written in Rust and this is no longer needed.
         build.define("FVP_CLUSTER_COUNT", FVP_CLUSTER_COUNT.to_string().as_str());

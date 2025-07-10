@@ -33,10 +33,10 @@ fn build_libtfa(platform: &str) {
         .include("../include/lib/libc")
         .include("../include/plat/arm/common/aarch64")
         .file("bl31_entrypoint.S")
-        .file("../drivers/arm/pl011/aarch64/pl011_console.S")
-        .file("../lib/cpus/aarch64/cpu_helpers.S")
-        .file("../lib/el3_runtime/aarch64/cpu_data.S")
-        .file("../lib/xlat_tables_v2/aarch64/enable_mmu.S");
+        .file("pl011_console.S")
+        .file("cpu_helpers.S")
+        .file("cpu_data.S")
+        .file("enable_mmu.S");
 
     if let Ok(debug) = env::var("DEBUG") {
         build.define("DEBUG", debug.as_str());

@@ -56,6 +56,11 @@ pub fn direct_response(
     })
 }
 
+/// Switch back to normal world after handling Group 1 Secure interrupt.
+pub fn resume_normal_world() -> Result<Interface, Error> {
+    call(Interface::NormalWorldResume)
+}
+
 fn call(interface: Interface) -> Result<Interface, Error> {
     let regs = call_raw(interface);
     Interface::from_regs(FFA_VERSION, &regs)

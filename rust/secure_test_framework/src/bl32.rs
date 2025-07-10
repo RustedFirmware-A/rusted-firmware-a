@@ -18,8 +18,8 @@ mod util;
 
 use crate::{
     exceptions::set_exception_vector,
-    ffa::{direct_response, msg_wait},
-    gicv3::init,
+    ffa::{direct_response, msg_wait, resume_normal_world},
+    gicv3::{handle_group1_interrupt, init},
     platform::{Platform, PlatformImpl},
     secure_tests::run_test,
     util::{
@@ -98,6 +98,10 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     loop {
         match message {
+            Interface::Interrupt { .. } => {
+                handle_group1_interrupt();
+                message = resume_normal_world().unwrap();
+            }
             Interface::MsgSendDirectReq {
                 src_id,
                 dst_id,

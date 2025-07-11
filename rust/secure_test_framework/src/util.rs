@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use core::arch::asm;
+use core::{arch::asm, fmt::Display};
+use log::error;
 
 /// The partition ID of the normal world component.
 pub const NORMAL_WORLD_ID: u16 = 0;
@@ -28,4 +29,12 @@ pub fn current_el() -> u8 {
         );
     }
     (current_el >> 2) as u8
+}
+
+/// If the result contains an error then prints it along with the given message, and returns an
+/// empty tuple error.
+///
+/// This is convenient for handling errors which should cause a test to fail.
+pub fn log_error<V, E: Display>(message: &str, result: Result<V, E>) -> Result<V, ()> {
+    result.map_err(|e| error!("{}: {}", message, e))
 }

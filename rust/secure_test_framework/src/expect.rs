@@ -42,3 +42,12 @@ macro_rules! expect_eq {
         }
     }};
 }
+
+/// Logs the given error and returns `Err(())`.
+#[macro_export]
+macro_rules! fail {
+    ($($arg:tt)+) => {{
+        log::error!($($arg)+);
+        return Err(());
+    }};
+}

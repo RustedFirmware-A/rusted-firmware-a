@@ -4,7 +4,10 @@
 
 //! Test cases to run in normal world.
 
-use crate::{expect_eq, ffa, normal_world_test, util::NORMAL_WORLD_ID, util::SPMC_DEFAULT_ID};
+use crate::{
+    expect_eq, fail, ffa, normal_world_test,
+    util::{NORMAL_WORLD_ID, SPMC_DEFAULT_ID, log_error},
+};
 use arm_ffa::{FfaError, Interface, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo};
 use smccc::{Smc, arch, psci};
 
@@ -46,9 +49,15 @@ fn test_no_msg_wait_from_normal_world() -> Result<(), ()> {
 
 normal_world_test!(test_ffa_id_get);
 fn test_ffa_id_get() -> Result<(), ()> {
-    let id = match ffa::id_get().map_err(|_| ())? {
-        Interface::Success { args, .. } => SuccessArgsIdGet::try_from(args).map_err(|_| ())?.id,
-        _ => return Err(()),
+    let id = match log_error("ID_GET failed", ffa::id_get())? {
+        Interface::Success { args, .. } => {
+            log_error(
+                "ID_GET returned invalid arguments",
+                SuccessArgsIdGet::try_from(args),
+            )?
+            .id
+        }
+        other => fail!("ID_GET returned unexpected interface: {other:?}"),
     };
 
     expect_eq!(id, NORMAL_WORLD_ID);
@@ -57,9 +66,15 @@ fn test_ffa_id_get() -> Result<(), ()> {
 
 normal_world_test!(test_ffa_spm_id_get);
 fn test_ffa_spm_id_get() -> Result<(), ()> {
-    let id = match ffa::spm_id_get().map_err(|_| ())? {
-        Interface::Success { args, .. } => SuccessArgsSpmIdGet::try_from(args).map_err(|_| ())?.id,
-        _ => return Err(()),
+    let id = match log_error("SPM_ID_GET failed", ffa::spm_id_get())? {
+        Interface::Success { args, .. } => {
+            log_error(
+                "SPM_ID_GET returned invalid arguments",
+                SuccessArgsSpmIdGet::try_from(args),
+            )?
+            .id
+        }
+        other => fail!("SPM_ID_GET returned unexpected interface: {other:?}"),
     };
 
     // TODO: parse manifest and test for that value.

@@ -632,6 +632,10 @@ fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) 
 fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
 
+    // Enable Secure EL1 access to timer registers.
+    // Otherwise they would be accessible only at EL3.
+    context.el3_state.scr_el3 |= ScrEl3::ST;
+
     gicv3::set_routing_model(&mut context.el3_state.scr_el3, World::Secure);
 }
 

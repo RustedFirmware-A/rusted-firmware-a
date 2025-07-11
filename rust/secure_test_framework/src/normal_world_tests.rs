@@ -7,9 +7,11 @@
 use crate::{
     expect_eq, fail, ffa, normal_world_test,
     timer::{NonSecureTimer, test_timer_helper},
-    util::{NORMAL_WORLD_ID, SPMC_DEFAULT_ID, log_error},
+    util::{NORMAL_WORLD_ID, SPMC_DEFAULT_ID, expect_success, log_error},
 };
-use arm_ffa::{FfaError, Interface, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo};
+use arm_ffa::{
+    FfaError, Interface, RxTxAddr, SuccessArgs, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo,
+};
 use smccc::{Smc, arch, psci};
 
 normal_world_test!(test_smccc_arch);
@@ -86,4 +88,30 @@ fn test_ffa_spm_id_get() -> Result<(), ()> {
 normal_world_test!(test_timer);
 fn test_timer() -> Result<(), ()> {
     test_timer_helper::<NonSecureTimer>()
+}
+
+normal_world_test!(test_rx_tx_map, handler = rx_tx_map_handler);
+fn test_rx_tx_map() -> Result<(), ()> {
+    let args = expect_success(log_error(
+        "RX_TX_MAP failed",
+        ffa::rx_tx_map(RxTxAddr::Addr64 { rx: 0x02, tx: 0x03 }, 1),
+    )?)?;
+    expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
+    Ok(())
+}
+
+fn rx_tx_map_handler(interface: Interface) -> Option<Interface> {
+    let Interface::RxTxMap { addr, page_cnt } = interface else {
+        return None;
+    };
+    assert_eq!(addr, RxTxAddr::Addr64 { rx: 0x02, tx: 0x03 });
+    assert_eq!(page_cnt, 1);
+
+    Some(Interface::Success {
+        args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+    })
 }

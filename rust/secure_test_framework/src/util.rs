@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+use arm_ffa::{Interface, SuccessArgs};
 use core::{arch::asm, fmt::Display};
 use log::error;
 
@@ -37,4 +38,15 @@ pub fn current_el() -> u8 {
 /// This is convenient for handling errors which should cause a test to fail.
 pub fn log_error<V, E: Display>(message: &str, result: Result<V, E>) -> Result<V, ()> {
     result.map_err(|e| error!("{}: {}", message, e))
+}
+
+/// If the given FF-A response is a success then returns its arguments, otherwise logs and returns
+/// an error.
+pub fn expect_success(response: Interface) -> Result<SuccessArgs, ()> {
+    if let Interface::Success { args, .. } = response {
+        Ok(args)
+    } else {
+        error!("Expected success but got {:?}", response);
+        Err(())
+    }
 }

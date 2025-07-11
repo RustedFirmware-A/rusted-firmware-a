@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use arm_ffa::{DirectMsgArgs, Error, Interface, MsgWaitFlags, Version};
+use arm_ffa::{DirectMsgArgs, Error, Interface, MsgWaitFlags, RxTxAddr, Version};
 use smccc::{arch, error::positive_or_error_32, smc64};
 
 /// The FF-A version which we implement here.
@@ -22,6 +22,10 @@ pub fn id_get() -> Result<Interface, Error> {
 
 pub fn spm_id_get() -> Result<Interface, Error> {
     call(Interface::SpmIdGet)
+}
+
+pub fn rx_tx_map(addr: RxTxAddr, page_cnt: u32) -> Result<Interface, Error> {
+    call(Interface::RxTxMap { addr, page_cnt })
 }
 
 pub fn msg_wait(flags: Option<MsgWaitFlags>) -> Result<Interface, Error> {

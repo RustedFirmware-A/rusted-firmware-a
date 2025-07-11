@@ -7,7 +7,7 @@ use crate::{
     aarch64::{dsb_sy, sev, wfi},
     context::{CoresImpl, EntryPointInfo},
     debug::DEBUG,
-    gicv3::GicConfig,
+    gicv3::{GicConfig, InterruptConfig},
     logger::{self, inmemory::PerCoreMemoryLogger, HybridLogger, LockedWriter},
     pagetable::{map_region, IdMap, MT_DEVICE},
     semihosting::{semihosting_exit, AdpStopped},
@@ -25,9 +25,9 @@ use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
     gicv3::{
         registers::{Gicd, GicrSgi},
-        GicV3,
+        GicV3, Group, SecureIntGroup,
     },
-    IntId,
+    IntId, Trigger,
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
@@ -91,6 +91,10 @@ const LOG_BUFFER_SIZE: usize = 1024;
 /// want to move it to DRAM rather than SRAM.
 static MEMORY_LOGGER: PerCoreMemoryLogger<LOG_BUFFER_SIZE> = PerCoreMemoryLogger::new();
 
+/// Secure timers' interrupt IDs.
+const SEL2_TIMER_ID: IntId = IntId::ppi(4);
+const SEL1_TIMER_ID: IntId = IntId::ppi(13);
+
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
 
@@ -103,8 +107,24 @@ impl Platform for Qemu {
     type PsciPlatformImpl = QemuPsciPlatformImpl;
 
     const GIC_CONFIG: GicConfig = GicConfig {
-        // TODO: Fill this with proper values.
-        interrupts_config: &[],
+        interrupts_config: &[
+            (
+                SEL2_TIMER_ID,
+                InterruptConfig {
+                    priority: 0x80,
+                    group: Group::Secure(SecureIntGroup::Group1S),
+                    trigger: Trigger::Level,
+                },
+            ),
+            (
+                SEL1_TIMER_ID,
+                InterruptConfig {
+                    priority: 0x80,
+                    group: Group::Secure(SecureIntGroup::Group1S),
+                    trigger: Trigger::Level,
+                },
+            ),
+        ],
     };
 
     fn init_before_mmu() {

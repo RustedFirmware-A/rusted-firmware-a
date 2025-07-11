@@ -4,7 +4,12 @@
 
 //! Test cases to run in secure world.
 
-use crate::{expect_eq, secure_world_test};
+use crate::{
+    expect_eq, secure_world_test,
+    timer::{SEL1Timer, SEL2Timer, test_timer_helper},
+    util::current_el,
+};
+use log::warn;
 use smccc::{Smc, arch, psci};
 
 secure_world_test!(test_smccc_arch);
@@ -21,4 +26,25 @@ secure_world_test!(test_psci_version);
 fn test_psci_version() -> Result<(), ()> {
     expect_eq!(psci::version::<Smc>(), Err(psci::Error::NotSupported));
     Ok(())
+}
+
+secure_world_test!(test_secure_timer);
+fn test_secure_timer() -> Result<(), ()> {
+    if current_el() == 2 {
+        // TODO: Enable SEL2Timer test for FVP.
+        //
+        // Right now ACKing a SEL2 interrupt in FVP
+        // always returns special value 1023 (means spurious interrupt).
+        // It looks like a bug in FVP itself.
+        // Enable the test after figuring out what was the issue.
+        #[cfg(platform = "fvp")]
+        {
+            warn!("SEL2 timer test skipped!");
+            return Ok(());
+        }
+
+        test_timer_helper::<SEL2Timer>()
+    } else {
+        test_timer_helper::<SEL1Timer>()
+    }
 }

@@ -6,6 +6,7 @@
 
 use crate::{
     expect_eq, fail, ffa, normal_world_test,
+    timer::{NonSecureTimer, test_timer_helper},
     util::{NORMAL_WORLD_ID, SPMC_DEFAULT_ID, log_error},
 };
 use arm_ffa::{FfaError, Interface, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo};
@@ -80,4 +81,9 @@ fn test_ffa_spm_id_get() -> Result<(), ()> {
     // TODO: parse manifest and test for that value.
     expect_eq!(id, SPMC_DEFAULT_ID);
     Ok(())
+}
+
+normal_world_test!(test_timer);
+fn test_timer() -> Result<(), ()> {
+    test_timer_helper::<NonSecureTimer>()
 }

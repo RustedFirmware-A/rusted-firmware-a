@@ -17,6 +17,7 @@ mod normal_world_tests;
 mod platform;
 mod protocol;
 mod secure_tests;
+mod timer;
 mod util;
 
 use crate::{

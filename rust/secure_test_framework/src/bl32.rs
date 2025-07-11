@@ -21,8 +21,8 @@ mod util;
 
 use crate::{
     exceptions::set_exception_vector,
-    ffa::{direct_response, msg_wait, resume_normal_world},
-    framework::{run_secure_world_test, run_test_helper},
+    ffa::{call, direct_response, msg_wait},
+    framework::{run_secure_world_test, run_test_ffa_handler, run_test_helper},
     gicv3::handle_group1_interrupt,
     platform::{Platform, PlatformImpl},
     protocol::{ParseRequestError, Request, Response},
@@ -92,29 +92,51 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
         }
     };
 
+    let mut current_test_index = None;
+
     // Wait for the first test index.
     let mut message = msg_wait(None).unwrap();
 
     loop {
-        match message {
+        let response = match message {
             Interface::Interrupt { .. } => {
                 handle_group1_interrupt();
-                message = resume_normal_world().unwrap();
+                Interface::NormalWorldResume
             }
             Interface::MsgSendDirectReq {
                 src_id,
                 dst_id,
                 args,
             } => {
-                let response_args = handle_direct_message(src_id, dst_id, args, spmc_id, spmd_id);
+                let response_args = handle_direct_message(
+                    src_id,
+                    dst_id,
+                    args,
+                    spmc_id,
+                    spmd_id,
+                    &mut current_test_index,
+                );
 
-                // Return result and wait for the next test index.
-                message = direct_response(dst_id, src_id, response_args).unwrap();
+                Interface::MsgSendDirectResp {
+                    src_id: dst_id,
+                    dst_id: src_id,
+                    args: response_args,
+                }
             }
             _ => {
-                panic!("Unexpected FF-A interface returned: {:?}", message)
+                if let Some(current_test_index) = current_test_index {
+                    if let Some(response) = run_test_ffa_handler(current_test_index, message) {
+                        response
+                    } else {
+                        panic!("Test couldn't handle FF-A interface {:?}", message);
+                    }
+                } else {
+                    panic!("Unexpected FF-A interface returned: {:?}", message)
+                }
             }
-        }
+        };
+        // Return result and wait for the next test index.
+        message = call(response).unwrap()
     }
 }
 
@@ -125,10 +147,11 @@ fn handle_direct_message(
     args: DirectMsgArgs,
     spmc_id: u16,
     spmd_id: u16,
+    current_test_index: &mut Option<usize>,
 ) -> DirectMsgArgs {
     if src_id == NORMAL_WORLD_ID && dst_id == SECURE_WORLD_ID {
         match Request::try_from(args) {
-            Ok(request) => handle_request(request).into(),
+            Ok(request) => handle_request(request, current_test_index).into(),
             Err(ParseRequestError::InvalidDirectMsgType(args)) => {
                 panic!(
                     "Received unexpected direct message type from Normal World: {:?}",
@@ -170,7 +193,7 @@ fn handle_version_request(version: Version) -> DirectMsgArgs {
 }
 
 /// Handles a request from the normal world BL33.
-fn handle_request(request: Request) -> Response {
+fn handle_request(request: Request, current_test_index: &mut Option<usize>) -> Response {
     match request {
         Request::RunSecureTest { test_index } => {
             if run_secure_world_test(test_index).is_ok() {
@@ -185,6 +208,20 @@ fn handle_request(request: Request) -> Response {
             Ok(return_value) => Response::Success { return_value },
             Err(()) => Response::Failure,
         },
+        Request::StartTest { test_index } => {
+            assert_eq!(*current_test_index, None);
+            *current_test_index = Some(test_index);
+            Response::Success {
+                return_value: [0; 4],
+            }
+        }
+        Request::StopTest => {
+            assert!(current_test_index.is_some());
+            *current_test_index = None;
+            Response::Success {
+                return_value: [0; 4],
+            }
+        }
     }
 }
 
@@ -196,7 +233,9 @@ fn call_test_helper(_index: usize, _args: [u64; 3]) -> Result<[u64; 4], ()> {
 fn panic(info: &PanicInfo) -> ! {
     // Log the panic message
     error!("{}", info);
-    // Tell normal world that the test failed.
-    let _ = direct_response(SECURE_WORLD_ID, NORMAL_WORLD_ID, Response::Panic.into());
-    loop {}
+    // Tell normal world that the test panicked. In case we get another request anyway, keep
+    // sending the same response.
+    loop {
+        let _ = direct_response(SECURE_WORLD_ID, NORMAL_WORLD_ID, Response::Panic.into());
+    }
 }

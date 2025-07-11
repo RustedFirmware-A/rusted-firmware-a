@@ -14,6 +14,12 @@ const RUN_SECURE_TEST: u64 = 1;
 /// Value sent by a direct message to call a test helper.
 const RUN_TEST_HELPER: u64 = 2;
 
+/// Value sent by direct message to register the start of a normal-world test.
+const START_TEST: u64 = 3;
+
+/// Value sent by direct message to register the end of a normal-world test.
+const STOP_TEST: u64 = 4;
+
 /// Value returned in a direct message response for a test success.
 const TEST_SUCCESS: u64 = 0;
 
@@ -31,6 +37,11 @@ pub enum Request {
     RunSecureTest { test_index: usize },
     /// Run the secure helper component of a normal-world test.
     RunTestHelper { test_index: usize, args: [u64; 3] },
+    /// Register that the given normal world test is starting, so its FF-A handler should be used.
+    StartTest { test_index: usize },
+    /// Register that the current normal world test has finished, so its FF-A handler should no
+    /// longer be used.
+    StopTest,
 }
 
 impl From<Request> for DirectMsgArgs {
@@ -44,6 +55,8 @@ impl From<Request> for DirectMsgArgs {
                 args[1],
                 args[2],
             ],
+            Request::StartTest { test_index } => [START_TEST, test_index as u64, 0, 0, 0],
+            Request::StopTest => [STOP_TEST, 0, 0, 0, 0],
         })
     }
 }
@@ -61,6 +74,10 @@ impl TryFrom<DirectMsgArgs> for Request {
                     test_index: args[1] as usize,
                     args: [args[2], args[3], args[4]],
                 }),
+                START_TEST => Ok(Self::StartTest {
+                    test_index: args[1] as usize,
+                }),
+                STOP_TEST => Ok(Self::StopTest),
                 request_code => Err(ParseRequestError::InvalidRequestCode(request_code)),
             }
         } else {

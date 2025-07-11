@@ -67,11 +67,39 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     // Run normal world tests.
     let mut passing_normal_test_count = 0;
     for (test_index, test) in NORMAL_WORLD_TESTS.iter().enumerate() {
+        if test.secure_handler.is_some() {
+            // Tell secure world that the test is starting, so it can use the handler.
+            match send_request(Request::StartTest { test_index }) {
+                Ok(Response::Success { .. }) => {}
+                Ok(Response::Failure) => {
+                    warn!("Registering test start with secure world failed.");
+                    continue;
+                }
+                Ok(Response::Panic) => {
+                    panic!("Registering test start with secure world caused panic.");
+                }
+                Err(()) => continue,
+            }
+        }
         if run_normal_world_test(test_index, test).is_ok() {
             info!("Normal world test {} passed", test.name);
             passing_normal_test_count += 1;
         } else {
             warn!("Normal world test {} failed", test.name);
+        }
+        if test.secure_handler.is_some() {
+            // Tell secure world that the test is finished so it can remove the handler.
+            match send_request(Request::StopTest) {
+                Ok(Response::Success { .. }) => {}
+                Ok(Response::Failure) => {
+                    warn!("Registering test stop with secure world failed.");
+                    continue;
+                }
+                Ok(Response::Panic) => {
+                    panic!("Registering test stop with secure world caused panic.");
+                }
+                Err(()) => continue,
+            }
         }
     }
     info!(

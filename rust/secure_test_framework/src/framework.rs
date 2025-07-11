@@ -5,6 +5,7 @@
 //! Framework for registering and running tests and their helpers.
 
 use crate::call_test_helper;
+use arm_ffa::Interface;
 use linkme::distributed_slice;
 use log::{error, info};
 
@@ -20,6 +21,9 @@ pub static SECURE_WORLD_TESTS: [SecureWorldTest];
 pub struct NormalWorldTest {
     pub name: &'static str,
     pub functions: TestFunctions,
+    /// A secure-world handler for FF-A interfaces. This can return `None` if it doesn't want to
+    /// handle the interface.
+    pub secure_handler: Option<fn(Interface) -> Option<Interface>>,
 }
 
 pub enum TestFunctions {
@@ -89,6 +93,18 @@ pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()
     }
 }
 
+/// Calls the secure world FF-A handler for the normal world test with the given index.
+///
+/// Returns `None` if there is no handler for the given test index.
+///
+/// This should only be called from the secure world (BL32) part of STF.
+#[allow(unused)]
+pub fn run_test_ffa_handler(test_index: usize, interface: Interface) -> Option<Interface> {
+    let handler = NORMAL_WORLD_TESTS.get(test_index)?.secure_handler?;
+    info!("Running test {} FF-A handler", test_index);
+    handler(interface)
+}
+
 /// Registers a normal world test with the test framework.
 #[macro_export]
 macro_rules! normal_world_test {
@@ -98,10 +114,11 @@ macro_rules! normal_world_test {
             static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
                 name: ::core::stringify!($function),
                 functions: $crate::framework::TestFunctions::NormalWorldOnly { function: $function },
+                secure_handler: None,
             };
         }
     };
-    ($function:ident, $helper:ident) => {
+    ($function:ident, helper = $helper:ident) => {
         paste::paste! {
             #[linkme::distributed_slice($crate::framework::NORMAL_WORLD_TESTS)]
             static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
@@ -110,6 +127,17 @@ macro_rules! normal_world_test {
                     function: $function,
                     helper: $helper,
                 },
+                secure_handler: None,
+            };
+        }
+    };
+    ($function:ident, handler = $handler:ident) => {
+        paste::paste! {
+            #[linkme::distributed_slice($crate::framework::NORMAL_WORLD_TESTS)]
+            static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
+                name: ::core::stringify!($function),
+                functions: $crate::framework::TestFunctions::NormalWorldOnly { function: $function },
+                secure_handler: Some($handler),
             };
         }
     };

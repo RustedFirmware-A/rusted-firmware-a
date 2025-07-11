@@ -36,7 +36,7 @@ fn test_foo() -> Result<(), ()> {
 For a normal world test with a secure world helper component:
 
 ```rust
-normal_world_test!(test_foo, foo_helper);
+normal_world_test!(test_foo, helper = foo_helper);
 fn test_foo(helper: &TestHelperProxy) -> Result<(), ()> {
    let result = helper([41, 22, 0]);
    expect_eq!(result[0], 42);

@@ -34,6 +34,39 @@ macro_rules! write_sysreg {
     };
 }
 
+/// A macro to generate an MRS instruction to read from a system register.
+macro_rules! read_sysreg {
+    ($reg:ident) => {{
+        let value: u64;
+        asm!(
+            concat!("mrs {}, ", stringify!($reg)),
+            out(reg) value,
+            options(nostack, nomem, preserves_flags)
+        );
+        value
+    }};
+}
+
+/// Reads the frequency of the system counter from the `CNTFRQ_EL0` register.
+/// It is assumed this has been initialized by EL3 firmware.
+pub fn read_frequency() -> u64 {
+    // SAFETY: This only reads a readable timer system register.
+    unsafe { read_sysreg!(cntfrq_el0) }
+}
+
+/// A hint to the processor that we are in a spin-wait loop.
+///
+/// This can improve performance and save power on some systems.
+#[inline(always)]
+pub fn cpu_yield() {
+    // SAFETY: The 'yield' instruction is a CPU hint that is guaranteed
+    // to have no memory side effects. It does not use the stack and
+    // preserves all general-purpose and flag registers.
+    unsafe {
+        asm!("yield", options(nomem, nostack, preserves_flags));
+    }
+}
+
 /// Defines the common behavior for all physical timers.
 pub trait Timer {
     /// The interrupt ID for this timer.
@@ -64,6 +97,26 @@ pub trait Timer {
             asm!("mrs {}, cntpct_el0", out(reg) value, options(nostack, nomem, preserves_flags));
         }
         value
+    }
+
+    fn delay_us(us: u64) {
+        let freq = read_frequency();
+        if freq == 0 {
+            panic!("CNTFREQ_EL0 not configured/inaccessible");
+        }
+
+        // Calculate the number of timer ticks required for the delay.
+        // Use u128 for the multiplication to prevent overflow.
+        let ticks_to_wait = (freq as u128 * us as u128) / 1_000_000;
+        let start_time = Self::read_counter();
+        let end_time = start_time.saturating_add(ticks_to_wait as u64);
+
+        // Loop until the system counter reaches the target time.
+        while Self::read_counter() < end_time {
+            // Hint the processor that we are in a spin-wait loop.
+            // This can save power on some systems.
+            cpu_yield();
+        }
     }
 }
 

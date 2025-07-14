@@ -8,25 +8,23 @@
 #![no_std]
 
 mod exceptions;
-mod expect;
 mod ffa;
 mod framework;
 mod gicv3;
 mod logger;
-mod normal_world_tests;
 mod platform;
-mod protocol;
-mod secure_tests;
-mod timer;
+mod tests;
 mod util;
 
 use crate::{
     exceptions::set_exception_vector,
     ffa::{call, direct_response, msg_wait},
-    framework::{run_secure_world_test, run_test_ffa_handler, run_test_helper},
+    framework::{
+        protocol::{ParseRequestError, Request, Response},
+        run_secure_world_test, run_test_ffa_handler, run_test_helper,
+    },
     gicv3::handle_group1_interrupt,
     platform::{Platform, PlatformImpl},
-    protocol::{ParseRequestError, Request, Response},
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, SPMC_DEFAULT_ID, SPMD_DEFAULT_ID, current_el},
 };
 use aarch64_rt::entry;

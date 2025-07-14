@@ -4,6 +4,9 @@
 
 //! Framework for registering and running tests and their helpers.
 
+mod expect;
+pub mod protocol;
+
 use crate::call_test_helper;
 use arm_ffa::Interface;
 use linkme::distributed_slice;

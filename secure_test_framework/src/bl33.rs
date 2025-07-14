@@ -8,24 +8,23 @@
 #![no_std]
 
 mod exceptions;
-mod expect;
 mod ffa;
 mod framework;
 mod gicv3;
 mod logger;
-mod normal_world_tests;
 mod platform;
-mod protocol;
-mod secure_tests;
-mod timer;
+mod tests;
 mod util;
 
 use crate::{
     exceptions::set_exception_vector,
     ffa::direct_request,
-    framework::{NORMAL_WORLD_TESTS, SECURE_WORLD_TESTS, run_normal_world_test},
+    framework::{
+        NORMAL_WORLD_TESTS, SECURE_WORLD_TESTS,
+        protocol::{Request, Response},
+        run_normal_world_test,
+    },
     platform::{Platform, PlatformImpl},
-    protocol::{Request, Response},
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, current_el},
 };
 use aarch64_rt::entry;

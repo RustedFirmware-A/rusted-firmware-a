@@ -6,10 +6,11 @@
 
 use crate::{
     expect_eq, secure_world_test,
-    timer::{SEL1Timer, SEL2Timer, test_timer_helper},
-    util::current_el,
+    util::{
+        current_el,
+        timer::{SEL1Timer, SEL2Timer, test_timer_helper},
+    },
 };
-use log::warn;
 use smccc::{Smc, arch, psci};
 
 secure_world_test!(test_smccc_arch);
@@ -39,7 +40,7 @@ fn test_secure_timer() -> Result<(), ()> {
         // Enable the test after figuring out what was the issue.
         #[cfg(platform = "fvp")]
         {
-            warn!("SEL2 timer test skipped!");
+            log::warn!("SEL2 timer test skipped!");
             return Ok(());
         }
 

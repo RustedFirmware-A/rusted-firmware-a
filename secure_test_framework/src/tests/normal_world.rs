@@ -6,10 +6,10 @@
 
 use crate::{
     expect_eq, expect_ffa_interface, fail, ffa, normal_world_test,
-    timer::{NonSecureTimer, test_timer_helper},
     util::{
         NORMAL_WORLD_ID, SPMC_DEFAULT_ID, expect_ffa_mem_retrieve_resp, expect_ffa_success,
         log_error,
+        timer::{NonSecureTimer, test_timer_helper},
     },
 };
 use arm_ffa::{

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+pub mod timer;
+
 use arm_ffa::{Interface, SuccessArgs};
 use core::{arch::asm, fmt::Display};
 use log::error;

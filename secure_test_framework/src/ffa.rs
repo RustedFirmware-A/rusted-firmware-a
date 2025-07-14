@@ -162,13 +162,6 @@ pub fn partition_info_get_regs(
     })
 }
 
-pub fn mem_retrieve_resp(total_len: u32, frag_len: u32) -> Result<Interface, Error> {
-    call(Interface::MemRetrieveResp {
-        total_len,
-        frag_len,
-    })
-}
-
 pub fn call(interface: Interface) -> Result<Interface, Error> {
     let regs = call_raw(interface);
     Interface::from_regs(FFA_VERSION, &regs)

@@ -2,14 +2,13 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! Test cases to run in normal world.
+//! Tests for the FF-A SPMD.
 
 use crate::{
     expect_eq, expect_ffa_interface, fail, ffa, normal_world_test,
     util::{
         NORMAL_WORLD_ID, SPMC_DEFAULT_ID, expect_ffa_mem_retrieve_resp, expect_ffa_success,
         log_error,
-        timer::{NonSecureTimer, test_timer_helper},
     },
 };
 use arm_ffa::{
@@ -18,26 +17,6 @@ use arm_ffa::{
     memory_management::{Handle, MemReclaimFlags},
     partition_info::{SuccessArgsPartitionInfoGet, SuccessArgsPartitionInfoGetRegs},
 };
-use smccc::{Smc, arch, psci};
-
-normal_world_test!(test_smccc_arch);
-fn test_smccc_arch() -> Result<(), ()> {
-    expect_eq!(
-        arch::version::<Smc>(),
-        Ok(arch::Version { major: 1, minor: 5 })
-    );
-    expect_eq!(arch::features::<Smc>(42), Err(arch::Error::NotSupported));
-    Ok(())
-}
-
-normal_world_test!(test_psci_version);
-fn test_psci_version() -> Result<(), ()> {
-    expect_eq!(
-        psci::version::<Smc>(),
-        Ok(psci::Version { major: 1, minor: 3 })
-    );
-    Ok(())
-}
 
 normal_world_test!(test_no_msg_wait_from_normal_world);
 fn test_no_msg_wait_from_normal_world() -> Result<(), ()> {
@@ -89,11 +68,6 @@ fn test_ffa_spm_id_get() -> Result<(), ()> {
     // TODO: parse manifest and test for that value.
     expect_eq!(id, SPMC_DEFAULT_ID);
     Ok(())
-}
-
-normal_world_test!(test_timer);
-fn test_timer() -> Result<(), ()> {
-    test_timer_helper::<NonSecureTimer>()
 }
 
 normal_world_test!(test_rxtx_map, handler = rxtx_map_handler);

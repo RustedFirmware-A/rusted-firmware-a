@@ -2,15 +2,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::gicv3::set_interrupt_handler;
 use arm_gic::IntId;
 use bitflags::bitflags;
-use core::{
-    arch::asm,
-    hint::spin_loop,
-    sync::atomic::{AtomicBool, Ordering},
-};
-use log::debug;
+use core::arch::asm;
 
 bitflags! {
     /// Represents the control bits for the physical timers.
@@ -181,42 +175,4 @@ impl Timer for SEL2Timer {
             write_sysreg!(S3_4_c14_c5_1, value.bits());
         }
     }
-}
-
-/// TODO: move this test to a test module shared between NS and S worlds.
-///
-/// A generic helper that runs the timer test logic for any type `TIMER`
-/// that implements the `Timer` trait.
-pub fn test_timer_helper<TIMER: Timer>() -> Result<(), ()> {
-    // This flag can be safely accessed by both the main loop and an interrupt handler.
-    // To be successfully registered as an interrupt handler, a closure cannot take arguments,
-    // and therefore cannot capture local environment.
-    // For that reason TIMER_HANDLED has to be made static.
-    static TIMER_HANDLED: AtomicBool = AtomicBool::new(false);
-
-    // Init again to avoid nasty bugs when this helper is used multiple times.
-    TIMER_HANDLED.store(false, Ordering::Release);
-
-    let timer_handler = || {
-        debug!("Stopping timer");
-        TIMER::stop();
-        TIMER_HANDLED.store(true, Ordering::Release);
-    };
-
-    // Register the custom handler.
-    // The closure can be passed as a function pointer.
-    set_interrupt_handler(TIMER::INTERRUPT_ID, Some(timer_handler));
-
-    // Configure the specific timer `TIMER`.
-    TIMER::set(1_000_000);
-
-    // Wait until the timer is handled.
-    while !TIMER_HANDLED.load(Ordering::Acquire) {
-        spin_loop();
-    }
-
-    // Clear the handler for timer interrupt.
-    set_interrupt_handler(TIMER::INTERRUPT_ID, None);
-
-    Ok(())
 }

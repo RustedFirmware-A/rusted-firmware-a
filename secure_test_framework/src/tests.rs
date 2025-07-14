@@ -4,5 +4,7 @@
 
 //! Test cases.
 
-mod normal_world;
-mod secure_world;
+mod ffa_spmd;
+mod interrupts;
+mod psci;
+mod smccc_arch;

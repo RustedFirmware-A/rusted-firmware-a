@@ -8,7 +8,7 @@ use super::Platform;
 use crate::{
     context::{CoresImpl, EntryPointInfo},
     debug::DEBUG,
-    gicv3,
+    gicv3::{GicConfig, InterruptConfig},
     logger::{self, LockedWriter},
     pagetable::{map_region, IdMap, MT_DEVICE},
     services::{
@@ -24,9 +24,9 @@ use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
     gicv3::{
         registers::{Gicd, GicrSgi},
-        GicV3,
+        GicV3, Group, SecureIntGroup,
     },
-    IntId,
+    IntId, Trigger,
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
@@ -85,6 +85,10 @@ const RMM_BOOT_VERSION: u64 = 0;
 /// of this area.
 const RMM_SHARED_AREA_BASE_ADDRESS: u64 = 0;
 
+/// Secure timers' interrupt IDs.
+const SEL2_TIMER_ID: IntId = IntId::ppi(4);
+const SEL1_TIMER_ID: IntId = IntId::ppi(13);
+
 /// Fixed Virtual Platform
 pub struct Fvp;
 
@@ -95,9 +99,25 @@ impl Platform for Fvp {
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type PsciPlatformImpl = FvpPsciPlatformImpl;
 
-    const GIC_CONFIG: gicv3::GicConfig = gicv3::GicConfig {
-        // TODO: Fill this with proper values.
-        interrupts_config: &[],
+    const GIC_CONFIG: GicConfig = GicConfig {
+        interrupts_config: &[
+            (
+                SEL2_TIMER_ID,
+                InterruptConfig {
+                    priority: 0x80,
+                    group: Group::Secure(SecureIntGroup::Group1S),
+                    trigger: Trigger::Level,
+                },
+            ),
+            (
+                SEL1_TIMER_ID,
+                InterruptConfig {
+                    priority: 0x80,
+                    group: Group::Secure(SecureIntGroup::Group1S),
+                    trigger: Trigger::Level,
+                },
+            ),
+        ],
     };
 
     fn init_before_mmu() {

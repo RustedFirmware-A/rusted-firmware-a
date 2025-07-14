@@ -49,7 +49,7 @@ pub fn set_interrupt_handler(int_id: IntId, callback: Option<InterruptHandler>) 
 /// Acknowledges the interrupt, calls corresponding handler function and sets EOI.
 pub fn handle_group1_interrupt() {
     let int_id = GicV3::get_and_acknowledge_interrupt(InterruptGroup::Group1).unwrap();
-    debug!("Group 1 Secure interrupt {:?} acknowledged", int_id);
+    debug!("Group 1 interrupt {:?} acknowledged", int_id);
 
     if !int_id.is_private() {
         panic!("Only private interrupts are supported.");
@@ -65,7 +65,7 @@ pub fn handle_group1_interrupt() {
     }
 
     GicV3::end_interrupt(int_id, InterruptGroup::Group1);
-    debug!("Group 1 Secure interrupt {:?} EOI", int_id);
+    debug!("Group 1 interrupt {:?} EOI", int_id);
 }
 
 fn write_icc_sre(value: u64) {

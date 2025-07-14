@@ -76,4 +76,12 @@ unsafe impl Platform for Qemu {
             PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
         );
     }
+
+    fn psci_mpidr_for_core(core_index: usize) -> u64 {
+        assert!(core_index < Self::CORE_COUNT);
+
+        let aff0 = (core_index % MAX_CPUS_PER_CLUSTER) as u64;
+        let aff1 = (core_index / MAX_CPUS_PER_CLUSTER) as u64;
+        aff0 | aff1 << MpidrEl1::AFFINITY_BITS
+    }
 }

@@ -16,6 +16,7 @@ mod gicv3;
 mod heap;
 mod logger;
 mod platform;
+mod secondary;
 mod tests;
 mod util;
 
@@ -28,19 +29,28 @@ use crate::{
         run_normal_world_test, secure_world_test_count, secure_world_tests,
     },
     platform::{Platform, PlatformImpl},
+    secondary::secondary_entry,
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, current_el},
 };
 use aarch64_rt::entry;
 use arm_ffa::Interface;
+use arm_sysregs::MpidrEl1;
 use core::panic::PanicInfo;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
+use percore::Cores;
 use smccc::{Smc, psci};
+use spin::mutex::SpinMutex;
 
 /// The version of FF-A which we support.
 const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 2);
 
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
+
+/// An entry point function may be set for each secondary core. When that core starts it will call
+/// the function and unset the entry.
+static SECONDARY_ENTRIES: [SpinMutex<Option<fn(u64) -> !>>; PlatformImpl::CORE_COUNT] =
+    [const { SpinMutex::new(None) }; PlatformImpl::CORE_COUNT];
 
 entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
@@ -145,6 +155,31 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     let ret = psci::system_off::<Smc>();
     panic!("PSCI_SYSTEM_OFF returned {:?}", ret);
+}
+
+extern "C" fn secondary_main(arg: u64) -> ! {
+    set_exception_vector();
+
+    let core_index = PlatformImpl::core_index();
+    debug!("BL33 secondary core {core_index} starting with arg {arg}.");
+
+    let Some(entry) = SECONDARY_ENTRIES[core_index].lock().take() else {
+        panic!("Core {core_index} started but no entry point set.");
+    };
+    entry(arg)
+}
+
+/// Calls PSCI CPU_ON to start the secondary CPU with the given PSCI MPIDR value.
+pub fn start_secondary(psci_mpidr: u64, entry: fn(u64) -> !, arg: u64) -> Result<(), psci::Error> {
+    let core_index = PlatformImpl::core_position(MpidrEl1::from_psci_mpidr(psci_mpidr));
+    if SECONDARY_ENTRIES[core_index]
+        .lock()
+        .replace(entry)
+        .is_some()
+    {
+        error!("Secondary entry point was already set");
+    }
+    psci::cpu_on::<Smc>(psci_mpidr, secondary_entry as _, arg)
 }
 
 /// Sends a direct request to the secure world and returns the response.

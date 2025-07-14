@@ -43,6 +43,7 @@ use core::{
 };
 use log::{error, info, warn};
 use percore::Cores;
+use smccc::psci;
 
 /// The version of FF-A which we support.
 const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 2);
@@ -145,6 +146,11 @@ fn message_loop() -> ! {
         // Return result and wait for the next test index.
         message = call(response).unwrap()
     }
+}
+
+/// Not supported in BL32.
+pub fn start_secondary(psci_mpidr: u64, _entry: fn(u64) -> !, arg: u64) -> Result<(), psci::Error> {
+    panic!("start_secondary({psci_mpidr:#}, .., {arg}) called in BL32");
 }
 
 /// Calls `FFA_ID_GET` to get the SPMC ID (i.e. our ID).

@@ -48,6 +48,12 @@ pub unsafe trait Platform {
     ///
     /// For an invalid MPIDR value no guarantees are made about the return value.
     extern "C" fn core_position(mpidr: MpidrEl1) -> usize;
+
+    /// Given a linear core index, returns the corresponding PSCI MPIDR value.
+    ///
+    /// This is not quite the inverse function of `core_position`, as it doesn't include the MT and
+    /// U bits which `core_position` may expect.
+    fn psci_mpidr_for_core(core_index: usize) -> u64;
 }
 
 // SAFETY: `Platform::core_position` is guaranteed to return a unique value for any valid MPIDR

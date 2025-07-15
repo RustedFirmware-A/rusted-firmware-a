@@ -23,9 +23,9 @@ use crate::{
     exceptions::set_exception_vector,
     ffa::direct_request,
     framework::{
-        NORMAL_WORLD_TESTS, SECURE_WORLD_TESTS,
+        normal_world_test_count, normal_world_tests,
         protocol::{Request, Response},
-        run_normal_world_test,
+        run_normal_world_test, secure_world_test_count, secure_world_tests,
     },
     platform::{Platform, PlatformImpl},
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, current_el},
@@ -71,7 +71,7 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     // Run normal world tests.
     let mut passing_normal_test_count = 0;
-    for (test_index, test) in NORMAL_WORLD_TESTS.iter().enumerate() {
+    for (test_index, test) in normal_world_tests() {
         if test.secure_handler.is_some() {
             // Tell secure world that the test is starting, so it can use the handler.
             match send_request(Request::StartTest { test_index }) {
@@ -110,12 +110,12 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     info!(
         "{}/{} tests passed in normal world",
         passing_normal_test_count,
-        NORMAL_WORLD_TESTS.len()
+        normal_world_test_count(),
     );
 
     // Run secure world tests.
     let mut passing_secure_test_count = 0;
-    for (test_index, test) in SECURE_WORLD_TESTS.iter().enumerate() {
+    for (test_index, test) in secure_world_tests() {
         info!(
             "Requesting secure world test {} run: {}",
             test_index, test.name
@@ -139,7 +139,7 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     info!(
         "{}/{} tests passed in secure world",
         passing_secure_test_count,
-        SECURE_WORLD_TESTS.len()
+        secure_world_test_count(),
     );
 
     let ret = psci::system_off::<Smc>();

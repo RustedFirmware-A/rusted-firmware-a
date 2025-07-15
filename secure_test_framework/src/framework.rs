@@ -8,9 +8,11 @@ mod expect;
 pub mod protocol;
 
 use crate::call_test_helper;
+use alloc::boxed::Box;
 use arm_ffa::Interface;
 use linkme::distributed_slice;
 use log::{error, info};
+use spin::Lazy;
 
 /// The normal world tests.
 #[distributed_slice]
@@ -20,7 +22,40 @@ pub static NORMAL_WORLD_TESTS: [NormalWorldTest];
 #[distributed_slice]
 pub static SECURE_WORLD_TESTS: [SecureWorldTest];
 
+static NORMAL_WORLD_TESTS_SORTED: Lazy<Box<[&'static NormalWorldTest]>> = Lazy::new(|| {
+    let mut tests = NORMAL_WORLD_TESTS.iter().collect::<Box<[_]>>();
+    tests.sort();
+    tests
+});
+
+static SECURE_WORLD_TESTS_SORTED: Lazy<Box<[&'static SecureWorldTest]>> = Lazy::new(|| {
+    let mut tests = SECURE_WORLD_TESTS.iter().collect::<Box<[_]>>();
+    tests.sort();
+    tests
+});
+
+/// Returns an iterator over all normal world tests, sorted by name, along with their indices.
+pub fn normal_world_tests() -> impl Iterator<Item = (usize, &'static NormalWorldTest)> {
+    NORMAL_WORLD_TESTS_SORTED.iter().copied().enumerate()
+}
+
+/// Returns an iterator over all secure world tests, sorted by name, along with their indices.
+pub fn secure_world_tests() -> impl Iterator<Item = (usize, &'static SecureWorldTest)> {
+    SECURE_WORLD_TESTS_SORTED.iter().copied().enumerate()
+}
+
+/// Returns the number of normal world tests.
+pub fn normal_world_test_count() -> usize {
+    NORMAL_WORLD_TESTS.len()
+}
+
+/// Returns the number of secure world tests.
+pub fn secure_world_test_count() -> usize {
+    SECURE_WORLD_TESTS.len()
+}
+
 /// A single normal-world test.
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct NormalWorldTest {
     pub name: &'static str,
     pub functions: TestFunctions,
@@ -29,6 +64,7 @@ pub struct NormalWorldTest {
     pub secure_handler: Option<fn(Interface) -> Option<Interface>>,
 }
 
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub enum TestFunctions {
     NormalWorldOnly {
         function: fn() -> Result<(), ()>,
@@ -40,7 +76,7 @@ pub enum TestFunctions {
 }
 
 /// A single secure-world test.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct SecureWorldTest {
     pub name: &'static str,
     pub function: fn() -> Result<(), ()>,
@@ -68,7 +104,7 @@ pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> Resul
 /// This should only be called from the secure world (BL32) part of STF.
 #[allow(unused)]
 pub fn run_secure_world_test(test_index: usize) -> Result<(), ()> {
-    if let Some(test) = SECURE_WORLD_TESTS.get(test_index) {
+    if let Some(test) = SECURE_WORLD_TESTS_SORTED.get(test_index) {
         info!("Running secure world test {}: {}", test_index, test.name);
         (test.function)()
     } else {
@@ -83,7 +119,7 @@ pub fn run_secure_world_test(test_index: usize) -> Result<(), ()> {
 #[allow(unused)]
 pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
     info!("Running secure world test helper {}", test_index);
-    if let Some(test) = NORMAL_WORLD_TESTS.get(test_index) {
+    if let Some(test) = NORMAL_WORLD_TESTS_SORTED.get(test_index) {
         if let TestFunctions::NormalWorldWithHelper { helper, .. } = test.functions {
             helper(args)
         } else {
@@ -103,7 +139,7 @@ pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()
 /// This should only be called from the secure world (BL32) part of STF.
 #[allow(unused)]
 pub fn run_test_ffa_handler(test_index: usize, interface: Interface) -> Option<Interface> {
-    let handler = NORMAL_WORLD_TESTS.get(test_index)?.secure_handler?;
+    let handler = NORMAL_WORLD_TESTS_SORTED.get(test_index)?.secure_handler?;
     info!("Running test {} FF-A handler", test_index);
     handler(interface)
 }

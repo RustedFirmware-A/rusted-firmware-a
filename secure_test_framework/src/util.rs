@@ -73,6 +73,6 @@ pub fn expect_ffa_mem_retrieve_resp(response: Interface) -> Result<(u32, u32), (
 #[macro_export]
 macro_rules! expect_ffa_interface {
     ($expect:ident, $message:expr, $call:expr) => {
-        $expect(log_error($message, $call)?)?
+        $expect(crate::util::log_error($message, $call)?)?
     };
 }

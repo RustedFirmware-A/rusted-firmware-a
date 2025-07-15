@@ -5,10 +5,10 @@
 //! Tests for the FF-A SPMD.
 
 use crate::{
-    expect_eq, expect_ffa_interface, fail, ffa, normal_world_test,
+    expect_eq, expect_ffa_interface, fail, ffa, normal_world_test, secure_world_test,
     util::{
-        NORMAL_WORLD_ID, SPMC_DEFAULT_ID, expect_ffa_mem_retrieve_resp, expect_ffa_success,
-        log_error,
+        NORMAL_WORLD_ID, SPMC_DEFAULT_ID, current_el, expect_ffa_mem_retrieve_resp,
+        expect_ffa_success, log_error,
     },
 };
 use arm_ffa::{
@@ -640,4 +640,38 @@ fn mem_reclaim_handler(interface: Interface) -> Option<Interface> {
         },
         args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
     })
+}
+
+secure_world_test!(test_ffa_normal_world_resume);
+/// Try to resume normal world execution. Since normal world was not preempted in the first place, this should fail.
+fn test_ffa_normal_world_resume() -> Result<(), ()> {
+    let error = log_error("NORMAL_WORLD_RESUME failed", ffa::normal_world_resume())?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::Denied
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_features_secure);
+/// Test FFA_FEATURE interface from secure world.
+/// Currently, this test checks that the SPMD returns success.
+/// TODO: update with more specific tests when FFA_FEATURES is implemented more completely.
+fn test_ffa_features_secure() -> Result<(), ()> {
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
+        "FEATURES failed",
+        ffa::features(Feature::FuncId(FuncId::IdGet), 0)
+    );
+
+    expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
+    Ok(())
 }

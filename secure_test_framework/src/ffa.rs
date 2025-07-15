@@ -150,6 +150,10 @@ pub fn error(target_info: u32, error_code: FfaError, error_arg: u32) -> Result<I
     })
 }
 
+pub fn normal_world_resume() -> Result<Interface, Error> {
+    call(Interface::NormalWorldResume {})
+}
+
 pub fn partition_info_get_regs(
     uuid: Uuid,
     start_index: u16,

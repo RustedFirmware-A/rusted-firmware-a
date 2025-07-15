@@ -64,6 +64,17 @@ pub struct NormalWorldTest {
     pub secure_handler: Option<fn(Interface) -> Option<Interface>>,
 }
 
+impl NormalWorldTest {
+    /// Returns the name of the test, including the module path.
+    pub fn name(&self) -> &'static str {
+        // Remove the crate name, if there is one.
+        match self.name.split_once("::") {
+            Some((_, rest)) => rest,
+            None => &self.name,
+        }
+    }
+}
+
 #[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub enum TestFunctions {
     NormalWorldOnly {
@@ -82,6 +93,17 @@ pub struct SecureWorldTest {
     pub function: fn() -> Result<(), ()>,
 }
 
+impl SecureWorldTest {
+    /// Returns the name of the test, including the module path.
+    pub fn name(&self) -> &'static str {
+        // Remove the crate name, if there is one.
+        match self.name.split_once("::") {
+            Some((_, rest)) => rest,
+            None => &self.name,
+        }
+    }
+}
+
 /// A proxy to call the secure-world helper function for a normal-world test.
 pub type TestHelperProxy = dyn Fn([u64; 3]) -> Result<[u64; 4], ()>;
 
@@ -90,7 +112,7 @@ pub type TestHelperProxy = dyn Fn([u64; 3]) -> Result<[u64; 4], ()>;
 /// This should only be called from the normal world (BL33) part of STF.
 #[allow(unused)]
 pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> Result<(), ()> {
-    info!("Running normal world test {}: {}", test_index, test.name);
+    info!("Running normal world test {}: {}", test_index, test.name());
     match test.functions {
         TestFunctions::NormalWorldOnly { function } => function(),
         TestFunctions::NormalWorldWithHelper { function, .. } => {
@@ -105,7 +127,7 @@ pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> Resul
 #[allow(unused)]
 pub fn run_secure_world_test(test_index: usize) -> Result<(), ()> {
     if let Some(test) = SECURE_WORLD_TESTS_SORTED.get(test_index) {
-        info!("Running secure world test {}: {}", test_index, test.name);
+        info!("Running secure world test {}: {}", test_index, test.name());
         (test.function)()
     } else {
         error!("Requested to run unknown test {}", test_index);
@@ -151,7 +173,7 @@ macro_rules! normal_world_test {
         paste::paste! {
             #[linkme::distributed_slice($crate::framework::NORMAL_WORLD_TESTS)]
             static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
-                name: ::core::stringify!($function),
+                name: concat!(module_path!(), "::", ::core::stringify!($function)),
                 functions: $crate::framework::TestFunctions::NormalWorldOnly { function: $function },
                 secure_handler: None,
             };
@@ -161,7 +183,7 @@ macro_rules! normal_world_test {
         paste::paste! {
             #[linkme::distributed_slice($crate::framework::NORMAL_WORLD_TESTS)]
             static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
-                name: ::core::stringify!($function),
+                name: concat!(module_path!(), "::", ::core::stringify!($function)),
                 functions: $crate::framework::TestFunctions::NormalWorldWithHelper {
                     function: $function,
                     helper: $helper,
@@ -174,7 +196,7 @@ macro_rules! normal_world_test {
         paste::paste! {
             #[linkme::distributed_slice($crate::framework::NORMAL_WORLD_TESTS)]
             static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
-                name: ::core::stringify!($function),
+                name: concat!(module_path!(), "::", ::core::stringify!($function)),
                 functions: $crate::framework::TestFunctions::NormalWorldOnly { function: $function },
                 secure_handler: Some($handler),
             };
@@ -189,7 +211,7 @@ macro_rules! secure_world_test {
         paste::paste! {
             #[linkme::distributed_slice($crate::framework::SECURE_WORLD_TESTS)]
             static [<_SECURE_WORLD_TEST_ $function:upper>]: $crate::framework::SecureWorldTest = $crate::framework::SecureWorldTest {
-                name: ::core::stringify!($function),
+                name: concat!(module_path!(), "::", ::core::stringify!($function)),
                 function: $function,
             };
         }

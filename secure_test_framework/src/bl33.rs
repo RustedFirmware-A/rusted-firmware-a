@@ -87,10 +87,10 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
             }
         }
         if run_normal_world_test(test_index, test).is_ok() {
-            info!("Normal world test {} passed", test.name);
+            info!("Normal world test {} passed", test.name());
             passing_normal_test_count += 1;
         } else {
-            warn!("Normal world test {} failed", test.name);
+            warn!("Normal world test {} failed", test.name());
         }
         if test.secure_handler.is_some() {
             // Tell secure world that the test is finished so it can remove the handler.
@@ -118,7 +118,8 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     for (test_index, test) in secure_world_tests() {
         info!(
             "Requesting secure world test {} run: {}",
-            test_index, test.name
+            test_index,
+            test.name(),
         );
         match send_request(Request::RunSecureTest { test_index }) {
             Ok(Response::Success { .. }) => {

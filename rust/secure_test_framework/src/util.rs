@@ -42,11 +42,35 @@ pub fn log_error<V, E: Display>(message: &str, result: Result<V, E>) -> Result<V
 
 /// If the given FF-A response is a success then returns its arguments, otherwise logs and returns
 /// an error.
-pub fn expect_success(response: Interface) -> Result<SuccessArgs, ()> {
+pub fn expect_ffa_success(response: Interface) -> Result<SuccessArgs, ()> {
     if let Interface::Success { args, .. } = response {
         Ok(args)
     } else {
         error!("Expected success but got {:?}", response);
         Err(())
     }
+}
+
+/// If the given FF-A response is a mem retrieve response then returns its arguments, otherwise logs
+/// and returns an error.
+pub fn expect_ffa_mem_retrieve_resp(response: Interface) -> Result<(u32, u32), ()> {
+    if let Interface::MemRetrieveResp {
+        total_len,
+        frag_len,
+    } = response
+    {
+        Ok((total_len, frag_len))
+    } else {
+        error!("Expected MemRetrieveResp but got {:?}", response);
+        Err(())
+    }
+}
+
+/// Triggers a SMC call with the given function/interface, checks that this call was successful (logs an error
+/// otherwise) and checks whether the response's interface matches the expected one.
+#[macro_export]
+macro_rules! expect_ffa_interface {
+    ($expect:ident, $message:expr, $call:expr) => {
+        $expect(log_error($message, $call)?)?
+    };
 }

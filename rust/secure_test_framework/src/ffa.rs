@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use arm_ffa::{DirectMsgArgs, Error, Interface, MsgWaitFlags, RxTxAddr, Version};
+use arm_ffa::{
+    DirectMsgArgs, Error, Feature, FfaError, Interface, MemOpBuf, MsgWaitFlags,
+    PartitionInfoGetFlags, RxTxAddr, SuccessArgs, TargetInfo, Uuid, Version,
+    memory_management::{Handle, MemReclaimFlags},
+};
 use smccc::{arch, error::positive_or_error_32, smc64};
 
 /// The FF-A version which we implement here.
@@ -24,12 +28,39 @@ pub fn spm_id_get() -> Result<Interface, Error> {
     call(Interface::SpmIdGet)
 }
 
-pub fn rx_tx_map(addr: RxTxAddr, page_cnt: u32) -> Result<Interface, Error> {
+pub fn features(feat_id: Feature, input_properties: u32) -> Result<Interface, Error> {
+    call(Interface::Features {
+        feat_id,
+        input_properties,
+    })
+}
+
+pub fn rxtx_map(addr: RxTxAddr, page_cnt: u32) -> Result<Interface, Error> {
     call(Interface::RxTxMap { addr, page_cnt })
+}
+
+pub fn rxtx_unmap(id: u16) -> Result<Interface, Error> {
+    call(Interface::RxTxUnmap { id })
+}
+
+pub fn rx_acquire(vm_id: u16) -> Result<Interface, Error> {
+    call(Interface::RxAcquire { vm_id })
+}
+
+pub fn rx_release(vm_id: u16) -> Result<Interface, Error> {
+    call(Interface::RxRelease { vm_id })
+}
+
+pub fn partition_info_get(uuid: Uuid, flags: PartitionInfoGetFlags) -> Result<Interface, Error> {
+    call(Interface::PartitionInfoGet { uuid, flags })
 }
 
 pub fn msg_wait(flags: Option<MsgWaitFlags>) -> Result<Interface, Error> {
     call(Interface::MsgWait { flags })
+}
+
+pub fn run(target_info: TargetInfo) -> Result<Interface, Error> {
+    call(Interface::Run { target_info })
 }
 
 /// Sends a direct message request.
@@ -57,6 +88,84 @@ pub fn direct_response(
         src_id: source,
         dst_id: destination,
         args,
+    })
+}
+
+pub fn mem_donate(
+    total_len: u32,
+    frag_len: u32,
+    buf: Option<MemOpBuf>,
+) -> Result<Interface, Error> {
+    call(Interface::MemDonate {
+        total_len,
+        frag_len,
+        buf,
+    })
+}
+
+pub fn mem_lend(total_len: u32, frag_len: u32, buf: Option<MemOpBuf>) -> Result<Interface, Error> {
+    call(Interface::MemLend {
+        total_len,
+        frag_len,
+        buf,
+    })
+}
+
+pub fn mem_share(total_len: u32, frag_len: u32, buf: Option<MemOpBuf>) -> Result<Interface, Error> {
+    call(Interface::MemShare {
+        total_len,
+        frag_len,
+        buf,
+    })
+}
+
+pub fn mem_retrieve_req(
+    total_len: u32,
+    frag_len: u32,
+    buf: Option<MemOpBuf>,
+) -> Result<Interface, Error> {
+    call(Interface::MemRetrieveReq {
+        total_len,
+        frag_len,
+        buf,
+    })
+}
+
+pub fn mem_reclaim(handle: Handle, flags: MemReclaimFlags) -> Result<Interface, Error> {
+    call(Interface::MemReclaim { handle, flags })
+}
+
+pub fn success(target_info: u32, args: SuccessArgs) -> Result<Interface, Error> {
+    call(Interface::Success {
+        target_info: target_info.into(),
+        args,
+    })
+}
+
+pub fn error(target_info: u32, error_code: FfaError, error_arg: u32) -> Result<Interface, Error> {
+    call(Interface::Error {
+        target_info: target_info.into(),
+        error_code,
+        error_arg,
+    })
+}
+
+pub fn partition_info_get_regs(
+    uuid: Uuid,
+    start_index: u16,
+    info_tag: u16,
+) -> Result<Interface, Error> {
+    call(Interface::PartitionInfoGetRegs {
+        uuid,
+        start_index,
+        info_tag,
+    })
+}
+
+pub fn mem_retrieve_resp(total_len: u32, frag_len: u32) -> Result<Interface, Error> {
+    call(Interface::MemRetrieveResp {
+        total_len,
+        frag_len,
     })
 }
 

@@ -7,10 +7,13 @@
 #![no_main]
 #![no_std]
 
+extern crate alloc;
+
 mod exceptions;
 mod ffa;
 mod framework;
 mod gicv3;
+mod heap;
 mod logger;
 mod platform;
 mod tests;
@@ -54,6 +57,8 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
         x2,
         x3,
     );
+
+    heap::init();
 
     // Test what happens if we try a much higher version.
     let el3_supported_ffa_version = ffa::version(HIGH_FFA_VERSION).expect("FFA_VERSION failed");

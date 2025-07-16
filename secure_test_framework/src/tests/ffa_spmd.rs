@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! Tests for the FF-A SPMD.
+//! Tests for the FF-A SPMD. All tests below check proper forwarding to Secure World and back to Normal World (and
+//! viceversa) with the correct interfaces. STF BL32 does not currently implement the logic of said interfaces (for
+//! example, RXTX mapping/unmapping)
 
 use crate::{
     expect_eq, expect_ffa_interface, fail, ffa, normal_world_test, secure_world_test,
@@ -18,6 +20,7 @@ use arm_ffa::{
     partition_info::{SuccessArgsPartitionInfoGet, SuccessArgsPartitionInfoGetRegs},
 };
 
+/// Check that FFA_MSG_WAIT returns NOT_SUPPORTED as normal world isn't allowed to call FFA_MSG_WAIT.
 normal_world_test!(test_no_msg_wait_from_normal_world);
 fn test_no_msg_wait_from_normal_world() -> Result<(), ()> {
     // Normal world isn't allowed to call FFA_MSG_WAIT.
@@ -36,6 +39,8 @@ fn test_no_msg_wait_from_normal_world() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_id_get);
+/// Check that the FFA_ID_GET interface (and its parameters) gets a correct response from SPMD (this interface is not
+/// forwarded to secure world).
 fn test_ffa_id_get() -> Result<(), ()> {
     let id = match log_error("ID_GET failed", ffa::id_get())? {
         Interface::Success { args, .. } => {
@@ -53,6 +58,8 @@ fn test_ffa_id_get() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_spm_id_get);
+/// Check that the FFA_SPM_ID_GET interface (and its parameters) gets a correct response from SPMD (this interface is not
+/// forwarded to secure world).
 fn test_ffa_spm_id_get() -> Result<(), ()> {
     let id = match log_error("SPM_ID_GET failed", ffa::spm_id_get())? {
         Interface::Success { args, .. } => {
@@ -70,8 +77,10 @@ fn test_ffa_spm_id_get() -> Result<(), ()> {
     Ok(())
 }
 
-normal_world_test!(test_rxtx_map, handler = rxtx_map_handler);
-fn test_rxtx_map() -> Result<(), ()> {
+normal_world_test!(test_ffa_rxtx_map, handler = rxtx_map_handler);
+/// Check that the FFA_RXTX_MAP interface (and its parameters) is successfully forwarded from normal world
+/// to secure world and back.
+fn test_ffa_rxtx_map() -> Result<(), ()> {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "RXTX_MAP failed",
@@ -81,6 +90,7 @@ fn test_rxtx_map() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn rxtx_map_handler(interface: Interface) -> Option<Interface> {
     let Interface::RxTxMap { addr, page_cnt } = interface else {
         return None;
@@ -98,6 +108,8 @@ fn rxtx_map_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_rxtx_unmap, handler = rxtx_unmap_handler);
+/// Check that the FFA_RXTX_UNMAP interface (and its parameters) is successfully forwarded from normal world
+/// to secure world and back.
 fn test_ffa_rxtx_unmap() -> Result<(), ()> {
     let args = expect_ffa_interface!(
         expect_ffa_success,
@@ -108,6 +120,7 @@ fn test_ffa_rxtx_unmap() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn rxtx_unmap_handler(interface: Interface) -> Option<Interface> {
     let Interface::RxTxUnmap { id } = interface else {
         return None;
@@ -124,6 +137,10 @@ fn rxtx_unmap_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_features, handler = ffa_features_handler);
+/// Check that the FFA_FEATURES interface (and its parameters) is successfully forwarded from normal world
+/// to secure world and back.
+/// Currently, this test checks that the SPMD returns success and does not check for specific properties.
+/// TODO: update with more specific tests when FFA_FEATURES is implemented more completely.
 fn test_ffa_features() -> Result<(), ()> {
     let args = expect_ffa_interface!(
         expect_ffa_success,
@@ -140,6 +157,7 @@ fn test_ffa_features() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn ffa_features_handler(interface: Interface) -> Option<Interface> {
     let Interface::Features {
         feat_id,
@@ -162,6 +180,8 @@ fn ffa_features_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_rx_acquire, handler = rx_acquire_handler);
+/// Check that the FFA_RX_ACQUIRE interface (and its parameters) is successfully forwarded from normal world
+/// to secure world and back.
 fn test_ffa_rx_acquire() -> Result<(), ()> {
     let args = expect_ffa_interface!(expect_ffa_success, "RX_ACQUIRE failed", ffa::rx_acquire(87));
 
@@ -169,6 +189,7 @@ fn test_ffa_rx_acquire() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn rx_acquire_handler(interface: Interface) -> Option<Interface> {
     let Interface::RxAcquire { vm_id } = interface else {
         return None;
@@ -186,6 +207,8 @@ fn rx_acquire_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_rx_release, handler = rx_release_handler);
+/// Check that the FFA_RX_RELEASE interface (and its parameters) is successfully forwarded from normal world
+/// to secure world and back.
 fn test_ffa_rx_release() -> Result<(), ()> {
     let args = expect_ffa_interface!(
         expect_ffa_success,
@@ -197,6 +220,7 @@ fn test_ffa_rx_release() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn rx_release_handler(interface: Interface) -> Option<Interface> {
     let Interface::RxRelease { vm_id } = interface else {
         return None;
@@ -216,6 +240,8 @@ normal_world_test!(
     test_ffa_partition_info_get,
     handler = partition_info_get_handler
 );
+/// Check that the FFA_PARTITION_INFO_GET interface (and its parameters) is successfully forwarded from normal world
+/// to secure world and back.
 fn test_ffa_partition_info_get() -> Result<(), ()> {
     let flags = PartitionInfoGetFlags { count_only: false };
     let uuid = Uuid::parse_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d8").unwrap();
@@ -236,6 +262,7 @@ fn test_ffa_partition_info_get() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn partition_info_get_handler(interface: Interface) -> Option<Interface> {
     let Interface::PartitionInfoGet { uuid, flags } = interface else {
         return None;
@@ -264,6 +291,8 @@ normal_world_test!(
     test_ffa_partition_info_get_regs,
     handler = partition_info_get_regs_handler
 );
+/// Check that the FFA_PARTITION_INFO_GET_REGS interface (and its parameters) is successfully forwarded from normal world
+/// to secure world and back.
 fn test_ffa_partition_info_get_regs() -> Result<(), ()> {
     let uuid = Uuid::parse_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d8").unwrap();
 
@@ -286,6 +315,7 @@ fn test_ffa_partition_info_get_regs() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn partition_info_get_regs_handler(interface: Interface) -> Option<Interface> {
     let Interface::PartitionInfoGetRegs {
         uuid,
@@ -319,6 +349,8 @@ fn partition_info_get_regs_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_error, handler = error_handler);
+/// Check that the FFA_ERROR interface (and its parameters) is successfully forwarded from normal world to secure
+/// world and back.
 fn test_ffa_error() -> Result<(), ()> {
     let args = expect_ffa_interface!(
         expect_ffa_success,
@@ -330,6 +362,7 @@ fn test_ffa_error() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn error_handler(interface: Interface) -> Option<Interface> {
     let Interface::Error {
         error_arg,
@@ -360,6 +393,8 @@ fn error_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_success, handler = success_handler);
+/// Check that the FFA_SUCCESS interface (and its parameters) is successfully forwarded from normal world to secure
+/// world and back.
 fn test_ffa_success() -> Result<(), ()> {
     let args = expect_ffa_interface!(
         expect_ffa_success,
@@ -371,6 +406,7 @@ fn test_ffa_success() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn success_handler(interface: Interface) -> Option<Interface> {
     let Interface::Success { args, target_info } = interface else {
         return None;
@@ -395,6 +431,8 @@ fn success_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_run, handler = run_handler);
+/// Check that the FFA_RUN interface (and its parameters) is successfully forwarded from normal world to secure
+/// world and back.
 fn test_ffa_run() -> Result<(), ()> {
     let sp_id: u32 = 0x5;
     let vcpu_id: u32 = 0x7;
@@ -410,6 +448,7 @@ fn test_ffa_run() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn run_handler(interface: Interface) -> Option<Interface> {
     let Interface::Run { target_info } = interface else {
         return None;
@@ -433,6 +472,8 @@ fn run_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_mem_donate, handler = mem_donate_handler);
+/// Check that the FFA_MEM_DONATE interface (and its parameters) is successfully forwarded from normal world to secure
+/// world and back.
 fn test_ffa_mem_donate() -> Result<(), ()> {
     let total_len = 40;
     let frag_len = total_len / 4;
@@ -452,6 +493,7 @@ fn test_ffa_mem_donate() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn mem_donate_handler(interface: Interface) -> Option<Interface> {
     let Interface::MemDonate {
         total_len,
@@ -476,6 +518,8 @@ fn mem_donate_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_mem_lend, handler = mem_lend_handler);
+/// Check that the FFA_MEM_LEND interface (and its parameters) is successfully forwarded from normal world to secure
+/// world and back.
 fn test_ffa_mem_lend() -> Result<(), ()> {
     let total_len = 40;
     let frag_len = total_len / 4;
@@ -495,6 +539,7 @@ fn test_ffa_mem_lend() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn mem_lend_handler(interface: Interface) -> Option<Interface> {
     let Interface::MemLend {
         total_len,
@@ -519,6 +564,8 @@ fn mem_lend_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_mem_share, handler = mem_share_handler);
+/// Check that the FFA_MEM_SHARE interface (and its parameters) is successfully forwarded from normal world to secure
+/// world and back.
 fn test_ffa_mem_share() -> Result<(), ()> {
     let total_len = 40;
     let frag_len = total_len / 4;
@@ -539,6 +586,7 @@ fn test_ffa_mem_share() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
 fn mem_share_handler(interface: Interface) -> Option<Interface> {
     let Interface::MemShare {
         total_len,
@@ -562,6 +610,10 @@ fn mem_share_handler(interface: Interface) -> Option<Interface> {
     })
 }
 
+// Check that the FFA_MEM_RETRIEVE_REQ interface (and its parameters) is successfully forwarded from normal world to
+// secure world and back.
+// Check that we get a FFA_MEM_RETRIEVE_RESP as a response from secure world and that it contains the same parameters
+// that were sent.
 normal_world_test!(
     test_ffa_mem_retrieve_req,
     handler = mem_retrieve_req_handler
@@ -581,6 +633,9 @@ fn test_ffa_mem_retrieve_req() -> Result<(), ()> {
     Ok(())
 }
 
+// Check that the interface values forwarded from normal world match the expected ones.
+// Return a FFA_MEM_RETRIEVE_RESP with the same values that were received to emulate what would be returned by secure
+// world
 fn mem_retrieve_req_handler(interface: Interface) -> Option<Interface> {
     let Interface::MemRetrieveReq {
         total_len,
@@ -601,6 +656,8 @@ fn mem_retrieve_req_handler(interface: Interface) -> Option<Interface> {
     })
 }
 
+// Check that the FFA_MEM_RECLAIM interface (and its parameters) is successfully forwarded from normal world to secure
+// world and back.
 normal_world_test!(test_ffa_mem_reclaim, handler = mem_reclaim_handler);
 fn test_ffa_mem_reclaim() -> Result<(), ()> {
     let handle: [u32; 2] = [0x0000_1000, 0x0200_0000];
@@ -619,6 +676,7 @@ fn test_ffa_mem_reclaim() -> Result<(), ()> {
     Ok(())
 }
 
+// Check that the interface values forwarded from normal world match the expected ones.
 fn mem_reclaim_handler(interface: Interface) -> Option<Interface> {
     let Interface::MemReclaim { flags, handle } = interface else {
         return None;

@@ -35,8 +35,7 @@ fn build_libtfa(platform: &str) {
         .file("bl31_entrypoint.S")
         .file("pl011_console.S")
         .file("cpu_helpers.S")
-        .file("cpu_data.S")
-        .file("enable_mmu.S");
+        .file("cpu_data.S");
 
     if let Ok(debug) = env::var("DEBUG") {
         build.define("DEBUG", debug.as_str());

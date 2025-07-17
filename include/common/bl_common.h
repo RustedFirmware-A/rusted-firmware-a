@@ -121,31 +121,8 @@ IMPORT_SYM(uintptr_t, __NOBITS_END__,		BL_NOBITS_END);
 #endif
 IMPORT_SYM(uintptr_t, __RW_END__,		BL_END);
 
-#if defined(IMAGE_BL1)
-IMPORT_SYM(uintptr_t, __BL1_ROM_END__,		BL1_ROM_END);
-
-IMPORT_SYM(uintptr_t, __BL1_RAM_START__,	BL1_RAM_BASE);
-IMPORT_SYM(uintptr_t, __BL1_RAM_END__,		BL1_RAM_LIMIT);
-#elif defined(IMAGE_BL2)
-IMPORT_SYM(uintptr_t, __BL2_END__,		BL2_END);
-#elif defined(IMAGE_BL2U)
-IMPORT_SYM(uintptr_t, __BL2U_END__,		BL2U_END);
-#elif defined(IMAGE_BL31)
 IMPORT_SYM(uintptr_t, __BL31_START__,		BL31_START);
 IMPORT_SYM(uintptr_t, __BL31_END__,		BL31_END);
-#elif defined(IMAGE_BL32)
-IMPORT_SYM(uintptr_t, __BL32_END__,		BL32_END);
-#elif defined(IMAGE_RMM)
-IMPORT_SYM(uintptr_t, __RMM_END__,		RMM_END);
-#endif /* IMAGE_BLX */
-
-/* The following symbols are only exported from the BL2 at EL3 linker script. */
-#if BL2_IN_XIP_MEM && defined(IMAGE_BL2)
-IMPORT_SYM(uintptr_t, __BL2_ROM_END__,		BL2_ROM_END);
-
-IMPORT_SYM(uintptr_t, __BL2_RAM_START__,	BL2_RAM_BASE);
-IMPORT_SYM(uintptr_t, __BL2_RAM_END__,		BL2_RAM_END);
-#endif /* BL2_IN_XIP_MEM */
 
 /*
  * The next 2 constants identify the extents of the coherent memory region.

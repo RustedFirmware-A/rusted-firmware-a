@@ -126,7 +126,7 @@ typedef struct cpu_data {
 #if PLAT_PCPU_DATA_SIZE
 	uint8_t platform_cpu_data[PLAT_PCPU_DATA_SIZE];
 #endif
-#if defined(IMAGE_BL31) && EL3_EXCEPTION_HANDLING
+#if EL3_EXCEPTION_HANDLING
 	pe_exc_data_t ehf_data;
 #endif
 } __aligned(CACHE_WRITEBACK_GRANULE) cpu_data_t;

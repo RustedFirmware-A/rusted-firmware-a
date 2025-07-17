@@ -15,9 +15,6 @@
 #include <lib/cpus/errata.h>
 #include <lib/el3_runtime/cpu_data.h>
 
- /* Reset fn is needed in BL at reset vector */
-#if defined(IMAGE_BL1) || defined(IMAGE_BL31) ||	\
-	(defined(IMAGE_BL2) && RESET_TO_BL2)
 	/*
 	 * The reset handler common to all platforms.  After a matching
 	 * cpu_ops structure entry is found, the correponding reset_handler
@@ -54,9 +51,6 @@ func reset_handler
 	ret
 endfunc reset_handler
 
-#endif
-
-#ifdef IMAGE_BL31 /* The power down core and cluster is needed only in  BL31 */
 	/*
 	 * void prepare_cpu_pwr_dwn(unsigned int power_level)
 	 *
@@ -112,9 +106,8 @@ func init_cpu_ops
 1:
 	ret
 endfunc init_cpu_ops
-#endif /* IMAGE_BL31 */
 
-#if defined(IMAGE_BL31) && CRASH_REPORTING
+#if CRASH_REPORTING
 	/*
 	 * The cpu specific registers which need to be reported in a crash
 	 * are reported via cpu_ops cpu_reg_dump function. After a matching

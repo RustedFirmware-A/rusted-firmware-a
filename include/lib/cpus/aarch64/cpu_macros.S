@@ -88,10 +88,8 @@
 	.quad \_extra2
 	.quad \_extra3
 	.quad \_e_handler
-#ifdef IMAGE_BL31
 	/* Insert list of functions */
 	fill_constants CPU_MAX_PWR_DWN_OPS, \_power_down_ops
-#endif
 	/*
 	 * It is possible (although unlikely) that a cpu may have no errata in
 	 * code. In that case the start label will not be defined. The list is
@@ -141,14 +139,12 @@
 	.quad \_name\()_errata_report
 	.quad \_name\()_cpu_str
 
-#ifdef IMAGE_BL31
 	/* Pointers to errata lock and reported flag */
 	.quad \_name\()_errata_lock
 	.quad \_name\()_errata_reported
-#endif /* IMAGE_BL31 */
 #endif /* REPORT_ERRATA */
 
-#if defined(IMAGE_BL31) && CRASH_REPORTING
+#if CRASH_REPORTING
 	.quad \_name\()_cpu_reg_dump
 #endif
 	.endm

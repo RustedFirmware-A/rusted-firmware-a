@@ -158,7 +158,6 @@
  * PLAT_ARM_MMAP_ENTRIES depends on the number of entries in the
  * plat_arm_mmap array defined for each BL stage.
  */
-#if defined(IMAGE_BL31)
 # if SPM_MM
 #  define PLAT_ARM_MMAP_ENTRIES		10
 #  define MAX_XLAT_TABLES		9
@@ -185,31 +184,6 @@
 #   endif
 #  endif
 # endif
-#elif defined(IMAGE_BL32)
-# if SPMC_AT_EL3
-#  define PLAT_ARM_MMAP_ENTRIES		270
-#  define MAX_XLAT_TABLES		10
-# else
-#  define PLAT_ARM_MMAP_ENTRIES		9
-#  define MAX_XLAT_TABLES		6
-# endif
-#elif !USE_ROMLIB
-# if ENABLE_RME && defined(IMAGE_BL2)
-#  define PLAT_ARM_MMAP_ENTRIES		12
-#  define MAX_XLAT_TABLES		6
-# else
-#  define PLAT_ARM_MMAP_ENTRIES		11
-#  define MAX_XLAT_TABLES		5
-# endif /* (IMAGE_BL2 && ENABLE_RME) */
-#else
-# define PLAT_ARM_MMAP_ENTRIES		12
-# if (defined(SPD_tspd) || defined(SPD_opteed) || defined(SPD_spmd)) && \
-defined(IMAGE_BL2) && MEASURED_BOOT
-#  define MAX_XLAT_TABLES		7
-# else
-#  define MAX_XLAT_TABLES		6
-# endif /* (SPD_tspd || SPD_opteed || SPD_spmd) && IMAGE_BL2 && MEASURED_BOOT */
-#endif
 
 /*
  * PLAT_ARM_MAX_BL1_RW_SIZE is calculated using the current BL1 RW debug size
@@ -305,35 +279,11 @@ defined(IMAGE_BL2) && MEASURED_BOOT
 /*
  * Size of cacheable stacks
  */
-#if defined(IMAGE_BL1)
-# if CRYPTO_SUPPORT
-#  define PLATFORM_STACK_SIZE		UL(0x1000)
-# else
-#  define PLATFORM_STACK_SIZE		UL(0x500)
-# endif /* CRYPTO_SUPPORT */
-#elif defined(IMAGE_BL2)
-# if CRYPTO_SUPPORT
-#  define PLATFORM_STACK_SIZE		UL(0x1000)
-# else
-#  define PLATFORM_STACK_SIZE		UL(0x600)
-# endif /* CRYPTO_SUPPORT */
-#elif defined(IMAGE_BL2U)
-# define PLATFORM_STACK_SIZE		UL(0x400)
-#elif defined(IMAGE_BL31)
 # if DRTM_SUPPORT
 #  define PLATFORM_STACK_SIZE		UL(0x1000)
 # else
 #  define PLATFORM_STACK_SIZE		UL(0x800)
 # endif /* DRTM_SUPPORT */
-#elif defined(IMAGE_BL32)
-# if SPMC_AT_EL3
-#  define PLATFORM_STACK_SIZE		UL(0x1000)
-# else
-#  define PLATFORM_STACK_SIZE		UL(0x440)
-# endif /* SPMC_AT_EL3 */
-#elif defined(IMAGE_RMM)
-# define PLATFORM_STACK_SIZE		UL(0x440)
-#endif
 
 #define MAX_IO_DEVICES			3
 #define MAX_IO_HANDLES			4

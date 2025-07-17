@@ -20,15 +20,6 @@
 /* The maximum size of the S-EL0 payload can be 3MB */
 #define ARM_SP_IMAGE_SIZE		ULL(0x300000)
 
-#ifdef IMAGE_BL2
-/* SPM Payload memory. Mapped as RW in BL2. */
-#define ARM_SP_IMAGE_MMAP		MAP_REGION_FLAT(			\
-						ARM_SP_IMAGE_BASE,		\
-						ARM_SP_IMAGE_SIZE,		\
-						MT_MEMORY | MT_RW | MT_SECURE)
-#endif
-
-#ifdef IMAGE_BL31
 /* SPM Payload memory. Mapped as code in S-EL1 */
 #define ARM_SP_IMAGE_MMAP		MAP_REGION2(				\
 						ARM_SP_IMAGE_BASE,		\
@@ -36,7 +27,6 @@
 						ARM_SP_IMAGE_SIZE,		\
 						MT_CODE | MT_SECURE | MT_USER,	\
 						PAGE_SIZE)
-#endif
 
 /*
  * Memory shared between EL3 and S-EL0. It is used by EL3 to push data into

@@ -48,11 +48,7 @@
 #define CPU_EXTRA3_FUNC_SIZE	CPU_WORD_SIZE
 #define CPU_E_HANDLER_FUNC_SIZE CPU_WORD_SIZE
 /* The power down core and cluster is needed only in BL31 and BL32 */
-#if defined(IMAGE_BL31) || defined(IMAGE_BL32)
 #define CPU_PWR_DWN_OPS_SIZE	CPU_WORD_SIZE * CPU_MAX_PWR_DWN_OPS
-#else
-#define CPU_PWR_DWN_OPS_SIZE	0
-#endif /* defined(IMAGE_BL31) || defined(IMAGE_BL32) */
 
 #define CPU_ERRATA_LIST_START_SIZE	CPU_WORD_SIZE
 #define CPU_ERRATA_LIST_END_SIZE	CPU_WORD_SIZE
@@ -60,14 +56,8 @@
 #if REPORT_ERRATA
 #define CPU_ERRATA_FUNC_SIZE	CPU_WORD_SIZE
 #define CPU_CPU_STR_SIZE	CPU_WORD_SIZE
-/* BL1 doesn't require mutual exclusion and printed flag. */
-#if defined(IMAGE_BL31) || defined(IMAGE_BL32)
 #define CPU_ERRATA_LOCK_SIZE	CPU_WORD_SIZE
 #define CPU_ERRATA_PRINTED_SIZE	CPU_WORD_SIZE
-#else
-#define CPU_ERRATA_LOCK_SIZE	0
-#define CPU_ERRATA_PRINTED_SIZE	0
-#endif /* defined(IMAGE_BL31) || defined(IMAGE_BL32) */
 #else
 #define CPU_ERRATA_FUNC_SIZE	0
 #define CPU_CPU_STR_SIZE	0
@@ -75,11 +65,11 @@
 #define CPU_ERRATA_PRINTED_SIZE	0
 #endif /* REPORT_ERRATA */
 
-#if defined(IMAGE_BL31) && CRASH_REPORTING
+#if CRASH_REPORTING
 #define CPU_REG_DUMP_SIZE	CPU_WORD_SIZE
 #else
 #define CPU_REG_DUMP_SIZE	0
-#endif /* defined(IMAGE_BL31) && CRASH_REPORTING */
+#endif /* CRASH_REPORTING */
 
 
 /*
@@ -125,22 +115,20 @@ struct cpu_ops {
 	void (*extra3_func)(void);
 	void (*e_handler_func)(long es);
 #endif /* __aarch64__ */
-#if (defined(IMAGE_BL31) || defined(IMAGE_BL32)) && CPU_MAX_PWR_DWN_OPS
+#if  CPU_MAX_PWR_DWN_OPS
 	void (*pwr_dwn_ops[CPU_MAX_PWR_DWN_OPS])(void);
-#endif /* (defined(IMAGE_BL31) || defined(IMAGE_BL32)) && CPU_MAX_PWR_DWN_OPS */
+#endif /* CPU_MAX_PWR_DWN_OPS */
 	void *errata_list_start;
 	void *errata_list_end;
 #if REPORT_ERRATA
 	void (*errata_func)(void);
 	char *cpu_str;
-#if defined(IMAGE_BL31) || defined(IMAGE_BL32)
 	spinlock_t *errata_lock;
 	unsigned int *errata_reported;
-#endif /* defined(IMAGE_BL31) || defined(IMAGE_BL32) */
 #endif /* REPORT_ERRATA */
-#if defined(IMAGE_BL31) && CRASH_REPORTING
+#if CRASH_REPORTING
 	void (*reg_dump)(void);
-#endif /* defined(IMAGE_BL31) && CRASH_REPORTING */
+#endif /* CRASH_REPORTING */
 } __packed;
 
 CASSERT(sizeof(struct cpu_ops) == CPU_OPS_SIZE,

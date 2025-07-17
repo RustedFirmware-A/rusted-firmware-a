@@ -26,7 +26,6 @@ fn build_libtfa(platform: &str) {
     build
         .define("CRASH_REPORTING", Some("1"))
         .define("ENABLE_ASSERTIONS", Some("1"))
-        .define("IMAGE_BL31", Some("1"))
         .include("include")
         .include("include/arch/aarch64")
         .include("include/lib/cpus/aarch64")

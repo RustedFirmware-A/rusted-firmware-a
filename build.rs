@@ -25,9 +25,7 @@ fn build_libtfa(platform: &str) {
     }
     build
         .define("CRASH_REPORTING", Some("1"))
-        .define("PL011_GENERIC_UART", Some("0"))
         .define("ENABLE_ASSERTIONS", Some("1"))
-        .define("ENABLE_CONSOLE_GETC", Some("0"))
         .define("IMAGE_BL31", Some("1"))
         .include("include")
         .include("include/arch/aarch64")
@@ -36,7 +34,6 @@ fn build_libtfa(platform: &str) {
         .include("include/lib/libc")
         .include("include/plat/arm/common/aarch64")
         .file("bl31_entrypoint.S")
-        .file("pl011_console.S")
         .file("cpu_helpers.S")
         .file("cpu_data.S");
 

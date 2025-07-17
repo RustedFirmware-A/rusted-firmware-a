@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use arm_ffa::{
-    DirectMsgArgs, Error, Feature, FfaError, Interface, MemOpBuf, MsgWaitFlags,
-    PartitionInfoGetFlags, RxTxAddr, SuccessArgs, TargetInfo, Uuid, Version,
-    memory_management::{Handle, MemReclaimFlags},
+    DirectMsgArgs, Error, Feature, FfaError, Interface, MemAddr, MemOpBuf, MsgSend2Flags,
+    MsgWaitFlags, NotificationBindFlags, NotificationGetFlags, NotificationSetFlags,
+    PartitionInfoGetFlags, RxTxAddr, SecondaryEpRegisterAddr, SuccessArgs, TargetInfo, Uuid,
+    Version,
+    memory_management::{Handle, MemPermissionsGetSet, MemReclaimFlags},
 };
 use smccc::{arch, error::positive_or_error_32, smc64};
 
@@ -154,6 +156,33 @@ pub fn normal_world_resume() -> Result<Interface, Error> {
     call(Interface::NormalWorldResume {})
 }
 
+pub fn yield_ffa() -> Result<Interface, Error> {
+    call(Interface::Yield)
+}
+
+pub fn msg_send2(sender_vm_id: u16, flags: MsgSend2Flags) -> Result<Interface, Error> {
+    call(Interface::MsgSend2 {
+        sender_vm_id,
+        flags,
+    })
+}
+
+pub fn interrupt(target_info: TargetInfo, interrupt_id: u32) -> Result<Interface, Error> {
+    call(Interface::Interrupt {
+        target_info,
+        interrupt_id,
+    })
+}
+
+/// # Safety
+///
+/// `addr` must be a valid secondary entry point where it's safe for RF-A to jump to.
+pub unsafe fn secondary_ep_register(addr: u64) -> Result<Interface, Error> {
+    call(Interface::SecondaryEpRegister {
+        entrypoint: SecondaryEpRegisterAddr::Addr64(addr),
+    })
+}
+
 pub fn partition_info_get_regs(
     uuid: Uuid,
     start_index: u16,
@@ -164,6 +193,101 @@ pub fn partition_info_get_regs(
         start_index,
         info_tag,
     })
+}
+
+pub fn mem_retrieve_resp(total_len: u32, frag_len: u32) -> Result<Interface, Error> {
+    call(Interface::MemRetrieveResp {
+        total_len,
+        frag_len,
+    })
+}
+
+pub fn notification_bitmap_create(vm_id: u16, vcpu_cnt: u32) -> Result<Interface, Error> {
+    call(Interface::NotificationBitmapCreate { vm_id, vcpu_cnt })
+}
+
+pub fn notification_bitmap_destroy(vm_id: u16) -> Result<Interface, Error> {
+    call(Interface::NotificationBitmapDestroy { vm_id })
+}
+
+pub fn notification_bind(
+    sender_id: u16,
+    receiver_id: u16,
+    flags: NotificationBindFlags,
+    bitmap: u64,
+) -> Result<Interface, Error> {
+    call(Interface::NotificationBind {
+        sender_id,
+        receiver_id,
+        flags,
+        bitmap,
+    })
+}
+
+pub fn notification_unbind(
+    sender_id: u16,
+    receiver_id: u16,
+    bitmap: u64,
+) -> Result<Interface, Error> {
+    call(Interface::NotificationUnbind {
+        sender_id,
+        receiver_id,
+        bitmap,
+    })
+}
+
+pub fn notification_set(
+    sender_id: u16,
+    receiver_id: u16,
+    flags: NotificationSetFlags,
+    bitmap: u64,
+) -> Result<Interface, Error> {
+    call(Interface::NotificationSet {
+        sender_id,
+        receiver_id,
+        flags,
+        bitmap,
+    })
+}
+
+pub fn notification_get(
+    vcpu_id: u16,
+    endpoint_id: u16,
+    flags: NotificationGetFlags,
+) -> Result<Interface, Error> {
+    call(Interface::NotificationGet {
+        vcpu_id,
+        endpoint_id,
+        flags,
+    })
+}
+
+pub fn notification_info_get(is_32bit: bool) -> Result<Interface, Error> {
+    call(Interface::NotificationInfoGet { is_32bit })
+}
+
+pub fn mem_perm_get(addr: MemAddr, page_cnt: u32) -> Result<Interface, Error> {
+    call(Interface::MemPermGet { addr, page_cnt })
+}
+
+pub fn mem_perm_set(
+    addr: MemAddr,
+    mem_perm: MemPermissionsGetSet,
+    page_cnt: u32,
+) -> Result<Interface, Error> {
+    call(Interface::MemPermSet {
+        addr,
+        mem_perm,
+        page_cnt,
+    })
+}
+
+pub fn mem_relinquish() -> Result<Interface, Error> {
+    call(Interface::MemRelinquish {})
+}
+
+pub fn el3_intr_handle() -> Result<Interface, Error> {
+    call(Interface::El3IntrHandle)
 }
 
 pub fn call(interface: Interface) -> Result<Interface, Error> {

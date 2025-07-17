@@ -14,26 +14,33 @@ use crate::{
     },
 };
 use arm_ffa::{
-    Feature, FfaError, FuncId, Interface, PartitionInfoGetFlags, RxTxAddr, SuccessArgs,
-    SuccessArgsFeatures, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo, Uuid,
-    memory_management::{Handle, MemReclaimFlags},
+    ConsoleLogChars, ConsoleLogChars64, Feature, FfaError, FuncId, Interface, LogChars, MemAddr,
+    MsgSend2Flags, NotificationBindFlags, NotificationGetFlags, NotificationSetFlags,
+    PartitionInfoGetFlags, RxTxAddr, SuccessArgs, SuccessArgsFeatures, SuccessArgsIdGet,
+    SuccessArgsSpmIdGet, TargetInfo, Uuid,
+    memory_management::{
+        DataAccessPermGetSet, Handle, InstructionAccessPermGetSet, MemPermissionsGetSet,
+        MemReclaimFlags,
+    },
     partition_info::{SuccessArgsPartitionInfoGet, SuccessArgsPartitionInfoGetRegs},
 };
 
+normal_world_test!(test_ffa_no_msg_wait);
 /// Check that FFA_MSG_WAIT returns NOT_SUPPORTED as normal world isn't allowed to call FFA_MSG_WAIT.
-normal_world_test!(test_no_msg_wait_from_normal_world);
-fn test_no_msg_wait_from_normal_world() -> Result<(), ()> {
+fn test_ffa_no_msg_wait() -> Result<(), ()> {
     // Normal world isn't allowed to call FFA_MSG_WAIT.
+    let error = log_error("MSG_WAIT failed", ffa::msg_wait(None))?;
+
     expect_eq!(
-        ffa::msg_wait(None),
-        Ok(Interface::Error {
+        error,
+        Interface::Error {
+            error_arg: 0,
             target_info: TargetInfo {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported,
-            error_arg: 0
-        })
+            error_code: FfaError::NotSupported
+        }
     );
     Ok(())
 }
@@ -700,6 +707,315 @@ fn mem_reclaim_handler(interface: Interface) -> Option<Interface> {
     })
 }
 
+normal_world_test!(test_ffa_no_notification_bitmap_create);
+fn test_ffa_no_notification_bitmap_create() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_NOTIFICATION_BITMAP_CREATE.
+    let error = log_error(
+        "NOTIFICATION_BITMAP_CREATE failed",
+        ffa::notification_bitmap_create(5, 128),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_notification_bitmap_destroy);
+fn test_ffa_no_notification_bitmap_destroy() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_NOTIFICATION_BITMAP_DESTROY.
+    let error = log_error(
+        "NOTIFICATION_BITMAP_DESTROY failed",
+        ffa::notification_bitmap_destroy(65535),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_notification_bind);
+fn test_ffa_no_notification_bind() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_NOTIFICATION_BIND.
+    let error = log_error(
+        "NOTIFICATION_BIND failed",
+        ffa::notification_bind(
+            3,
+            4,
+            NotificationBindFlags {
+                per_vcpu_notification: false,
+            },
+            0x1051006008009030,
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_notification_unbind);
+fn test_ffa_no_notification_unbind() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_NOTIFICATION_UNBIND.
+    let error = log_error(
+        "NOTIFICATION_UNBIND failed",
+        ffa::notification_unbind(12, 43, 0x0051006388009530),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_notification_set);
+fn test_ffa_no_notification_set() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_NOTIFICATION_SET.
+    let error = log_error(
+        "NOTIFICATION_SET failed",
+        ffa::notification_set(
+            17,
+            44,
+            NotificationSetFlags {
+                delay_schedule_receiver: true,
+                vcpu_id: Some(5),
+            },
+            0x0051006388009530,
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_notification_get);
+fn test_ffa_no_notification_get() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_NOTIFICATION_GET.
+    let error = log_error(
+        "NOTIFICATION_GET failed",
+        ffa::notification_get(
+            17,
+            44,
+            NotificationGetFlags {
+                sp_bitmap_id: true,
+                vm_bitmap_id: false,
+                spm_bitmap_id: true,
+                hyp_bitmap_id: true,
+            },
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_notification_info_get);
+fn test_ffa_no_notification_info_get() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_NOTIFICATION_INFO_GET.
+    let error = log_error(
+        "NOTIFICATION_INFO_GET failed",
+        ffa::notification_info_get(false),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_mem_perm_get);
+fn test_ffa_no_mem_perm_get() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_MEM_PERM_GET.
+    let error = log_error(
+        "MEM_PERM_GET failed",
+        ffa::mem_perm_get(MemAddr::Addr64(0x6000_0000), 1),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_mem_perm_set);
+fn test_ffa_no_mem_perm_set() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_MEM_PERM_SET.
+    let error = log_error(
+        "MEM_PERM_SET failed",
+        ffa::mem_perm_set(
+            MemAddr::Addr64(0x6000_0000),
+            MemPermissionsGetSet {
+                data_access: DataAccessPermGetSet::ReadOnly,
+                instr_access: InstructionAccessPermGetSet::Executable,
+            },
+            1,
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_el3_intr_handle);
+fn test_ffa_no_el3_intr_handle() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_EL3_INTR.
+    let error = log_error("EL3_INTR_HANDLE failed", ffa::el3_intr_handle())?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_mem_relinquish);
+fn test_ffa_no_mem_relinquish() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_MEM_RELINQUISH.
+    let error = log_error("MEM_RELINQUISH failed", ffa::mem_relinquish())?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_secondary_ep_register);
+fn test_ffa_no_secondary_ep_register() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_SECONDARY_EP_REGISTER.
+
+    // SAFETY: this is a negative test the entrypoint address won't be used and it does not matter if it's valid or not.
+    let error = log_error("SECONDARY_EP_REGISTER failed", unsafe {
+        ffa::secondary_ep_register(0x6000_0000)
+    })?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_normal_world_resume);
+fn test_ffa_no_normal_world_resume() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_NORMAL_WORLD_RESUME.
+    let error = log_error("NORMAL_WORLD_RESUME failed", ffa::normal_world_resume())?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
 secure_world_test!(test_ffa_normal_world_resume);
 /// Try to resume normal world execution. Since normal world was not preempted in the first place, this should fail.
 fn test_ffa_normal_world_resume() -> Result<(), ()> {
@@ -731,5 +1047,80 @@ fn test_ffa_features_secure() -> Result<(), ()> {
     );
 
     expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_yield);
+fn test_ffa_no_yield() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_YIELD.
+    let error = log_error("YIELD failed", ffa::yield_ffa())?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_msg_send2);
+fn test_ffa_no_msg_send2() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_MSG_SEND2.
+    let error = log_error(
+        "MSG_SEND2 failed",
+        ffa::msg_send2(
+            2,
+            MsgSend2Flags {
+                delay_schedule_receiver: true,
+            },
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+normal_world_test!(test_ffa_no_interrupt);
+fn test_ffa_no_interrupt() -> Result<(), ()> {
+    // Normal world isn't allowed to call FFA_INTERRUPT.
+
+    let error = log_error(
+        "INTERRUPT failed",
+        ffa::interrupt(
+            TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0,
+            },
+            5,
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
     Ok(())
 }

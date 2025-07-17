@@ -26,13 +26,13 @@ use crate::sysregs::{
     write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2, write_hpfar_el2, write_hstr_el2,
     write_icc_sre_el2, write_ich_hcr_el2, write_mair_el2, write_mdcr_el2, write_sctlr_el2,
     write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_vbar_el2,
-    write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, HcrEl2,
+    write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2, HcrEl2, IccSre,
 };
 use crate::{
     gicv3,
     platform::{exception_free, plat_calc_core_pos, Platform, PlatformImpl},
     smccc::SmcReturn,
-    sysregs::{read_mpidr_el1, read_scr_el3, write_scr_el3, Esr, IccSre, ScrEl3, Spsr},
+    sysregs::{read_mpidr_el1, read_scr_el3, write_scr_el3, Esr, ScrEl3, Spsr},
 };
 use core::{
     cell::{RefCell, RefMut},

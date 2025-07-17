@@ -3,7 +3,7 @@ name = "rf-a-secure-test-framework"
 version = "0.1.0"
 edition = "2024"
 authors = ["Andrew Walbran <qwandor@google.com>"]
-rust-version = "1.85"
+rust-version = "1.88"
 
 [dependencies]
 aarch64-rt = { version = "0.2.2", default-features = false, features = [

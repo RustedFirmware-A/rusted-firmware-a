@@ -28,26 +28,29 @@ use spin::{
 const ROOT_LEVEL: usize = 1;
 
 // Indices of entries in the Memory Attribute Indirection Register.
-const MAIR_IWBRWA_OWBRWA_NTR_INDEX: u8 = 0;
+const MAIR_IWTRWA_OWTRWA_NTR_INDEX: u8 = 0;
 const MAIR_DEVICE_INDEX: u8 = 1;
 const MAIR_NON_CACHEABLE_INDEX: u8 = 2;
 
 // Values for MAIR entries.
 const MAIR_DEVICE: MairAttribute = MairAttribute::DEVICE_NGNRE;
-const MAIR_IWBRWA_OWBRWA_NTR: MairAttribute = MairAttribute::normal(
-    NormalMemory::WriteBackNonTransientReadWriteAllocate,
-    NormalMemory::WriteBackNonTransientReadWriteAllocate,
+
+// Set write-through mode to ensure all written values are propagated to system memory.
+// This guarantees correct Once and Mutex behavior before enabling the MMU.
+const MAIR_IWTRWA_OWTRWA_NTR: MairAttribute = MairAttribute::normal(
+    NormalMemory::WriteThroughTransientReadWriteAllocate,
+    NormalMemory::WriteThroughTransientReadWriteAllocate,
 );
 const MAIR_NON_CACHEABLE: MairAttribute =
     MairAttribute::normal(NormalMemory::NonCacheable, NormalMemory::NonCacheable);
 
 const MAIR: Mair = Mair::EMPTY
     .with_attribute(MAIR_DEVICE_INDEX, MAIR_DEVICE)
-    .with_attribute(MAIR_IWBRWA_OWBRWA_NTR_INDEX, MAIR_IWBRWA_OWBRWA_NTR)
+    .with_attribute(MAIR_IWTRWA_OWTRWA_NTR_INDEX, MAIR_IWTRWA_OWTRWA_NTR)
     .with_attribute(MAIR_NON_CACHEABLE_INDEX, MAIR_NON_CACHEABLE);
 
 // Attribute values corresponding to the above MAIR indices.
-const IWBRWA_OWBRWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;
+const IWTRWA_OWTRWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;
 const DEVICE: Attributes = Attributes::ATTRIBUTE_INDEX_1;
 const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
 
@@ -95,7 +98,7 @@ pub const MT_DEVICE: Attributes = DEVICE.union(BASE).union(Attributes::UXN);
 pub const MT_NON_CACHEABLE: Attributes = NON_CACHEABLE.union(BASE);
 
 /// Attributes used for regular memory mappings.
-pub const MT_MEMORY: Attributes = IWBRWA_OWBRWA_NTR
+pub const MT_MEMORY: Attributes = IWTRWA_OWTRWA_NTR
     .union(BASE)
     .union(Attributes::INNER_SHAREABLE);
 

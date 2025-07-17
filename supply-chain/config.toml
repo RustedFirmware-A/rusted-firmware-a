@@ -21,7 +21,7 @@ ub-risk-4 = "ub-risk-4"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 
 [policy.rf-a-secure-test-framework]
-criteria = ["safe-to-run"]
+criteria = "safe-to-run"
 
 [[exemptions.cc]]
 version = "1.2.16"

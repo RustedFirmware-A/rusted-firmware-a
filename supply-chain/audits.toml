@@ -198,6 +198,12 @@ unexplained use of `transmute`; caller is required to check that \"`number` must
 represent a valid discriminant of `Self`.\"
 """
 
+[[audits.paste]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "safe-to-run"
+delta = "1.0.14 -> 1.0.15"
+notes = "No substantial changes."
+
 [[audits.percore]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

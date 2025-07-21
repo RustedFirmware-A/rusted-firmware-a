@@ -18,8 +18,12 @@ use aarch64_paging::{
     },
     MapError, Mapping,
 };
-use core::{mem::take, ptr::NonNull};
-use log::{info, warn};
+use core::{
+    fmt::{self, Debug, Formatter},
+    mem::take,
+    ptr::NonNull,
+};
+use log::{debug, info, warn};
 use spin::{
     mutex::{SpinMutex, SpinMutexGuard},
     Once,
@@ -127,6 +131,8 @@ pub fn init() {
             SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
         let mut idmap = init_page_table(page_heap);
 
+        debug!("Page table: {:?}", idmap);
+
         info!("Setting MMU config");
         // SAFETY: We pass the root address of `idmap`, which has just been initialised with
         // appropriate mappings, and will remain valid forever.
@@ -230,6 +236,14 @@ struct IdTranslation {
     unused_pages: &'static mut [PageTable],
 }
 
+impl Debug for IdTranslation {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("IdTranslation")
+            .field("unused_pages", &self.unused_pages.len())
+            .finish()
+    }
+}
+
 impl IdTranslation {
     fn virtual_to_physical(va: VirtualAddress) -> PhysicalAddress {
         // Physical address is the same as the virtual address because we are using identity mapping
@@ -262,6 +276,7 @@ impl Translation for IdTranslation {
     }
 }
 
+#[derive(Debug)]
 pub struct IdMap {
     mapping: Mapping<IdTranslation>,
 }

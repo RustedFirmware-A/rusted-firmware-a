@@ -48,6 +48,10 @@ cc = "=1.2.16"
 default = ["sel2"]
 rme = []
 sel2 = []
+max_log_error = ["log/max_level_error"]
+max_log_warn = ["log/max_level_warn"]
+max_log_info = ["log/max_level_info"]
+max_log_debug = ["log/max_level_debug"]
 
 [lints.clippy]
 unreadable_literal = "deny"

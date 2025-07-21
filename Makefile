@@ -26,17 +26,19 @@ ifndef PLAT
   endif
 endif
 
-TARGET := aarch64-unknown-none-softfloat
-CARGO_FLAGS := --target $(TARGET) --no-default-features --features "$(FEATURES)"
-
 # Make a release build by default.
 DEBUG ?= 0
 ifeq ($(DEBUG), 1)
 	BUILDTYPE := debug
+	CARGO_FLAGS :=
 else
 	BUILDTYPE := release
-	CARGO_FLAGS += --release
+	CARGO_FLAGS := --release
+	FEATURES += max_log_info
 endif
+
+TARGET := aarch64-unknown-none-softfloat
+CARGO_FLAGS += --target $(TARGET) --no-default-features --features "$(FEATURES)"
 
 all: $(PLAT)-build
 

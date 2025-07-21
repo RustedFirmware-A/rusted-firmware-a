@@ -4,7 +4,7 @@
 
 //! Helper functions to get addresses defined by the linker script.
 
-extern "C" {
+unsafe extern "C" {
     // These aren't really variables, just symbols defined by the linker script whose addresses we
     // need to get. They should never be read or written.
     static __BL31_START__: u32;

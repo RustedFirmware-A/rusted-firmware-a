@@ -10,7 +10,7 @@ use crate::{
     debug::DEBUG,
     gicv3::{GicConfig, InterruptConfig},
     logger::{self, LockedWriter},
-    pagetable::{map_region, IdMap, MT_DEVICE},
+    pagetable::{IdMap, MT_DEVICE, map_region},
     services::{
         arch::WorkaroundSupport,
         psci::{
@@ -22,11 +22,11 @@ use crate::{
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
-    gicv3::{
-        registers::{Gicd, GicrSgi},
-        GicV3, Group, SecureIntGroup,
-    },
     IntId, Trigger,
+    gicv3::{
+        GicV3, Group, SecureIntGroup,
+        registers::{Gicd, GicrSgi},
+    },
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};

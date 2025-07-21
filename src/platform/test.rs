@@ -8,7 +8,7 @@ use crate::{
     context::EntryPointInfo,
     gicv3::GicConfig,
     logger::{self, LogSink},
-    pagetable::{map_region, IdMap, MT_DEVICE},
+    pagetable::{IdMap, MT_DEVICE, map_region},
     services::{
         arch::WorkaroundSupport,
         psci::{
@@ -19,11 +19,11 @@ use crate::{
     sysregs::{MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
-use arm_gic::{gicv3::GicV3, IntId};
+use arm_gic::{IntId, gicv3::GicV3};
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use core::fmt;
 use percore::ExceptionFree;
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 
 const DEVICE0_BASE: usize = 0x0200_0000;
 const DEVICE0_SIZE: usize = 0x1000;

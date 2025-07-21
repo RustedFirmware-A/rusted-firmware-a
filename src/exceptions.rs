@@ -4,13 +4,13 @@
 
 use crate::context::world_context;
 use crate::{
-    context::{cpu_state, World},
+    context::{World, cpu_state},
     platform::exception_free,
     smccc::SmcReturn,
     sysregs::{
-        is_feat_vhe_present, read_hcr_el2, read_vbar_el1, read_vbar_el2, write_elr_el1,
-        write_elr_el2, write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2, Esr,
-        ExceptionLevel, HcrEl2, ScrEl3, Spsr, StackPointer,
+        Esr, ExceptionLevel, HcrEl2, ScrEl3, Spsr, StackPointer, is_feat_vhe_present, read_hcr_el2,
+        read_vbar_el1, read_vbar_el2, write_elr_el1, write_elr_el2, write_esr_el1, write_esr_el2,
+        write_spsr_el1, write_spsr_el2,
     },
 };
 #[cfg(not(test))]

@@ -7,14 +7,17 @@
 mod platforms;
 
 use cc::Build;
-use platforms::{get_builder, PLATFORMS};
+use platforms::{PLATFORMS, get_builder};
 use std::env;
 
 fn build_libtfa(platform: &str) {
     let platform_builder = get_builder(platform).unwrap();
 
-    env::set_var("CROSS_COMPILE", "aarch64-none-elf");
-    env::set_var("CC", "clang");
+    // SAFETY: The build script is single-threaded.
+    unsafe {
+        env::set_var("CROSS_COMPILE", "aarch64-none-elf");
+        env::set_var("CC", "clang");
+    }
 
     let mut build = Build::new();
     if env::var("CARGO_FEATURE_RME").as_deref() == Ok("1") {

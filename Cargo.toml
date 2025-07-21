@@ -5,12 +5,12 @@ members = ["secure_test_framework"]
 [package]
 name = "rf-a-bl31"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = [
   "Andrew Walbran <qwandor@google.com>",
   "Okash Khawaja <okash@google.com>",
 ]
-rust-version = "1.82"
+rust-version = "1.88"
 
 [profile.dev]
 opt-level = "s"

@@ -8,26 +8,26 @@ use crate::{
     context::{CoresImpl, EntryPointInfo},
     debug::DEBUG,
     gicv3::{GicConfig, InterruptConfig},
-    logger::{self, inmemory::PerCoreMemoryLogger, HybridLogger, LockedWriter},
-    pagetable::{map_region, IdMap, MT_DEVICE},
-    semihosting::{semihosting_exit, AdpStopped},
+    logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
+    pagetable::{IdMap, MT_DEVICE, map_region},
+    semihosting::{AdpStopped, semihosting_exit},
     services::{
         arch::WorkaroundSupport,
         psci::{
-            bl31_warm_entrypoint, try_get_cpu_index_by_mpidr, PlatformPowerStateInterface,
-            PowerStateType, PsciCompositePowerState, PsciPlatformInterface,
-            PsciPlatformOptionalFeatures,
+            PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
+            PsciPlatformInterface, PsciPlatformOptionalFeatures, bl31_warm_entrypoint,
+            try_get_cpu_index_by_mpidr,
         },
     },
     sysregs::{IccSre, MpidrEl1, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
-    gicv3::{
-        registers::{Gicd, GicrSgi},
-        GicV3, Group, SecureIntGroup,
-    },
     IntId, Trigger,
+    gicv3::{
+        GicV3, Group, SecureIntGroup,
+        registers::{Gicd, GicrSgi},
+    },
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};

@@ -9,11 +9,11 @@ pub mod psci;
 pub mod rmmd;
 
 use crate::{
-    context::{cpu_state, set_initial_world, switch_world, World},
-    exceptions::{enter_world, inject_undef64, RunResult},
+    context::{World, cpu_state, set_initial_world, switch_world},
+    exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
-    platform::{exception_free, Platform, PlatformImpl},
-    smccc::{FunctionId, SmcReturn, NOT_SUPPORTED},
+    platform::{Platform, PlatformImpl, exception_free},
+    smccc::{FunctionId, NOT_SUPPORTED, SmcReturn},
     sysregs::Esr,
 };
 use log::info;

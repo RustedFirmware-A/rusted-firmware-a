@@ -4,8 +4,8 @@
 
 use crate::{
     context::World,
-    services::{owns, Service},
-    smccc::{FunctionId, OwningEntityNumber, SmcReturn, NOT_SUPPORTED},
+    services::{Service, owns},
+    smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SmcReturn},
 };
 
 const RMM_BOOT_COMPLETE: u32 = 0xC400_01CF;

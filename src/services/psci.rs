@@ -5,14 +5,14 @@
 mod power_domain_tree;
 mod spmd_stub;
 
-use super::{owns, Service};
+use super::{Service, owns};
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},
     pagetable,
-    platform::{plat_calc_core_pos, Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
+    platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl, plat_calc_core_pos},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SmcReturn},
-    sysregs::{read_isr_el1, MpidrEl1},
+    sysregs::{MpidrEl1, read_isr_el1},
 };
 use arm_psci::{
     AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
@@ -1010,7 +1010,7 @@ mod tests {
     use super::*;
     use crate::sysregs::fake::SYSREGS;
     use arm_psci::ArchitecturalResetType;
-    use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+    use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
     const ENTRY_POINT: EntryPoint = EntryPoint::Entry64 {
         entry_point_address: 0x0123_4567_89ab_cdef,
@@ -1139,10 +1139,10 @@ mod tests {
 
         if let Err(err) = result {
             // The closure has panicked, check for power down magic string.
-            if let Some(s) = err.downcast_ref::<String>() {
-                if *s == magic {
-                    return;
-                }
+            if let Some(s) = err.downcast_ref::<String>()
+                && *s == magic
+            {
+                return;
             }
 
             // Propagate non power down panics.

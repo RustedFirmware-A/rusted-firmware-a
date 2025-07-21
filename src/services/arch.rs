@@ -4,10 +4,10 @@
 
 use crate::{
     context::World,
-    services::{owns, Service},
+    services::{Service, owns},
     smccc::{
-        FunctionId, OwningEntityNumber, SmcReturn, SmcccCallType, INVALID_PARAMETER, NOT_SUPPORTED,
-        SUCCESS,
+        FunctionId, INVALID_PARAMETER, NOT_SUPPORTED, OwningEntityNumber, SUCCESS, SmcReturn,
+        SmcccCallType,
     },
 };
 

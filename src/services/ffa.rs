@@ -4,8 +4,8 @@
 
 use crate::{
     context::{PerCoreState, World},
-    platform::{exception_free, Platform, PlatformImpl},
-    services::{owns, Service},
+    platform::{Platform, PlatformImpl, exception_free},
+    services::{Service, owns},
     smccc::{OwningEntityNumber, SmcReturn},
 };
 use arm_ffa::{
@@ -224,7 +224,7 @@ impl Spmd {
             | Interface::IdGet
             | Interface::SpmIdGet
             | Interface::PartitionInfoGetRegs { .. } => {
-                return self.handle_secure_call_common(in_msg)
+                return self.handle_secure_call_common(in_msg);
             }
             _ => {
                 warn!("Denied FF-A call from Secure World: {:x?}", in_msg);
@@ -270,7 +270,7 @@ impl Spmd {
             | Interface::IdGet
             | Interface::SpmIdGet
             | Interface::PartitionInfoGetRegs { .. } => {
-                return self.handle_secure_call_common(in_msg)
+                return self.handle_secure_call_common(in_msg);
             }
             Interface::Error { .. }
             | Interface::Success { .. }

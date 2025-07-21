@@ -5,7 +5,7 @@
 use crate::{
     context::PerCoreState,
     logger::LogSink,
-    platform::{exception_free, Platform, PlatformImpl},
+    platform::{Platform, PlatformImpl, exception_free},
 };
 use core::{
     cell::RefCell,

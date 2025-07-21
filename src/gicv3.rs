@@ -8,15 +8,15 @@ use crate::{
     aarch64::{dsb_sy, isb},
     context::{CoresImpl, World},
     platform::{Platform, PlatformImpl},
-    sysregs::{write_icc_sre_el3, IccSre, ScrEl3},
+    sysregs::{IccSre, ScrEl3, write_icc_sre_el3},
 };
 use arm_gic::{
-    gicv3::{registers::GicdCtlr, GICRError, GicV3, Group, InterruptGroup},
     IntId, Trigger,
+    gicv3::{GICRError, GicV3, Group, InterruptGroup, registers::GicdCtlr},
 };
 use log::debug;
 use percore::Cores;
-use spin::{mutex::SpinMutex, Once};
+use spin::{Once, mutex::SpinMutex};
 
 static GIC: Once<SpinMutex<GicV3>> = Once::new();
 

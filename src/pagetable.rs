@@ -4,19 +4,19 @@
 
 use crate::{
     aarch64::{dsb_ish, isb, tlbi_alle3},
-    layout::{bl31_end, bl31_start, bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end},
+    layout::{bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end, bl31_end, bl31_start},
     platform::{Platform, PlatformImpl},
     sysregs::{
-        read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3, SctlrEl3,
+        SctlrEl3, read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3,
     },
 };
 use aarch64_paging::{
+    MapError, Mapping,
     mair::{Mair, MairAttribute, NormalMemory},
     paging::{
         Attributes, Constraints, MemoryRegion, PageTable, PhysicalAddress, Translation,
         TranslationRegime, VaRange, VirtualAddress,
     },
-    MapError, Mapping,
 };
 use core::{
     fmt::{self, Debug, Formatter},
@@ -25,8 +25,8 @@ use core::{
 };
 use log::{debug, info, warn};
 use spin::{
-    mutex::{SpinMutex, SpinMutexGuard},
     Once,
+    mutex::{SpinMutex, SpinMutexGuard},
 };
 
 const ROOT_LEVEL: usize = 1;

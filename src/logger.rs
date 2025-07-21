@@ -12,7 +12,7 @@ use core::{
 #[cfg(not(test))]
 use core::{option_env, panic::PanicInfo};
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
-use spin::{mutex::SpinMutex, Once};
+use spin::{Once, mutex::SpinMutex};
 
 static LOGGER: Once<Logger> = Once::new();
 

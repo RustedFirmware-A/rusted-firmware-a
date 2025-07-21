@@ -17,7 +17,7 @@ use crate::{
     services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
     sysregs::MpidrEl1,
 };
-use arm_gic::{gicv3::GicV3, IntId};
+use arm_gic::{IntId, gicv3::GicV3};
 #[cfg(platform = "fvp")]
 pub use fvp::Fvp as PlatformImpl;
 #[cfg(not(test))]
@@ -25,7 +25,7 @@ pub use percore::exception_free;
 #[cfg(platform = "qemu")]
 pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
-pub use test::{exception_free, TestPlatform as PlatformImpl};
+pub use test::{TestPlatform as PlatformImpl, exception_free};
 
 /// Type alias for convenience, to avoid having to use the complicated type name everywhere.
 pub type LogSinkImpl = <PlatformImpl as Platform>::LogSinkImpl;

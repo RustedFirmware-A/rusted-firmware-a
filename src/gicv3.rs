@@ -7,8 +7,8 @@ use core::panic;
 use crate::{
     aarch64::{dsb_sy, isb},
     context::{CoresImpl, World},
-    platform::{Platform, PlatformImpl},
-    sysregs::{IccSre, ScrEl3, write_icc_sre_el3},
+    platform::{Platform, PlatformImpl, plat_calc_core_pos},
+    sysregs::{IccSre, MpidrEl1, ScrEl3, write_icc_sre_el3},
 };
 use arm_gic::{
     IntId, Trigger,
@@ -18,10 +18,16 @@ use log::debug;
 use percore::Cores;
 use spin::{Once, mutex::SpinMutex};
 
-static GIC: Once<SpinMutex<GicV3>> = Once::new();
-
 const GIC_HIGHEST_NS_PRIORITY: u8 = 0x80;
 const GIC_PRI_MASK: u8 = 0xff;
+
+static GIC: Once<Gic> = Once::new();
+
+struct Gic<'a> {
+    gic: SpinMutex<GicV3<'a>>,
+    /// Redistributor indices by core ID.
+    redistributor_indices: [usize; PlatformImpl::CORE_COUNT],
+}
 
 /// The configuration of a single interrupt.
 #[derive(Clone, Copy, Debug)]
@@ -155,8 +161,8 @@ fn init_redistributor(gic: &mut GicV3, core_index: usize, config: &GicConfig) {
     configure_private_interrupts(gic, core_index, config);
 }
 
-fn init_cpu_interface(gic: &mut GicV3, core_index: usize) -> Result<(), GICRError> {
-    gic.redistributor_mark_core_awake(core_index)?;
+fn init_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
+    gic.redistributor_mark_core_awake(current_redistributor_index())?;
 
     // Disable the legacy interrupt bypass.
     // Enable system register access for EL3 and allow lower exception
@@ -194,17 +200,44 @@ pub fn init() {
 
         // Configure Redistributors for all cores.
         // Secondary cores must configure only their CPU interfaces.
-        for core_idx in 0..PlatformImpl::CORE_COUNT {
-            init_redistributor(&mut gic, core_idx, &PlatformImpl::GIC_CONFIG);
+        for redistributor_index in 0..PlatformImpl::CORE_COUNT {
+            init_redistributor(&mut gic, redistributor_index, &PlatformImpl::GIC_CONFIG);
         }
 
-        // thiserror does not print the error message with `expect` :(
-        if let Err(e) = init_cpu_interface(&mut gic, CoresImpl::core_index()) {
-            panic!("Failed to init GIC: {}", e);
-        }
+        // Calculate redistributor index for each CPU and store it for future use.
+        let redistributor_indices = calculate_redistributor_indices(&mut gic);
 
-        SpinMutex::new(gic)
+        Gic {
+            gic: SpinMutex::new(gic),
+            redistributor_indices,
+        }
     });
+
+    // thiserror does not print the error message with `expect` :(
+    if let Err(e) = init_cpu_interface(&mut *GIC.get().unwrap().gic.lock()) {
+        panic!("Failed to init GIC CPU interface: {}", e);
+    }
+    debug!(
+        "GIC redistributor indices by core: {:?}",
+        GIC.get().unwrap().redistributor_indices
+    );
+}
+
+fn current_redistributor_index() -> usize {
+    GIC.get().unwrap().redistributor_indices[CoresImpl::core_index()]
+}
+
+fn calculate_redistributor_indices(gic: &mut GicV3) -> [usize; PlatformImpl::CORE_COUNT] {
+    let mut redistributor_indices = [0; PlatformImpl::CORE_COUNT];
+    for redistributor_index in 0..PlatformImpl::CORE_COUNT {
+        let mpidr = MpidrEl1::from_psci_mpidr(gic.gicr_typer(redistributor_index).core_mpidr());
+        if !PlatformImpl::mpidr_is_valid(mpidr) {
+            panic!("GIC redistributor {redistributor_index} has invalid mpidr value.");
+        }
+        let core_index = plat_calc_core_pos(mpidr.bits());
+        redistributor_indices[core_index] = redistributor_index;
+    }
+    redistributor_indices
 }
 
 /// Configures interrupt-routing related flags in `scr_el3` bitflags.

@@ -1124,3 +1124,310 @@ fn test_ffa_no_interrupt() -> Result<(), ()> {
     );
     Ok(())
 }
+
+secure_world_test!(test_ffa_no_rxtx_map_secure);
+fn test_ffa_no_rxtx_map_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_RXTX_MAP.
+    let error = log_error(
+        "RXTX_MAP failed",
+        ffa::rxtx_map(arm_ffa::RxTxAddr::Addr64 { rx: 0x3, tx: 0x4 }, 1),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_rxtx_unmap_secure);
+fn test_ffa_no_rxtx_unmap_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_RXTX_UNMAP.
+    let error = log_error("RXTX_UNMAP failed", ffa::rxtx_unmap(14))?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_rx_release_secure);
+fn test_ffa_no_rx_release_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_RX_RELEASE.
+    let error = log_error("RX_RELEASE failed", ffa::rx_release(13))?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_rx_acquire_secure);
+fn test_ffa_no_rx_acquire_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_RX_ACQUIRE.
+    let error = log_error("RX_ACQUIRE failed", ffa::rx_acquire(39))?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_partition_info_get_secure);
+fn test_ffa_no_partition_info_get_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_PARTITION_INFO_GET.
+    let error = log_error(
+        "PARTITION_INFO_GET failed",
+        ffa::partition_info_get(
+            Uuid::parse_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d8").unwrap(),
+            PartitionInfoGetFlags { count_only: true },
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_notification_bitmap_create_secure);
+fn test_ffa_no_notification_bitmap_create_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_NOTIFICATION_BITMAP_CREATE.
+    let error = log_error(
+        "NOTIFICATION_BITMAP_CREATE failed",
+        ffa::notification_bitmap_create(61, 8),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_notification_bitmap_destroy_secure);
+fn test_ffa_no_notification_bitmap_destroy_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_NOTIFICATION_BITMAP_DESTROY.
+    let error = log_error(
+        "NOTIFICATION_BITMAP_DESTROY failed",
+        ffa::notification_bitmap_destroy(54),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_notification_bind_secure);
+fn test_ffa_no_notification_bind_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_NOTIFICATION_BIND.
+    let error = log_error(
+        "NOTIFICATION_BIND failed",
+        ffa::notification_bind(
+            44,
+            7,
+            NotificationBindFlags {
+                per_vcpu_notification: true,
+            },
+            0x57832,
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_notification_unbind_secure);
+fn test_ffa_no_notification_unbind_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_NOTIFICATION_UNBIND.
+    let error = log_error(
+        "NOTIFICATION_UNBIND failed",
+        ffa::notification_unbind(7, 44, 0x57832),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_notification_get_secure);
+fn test_ffa_no_notification_get_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_NOTIFICATION_GET.
+    let error = log_error(
+        "NOTIFICATION_GET failed",
+        ffa::notification_get(
+            7,
+            44,
+            NotificationGetFlags {
+                sp_bitmap_id: true,
+                vm_bitmap_id: true,
+                spm_bitmap_id: true,
+                hyp_bitmap_id: true,
+            },
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_notification_set_secure);
+fn test_ffa_no_notification_set_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_NOTIFICATION_SET.
+    let error = log_error(
+        "NOTIFICATION_SET failed",
+        ffa::notification_set(
+            7,
+            44,
+            NotificationSetFlags {
+                delay_schedule_receiver: false,
+                vcpu_id: Some(34),
+            },
+            0x66721,
+        ),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_notification_info_get_secure);
+fn test_ffa_no_notification_info_get_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_NOTIFICATION_INFO_GET.
+    let error = log_error(
+        "NOTIFICATION_INFO_GET failed",
+        ffa::notification_info_get(false),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}
+
+secure_world_test!(test_ffa_no_run_secure);
+fn test_ffa_no_run_secure() -> Result<(), ()> {
+    // Secure world isn't allowed to call FFA_RUN.
+    let error = log_error(
+        "RUN failed",
+        ffa::run(TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        }),
+    )?;
+
+    expect_eq!(
+        error,
+        Interface::Error {
+            error_arg: 0,
+            target_info: TargetInfo {
+                endpoint_id: 0,
+                vcpu_id: 0
+            },
+            error_code: FfaError::NotSupported
+        }
+    );
+    Ok(())
+}

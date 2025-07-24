@@ -169,6 +169,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.9.0 -> 2.9.1"
 
+[[audits.buddy_system_allocator]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "safe-to-run"
+version = "0.11.0"
+notes = "Fairly straightforward code, doesn't access any local or remote resources."
+
 [[audits.cc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"

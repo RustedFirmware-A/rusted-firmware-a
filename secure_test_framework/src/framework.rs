@@ -11,7 +11,7 @@ use crate::call_test_helper;
 use alloc::boxed::Box;
 use arm_ffa::Interface;
 use linkme::distributed_slice;
-use log::{error, info};
+use log::{debug, error, info};
 use spin::Lazy;
 
 /// The normal world tests.
@@ -130,7 +130,7 @@ pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> Resul
 #[allow(unused)]
 pub fn run_secure_world_test(test_index: usize) -> Result<(), ()> {
     if let Some(test) = SECURE_WORLD_TESTS_SORTED.get(test_index) {
-        info!("Running secure world test {}: {}", test_index, test.name());
+        debug!("Running secure world test {}: {}", test_index, test.name());
         (test.function)()
     } else {
         error!("Requested to run unknown test {}", test_index);
@@ -143,7 +143,7 @@ pub fn run_secure_world_test(test_index: usize) -> Result<(), ()> {
 /// This should only be called from the secure world (BL32) part of STF.
 #[allow(unused)]
 pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
-    info!("Running secure world test helper {}", test_index);
+    debug!("Running secure world test helper {}", test_index);
     if let Some(test) = NORMAL_WORLD_TESTS_SORTED.get(test_index) {
         if let TestFunctions::NormalWorldWithHelper { helper, .. } = test.functions {
             helper(args)
@@ -165,7 +165,7 @@ pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()
 #[allow(unused)]
 pub fn run_test_ffa_handler(test_index: usize, interface: Interface) -> Option<Interface> {
     let handler = NORMAL_WORLD_TESTS_SORTED.get(test_index)?.secure_handler?;
-    info!("Running test {} FF-A handler", test_index);
+    debug!("Running test {} FF-A handler", test_index);
     handler(interface)
 }
 

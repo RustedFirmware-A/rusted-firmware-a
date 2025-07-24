@@ -45,7 +45,7 @@ const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
 entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     let log_sink = PlatformImpl::make_log_sink();
-    logger::init(log_sink, LevelFilter::Trace).unwrap();
+    logger::init(log_sink, LevelFilter::Debug).unwrap();
 
     set_exception_vector();
     gicv3::init();

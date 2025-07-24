@@ -33,7 +33,7 @@ use crate::{
 use aarch64_rt::entry;
 use arm_ffa::{DirectMsgArgs, FfaError, Interface, SuccessArgsIdGet, Version};
 use core::panic::PanicInfo;
-use log::{LevelFilter, error, info, warn};
+use log::{error, info, warn};
 
 /// The version of FF-A which we support.
 const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 1);
@@ -44,7 +44,7 @@ const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
 entry!(bl32_main, 4);
 fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     let log_sink = PlatformImpl::make_log_sink();
-    logger::init(log_sink, LevelFilter::Debug).unwrap();
+    logger::init(log_sink).unwrap();
 
     set_exception_vector();
     gicv3::init();

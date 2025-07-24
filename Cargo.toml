@@ -32,6 +32,7 @@ log = "0.4.27"
 percore = "0.1.0"
 arm-pl011-uart = { version = "0.3", default-features = false }
 spin = { version = "0.10.0", default-features = false, features = [
+  "lazy",
   "once",
   "spin_mutex",
 ] }

@@ -17,7 +17,7 @@ use crate::{
     sysregs::Esr,
 };
 use log::info;
-use spin::Once;
+use spin::Lazy;
 
 /// Helper macro to define the range of SMC function ID values covered by a service
 #[macro_export]
@@ -74,7 +74,7 @@ pub trait Service {
     }
 }
 
-static SERVICES: Once<Services> = Once::new();
+static SERVICES: Lazy<Services> = Lazy::new(Services::new);
 
 /// Contains an instance of all of the currently implemented services.
 pub struct Services {
@@ -91,7 +91,7 @@ impl Services {
     ///
     /// Also, initializes it if it hasn't been initialized yet.
     pub fn get() -> &'static Self {
-        SERVICES.call_once(Services::new)
+        &*SERVICES
     }
 
     fn new() -> Self {

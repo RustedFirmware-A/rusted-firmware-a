@@ -205,6 +205,19 @@ macro_rules! normal_world_test {
             };
         }
     };
+    ($function:ident, helper = $helper:ident, handler = $handler:ident) => {
+        paste::paste! {
+            #[linkme::distributed_slice($crate::framework::NORMAL_WORLD_TESTS)]
+            static [<_NORMAL_WORLD_TEST_ $function:upper>]: $crate::framework::NormalWorldTest = $crate::framework::NormalWorldTest {
+                name: concat!(module_path!(), "::", ::core::stringify!($function)),
+                functions: $crate::framework::TestFunctions::NormalWorldWithHelper {
+                    function: $function,
+                    helper: $helper,
+                },
+                secure_handler: Some($handler),
+            };
+        }
+    };
 }
 
 /// Registers a secure world test with the test framework.

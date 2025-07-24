@@ -103,10 +103,6 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     loop {
         let response = match message {
-            Interface::Interrupt { .. } => {
-                handle_group1_interrupt();
-                Interface::NormalWorldResume
-            }
             Interface::MsgSendDirectReq {
                 src_id,
                 dst_id,

@@ -104,8 +104,11 @@ impl SecureWorldTest {
     }
 }
 
+pub type TestHelperRequest = [u64; 3];
+pub type TestHelperResponse = [u64; 4];
+
 /// A proxy to call the secure-world helper function for a normal-world test.
-pub type TestHelperProxy = dyn Fn([u64; 3]) -> Result<[u64; 4], ()>;
+pub type TestHelperProxy = dyn Fn(TestHelperRequest) -> Result<TestHelperResponse, ()>;
 
 /// Runs the normal world test with the given index.
 ///

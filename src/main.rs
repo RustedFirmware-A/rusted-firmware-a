@@ -9,6 +9,8 @@
 
 mod aarch64;
 mod context;
+#[cfg(not(test))]
+mod crash_console;
 mod debug;
 mod exceptions;
 mod gicv3;

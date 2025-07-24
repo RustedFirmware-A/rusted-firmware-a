@@ -5,14 +5,12 @@
 use core::fmt::Write;
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
 use percore::{ExceptionLock, exception_free};
-use spin::mutex::SpinMutex;
+use spin::{Once, mutex::SpinMutex};
 
-static LOGGER: Logger = Logger {
-    console: ExceptionLock::new(SpinMutex::new(None)),
-};
+static LOGGER: Once<Logger> = Once::new();
 
 struct Logger {
-    console: ExceptionLock<SpinMutex<Option<&'static mut (dyn Write + Send)>>>,
+    console: ExceptionLock<SpinMutex<&'static mut (dyn Write + Send)>>,
 }
 
 impl Log for Logger {
@@ -23,7 +21,7 @@ impl Log for Logger {
     fn log(&self, record: &Record) {
         exception_free(|token| {
             writeln!(
-                self.console.borrow(token).lock().as_mut().unwrap(),
+                self.console.borrow(token).lock(),
                 "Test {}: {}",
                 record.level(),
                 record.args()
@@ -37,10 +35,10 @@ impl Log for Logger {
 
 /// Initialises UART logger.
 pub fn init(console: &'static mut (dyn Write + Send)) -> Result<(), SetLoggerError> {
-    exception_free(|token| {
-        LOGGER.console.borrow(token).lock().replace(console);
+    let logger = LOGGER.call_once(|| Logger {
+        console: ExceptionLock::new(SpinMutex::new(console)),
     });
-    log::set_logger(&LOGGER)?;
+    log::set_logger(logger)?;
     log::set_max_level(build_time_log_level());
     Ok(())
 }

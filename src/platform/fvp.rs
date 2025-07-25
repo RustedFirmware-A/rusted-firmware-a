@@ -73,6 +73,8 @@ const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEV
 // Base address of the primary PL011 UART.
 const PL011_BASE_ADDRESS: *mut PL011Registers = 0x1C09_0000 as _;
 
+const V2M_IOFPGA_UART1_BASE: usize = 0x1c0a_0000;
+
 // TODO: Use the correct addresses here.
 /// The physical address of the SPMC manifest blob.
 const TOS_FW_CONFIG_ADDRESS: u64 = 0;
@@ -347,6 +349,7 @@ global_asm!(
         "ret",
     "endfunc plat_calc_core_pos",
     include_str!("fvp/crash_print_regs.S"),
+    include_str!("fvp/arm_helpers.S"),
     include_str!("../arm_macros_purge.S"),
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
@@ -365,4 +368,7 @@ global_asm!(
     BLD_GIC_VE_MMAP = const BLD_GIC_VE_MMAP,
     BASE_GICD_BASE = const BASE_GICD_BASE,
     VE_GICD_BASE = const VE_GICD_BASE,
+    PLAT_ARM_CRASH_UART_BASE = const V2M_IOFPGA_UART1_BASE,
+    PLAT_ARM_CRASH_UART_CLK_IN_HZ = const 24_000_000,
+    ARM_CONSOLE_BAUDRATE = const 115_200,
 );

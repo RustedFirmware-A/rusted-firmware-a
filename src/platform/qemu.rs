@@ -65,7 +65,8 @@ const HOLD_STATE_WAIT: u64 = 0;
 const HOLD_STATE_GO: u64 = 1;
 
 /// Base address of the secure world PL011 UART, aka. UART1.
-const PL011_BASE_ADDRESS: *mut PL011Registers = 0x0904_0000 as _;
+const UART1_BASE: usize = 0x0904_0000;
+const PL011_BASE_ADDRESS: *mut PL011Registers = UART1_BASE as _;
 /// Base address of GICv3 distributor.
 const GICD_BASE_ADDRESS: *mut Gicd = GICD_BASE as _;
 /// Base address of the first GICv3 redistributor frame.
@@ -372,6 +373,7 @@ global_asm!(
     "endfunc plat_secondary_cold_boot_setup",
 
     include_str!("qemu/crash_print_regs.S"),
+    include_str!("qemu/plat_helpers.S"),
     include_str!("../arm_macros_purge.S"),
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
@@ -386,6 +388,9 @@ global_asm!(
     HOLD_BASE = const HOLD_BASE,
     HOLD_ENTRY_SHIFT = const HOLD_ENTRY_SHIFT,
     HOLD_STATE_WAIT = const HOLD_STATE_WAIT,
+    PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
+    PLAT_QEMU_CRASH_UART_CLK_IN_HZ = const 1,
+    PLAT_QEMU_CONSOLE_BAUDRATE = const 115_200,
 );
 
 unsafe extern "C" {

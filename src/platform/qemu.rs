@@ -148,7 +148,7 @@ unsafe impl Platform for Qemu {
 
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[];
 
-    fn init() {
+    fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
         // accesses that address range. The address remains valid after turning on the MMU
         // because of the identity mapping of the `DEVICE1` region.

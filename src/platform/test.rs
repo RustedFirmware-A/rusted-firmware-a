@@ -67,7 +67,7 @@ unsafe impl Platform for TestPlatform {
 
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[];
 
-    fn init() {
+    fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         logger::init(StdOutSink).expect("Failed to initialise logger");
     }
 

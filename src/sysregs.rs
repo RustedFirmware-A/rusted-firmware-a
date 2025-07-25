@@ -420,8 +420,14 @@ bitflags! {
     pub struct SctlrEl3: u64 {
         /// MMU enable for EL3 stage 1 address translation.
         const M = 1 << 0;
+        /// Alignment check enable.
+        const A = 1 << 1;
         /// Cacheability control, for data accesses at EL3.
         const C = 1 << 2;
+        /// SP alignment check enable.
+        const SA = 1 << 3;
+        /// Cacheability control, for instruction accesses at EL3.
+        const I = 1 << 12;
         /// Write permission implies XN (Execute-never). For the EL3 translation regime, this bit
         /// can force all memory regions that are writable to be treated as XN.
         const WXN = 1 << 19;

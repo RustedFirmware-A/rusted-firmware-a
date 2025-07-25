@@ -5,20 +5,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <platform_def.h>
-
-#include <arch.h>
-#include <asm_macros.S>
-#include <bl31/ea_handle.h>
-#include <bl31/interrupt_mgmt.h>
-#include <bl31/sync_handle.h>
-#include <common/runtime_svc.h>
-#include <context.h>
-#include <cpu_macros.S>
-#include <el3_common_macros.S>
-#include <lib/el3_runtime/cpu_data.h>
-#include <lib/smccc.h>
-
 	.globl	runtime_exceptions
 
 	.globl	sync_exception_sp_el0

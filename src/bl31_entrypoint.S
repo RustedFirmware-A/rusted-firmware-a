@@ -5,9 +5,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <arch.h>
-#include <asm_macros.S>
-
 .global bl31_entrypoint
 .global bl31_warm_entrypoint
 
@@ -49,7 +46,7 @@ func bl31_entrypoint
          *  being accessed.
          * ---------------------------------------------------------------------
          */
-        mov     x1, #(SCTLR_I_BIT | SCTLR_A_BIT | SCTLR_SA_BIT)
+        mov     x1, #({SCTLR_I_BIT} | {SCTLR_A_BIT} | {SCTLR_SA_BIT})
         mrs     x0, sctlr_el3
         orr     x0, x0, x1
         msr     sctlr_el3, x0
@@ -108,16 +105,12 @@ func bl31_entrypoint
          *  When FEAT_TRF is not implemented, this bit is RES0.
          * ---------------------------------------------------------------------
          */
-        mov_imm x0, ((MDCR_EL3_RESET_VAL | MDCR_SDD_BIT | \
-                      MDCR_SPD32(MDCR_SPD32_DISABLE) | MDCR_SCCD_BIT | \
-                      MDCR_MCCD_BIT) & ~(MDCR_SPME_BIT | MDCR_TDOSA_BIT | \
-                      MDCR_TDA_BIT | MDCR_TPM_BIT | MDCR_NSTB(MDCR_NSTB_EL1) | \
-                      MDCR_NSTBE_BIT | MDCR_TTRF_BIT))
+        mov_imm x0, (({MDCR_EL3_RESET_VAL} | {MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE} | {MDCR_SCCD_BIT} | {MDCR_MCCD_BIT}) & ~({MDCR_SPME_BIT} | {MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_TPM_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT} | {MDCR_TTRF_BIT}))
 
         mrs     x1, id_aa64dfr0_el1
-        ubfx    x1, x1, #ID_AA64DFR0_TRACEFILT_SHIFT, #ID_AA64DFR0_TRACEFILT_LENGTH
+        ubfx    x1, x1, #{ID_AA64DFR0_TRACEFILT_SHIFT}, #{ID_AA64DFR0_TRACEFILT_LENGTH}
         cbz     x1, 1f
-        orr     x0, x0, #MDCR_TTRF_BIT
+        orr     x0, x0, #{MDCR_TTRF_BIT}
 1:
         msr     mdcr_el3, x0
 
@@ -145,9 +138,7 @@ func bl31_entrypoint
          *  counts on every clock cycle.
          * ---------------------------------------------------------------------
          */
-        mov_imm x0, ((PMCR_EL0_RESET_VAL | PMCR_EL0_LP_BIT | \
-                      PMCR_EL0_LC_BIT | PMCR_EL0_DP_BIT) & \
-                    ~(PMCR_EL0_X_BIT | PMCR_EL0_D_BIT))
+        mov_imm x0, (({PMCR_EL0_RESET_VAL} | {PMCR_EL0_LP_BIT} | {PMCR_EL0_LC_BIT} | {PMCR_EL0_DP_BIT}) & ~({PMCR_EL0_X_BIT} | {PMCR_EL0_D_BIT}))
 
         msr     pmcr_el0, x0
 
@@ -156,7 +147,7 @@ func bl31_entrypoint
          * vectors have been setup.
          * ---------------------------------------------------------------------
          */
-        msr     daifclr, #DAIF_ABT_BIT
+        msr     daifclr, #{DAIF_ABT_BIT}
 
         /* ---------------------------------------------------------------------
          * Initialise CPTR_EL3, setting all fields rather than relying on hw.
@@ -188,11 +179,11 @@ func bl31_entrypoint
          *  to EL3 by default.
          */
 
-        mov_imm x0, (CPTR_EL3_RESET_VAL & ~(TCPAC_BIT | TTA_BIT | TFP_BIT))
+        mov_imm x0, ({CPTR_EL3_RESET_VAL} & ~({TCPAC_BIT} | {TTA_BIT} | {TFP_BIT}))
         mrs     x1, id_aa64dfr0_el1
-        ubfx    x1, x1, #ID_AA64DFR0_TRACEVER_SHIFT, #ID_AA64DFR0_TRACEVER_LENGTH
+        ubfx    x1, x1, #{ID_AA64DFR0_TRACEVER_SHIFT}, #{ID_AA64DFR0_TRACEVER_LENGTH}
         cbz     x1, 1f
-        orr     x0, x0, #TTA_BIT
+        orr     x0, x0, #{TTA_BIT}
 1:
         msr     cptr_el3, x0
 
@@ -267,7 +258,7 @@ func bl31_warm_entrypoint
          *  being accessed.
          * ---------------------------------------------------------------------
          */
-        mov     x1, #(SCTLR_I_BIT | SCTLR_A_BIT | SCTLR_SA_BIT)
+        mov     x1, #({SCTLR_I_BIT} | {SCTLR_A_BIT} | {SCTLR_SA_BIT})
         mrs     x0, sctlr_el3
         orr     x0, x0, x1
         msr     sctlr_el3, x0
@@ -326,16 +317,12 @@ func bl31_warm_entrypoint
          *  When FEAT_TRF is not implemented, this bit is RES0.
          * ---------------------------------------------------------------------
          */
-        mov_imm x0, ((MDCR_EL3_RESET_VAL | MDCR_SDD_BIT | \
-                      MDCR_SPD32(MDCR_SPD32_DISABLE) | MDCR_SCCD_BIT | \
-                      MDCR_MCCD_BIT) & ~(MDCR_SPME_BIT | MDCR_TDOSA_BIT | \
-                      MDCR_TDA_BIT | MDCR_TPM_BIT | MDCR_NSTB(MDCR_NSTB_EL1) | \
-                      MDCR_NSTBE_BIT | MDCR_TTRF_BIT))
+        mov_imm x0, (({MDCR_EL3_RESET_VAL} | {MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE} | {MDCR_SCCD_BIT} | {MDCR_MCCD_BIT}) & ~({MDCR_SPME_BIT} | {MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_TPM_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT} | {MDCR_TTRF_BIT}))
 
         mrs     x1, id_aa64dfr0_el1
-        ubfx    x1, x1, #ID_AA64DFR0_TRACEFILT_SHIFT, #ID_AA64DFR0_TRACEFILT_LENGTH
+        ubfx    x1, x1, #{ID_AA64DFR0_TRACEFILT_SHIFT}, #{ID_AA64DFR0_TRACEFILT_LENGTH}
         cbz     x1, 1f
-        orr     x0, x0, #MDCR_TTRF_BIT
+        orr     x0, x0, #{MDCR_TTRF_BIT}
 1:
         msr     mdcr_el3, x0
 
@@ -344,7 +331,7 @@ func bl31_warm_entrypoint
 	 * vectors have been setup.
 	 * ---------------------------------------------------------------------
 	 */
-	msr	daifclr, #DAIF_ABT_BIT
+	msr	daifclr, #{DAIF_ABT_BIT}
 
         /* ---------------------------------------------------------------------
          * Initialise CPTR_EL3, setting all fields rather than relying on hw.
@@ -376,11 +363,11 @@ func bl31_warm_entrypoint
          *  to EL3 by default.
          */
 
-        mov_imm x0, (CPTR_EL3_RESET_VAL & ~(TCPAC_BIT | TTA_BIT | TFP_BIT))
+        mov_imm x0, ({CPTR_EL3_RESET_VAL} & ~({TCPAC_BIT} | {TTA_BIT} | {TFP_BIT}))
         mrs     x1, id_aa64dfr0_el1
-        ubfx    x1, x1, #ID_AA64DFR0_TRACEVER_SHIFT, #ID_AA64DFR0_TRACEVER_LENGTH
+        ubfx    x1, x1, #{ID_AA64DFR0_TRACEVER_SHIFT}, #{ID_AA64DFR0_TRACEVER_LENGTH}
         cbz     x1, 1f
-        orr     x0, x0, #TTA_BIT
+        orr     x0, x0, #{TTA_BIT}
 1:
         msr     cptr_el3, x0
 

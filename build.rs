@@ -32,7 +32,6 @@ fn build_libtfa(platform: &str) {
         .include("include/lib/el3_runtime/aarch64")
         .include("include/lib/libc")
         .include("include/plat/arm/common/aarch64")
-        .file("bl31_entrypoint.S")
         .file("cpu_helpers.S")
         .file("cpu_data.S");
 

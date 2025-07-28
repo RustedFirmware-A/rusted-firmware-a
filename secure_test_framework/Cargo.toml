@@ -8,6 +8,7 @@ version = "0.1.0"
 edition = "2024"
 authors = ["Andrew Walbran <qwandor@google.com>"]
 rust-version = "1.88"
+license = "BSD-3-Clause"
 
 [dependencies]
 aarch64-rt = { version = "0.2.2", default-features = false, features = [

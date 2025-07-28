@@ -114,13 +114,16 @@ fn sum(numbers: &[u32]) -> u32 {
 }
 ```
 
-### Copyrights
+### Copyright and License
 
-At the top of each source code file, put a copyright header in this format:
+At the top of each source code file, put a header in this format:
 
 > Copyright The Rusted Firmware-A Contributors.
 >
 > SPDX-License-Identifier: BSD-3-Clause
+
+The SPDX tag replaces the full license text and enables machine processing of license information
+based on the SPDX License Identifiers that are available [here][8].
 
 [1]: threat-model.md
 [2]: https://doc.rust-lang.org/reference/types/numeric.html#machine-dependent-integer-types
@@ -129,3 +132,4 @@ At the top of each source code file, put a copyright header in this format:
 [5]: https://doc.rust-lang.org/stable/std/ptr/index.html#exposed-provenance
 [6]: https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html#lossy-provenance-casts
 [7]: https://doc.rust-lang.org/rustdoc/write-documentation/linking-to-items-by-name.html
+[8]: http://spdx.org/licenses/

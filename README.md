@@ -126,7 +126,14 @@ $ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 NEED_BL31=no" \
 
 Running the FVP with RME through RF-A build system is not supported at this time.
 
-# Arm trademark notice
+## License
+
+The project is provided under the BSD-3-Clause license, see [LICENSE][3]. Contributions to this
+project are accepted under the same license and must also be made under the terms of the
+[Developer Certificate of Origin][4], confirming that the code submitted can (legally) become part
+of the project.
+
+## Arm trademark notice
 
 Arm is a registered trademark of Arm Limited (or its subsidiaries or affiliates).
 
@@ -138,7 +145,9 @@ Arm word trademark.
 
 [1]: https://www.arm.com/company/policies/trademarks/arm-trademark-list
 [2]: https://www.arm.com/company/policies/trademarks/guidelines-trademarks
+[3]: ./LICENSE
+[4]: https://developercertificate.org
 
---------------
+---
 
-*Copyright The Rusted Firmware-A Contributors*
+_Copyright The Rusted Firmware-A Contributors_

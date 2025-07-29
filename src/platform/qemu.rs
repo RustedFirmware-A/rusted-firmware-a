@@ -34,6 +34,9 @@ use arm_psci::{ErrorCode, Mpidr, PowerState};
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
 use percore::Cores;
 
+#[cfg(feature = "rme")]
+compile_error!("RME is not supported on QEMU");
+
 const DEVICE0_BASE: usize = 0x0800_0000;
 const DEVICE0_SIZE: usize = 0x0100_0000;
 const DEVICE1_BASE: usize = 0x0900_0000;

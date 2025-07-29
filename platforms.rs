@@ -5,7 +5,6 @@
 mod fvp;
 mod qemu;
 
-use cc::Build;
 use fvp::FvpBuilder;
 use qemu::QemuBuilder;
 use std::error::Error;
@@ -27,9 +26,10 @@ pub trait Builder {
     /// defining BL31_SIZE symbol.
     fn bl31_size(&self) -> u64;
 
-    /// Sets up platform-specific configurations (code generation, file inclusions, `cc::Build`
-    /// definitions, etc.).
-    fn configure_build(&self, build: &mut Build) -> BuildResult;
+    /// Sets up platform-specific configurations (code generation, file inclusions, etc.).
+    fn configure_build(&self) -> BuildResult {
+        Ok(())
+    }
 }
 
 pub fn get_builder(platform: &str) -> Result<Box<dyn Builder>, Box<dyn Error>> {

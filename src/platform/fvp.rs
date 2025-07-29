@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-include!("../../platforms/fvp/config.rs");
+mod config;
 
+use self::config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU};
 use super::{DummyService, Platform};
 use crate::{
     context::{CoresImpl, EntryPointInfo},

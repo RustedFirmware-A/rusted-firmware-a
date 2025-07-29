@@ -2,8 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::{BuildResult, Builder};
-use cc::Build;
+use super::Builder;
 
 pub struct QemuBuilder;
 
@@ -21,14 +20,5 @@ impl Builder for QemuBuilder {
 
     fn bl31_size(&self) -> u64 {
         Self::BL31_SIZE
-    }
-
-    fn configure_build(&self, build: &mut Build) -> BuildResult {
-        if cfg!(feature = "rme") {
-            Err(format!("RME is not supported on {:?}", QemuBuilder::PLAT_NAME).into())
-        } else {
-            build.include("platforms/qemu/include");
-            Ok(())
-        }
     }
 }

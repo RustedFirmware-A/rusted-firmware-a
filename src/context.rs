@@ -480,6 +480,9 @@ pub struct CpuData {
     pub crash_buf: CrashBuf,
 }
 
+const _: () = assert!(size_of::<CpuData>() % align_of::<CpuData>() == 0);
+const _: () = assert!(size_of::<CpuData>() % PlatformImpl::CACHE_WRITEBACK_GRANULE == 0);
+
 impl CpuData {
     const EMPTY: Self = Self {
         cpu_context: [null_mut(); CPU_DATA_CONTEXT_NUM],
@@ -727,6 +730,7 @@ mod asm {
         include_str!("context.S"),
         include_str!("runtime_exceptions.S"),
         include_str!("cpu_helpers.S"),
+        include_str!("cpu_data.S"),
         include_str!("asm_macros_common_purge.S"),
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         DEBUG = const DEBUG as u32,
@@ -780,5 +784,6 @@ mod asm {
         CPU_IMPL_PN_MASK = const (MIDR_IMPL_MASK << MIDR_IMPL_SHIFT) | (MIDR_PN_MASK << MIDR_PN_SHIFT),
         CRASH_REPORTING = const CRASH_REPORTING as u32,
         SUPPORT_UNKNOWN_MPID = const 0,
+        CPU_DATA_SIZE = const size_of::<CpuData>(),
     );
 }

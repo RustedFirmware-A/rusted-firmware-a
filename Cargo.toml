@@ -42,9 +42,6 @@ arm-gic = "0.6.0"
 [dev-dependencies]
 arm-gic = { version = "0.6.0", features = ["fakes"] }
 
-[build-dependencies]
-cc = "=1.2.16"
-
 [features]
 default = ["sel2"]
 rme = []

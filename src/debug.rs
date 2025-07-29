@@ -9,6 +9,11 @@ pub const DEBUG: bool = cfg!(debug_assertions);
 #[cfg(not(test))]
 pub const ENABLE_ASSERTIONS: bool = true;
 
+// TODO: Make this configurable or equal to `DEBUG` once we stop building assembly files from
+// build.rs with a different value.
+#[cfg(not(test))]
+pub const CRASH_REPORTING: bool = true;
+
 #[cfg(target_arch = "aarch64")]
 mod asm {
     use super::*;

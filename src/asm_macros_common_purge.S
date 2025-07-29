@@ -21,4 +21,5 @@
 .purgem exception_return
 .purgem _mov_imm16
 .purgem mov_imm
+.purgem adr_l
 .purgem ASM_ASSERT

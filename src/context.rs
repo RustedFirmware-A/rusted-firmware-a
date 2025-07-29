@@ -36,7 +36,7 @@ use crate::{
 };
 use core::{
     cell::{RefCell, RefMut},
-    ptr::null_mut,
+    ptr::{null, null_mut},
 };
 use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
 
@@ -476,17 +476,37 @@ pub type CrashBuf = [u64; CPU_DATA_CRASH_BUF_COUNT];
 #[repr(C, align(64))]
 pub struct CpuData {
     cpu_context: [*mut u8; CPU_DATA_CONTEXT_NUM],
-    cpu_ops_ptr: usize,
+    cpu_ops_ptr: *const CpuOps,
     pub crash_buf: CrashBuf,
 }
 
 impl CpuData {
     const EMPTY: Self = Self {
         cpu_context: [null_mut(); CPU_DATA_CONTEXT_NUM],
-        cpu_ops_ptr: 0,
+        cpu_ops_ptr: null(),
         crash_buf: [0; CPU_DATA_CRASH_BUF_COUNT],
     };
 }
+
+const CPU_MAX_PWR_DWN_OPS: usize = 2;
+
+#[derive(Clone, Debug)]
+#[repr(C)]
+struct CpuOps {
+    midr: u64,
+    reset_func: *const extern "C" fn(),
+    extra1_func: *const extern "C" fn(),
+    extra2_func: *const extern "C" fn(),
+    extra3_func: *const extern "C" fn(),
+    e_handler_func: *const extern "C" fn(u64),
+    pwr_dwn_ops: [*const extern "C" fn(); CPU_MAX_PWR_DWN_OPS],
+    errata_list_start: *const u8,
+    errata_list_end: *const u8,
+    errata_func: *const u8,
+    reg_dump: *const extern "C" fn(),
+}
+
+const _: () = assert!(size_of::<CpuOps>() % align_of::<CpuOps>() == 0);
 
 #[unsafe(export_name = "per_world_context")]
 static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] =
@@ -664,7 +684,7 @@ pub struct EntryPointInfo {
 mod asm {
     use super::*;
     use crate::{
-        debug::{DEBUG, ENABLE_ASSERTIONS},
+        debug::{CRASH_REPORTING, DEBUG, ENABLE_ASSERTIONS},
         exceptions::RunResult,
         smccc::NOT_SUPPORTED,
         sysregs::{StackPointer, cptr_el3, pmcr},
@@ -695,10 +715,18 @@ mod asm {
     #[cfg(feature = "sel2")]
     const _: () = assert!(!ERRATA_SPECULATIVE_AT);
 
+    const MIDR_IMPL_MASK: u32 = 0xff;
+    const MIDR_IMPL_SHIFT: u8 = 0x18;
+    const MIDR_PN_MASK: u32 = 0xfff;
+    const MIDR_PN_SHIFT: u8 = 0x4;
+    const CPU_IMPL_PN_MASK: u32 =
+        (MIDR_IMPL_MASK << MIDR_IMPL_SHIFT) | (MIDR_PN_MASK << MIDR_PN_SHIFT);
+
     global_asm!(
         include_str!("asm_macros_common.S"),
         include_str!("context.S"),
         include_str!("runtime_exceptions.S"),
+        include_str!("cpu_helpers.S"),
         include_str!("asm_macros_common_purge.S"),
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         DEBUG = const DEBUG as u32,
@@ -741,9 +769,16 @@ mod asm {
         CTX_GPREG_SP_EL0 = const 31 * size_of::<u64>(),
         ISR_A_SHIFT = const 8,
         SMC_UNK = const NOT_SUPPORTED,
-        CPU_E_HANDLER_FUNC = const 0, // TODO
+        CPU_E_HANDLER_FUNC = const offset_of!(CpuOps, e_handler_func),
         RUN_RESULT_SMC = const RunResult::SMC,
         RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
         RUN_RESULT_INTERRUPT = const RunResult::INTERRUPT,
+        CPU_DATA_CPU_OPS_PTR = const offset_of!(CpuData, cpu_ops_ptr),
+        CPU_MIDR = const offset_of!(CpuOps, midr),
+        CPU_REG_DUMP = const offset_of!(CpuOps, reg_dump),
+        CPU_OPS_SIZE = const size_of::<CpuOps>(),
+        CPU_IMPL_PN_MASK = const (MIDR_IMPL_MASK << MIDR_IMPL_SHIFT) | (MIDR_PN_MASK << MIDR_PN_SHIFT),
+        CRASH_REPORTING = const CRASH_REPORTING as u32,
+        SUPPORT_UNKNOWN_MPID = const 0,
     );
 }

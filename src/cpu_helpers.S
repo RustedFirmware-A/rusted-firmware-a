@@ -5,15 +5,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <arch.h>
-#include <asm_macros.S>
-#include <assert_macros.S>
-#include <common/bl_common.h>
-#include <common/debug.h>
-#include <cpu_macros.S>
-#include <lib/cpus/cpu_ops.h>
-#include <lib/el3_runtime/cpu_data.h>
-
 	/*
 	 * Initializes the cpu_ops_ptr if not already initialized
 	 * in cpu_data. This can be called without a runtime stack, but may
@@ -23,17 +14,17 @@
 	.globl	init_cpu_ops
 func init_cpu_ops
 	mrs	x6, tpidr_el3
-	ldr	x0, [x6, #CPU_DATA_CPU_OPS_PTR]
+	ldr	x0, [x6, #{CPU_DATA_CPU_OPS_PTR}]
 	cbnz	x0, 1f
 	mov	x10, x30
 	bl	get_cpu_ops_ptr
-	str	x0, [x6, #CPU_DATA_CPU_OPS_PTR]!
+	str	x0, [x6, #{CPU_DATA_CPU_OPS_PTR}]!
 	mov x30, x10
 1:
 	ret
 endfunc init_cpu_ops
 
-#if CRASH_REPORTING
+.if {CRASH_REPORTING}
 	/*
 	 * The cpu specific registers which need to be reported in a crash
 	 * are reported via cpu_ops cpu_reg_dump function. After a matching
@@ -49,14 +40,14 @@ func do_cpu_reg_dump
 	cbz	x0, 1f
 
 	/* Get the cpu_ops cpu_reg_dump */
-	ldr	x2, [x0, #CPU_REG_DUMP]
+	ldr	x2, [x0, #{CPU_REG_DUMP}]
 	cbz	x2, 1f
 	blr	x2
 1:
 	mov	x30, x16
 	ret
 endfunc do_cpu_reg_dump
-#endif
+.endif
 
 	/*
 	 * The below function returns the cpu_ops structure matching the
@@ -79,19 +70,19 @@ endfunc do_cpu_reg_dump
 func get_cpu_ops_ptr
 	/* Read the MIDR_EL1 */
 	mrs	x2, midr_el1
-	mov_imm	x3, CPU_IMPL_PN_MASK
+	mov_imm	x3, {CPU_IMPL_PN_MASK}
 
 	/* Retain only the implementation and part number using mask */
 	and	w2, w2, w3
 
 	/* Get the cpu_ops end location */
-	adr_l	x5, (__CPU_OPS_END__ + CPU_MIDR)
+	adr_l	x5, (__CPU_OPS_END__ + {CPU_MIDR})
 
 	/* Initialize the return parameter */
 	mov	x0, #0
 1:
 	/* Get the cpu_ops start location */
-	adr_l	x4, (__CPU_OPS_START__ + CPU_MIDR)
+	adr_l	x4, (__CPU_OPS_START__ + {CPU_MIDR})
 
 2:
 	/* Check if we have reached end of list */
@@ -99,7 +90,7 @@ func get_cpu_ops_ptr
 	b.eq	search_def_ptr
 
 	/* load the midr from the cpu_ops */
-	ldr	x1, [x4], #CPU_OPS_SIZE
+	ldr	x1, [x4], #{CPU_OPS_SIZE}
 	and	w1, w1, w3
 
 	/* Check if midr matches to midr of this core */
@@ -107,19 +98,19 @@ func get_cpu_ops_ptr
 	b.ne	2b
 
 	/* Subtract the increment and offset to get the cpu-ops pointer */
-	sub	x0, x4, #(CPU_OPS_SIZE + CPU_MIDR)
-#if ENABLE_ASSERTIONS
+	sub	x0, x4, #({CPU_OPS_SIZE} + {CPU_MIDR})
+.if {ENABLE_ASSERTIONS}
 	cmp	x0, #0
-	ASM_ASSERT(ne)
-#endif
-#ifdef SUPPORT_UNKNOWN_MPID
+	ASM_ASSERT ne, "get_cpu_ops_ptr got null pointer", cpu_ops_ptr_nonnull
+.endif
+.if {SUPPORT_UNKNOWN_MPID}
 	cbnz	x2, exit_mpid_found
 	/* Mark the unsupported MPID flag */
 	adrp	x1, unsupported_mpid_flag
 	add	x1, x1, :lo12:unsupported_mpid_flag
 	str	w2, [x1]
 exit_mpid_found:
-#endif
+.endif
 	ret
 
 	/*
@@ -127,11 +118,11 @@ exit_mpid_found:
 	 * or return error if already searched.
 	 */
 search_def_ptr:
-#ifdef SUPPORT_UNKNOWN_MPID
+.if {SUPPORT_UNKNOWN_MPID}
 	cbz	x2, error_exit
 	mov	x2, #0
 	b	1b
 error_exit:
-#endif
+.endif
 	ret
 endfunc get_cpu_ops_ptr

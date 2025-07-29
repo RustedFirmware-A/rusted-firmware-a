@@ -157,7 +157,9 @@ fn configure_private_interrupts(gic: &mut GicV3, core_index: usize, config: &Gic
 }
 
 fn init_redistributor(gic: &mut GicV3, core_index: usize, config: &GicConfig) {
-    // TODO: power on redistributor for GIC-600
+    // TODO: power off the redistributor in PSCI ops.
+    gic.gicr_power_on(core_index);
+
     configure_private_interrupts(gic, core_index, config);
 }
 

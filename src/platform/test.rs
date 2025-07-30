@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::Platform;
+use super::{DummyService, Platform};
 use crate::{
     aarch64::sev,
     context::EntryPointInfo,
@@ -47,6 +47,8 @@ impl Platform for TestPlatform {
     type LogSinkImpl = StdOutSink;
     type PsciPlatformImpl = TestPsciPlatformImpl;
 
+    type PlatformServiceImpl = DummyService;
+
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],
     };
@@ -61,6 +63,10 @@ impl Platform for TestPlatform {
 
     unsafe fn create_gic() -> GicV3<'static> {
         unimplemented!();
+    }
+
+    fn create_service() -> Self::PlatformServiceImpl {
+        DummyService
     }
 
     fn handle_group0_interrupt(int_id: IntId) {

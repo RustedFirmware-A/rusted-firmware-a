@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::Platform;
+use super::{DummyService, Platform};
 use crate::{
     aarch64::{dsb_sy, sev, wfi},
     context::{CoresImpl, EntryPointInfo},
@@ -107,6 +107,8 @@ impl Platform for Qemu {
         HybridLogger<&'static PerCoreMemoryLogger<LOG_BUFFER_SIZE>, LockedWriter<Uart<'static>>>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
 
+    type PlatformServiceImpl = DummyService;
+
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[
             (
@@ -159,6 +161,10 @@ impl Platform for Qemu {
                 false,
             )
         }
+    }
+
+    fn create_service() -> Self::PlatformServiceImpl {
+        DummyService
     }
 
     fn handle_group0_interrupt(int_id: IntId) {

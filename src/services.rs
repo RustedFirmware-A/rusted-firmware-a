@@ -12,7 +12,7 @@ use crate::{
     context::{World, cpu_state, set_initial_world, switch_world},
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
-    platform::{Platform, PlatformImpl, exception_free},
+    platform::{self, Platform, PlatformImpl, exception_free},
     smccc::{FunctionId, NOT_SUPPORTED, SmcReturn},
     sysregs::Esr,
 };
@@ -80,6 +80,7 @@ static SERVICES: Once<Services> = Once::new();
 pub struct Services {
     pub arch: arch::Arch,
     pub psci: psci::Psci,
+    pub platform: platform::PlatformServiceImpl,
     pub spmd: ffa::Spmd,
     #[cfg(feature = "rme")]
     pub rmmd: rmmd::Rmmd,
@@ -97,6 +98,7 @@ impl Services {
         Self {
             arch: arch::Arch::new(),
             psci: psci::Psci::new(PlatformImpl::psci_platform().unwrap()),
+            platform: PlatformImpl::create_service(),
             spmd: ffa::Spmd::new(),
             #[cfg(feature = "rme")]
             rmmd: rmmd::Rmmd::new(),
@@ -114,6 +116,8 @@ impl Services {
             &self.arch
         } else if self.psci.owns(function) {
             &self.psci
+        } else if self.platform.owns(function) {
+            &self.platform
         } else if self.spmd.owns(function) {
             &self.spmd
         } else {

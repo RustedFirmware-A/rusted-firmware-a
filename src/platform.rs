@@ -14,7 +14,8 @@ use crate::{
     gicv3,
     logger::LogSink,
     pagetable::IdMap,
-    services::{arch::WorkaroundSupport, psci::PsciPlatformInterface},
+    services::{Service, arch::WorkaroundSupport, psci::PsciPlatformInterface},
+    smccc::FunctionId,
     sysregs::MpidrEl1,
 };
 use arm_gic::{IntId, gicv3::GicV3};
@@ -27,11 +28,23 @@ pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
 pub use test::{TestPlatform as PlatformImpl, exception_free};
 
+/// For platforms that do not want to implement any custom SMC handlers.
+pub struct DummyService;
+
+impl Service for DummyService {
+    fn owns(&self, _function: FunctionId) -> bool {
+        // Does not own any function id.
+        false
+    }
+}
+
 /// Type alias for convenience, to avoid having to use the complicated type name everywhere.
 pub type LogSinkImpl = <PlatformImpl as Platform>::LogSinkImpl;
 
 pub type PsciPlatformImpl = <PlatformImpl as Platform>::PsciPlatformImpl;
 pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface>::PlatformPowerState;
+
+pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
 
 unsafe extern "C" {
     /// Given a valid MPIDR value, returns the corresponding linear core index.
@@ -64,6 +77,9 @@ pub trait Platform {
     /// Platform dependent PsciPlatformInterface implementation type.
     type PsciPlatformImpl: PsciPlatformInterface;
 
+    /// Service that handles platform-specific SMC calls.
+    type PlatformServiceImpl: Service;
+
     /// Initialises the logger and anything else the platform needs. This will be called before the
     /// MMU is enabled.
     ///
@@ -80,6 +96,15 @@ pub trait Platform {
     ///
     /// This must only be called once, to avoid creating aliases of the GIC driver.
     unsafe fn create_gic() -> GicV3<'static>;
+
+    /// Creates instance of PlatformServiceImpl.
+    ///
+    /// This is used for dispatching platform-specific SMCs.
+    ///
+    /// TODO: provide default implementation with DummyService
+    /// once associated type defaults become stable
+    /// see issue #29661 <https://github.com/rust-lang/rust/issues/29661>
+    fn create_service() -> Self::PlatformServiceImpl;
 
     /// Handles a Group 0 interrupt.
     ///

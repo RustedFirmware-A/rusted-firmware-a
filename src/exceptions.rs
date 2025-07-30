@@ -30,7 +30,7 @@ const LOWER_EL_AARCH64: usize = 0x400;
 pub fn inject_undef64(world: World) {
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
-        let el3_state = &mut cpu_state.context_mut(world).el3_state;
+        let el3_state = &mut cpu_state[world].el3_state;
 
         let elr_el3 = el3_state.elr_el3;
         let old_spsr = el3_state.spsr_el3;
@@ -185,10 +185,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
 
     if !in_regs.is_empty() {
         exception_free(|token| {
-            cpu_state(token)
-                .context_mut(world)
-                .gpregs
-                .write_return_value(in_regs);
+            cpu_state(token)[world].gpregs.write_return_value(in_regs);
         });
     }
 

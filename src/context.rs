@@ -37,6 +37,7 @@ use crate::{
 };
 use core::{
     cell::{RefCell, RefMut},
+    ops::{Index, IndexMut},
     ptr::{null, null_mut},
 };
 use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
@@ -523,30 +524,36 @@ struct CpuOps {
 const _: () = assert!(size_of::<CpuOps>() % align_of::<CpuOps>() == 0);
 
 #[unsafe(export_name = "per_world_context")]
-static mut PER_WORLD_CONTEXT: [PerWorldContext; CPU_DATA_CONTEXT_NUM] =
-    [PerWorldContext::EMPTY; CPU_DATA_CONTEXT_NUM];
+static PER_WORLD_CONTEXT: PerWorld<PerWorldContext> =
+    PerWorld([PerWorldContext::EMPTY; CPU_DATA_CONTEXT_NUM]);
 
 #[unsafe(export_name = "percpu_data")]
 static mut PERCPU_DATA: [CpuData; PlatformImpl::CORE_COUNT] =
     [CpuData::EMPTY; PlatformImpl::CORE_COUNT];
 
-#[derive(Debug)]
-pub struct CpuState {
-    cpu_contexts: [CpuContext; CPU_DATA_CONTEXT_NUM],
+/// An array with one `T` for each world.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[repr(transparent)]
+pub struct PerWorld<T>([T; CPU_DATA_CONTEXT_NUM]);
+
+impl<T> Index<World> for PerWorld<T> {
+    type Output = T;
+
+    fn index(&self, world: World) -> &Self::Output {
+        &self.0[world.index()]
+    }
 }
 
+impl<T> IndexMut<World> for PerWorld<T> {
+    fn index_mut(&mut self, world: World) -> &mut Self::Output {
+        &mut self.0[world.index()]
+    }
+}
+
+pub type CpuState = PerWorld<CpuContext>;
+
 impl CpuState {
-    const EMPTY: Self = Self {
-        cpu_contexts: [CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-    };
-
-    pub fn context(&self, world: World) -> &CpuContext {
-        &self.cpu_contexts[world.index()]
-    }
-
-    pub fn context_mut(&mut self, world: World) -> &mut CpuContext {
-        &mut self.cpu_contexts[world.index()]
-    }
+    const EMPTY: Self = Self([CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM]);
 }
 
 static CPU_STATE: PerCoreState<CpuState> = PerCore::new(
@@ -557,8 +564,9 @@ static CPU_STATE: PerCoreState<CpuState> = PerCore::new(
 pub fn world_context(world: World) -> *mut CpuContext {
     // SAFETY: Getting the `CpuContext` pointer from a `CpuState` pointer requires the `CpuState`
     // pointer to be valid. We know that this is always true, because we get it from
-    // `CPU_STATE.get().as_ptr()`.
-    unsafe { &raw mut (*CPU_STATE.get().as_ptr()).cpu_contexts[world.index()] }
+    // `CPU_STATE.get().as_ptr()`. We avoid creating any intermediate references by accessing the
+    // field of the `PerWorld` directly rather than using the `IndexMut` implementation.
+    unsafe { &raw mut (*CPU_STATE.get().as_ptr()).0[world.index()] }
 }
 
 /// Saves lower EL system registers from the current world, restores lower EL system registers of
@@ -567,8 +575,8 @@ pub fn switch_world(old_world: World, new_world: World) {
     assert_ne!(old_world, new_world);
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
-        cpu_state.context_mut(old_world).save_lower_el_sysregs();
-        cpu_state.context(new_world).restore_lower_el_sysregs();
+        cpu_state[old_world].save_lower_el_sysregs();
+        cpu_state[new_world].restore_lower_el_sysregs();
     });
 }
 
@@ -579,7 +587,7 @@ pub fn switch_world(old_world: World, new_world: World) {
 pub fn set_initial_world(world: World) {
     exception_free(|token| {
         let cpu_state = cpu_state(token);
-        let context = cpu_state.context(world);
+        let context = &cpu_state[world];
 
         // This must be initialised before the EL2 system registers are written to, to avoid an
         // exception.
@@ -603,13 +611,10 @@ pub fn initialise_contexts(
 ) {
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
-        initialise_nonsecure(
-            cpu_state.context_mut(World::NonSecure),
-            non_secure_entry_point,
-        );
-        initialise_secure(cpu_state.context_mut(World::Secure), secure_entry_point);
+        initialise_nonsecure(&mut cpu_state[World::NonSecure], non_secure_entry_point);
+        initialise_secure(&mut cpu_state[World::Secure], secure_entry_point);
         #[cfg(feature = "rme")]
-        initialise_realm(cpu_state.context_mut(World::Realm), realm_entry_point);
+        initialise_realm(&mut cpu_state[World::Realm], realm_entry_point);
     });
 }
 

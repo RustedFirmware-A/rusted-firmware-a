@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-BL1 := target/bl1.bin
-BL2 := target/bl2.bin
 BL31_BIN := target/bl31.bin
 BL32 := target/bl32.bin
 BL33 := target/bl33.bin
@@ -16,10 +14,9 @@ CARGO ?= cargo
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
 
-.PHONY: all cargo-doc clean clippy clippy-test qemu qemu-build qemu-wait fvp fvp-build build build-stf list_platforms list_features
+.PHONY: all cargo-doc clean clippy clippy-test build build-stf list_platforms list_features
 
 PLATFORMS_AVAILABLE := fvp qemu
-PLAT := $(filter $(PLATFORMS_AVAILABLE), $(MAKECMDGOALS))
 
 ifndef PLAT
   ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),clean clippy-test help list_platforms))
@@ -50,26 +47,7 @@ TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\"
 TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh" $(CARGO)
 STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" $(CARGO)
 
-all: $(PLAT)-build
-
-TFA ?= $(error $$TFA must point to your TF-A source repository)
-
-$(BL1):
-	make -C $(TFA) $(TFA_FLAGS) PLAT=$(PLAT) DEBUG=$(DEBUG) bl1
-	mkdir -p target
-	ln -fsr $(TFA)/build/$(PLAT)/$(BUILDTYPE)/bl1.bin $@
-
-$(BL2):
-	make -C $(TFA) $(TFA_FLAGS) PLAT=$(PLAT) DEBUG=$(DEBUG) bl2
-	mkdir -p target
-	ln -fsr $(TFA)/build/$(PLAT)/$(BUILDTYPE)/bl2.bin $@
-
-$(FIP): $(BL2) build $(BL32) $(BL33)
-	make -C $(TFA) $(TFA_FLAGS) PLAT=$(PLAT) DEBUG=$(DEBUG) BL32=$(PWD)/$(BL32) BL33=$(PWD)/$(BL33) fip
-	mkdir -p target
-	cp $(TFA)/build/$(PLAT)/$(BUILDTYPE)/fip.bin $@
-#	Replace existing BL31 image by RF-A into the FIP image.
-	$(TFA)/tools/fiptool/fiptool update --soc-fw $(BL31_BIN) $@
+all: images
 
 build:
 	$(TARGET_CARGO) build $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
@@ -93,50 +71,7 @@ cargo-doc:
 clippy:
 	$(TARGET_CARGO) clippy $(CARGO_FLAGS)
 
-QEMU = qemu-system-aarch64
-GDB_PORT ?= 1234
-QEMU_FLAGS = -machine virt,gic-version=3,secure=on,virtualization=on -cpu max -m 1204M \
-	-chardev stdio,signal=off,mux=on,id=char0 -monitor chardev:char0 \
-	-serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \
-	-gdb tcp:localhost:$(GDB_PORT) \
-	-display none -bios bl1.bin \
-	-smp 4
-QEMU_DEPS = $(BL1) $(BL2) $(BL32) $(BL33) build
-
-qemu-build: $(QEMU_DEPS)
-
-qemu: $(QEMU_DEPS)
-	cd target && $(QEMU) $(QEMU_FLAGS)
-
-qemu-wait: $(QEMU_DEPS)
-	cd target && $(QEMU) $(QEMU_FLAGS) -S
-
-gdb: $(QEMU_DEPS)
-	gdb-multiarch target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 \
-		--eval-command="target remote :$(GDB_PORT)"
-
-fvp-build: $(BL1) $(FIP)
-
-fvp: $(BL1) $(FIP)
-	FVP_Base_RevC-2xAEMvA \
-	  -C cluster0.has_arm_v8-4=1 \
-	  -C cluster1.has_arm_v8-4=1 \
-	  -C bp.vis.disable_visualisation=1 \
-	  -C bp.pl011_uart0.unbuffered_output=1 \
-	  -C bp.pl011_uart0.out_file=- \
-	  -C bp.terminal_0.start_telnet=0 \
-	  -C bp.pl011_uart1.out_file=- \
-	  -C bp.terminal_1.start_telnet=0 \
-	  -C bp.terminal_2.start_telnet=0 \
-	  -C bp.terminal_3.start_telnet=0 \
-	  -C pctl.startup=0.0.0.0 \
-	  -C cluster0.NUM_CORES=4 \
-	  -C cluster1.NUM_CORES=4 \
-	  -C cluster0.cpu0.semihosting-cwd=target \
-	  -C cluster1.cpu0.semihosting-cwd=target \
-	  -C bp.secure_memory=1 \
-	  -C bp.secureflashloader.fname=$(BL1) \
-	  -C bp.flashloader0.fname=$(FIP)
+images: $(BL32) $(BL33) build
 
 clean:
 	$(CARGO) clean
@@ -175,11 +110,5 @@ help:
 	@echo "  clean        	Clean the build for all platforms."
 	@echo "  clippy       	Lint the Rust source tree for the specified platform."
 	@echo "  clippy-test 	Lint the Rust source tree for the test configuration."
-	@echo "  fvp-build    	Build all binaries for the FVP platform."
-	@echo "  fvp          	Run fvp. Target should be invoked after binaries are built."
-	@echo "  gdb          	Attach gdb to a running BL31."
 	@echo "  list_features  List all possible FEATURE combinations for the given platform."
 	@echo "  list_platforms List all supported platforms."
-	@echo "  qemu-build   	Build all binaries for the QEMU platform."
-	@echo "  qemu         	Run qemu. Target should be invoked after binaries are built."
-	@echo "  qemu-wait    	Run qemu and wait for a debugger to be attached. (See gdb.)"

@@ -34,17 +34,10 @@ $ sudo apt install qemu-system-arm
 
 ## Build and run in QEMU
 
-Build C BL1 and BL2 and Rust BL31:
+Build BL1, BL2 and Rust BL31 and run in QEMU:
 
 ```sh
-$ make TFA_FLAGS="CC=clang NEED_BL32=yes NEED_BL31=no" \
-    PLAT=qemu DEBUG=1 all
-```
-
-Build Rust BL31 and run in QEMU:
-
-```sh
-$ make DEBUG=1 qemu
+$ PLAT=qemu DEBUG=1 ./build-and-run.sh
 ```
 
 ## Debugging with QEMU
@@ -52,24 +45,27 @@ $ make DEBUG=1 qemu
 To connect GDB to QEMU:
 
 ```sh
-$ make PLAT=qemu DEBUG=1 qemu-wait
+$ PLAT=qemu DEBUG=1 QEMU_WAIT=1 ./build-and-run.sh
 ```
 
 Then, in a separate terminal window, attach `gdb`:
 
 ```sh
-$ make PLAT=qemu DEBUG=1 gdb
+$ PLAT=qemu DEBUG=1 GDB=1 ./build-and-run.sh
 ```
 
-If you want QEMU's `gdb` listener listen on a port other than the default (which
-is 1234), specify the `GDB_PORT` environment variable in both `make`
+If you want QEMU's gdb listener listen on a port other than the default (which
+is 1234), specify the GDB_PORT environment variable in both make
 invocations:
 
 ```sh
-$ GDB_PORT=4096 make PLAT=qemu DEBUG=1 qemu-wait
+$ GDB_PORT=4096 PLAT=qemu DEBUG=1 QEMU_WAIT=1 ./build-and-run.sh
+```
 
-# In your 2nd terminal, of course:
-$ GDB_PORT=4096 make PLAT=qemu DEBUG=1 gdb
+In your 2nd terminal, of course:
+
+```sh
+$ GDB_PORT=4096 PLAT=qemu DEBUG=1 GDB=1 ./build-and-run.sh
 ```
 
 (This could be useful if you needed to run many instances of QEMU, such as to
@@ -95,32 +91,16 @@ to download this or any other FVP.
 Build C BL1 and BL2, Rust BL31 and FIP, then run everything in FVP:
 
 ```sh
-$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=0 NEED_BL31=no" \
-    DEBUG=1 fvp
+$ PLAT=fvp DEBUG=1 ./build-and-run.sh
 ```
-
-**Note 1:** In the above command, the user may notice that we use `SPMD_SPM_AT_SEL2=0` even though
-the project is enabling S-EL2 using the default `sel2` feature.
-The `rusted-firmware-a` project is currently leveraging on the `trusted-firmware-a` project's build
-system and the latter requires a SP layout file for building with `SPMD_SPM_AT_SEL2=1`. We currently
-use the temporary workaround of building with `SPMD_SPM_AT_SEL2=0` to avoid using this sp layout
-file.
-
-**Note 2:** By default, TF-A considers that the Base FVP platform has 256 kB of Trusted SRAM.
-Actually it can simulate up to 512 kB of Trusted SRAM, which is the configuration we use for RF-A
-(because a debug build of RF-A is too big to fit in 256 kB). The `FVP_TRUSTED_SRAM_SIZE=512` TF-A
-build flag is required to stop TF-A from complaining that RF-A does not fit.
 
 ### With RME support
 
-Build C BL1 and BL2 with RME support, Rust BL31 with RME support and FIP:
+Build C BL1 and BL2 with RME support, Rust BL31 with RME support and FIP, then run everything in FVP:
 
 ```sh
-$ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 NEED_BL31=no" \
-    FEATURES=rme DEBUG=1 fvp
+$ PLAT=fvp RME=1 DEBUG=1 ./build-and-run.sh
 ```
-
-Running the FVP with RME through RF-A build system is not supported at this time.
 
 ## Documentation
 

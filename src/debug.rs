@@ -5,14 +5,12 @@
 /// True if the build is configured with debug assertions on.
 pub const DEBUG: bool = cfg!(debug_assertions);
 
-// TODO: Make this equal to `DEBUG` once we stop building assembly files from build.rs with a different value.
 #[cfg(not(test))]
-pub const ENABLE_ASSERTIONS: bool = true;
+pub const ENABLE_ASSERTIONS: bool = DEBUG;
 
-// TODO: Make this configurable or equal to `DEBUG` once we stop building assembly files from
-// build.rs with a different value.
+// TODO: Should this be configurable separately from `DEBUG`?
 #[cfg(not(test))]
-pub const CRASH_REPORTING: bool = true;
+pub const CRASH_REPORTING: bool = DEBUG;
 
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
@@ -29,5 +27,6 @@ mod asm {
         LOG_LEVEL_INFO = const LevelFilter::Info as u32,
         LOG_LEVEL = const build_time_log_level() as u32,
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
+        CRASH_REPORTING = const CRASH_REPORTING as u32,
     );
 }

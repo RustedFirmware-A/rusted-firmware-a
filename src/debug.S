@@ -138,7 +138,9 @@ endfunc asm_print_newline
 	panic_msg: .asciz "PANIC at PC : 0x"
 
 func elx_panic
+.if {CRASH_REPORTING}
 	b	report_elx_panic
+.endif
 
 	b	panic_common
 endfunc elx_panic
@@ -151,7 +153,9 @@ endfunc elx_panic
  */
 
 func el3_panic
+.if {CRASH_REPORTING}
 	b	report_el3_panic
+.endif
 
 panic_common:
 	mov	x6, x30

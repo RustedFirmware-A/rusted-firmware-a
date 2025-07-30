@@ -264,7 +264,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
 mod asm {
     use crate::{
         context::{CpuData, CrashBuf, GpRegs},
-        debug::DEBUG,
+        debug::{CRASH_REPORTING, DEBUG},
         sysregs::SctlrEl3,
     };
     use core::{arch::global_asm, mem::offset_of};
@@ -273,6 +273,7 @@ mod asm {
         include_str!("asm_macros_common.S"),
         include_str!("crash_reporting.S"),
         include_str!("asm_macros_common_purge.S"),
+        CRASH_REPORTING = const CRASH_REPORTING as u32,
         DEBUG = const DEBUG as u32,
         MODE_SP_ELX = const 1,
         CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),

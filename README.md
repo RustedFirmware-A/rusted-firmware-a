@@ -17,6 +17,15 @@ of the project.
 
 See the [contribution guidelines](docs/CONTRIBUTING.md) and [style guide](docs/style-guide.md).
 
+## Providing feedback
+
+We welcome your feedback on this project! You can contact us through:
+- the [RF-A mailing list][6];
+- the `trustedfirmware` Discord server, on the [#rusted-firmware-a][7] channel.
+
+If you want to report an issue, request a feature or simply take a look at the on-going and future
+work items, please head to our [Github issues][8].
+
 ## Arm trademark notice
 
 Arm is a registered trademark of Arm Limited (or its subsidiaries or affiliates).
@@ -32,6 +41,9 @@ Arm word trademark.
 [3]: doc/getting-started.md
 [4]: ./LICENSE
 [5]: https://developercertificate.org
+[6]: https://lists.trustedfirmware.org/mailman3/lists/rusted-firmware-a.lists.trustedfirmware.org/
+[7]: https://discord.com/channels/1106321706588577904/1399339854948601856
+[8]: https://github.com/RustedFirmware-A/rusted-firmware-a/issues
 
 ---
 

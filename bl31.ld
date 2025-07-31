@@ -4,6 +4,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+MEMORY
+{
+	image : ORIGIN = BL31_BASE, LENGTH = BL31_SIZE
+}
+
 /*
  * Code will start running at this symbol which is placed at the start of the
  * image.

@@ -25,7 +25,7 @@ global_asm!(
     ".endm",
 
     // Returns a pointer to the top of the stack to use for current CPU.
-    ".weak	plat_get_my_stack",
+    ".global	plat_get_my_stack",
         "func plat_get_my_stack",
         "mov	x10, x30",
         "bl	plat_my_core_pos",
@@ -37,7 +37,7 @@ global_asm!(
     "endfunc plat_get_my_stack",
 
     // Initialises the stack pointer for the current CPU.
-    ".weak	plat_set_my_stack",
+    ".global	plat_set_my_stack",
     "func plat_set_my_stack",
         "mov	x9, x30",
         "bl 	plat_get_my_stack",

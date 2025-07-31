@@ -1,3 +1,7 @@
+# Copyright The Rusted Firmware-A Contributors.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 [workspace]
 resolver = "3"
 members = ["secure_test_framework"]

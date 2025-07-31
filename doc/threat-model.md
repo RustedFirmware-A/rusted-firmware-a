@@ -92,3 +92,7 @@ file. Although currently we build some assembly code files with the `cc` crate, 
 and header files copied from C TF-A](https://github.com/RustedFirmware-A/rusted-firmware-a/issues/7)
 is complete, the toolchain will be somewhat less open-ended in that we will use only `rustc` and not
 a full C front-end as well. (That will also eliminate our largest 3P dependency.)
+
+--------------
+
+*Copyright The Rusted Firmware-A Contributors*

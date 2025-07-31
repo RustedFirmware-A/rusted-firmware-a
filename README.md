@@ -138,3 +138,7 @@ Arm word trademark.
 
 [1]: https://www.arm.com/company/policies/trademarks/arm-trademark-list
 [2]: https://www.arm.com/company/policies/trademarks/guidelines-trademarks
+
+--------------
+
+*Copyright The Rusted Firmware-A Contributors*

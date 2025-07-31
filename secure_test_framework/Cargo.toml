@@ -1,3 +1,7 @@
+# Copyright The Rusted Firmware-A Contributors.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 [package]
 name = "rf-a-secure-test-framework"
 version = "0.1.0"

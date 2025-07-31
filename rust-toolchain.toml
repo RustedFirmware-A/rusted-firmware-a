@@ -1,3 +1,7 @@
+# Copyright The Rusted Firmware-A Contributors.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 [toolchain]
 channel = "1.88.0"
 components = ["llvm-tools"]

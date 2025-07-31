@@ -292,6 +292,7 @@ write_sysreg! {
 read_write_sysreg!(mdccint_el1, u64, safe read_mdccint_el1, safe write_mdccint_el1);
 read_write_sysreg!(mdcr_el2, u64, safe read_mdcr_el2, safe write_mdcr_el2);
 read_write_sysreg!(mdscr_el1, u64, safe read_mdscr_el1, safe write_mdscr_el1);
+read_sysreg!(midr_el1, u64, safe read_midr_el1);
 read_write_sysreg!(par_el1, u64, safe read_par_el1, safe write_par_el1);
 read_write_sysreg!(scr_el3, u64: ScrEl3, safe read_scr_el3, safe write_scr_el3);
 read_write_sysreg!(sctlr_el1, u64: SctlrEl1, safe read_sctlr_el1, safe write_sctlr_el1);

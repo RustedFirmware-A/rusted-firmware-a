@@ -9,6 +9,7 @@
 
 mod aarch64;
 mod context;
+mod cpu;
 #[cfg(not(test))]
 mod crash_console;
 mod debug;

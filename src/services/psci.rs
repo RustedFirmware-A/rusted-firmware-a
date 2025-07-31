@@ -9,6 +9,7 @@ use super::{Service, owns};
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},
+    cpu::cpu_power_down,
     pagetable,
     platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl, plat_calc_core_pos},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SmcReturn},
@@ -445,6 +446,8 @@ impl Psci {
                         self.notify_spmd(Function::SystemSuspend { entry });
                     }
                     cpu.set_entry_point(entry);
+
+                    cpu_power_down(composite_state.find_highest_power_down_level().unwrap());
                 }
 
                 self.platform.power_domain_suspend(&composite_state);
@@ -499,6 +502,9 @@ impl Psci {
                 self.notify_spmd(Function::CpuOff);
                 cpu.set_local_state(PlatformPowerState::OFF);
                 composite_state.coordinate_state(cpu_index, &mut ancestors);
+
+                cpu_power_down(composite_state.find_highest_power_down_level().unwrap());
+
                 self.platform.power_domain_off(&composite_state);
             });
 

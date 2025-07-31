@@ -6,7 +6,9 @@ use super::{DummyService, Platform};
 use crate::{
     aarch64::{dsb_sy, sev, wfi},
     context::{CoresImpl, EntryPointInfo},
+    cpu::aem_generic::AemGeneric,
     debug::DEBUG,
+    define_cpu_ops,
     gicv3::{self, GIC, GicConfig, InterruptConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
@@ -98,6 +100,8 @@ static MEMORY_LOGGER: PerCoreMemoryLogger<LOG_BUFFER_SIZE> = PerCoreMemoryLogger
 /// Secure timers' interrupt IDs.
 const SEL2_TIMER_ID: IntId = IntId::ppi(4);
 const SEL1_TIMER_ID: IntId = IntId::ppi(13);
+
+define_cpu_ops!(AemGeneric);
 
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;

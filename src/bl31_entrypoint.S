@@ -27,7 +27,7 @@ func bl31_entrypoint
         msr     vbar_el3, x0
         isb
 
-        /* TODO: jump to reset_handler. get cpu_ops pointer and apply errata workarounds */
+        bl      cpu_reset_handler
 
         /* ---------------------------------------------------------------------
          * SCTLR_EL3 has already been initialised - read current value before
@@ -241,7 +241,7 @@ func bl31_warm_entrypoint
         msr     vbar_el3, x0
         isb
 
-        /* TODO: jump to reset_handler. get cpu_ops pointer and apply errata workarounds */
+        bl      cpu_reset_handler
 
         /* ---------------------------------------------------------------------
          * SCTLR_EL3 has already been initialised - read current value before

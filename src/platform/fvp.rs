@@ -8,7 +8,9 @@ use self::config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_C
 use super::{DummyService, Platform};
 use crate::{
     context::{CoresImpl, EntryPointInfo},
+    cpu::aem_generic::AemGeneric,
     debug::DEBUG,
+    define_cpu_ops,
     gicv3::{GicConfig, InterruptConfig},
     logger::{self, LockedWriter},
     pagetable::{IdMap, MT_DEVICE, map_region},
@@ -95,6 +97,8 @@ const RMM_SHARED_AREA_BASE_ADDRESS: u64 = 0;
 /// Secure timers' interrupt IDs.
 const SEL2_TIMER_ID: IntId = IntId::ppi(4);
 const SEL1_TIMER_ID: IntId = IntId::ppi(13);
+
+define_cpu_ops!(AemGeneric);
 
 /// Fixed Virtual Platform
 pub struct Fvp;

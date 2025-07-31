@@ -8,14 +8,14 @@ macro_rules! select_platform {
         mod $mod;
 
         #[cfg(platform = $condition)]
-        pub use $mod::$plat_impl as PlatformImpl;
+        pub use $mod::{CPU_OPS, $plat_impl as PlatformImpl};
     };
     (test, $mod:ident::$plat_impl:ident) => {
         #[cfg(test)]
         mod $mod;
 
         #[cfg(test)]
-        pub use $mod::$plat_impl as PlatformImpl;
+        pub use $mod::{CPU_OPS, $plat_impl as PlatformImpl};
     };
 }
 

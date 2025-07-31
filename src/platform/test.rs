@@ -6,6 +6,8 @@ use super::{DummyService, Platform};
 use crate::{
     aarch64::sev,
     context::EntryPointInfo,
+    cpu::Cpu,
+    define_cpu_ops,
     gicv3::GicConfig,
     logger::{self, LogSink},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
@@ -346,6 +348,21 @@ extern "C" fn plat_calc_core_pos(mpidr: u64) -> usize {
 
     ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
 }
+
+struct TestCpu;
+
+/// Safety: The dummy implementation of `reset_handler` simply returns without doing anything.
+unsafe impl Cpu for TestCpu {
+    const MIDR: u64 = 0;
+
+    extern "C" fn reset_handler() {}
+
+    fn power_down_level0() {}
+
+    fn power_down_level1() {}
+}
+
+define_cpu_ops!(TestCpu);
 
 #[cfg(test)]
 mod tests {

@@ -41,9 +41,6 @@ SECTIONS
 		__CPU_OPS_START__ = .;
 		KEEP(*(.cpu_ops))
 		__CPU_OPS_END__ = .;
-		__RT_SVC_DESCS_START__ = .;
-		KEEP(*(.rt_svc_descs))
-		__RT_SVC_DESCS_END__ = .;
 	} >image
 	__RODATA_END__ = .;
 

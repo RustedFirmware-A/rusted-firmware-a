@@ -359,3 +359,13 @@ safe-to-deploy: Limited input language. `parse_str` and callees do not use
 `unsafe`. UB seems restricted to caller error (as mentioned above for
 ub-risk-2).
 """
+
+[[audits.zerocopy]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "does-not-implement-crypto"
+delta = "0.8.14 -> 0.8.26"
+
+[[audits.zerocopy-derive]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "does-not-implement-crypto"
+delta = "0.8.14 -> 0.8.26"

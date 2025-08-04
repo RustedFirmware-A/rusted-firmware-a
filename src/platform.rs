@@ -2,12 +2,26 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#[cfg(platform = "fvp")]
-mod fvp;
-#[cfg(platform = "qemu")]
-mod qemu;
-#[cfg(test)]
-mod test;
+macro_rules! select_platform {
+    (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
+        #[cfg(platform = $condition)]
+        mod $mod;
+
+        #[cfg(platform = $condition)]
+        pub use $mod::$plat_impl as PlatformImpl;
+    };
+    (test, $mod:ident::$plat_impl:ident) => {
+        #[cfg(test)]
+        mod $mod;
+
+        #[cfg(test)]
+        pub use $mod::$plat_impl as PlatformImpl;
+    };
+}
+
+select_platform!(platform = "fvp", fvp::Fvp);
+select_platform!(platform = "qemu", qemu::Qemu);
+select_platform!(test, test::TestPlatform);
 
 use crate::{
     context::EntryPointInfo,
@@ -19,14 +33,10 @@ use crate::{
     sysregs::MpidrEl1,
 };
 use arm_gic::{IntId, gicv3::GicV3};
-#[cfg(platform = "fvp")]
-pub use fvp::Fvp as PlatformImpl;
 #[cfg(not(test))]
 pub use percore::exception_free;
-#[cfg(platform = "qemu")]
-pub use qemu::Qemu as PlatformImpl;
 #[cfg(test)]
-pub use test::{TestPlatform as PlatformImpl, exception_free};
+pub use test::exception_free;
 
 /// For platforms that do not want to implement any custom SMC handlers.
 pub struct DummyService;

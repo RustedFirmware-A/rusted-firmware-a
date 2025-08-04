@@ -179,6 +179,7 @@ case "$PLAT" in
             -C bp.terminal_3.start_telnet=0 \
             -C pctl.startup=0.0.0.0 \
             -C cci550.force_on_from_start=1 \
+            -C cache_state_modelled=1 \
             -C cluster0.NUM_CORES=4 \
             -C cluster1.NUM_CORES=4 \
             -C cluster0.cpu0.semihosting-cwd=target \

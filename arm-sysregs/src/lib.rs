@@ -41,6 +41,24 @@ macro_rules! read_write_sysreg {
 }
 
 bitflags! {
+    /// ID_AA64MMFR2_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64mmfr2El1: u64 { }
+}
+
+impl IdAa64mmfr2El1 {
+    const CCIDX_SHIFT: u64 = 20;
+    const CCIDX_MASK: u64 = 0b1111;
+    const CCIDX_64_BIT: u64 = 0b0001;
+
+    /// Checks whether 64-bit format is implemented for all levels of the CCSIDR_EL1.
+    pub fn has_64_bit_ccsidr_el1(self) -> bool {
+        (self.bits() >> Self::CCIDX_SHIFT) & Self::CCIDX_MASK == Self::CCIDX_64_BIT
+    }
+}
+
+bitflags! {
     /// MPIDR_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
@@ -102,6 +120,159 @@ impl MpidrEl1 {
     /// Returns the value of the Aff3 field.
     pub fn aff3(self) -> u8 {
         (self.bits() >> Self::AFF3_SHIFT) as u8
+    }
+}
+
+/// Cache type enum.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum CacheType {
+    /// No cache.
+    NoCache = 0b000,
+    /// Instruction cache only.
+    InstructionOnly = 0b001,
+    /// Data cache only.
+    DataOnly = 0b010,
+    /// Separate instruction and data caches.
+    SeparateInstructionAndData = 0b011,
+    /// Unified cache.
+    Unified = 0b100,
+}
+
+impl TryFrom<u64> for CacheType {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0b000 => Self::NoCache,
+            0b001 => Self::InstructionOnly,
+            0b010 => Self::DataOnly,
+            0b011 => Self::SeparateInstructionAndData,
+            0b100 => Self::Unified,
+            _ => return Err(()),
+        })
+    }
+}
+
+/// Wrapper type for describing cache level in a human readable format, i.e. L3 cache = `CacheLevel(3)`
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CacheLevel(u8);
+
+impl CacheLevel {
+    /// Creates new instance.
+    pub fn new(level: u8) -> Self {
+        assert!((1..8).contains(&level));
+        Self(level)
+    }
+
+    /// Returns the level value.
+    pub fn level(&self) -> u8 {
+        self.0
+    }
+}
+
+impl From<CacheLevel> for u64 {
+    fn from(value: CacheLevel) -> Self {
+        (value.0 - 1).into()
+    }
+}
+
+bitflags! {
+    /// CLIDR_EL1, Cache Level ID Register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct ClidrEl1: u64 { }
+}
+
+impl ClidrEl1 {
+    const LEVEL_MASK: u64 = 0b111;
+    const ICB_SHIFT: u64 = 30;
+    const LOUU_SHIFT: u64 = 27;
+    const LOC_SHIFT: u64 = 24;
+    const LOUIS_SHIFT: u64 = 21;
+    const CTYPE_SHIFT: u64 = 3;
+
+    /// Returns the inner cache boundary level.
+    pub fn icb(self) -> Option<CacheLevel> {
+        let icb = (self.bits() >> Self::ICB_SHIFT) & Self::LEVEL_MASK;
+        if icb != 0 {
+            Some(CacheLevel(icb as u8))
+        } else {
+            None
+        }
+    }
+
+    /// Return level of Unification Uniprocessor for the cache hierarchy.
+    pub fn louu(self) -> u64 {
+        (self.bits() >> Self::LOUU_SHIFT) & Self::LEVEL_MASK
+    }
+
+    /// Returns level of Coherence for the cache hierarchy.
+    pub fn loc(self) -> u64 {
+        (self.bits() >> Self::LOC_SHIFT) & Self::LEVEL_MASK
+    }
+
+    /// Returns level of Unification Inner Shareable for the cache hierarchy.
+    pub fn louis(self) -> u64 {
+        (self.bits() >> Self::LOUIS_SHIFT) & Self::LEVEL_MASK
+    }
+
+    /// Returns Cache Type [1-7] fields.
+    pub fn ctype(self, level: CacheLevel) -> CacheType {
+        let shift = Self::CTYPE_SHIFT * u64::from(level);
+        ((self.bits() >> shift) & Self::LEVEL_MASK)
+            .try_into()
+            .unwrap()
+    }
+}
+
+bitflags! {
+    /// CSSELR_EL1, Cache Size Selection Register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct CsselrEl1: u64 {
+        /// Allocation Tag not Data bit, only valid if FEAT_MTE2 is implemented.
+        const TND = 1 << 4;
+        /// Instruction not Data bit.
+        const IND = 1 << 0;
+    }
+}
+
+impl CsselrEl1 {
+    const LEVEL_MASK: u64 = 0b111;
+    const LEVEL_SHIFT: u64 = 1;
+
+    /// Creates new instance. TnD is only valid if FEAT_MTE2 is implemented.
+    pub fn new(tnd: bool, level: CacheLevel, ind: bool) -> Self {
+        let mut instance = Self::from_bits_retain(u64::from(level) << Self::LEVEL_SHIFT);
+
+        if ind {
+            instance |= Self::IND;
+        } else if tnd {
+            // TnD is only valid if InD is not set.
+            instance |= Self::TND;
+        }
+
+        instance
+    }
+
+    /// Returns the cache level of requested cache.
+    pub fn level(self) -> CacheLevel {
+        CacheLevel(((self.bits() >> Self::LEVEL_SHIFT) & Self::LEVEL_MASK) as u8 + 1)
+    }
+}
+
+bitflags! {
+    /// CTR_EL0, Cache Type Register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct CtrEl0: u64 {}
+}
+
+impl CtrEl0 {
+    /// Log2 of the number of words in the smallest cache line of all the data caches and unified
+    /// caches that are controlled by the PE.
+    pub fn dminline(self) -> usize {
+        ((self.bits() >> 16) & 0xf) as usize
     }
 }
 
@@ -435,6 +606,7 @@ impl Debug for Esr {
 }
 
 read_sysreg!(id_aa64mmfr1_el1, u64, safe, fake::SYSREGS);
+read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
 read_sysreg!(mpidr_el1, u64: MpidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(actlr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(actlr_el2, u64, safe_read, safe_write, fake::SYSREGS);
@@ -444,6 +616,8 @@ read_write_sysreg!(afsr1_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(afsr1_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(amair_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(amair_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_sysreg!(ccsidr_el1, u64, safe, fake::SYSREGS);
+read_sysreg!(clidr_el1, u64: ClidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(cntfrq_el0, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(cnthctl_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(cntvoff_el2, u64, safe_read, safe_write, fake::SYSREGS);
@@ -451,7 +625,8 @@ read_write_sysreg!(contextidr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(contextidr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(cpacr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(cptr_el2, u64, safe_read, safe_write, fake::SYSREGS);
-read_write_sysreg!(csselr_el1, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(csselr_el1, u64: CsselrEl1, safe_read, safe_write, fake::SYSREGS);
+read_sysreg!(ctr_el0, u64: CtrEl0, safe, fake::SYSREGS);
 read_write_sysreg!(elr_el1, usize, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(elr_el2, usize, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(esr_el1, u64: Esr, safe_read, safe_write, fake::SYSREGS);

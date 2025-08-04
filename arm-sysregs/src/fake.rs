@@ -4,7 +4,10 @@
 
 //! Fake implementations of system register getters and setters for unit tests.
 
-use super::{Esr, HcrEl2, IccSre, MpidrEl1, ScrEl3, SctlrEl1, SctlrEl3, Spsr};
+use super::{
+    ClidrEl1, CsselrEl1, CtrEl0, Esr, HcrEl2, IccSre, IdAa64mmfr2El1, MpidrEl1, ScrEl3, SctlrEl1,
+    SctlrEl3, Spsr,
+};
 use std::sync::Mutex;
 
 /// Generates a public function named `read_$sysreg` to read the fake system register `$sysreg` of
@@ -131,6 +134,10 @@ pub struct SystemRegisters {
     pub amair_el1: u64,
     /// Fake value for the AMAIR_EL2 system register.
     pub amair_el2: u64,
+    /// Fake value for the CCSIDR_EL1 system register.
+    pub ccsidr_el1: u64,
+    /// Fake value for the CLIDR_EL1 system register.
+    pub clidr_el1: ClidrEl1,
     /// Fake value for the CNTFRQ_EL0 system register.
     pub cntfrq_el0: u64,
     /// Fake value for the CNTHCTL_EL2 system register.
@@ -146,7 +153,9 @@ pub struct SystemRegisters {
     /// Fake value for the CPTR_EL2 system register.
     pub cptr_el2: u64,
     /// Fake value for the CSSELR_EL1 system register.
-    pub csselr_el1: u64,
+    pub csselr_el1: CsselrEl1,
+    /// Fake value for the CTR_EL0 system register.
+    pub ctr_el0: CtrEl0,
     /// Fake value for the ELR_EL1 system register.
     pub elr_el1: usize,
     /// Fake value for the ELR_EL2 system register.
@@ -179,6 +188,8 @@ pub struct SystemRegisters {
     pub ich_vmcr_el2: u64,
     /// Fake value for the ID_AA64MMFR1_EL1 system register.
     pub id_aa64mmfr1_el1: u64,
+    /// Fake value for the ID_AA64MMFR2_EL1 system register.
+    pub id_aa64mmfr2_el1: IdAa64mmfr2El1,
     /// Fake value for the ISR_EL1 system register.
     pub isr_el1: u64,
     /// Fake value for the MAIR_EL1 system register.
@@ -266,6 +277,8 @@ impl SystemRegisters {
             afsr1_el2: 0,
             amair_el1: 0,
             amair_el2: 0,
+            ccsidr_el1: 0,
+            clidr_el1: ClidrEl1::empty(),
             cntfrq_el0: 0,
             cnthctl_el2: 0,
             cntvoff_el2: 0,
@@ -273,7 +286,8 @@ impl SystemRegisters {
             contextidr_el2: 0,
             cpacr_el1: 0,
             cptr_el2: 0,
-            csselr_el1: 0,
+            csselr_el1: CsselrEl1::empty(),
+            ctr_el0: CtrEl0::empty(),
             elr_el1: 0,
             elr_el2: 0,
             esr_el1: Esr::empty(),
@@ -290,6 +304,7 @@ impl SystemRegisters {
             ich_hcr_el2: 0,
             ich_vmcr_el2: 0,
             id_aa64mmfr1_el1: 0,
+            id_aa64mmfr2_el1: IdAa64mmfr2El1::empty(),
             isr_el1: 0,
             mair_el1: 0,
             mair_el2: 0,

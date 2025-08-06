@@ -29,20 +29,21 @@ ifndef PLAT
   endif
 endif
 
+STF_CARGO_FLAGS := --release
+RFA_CARGO_FLAGS := --no-default-features --features "$(FEATURES)"
+
 # Make a release build by default.
 DEBUG ?= 0
 ifeq ($(DEBUG), 1)
 	BUILDTYPE := debug
-	CARGO_FLAGS :=
 else
 	BUILDTYPE := release
-	CARGO_FLAGS := --release
+	RFA_CARGO_FLAGS += --release
 	FEATURES += max_log_info
 endif
 
 TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS += --target $(TARGET)
-CARGO_FEATURE_FLAGS := --no-default-features --features "$(FEATURES)"
 
 TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\"
 
@@ -71,16 +72,16 @@ $(FIP): $(BL2) build $(BL32) $(BL33)
 	$(TFA)/tools/fiptool/fiptool update --soc-fw $(BL31_BIN) $@
 
 build:
-	$(TARGET_CARGO) build $(CARGO_FLAGS) $(CARGO_FEATURE_FLAGS)
+	$(TARGET_CARGO) build $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
 	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
 
 build-stf:
-	$(STF_CARGO) build --package rf-a-secure-test-framework $(CARGO_FLAGS)
+	$(STF_CARGO) build --package rf-a-secure-test-framework $(CARGO_FLAGS) $(STF_CARGO_FLAGS)
 $(BL32): build-stf
-	$(OBJCOPY) target/$(TARGET)/$(BUILDTYPE)/bl32 -O binary $@
+	$(OBJCOPY) target/$(TARGET)/release/bl32 -O binary $@
 $(BL33): build-stf
-	$(OBJCOPY) target/$(TARGET)/$(BUILDTYPE)/bl33 -O binary $@
+	$(OBJCOPY) target/$(TARGET)/release/bl33 -O binary $@
 
 clippy-test:
 	$(CARGO) clippy --tests --features "$(FEATURES)"

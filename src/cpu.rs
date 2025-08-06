@@ -10,6 +10,7 @@ macro_rules! add_cpu_mod {
 }
 
 add_cpu_mod!(aem_generic);
+add_cpu_mod!(qemu_max);
 
 use crate::{platform::CPU_OPS, sysregs::read_midr_el1};
 

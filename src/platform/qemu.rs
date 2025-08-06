@@ -6,7 +6,7 @@ use super::{DummyService, Platform};
 use crate::{
     aarch64::{dsb_sy, sev, wfi},
     context::{CoresImpl, EntryPointInfo},
-    cpu::aem_generic::AemGeneric,
+    cpu::qemu_max::QemuMax,
     debug::DEBUG,
     define_cpu_ops,
     gicv3::{self, GIC, GicConfig, InterruptConfig},
@@ -102,7 +102,7 @@ static MEMORY_LOGGER: PerCoreMemoryLogger<LOG_BUFFER_SIZE> = PerCoreMemoryLogger
 const SEL2_TIMER_ID: IntId = IntId::ppi(4);
 const SEL1_TIMER_ID: IntId = IntId::ppi(13);
 
-define_cpu_ops!(AemGeneric);
+define_cpu_ops!(QemuMax);
 
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;

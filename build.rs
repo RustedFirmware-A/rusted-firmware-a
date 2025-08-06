@@ -9,9 +9,13 @@ mod platforms;
 use platforms::{Builder, PLATFORMS, add_linker_script, define_linker_symbol, get_builder};
 use std::{env, path::PathBuf};
 
+/// One page of memory has 4KiB.
+const PAGE_SIZE: u64 = 0x1000;
+
 fn setup_linker(builder: &dyn Builder) {
     define_linker_symbol("BL31_BASE", builder.bl31_base());
     define_linker_symbol("BL31_SIZE", builder.bl31_size());
+    define_linker_symbol("PAGE_SIZE", PAGE_SIZE);
 
     add_linker_script(&PathBuf::from("bl31.ld"));
 }

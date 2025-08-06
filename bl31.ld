@@ -22,7 +22,7 @@ SECTIONS
 	/*
 	 * Collect together the code.
 	 */
-	.text : ALIGN(4096) {
+	.text : ALIGN(PAGE_SIZE) {
 		__TEXT_START__ = .;
 		*(.text.asm.bl31_entrypoint)
 		*(.init.*)
@@ -34,7 +34,7 @@ SECTIONS
 	/*
 	 * Collect together read-only data.
 	 */
-	.rodata : ALIGN(4096) {
+	.rodata : ALIGN(PAGE_SIZE) {
 		__RODATA_START__ = .;
 		*(.rodata.*)
 		. = ALIGN(8);
@@ -44,14 +44,14 @@ SECTIONS
 	} >image
 	__RODATA_END__ = .;
 
-	. = ALIGN(4096);
+	. = ALIGN(PAGE_SIZE);
 	__RO_END__ = .;
 
 	/*
 	 * Collect together the read-write data including .bss at the end which
 	 * will be zero'd by the entry code.
 	 */
-	.data : ALIGN(4096) {
+	.data : ALIGN(PAGE_SIZE) {
 		__DATA_START__ = .;
 		*(.data.*)
 		/*
@@ -74,14 +74,14 @@ SECTIONS
 		__BSS_END__ = .;
 	} >image
 
-	.stacks (NOLOAD) : ALIGN(4096) {
+	.stacks (NOLOAD) : ALIGN(PAGE_SIZE) {
 		__STACKS_START__ = .;
 		*(.tzfw_normal_stacks)
 		__STACKS_END__ = .;
-		. = ALIGN(4096);
+		. = ALIGN(PAGE_SIZE);
 	} >image
 
-	. = ALIGN(4096);
+	. = ALIGN(PAGE_SIZE);
 	__BL31_END__ = .;
 
 	/*

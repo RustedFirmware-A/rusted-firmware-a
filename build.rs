@@ -6,21 +6,14 @@
 
 mod platforms;
 
-use platforms::{Builder, PLATFORMS, get_builder};
-use std::env;
+use platforms::{Builder, PLATFORMS, add_linker_script, define_linker_symbol, get_builder};
+use std::{env, path::PathBuf};
 
 fn setup_linker(builder: &dyn Builder) {
-    println!(
-        "cargo:rustc-link-arg=--defsym=BL31_BASE={}",
-        builder.bl31_base()
-    );
-    println!(
-        "cargo:rustc-link-arg=--defsym=BL31_SIZE={}",
-        builder.bl31_size()
-    );
+    define_linker_symbol("BL31_BASE", builder.bl31_base());
+    define_linker_symbol("BL31_SIZE", builder.bl31_size());
 
-    println!("cargo:rustc-link-arg=-Tbl31.ld");
-    println!("cargo:rerun-if-changed=bl31.ld");
+    add_linker_script(&PathBuf::from("bl31.ld"));
 }
 
 fn main() {

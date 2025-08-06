@@ -60,7 +60,7 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
     Services::get().run_loop();
 }
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use crate::{
         debug::{DEBUG, ENABLE_ASSERTIONS},

@@ -151,7 +151,7 @@ pub trait Platform {
     fn arch_workaround_4_supported() -> WorkaroundSupport;
 }
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use crate::debug::DEBUG;
     use core::arch::global_asm;

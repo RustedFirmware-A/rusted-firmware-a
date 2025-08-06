@@ -682,7 +682,7 @@ pub struct EntryPointInfo {
     pub args: [u64; 8],
 }
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(test)))]
 #[allow(clippy::manual_bits)]
 mod asm {
     use super::*;

@@ -14,7 +14,7 @@ pub const ENABLE_ASSERTIONS: bool = true;
 #[cfg(not(test))]
 pub const CRASH_REPORTING: bool = true;
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
     use crate::logger::build_time_log_level;

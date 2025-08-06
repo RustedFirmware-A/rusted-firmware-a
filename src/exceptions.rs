@@ -260,7 +260,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
     result
 }
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use crate::{
         context::{CpuData, CrashBuf, GpRegs},

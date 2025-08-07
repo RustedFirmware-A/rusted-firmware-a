@@ -164,6 +164,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "0.1.2"
 
+[[audits.autocfg]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "safe-to-run"
+delta = "1.4.0 -> 1.5.0"
+notes = "The crate removes some temporary output files, but this looks fine."
+
 [[audits.bitflags]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -191,6 +197,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
 version = "0.3.33"
 notes = "Fairly straightforward proc macro, doesn't do anything unexpected."
+
+[[audits.lock_api]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "safe-to-run"
+delta = "0.4.10 -> 0.4.13"
+notes = "No access to local resources."
 
 [[audits.log]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -286,6 +298,12 @@ The unsafe blocks are well-justified by the low-level nature of the crate. The A
 abstractions on top of these necessary unsafe primitives. The risk of UB remains negligible and is not increased
 by this delta.
 """
+
+[[audits.scopeguard]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "safe-to-run"
+delta = "1.1.0 -> 1.2.0"
+notes = "No access to local resources, and no major changes since last version."
 
 [[audits.shlex]]
 who = "Andrew Walbran <qwandor@google.com>"

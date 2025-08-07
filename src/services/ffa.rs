@@ -62,14 +62,9 @@ impl Service for Spmd {
 
         // TODO: should we use a different version for NWd?
         let version = self.spmc_version;
+        let mut out_regs = SmcReturn::from([0u64; 18]);
 
-        let (in_regs, mut out_regs) = if version.needs_18_regs() {
-            (&regs[..], SmcReturn::from([0u64; 18]))
-        } else {
-            (&regs[..8], SmcReturn::from([0u64; 8]))
-        };
-
-        let in_msg = match Interface::from_regs(version, in_regs) {
+        let in_msg = match Interface::from_regs(version, regs) {
             Ok(msg) => msg,
             Err(e) => {
                 error!("Invalid FF-A call from Normal World {e}");
@@ -87,14 +82,9 @@ impl Service for Spmd {
 
     fn handle_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
         let version = self.spmc_version;
+        let mut out_regs = SmcReturn::from([0u64; 18]);
 
-        let (in_regs, mut out_regs) = if version.needs_18_regs() {
-            (&regs[..], SmcReturn::from([0u64; 18]))
-        } else {
-            (&regs[..8], SmcReturn::from([0u64; 8]))
-        };
-
-        let in_msg = match Interface::from_regs(version, in_regs) {
+        let in_msg = match Interface::from_regs(version, regs) {
             Ok(msg) => msg,
             Err(e) => {
                 error!("Invalid FF-A call from Secure World: {e} ");
@@ -394,13 +384,7 @@ impl Spmd {
     }
 
     pub fn forward_secure_interrupt(&self) -> (SmcReturn, World) {
-        let version = self.spmc_version;
-
-        let mut out_regs = if version.needs_18_regs() {
-            SmcReturn::from([0u64; 18])
-        } else {
-            SmcReturn::from([0u64; 8])
-        };
+        let mut out_regs = SmcReturn::from([0u64; 18]);
 
         let msg = Interface::Interrupt {
             // The endpoint and vCPU ID fields MBZ in this case
@@ -412,7 +396,7 @@ impl Spmd {
             interrupt_id: 0,
         };
 
-        msg.to_regs(version, out_regs.values_mut());
+        msg.to_regs(self.spmc_version, out_regs.values_mut());
 
         exception_free(|token| {
             let mut spmd_state = self.core_local.get().borrow_mut(token);

@@ -158,10 +158,12 @@ impl Spmd {
         }
     }
 
+    #[allow(unused)]
     pub fn primary_ep(&self) -> usize {
         self.spmc_primary_ep
     }
 
+    #[allow(unused)]
     pub fn secondary_ep(&self) -> usize {
         self.spmc_secondary_ep.load(Relaxed)
     }

@@ -188,6 +188,7 @@ fn init_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
 }
 
 /// Disables the GIC CPU interface of the calling CPU using system register accesses.
+#[allow(unused)]
 pub fn disable_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
     GicV3::enable_group0(false);
     GicV3::enable_group1(false);

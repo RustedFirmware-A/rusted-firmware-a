@@ -33,7 +33,7 @@ use crate::{
     gicv3,
     platform::{Platform, PlatformImpl, exception_free, plat_calc_core_pos},
     smccc::SmcReturn,
-    sysregs::{Esr, ScrEl3, Spsr, read_mpidr_el1, read_scr_el3, write_scr_el3},
+    sysregs::{Esr, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3},
 };
 use core::{
     cell::{RefCell, RefMut},
@@ -64,18 +64,6 @@ pub enum World {
 impl World {
     fn index(self) -> usize {
         self as usize
-    }
-
-    /// Reads the current lower EL world from `scr_el3`.
-    pub fn from_scr() -> Self {
-        let scr_el3 = read_scr_el3();
-        match (scr_el3.contains(ScrEl3::NSE), scr_el3.contains(ScrEl3::NS)) {
-            (false, false) => World::Secure,
-            (false, true) => World::NonSecure,
-            #[cfg(feature = "rme")]
-            (true, true) => World::Realm,
-            _ => panic!("Invalid combination of NS and NSE in scr_el3"),
-        }
     }
 }
 
@@ -723,8 +711,6 @@ mod asm {
     // TODO: Let this be controlled by the platform or a cargo feature.
     const ERRATA_SPECULATIVE_AT: bool = false;
 
-    const INTR_TYPE_INVAL: u32 = 3;
-
     #[cfg(not(feature = "sel2"))]
     const CTX_EL1_SYSREGS_OFFSET: usize = offset_of!(CpuContext, el1_sysregs);
     #[cfg(not(feature = "sel2"))]
@@ -804,7 +790,7 @@ mod asm {
         CPU_MIDR = const offset_of!(CpuOps, midr),
         CPU_REG_DUMP = const offset_of!(CpuOps, reg_dump),
         CPU_OPS_SIZE = const size_of::<CpuOps>(),
-        CPU_IMPL_PN_MASK = const (MIDR_IMPL_MASK << MIDR_IMPL_SHIFT) | (MIDR_PN_MASK << MIDR_PN_SHIFT),
+        CPU_IMPL_PN_MASK = const CPU_IMPL_PN_MASK,
         CRASH_REPORTING = const CRASH_REPORTING as u32,
         SUPPORT_UNKNOWN_MPID = const 0,
         CPU_DATA_SIZE = const size_of::<CpuData>(),

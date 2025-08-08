@@ -8,7 +8,7 @@ use crate::{
     context::EntryPointInfo,
     gicv3::GicConfig,
     logger::{self, LogSink},
-    pagetable::{IdMap, MT_DEVICE, map_region},
+    pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
     services::{
         arch::WorkaroundSupport,
         psci::{
@@ -272,6 +272,11 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
     fn power_domain_off(&self, _target_state: &PsciCompositePowerState) {}
 
     fn power_domain_power_down_wfi(&self, _target_state: &PsciCompositePowerState) -> ! {
+        // SAFETY: `disable_mmu_el3` is safe to call here as it doesn't actually do anything with
+        // the MMU in tests.
+        unsafe {
+            disable_mmu_el3();
+        }
         panic!("{}", Self::POWER_DOWN_WFI_MAGIC);
     }
 

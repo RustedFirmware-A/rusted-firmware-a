@@ -85,9 +85,11 @@ const HW_CONFIG_ADDRESS_NS: u64 = 0x8200_0000;
 
 // TODO: Use the correct values here (see services/std_svc/rmmd/rmmd_main.c).
 /// Version of the RMM Boot Interface.
+#[cfg(feature = "rme")]
 const RMM_BOOT_VERSION: u64 = 0;
 /// Base address for the EL3 - RMM shared area. The boot manifest should be stored at the beginning
 /// of this area.
+#[cfg(feature = "rme")]
 const RMM_SHARED_AREA_BASE_ADDRESS: u64 = 0;
 
 /// Secure timers' interrupt IDs.

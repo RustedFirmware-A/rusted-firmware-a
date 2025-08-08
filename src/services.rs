@@ -170,6 +170,7 @@ impl Services {
     fn handle_sysreg_trap(&self, esr: Esr, world: World) {
         // Default behaviour is to repeat the same instruction, unless the trap handler requests
         // stepping to the next one.
+        #[allow(unused)]
         let mut step_to_next_instr = false;
 
         match esr & Esr::ISS_SYSREG_OPCODE_MASK {
@@ -180,6 +181,7 @@ impl Services {
             }
         }
 
+        #[allow(unreachable_code)]
         if step_to_next_instr {
             exception_free(|token| {
                 cpu_state(token)

@@ -296,7 +296,9 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         todo!()
     }
 
-    fn power_domain_off(&self, _target_state: &PsciCompositePowerState) {
+    fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
+        assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);
+
         let mut gic = GIC
             .get()
             .expect("GIC must be initialized before CPU interface is disabled.")

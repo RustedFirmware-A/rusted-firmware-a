@@ -269,7 +269,9 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
 
     fn power_domain_suspend_finish(&self, _target_state: &PsciCompositePowerState) {}
 
-    fn power_domain_off(&self, _target_state: &PsciCompositePowerState) {}
+    fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
+        assert_eq!(target_state.cpu_level_state(), TestPowerState::PowerDown);
+    }
 
     fn power_domain_power_down_wfi(&self, _target_state: &PsciCompositePowerState) -> ! {
         // SAFETY: `disable_mmu_el3` is safe to call here as it doesn't actually do anything with

@@ -231,7 +231,7 @@ pub fn init() {
     });
 
     // thiserror does not print the error message with `expect` :(
-    if let Err(e) = init_cpu_interface(&mut *GIC.get().unwrap().gic.lock()) {
+    if let Err(e) = init_cpu_interface(&mut GIC.get().unwrap().gic.lock()) {
         panic!("Failed to init GIC CPU interface: {}", e);
     }
     debug!(
@@ -296,10 +296,10 @@ pub fn get_pending_interrupt_type() -> InterruptType {
 /// Wraps a platform-specific group 0 interrupt handler.
 pub fn handle_group0_interrupt() {
     let int_id = GicV3::get_and_acknowledge_interrupt(InterruptGroup::Group0).unwrap();
-    debug!("Group 0 interrupt {:?} acknowledged", int_id);
+    debug!("Group 0 interrupt {int_id:?} acknowledged");
 
     PlatformImpl::handle_group0_interrupt(int_id);
 
     GicV3::end_interrupt(int_id, InterruptGroup::Group0);
-    debug!("Group 0 interrupt {:?} EOI", int_id);
+    debug!("Group 0 interrupt {int_id:?} EOI");
 }

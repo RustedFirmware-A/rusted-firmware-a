@@ -131,7 +131,7 @@ pub fn init() {
             SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
         let mut idmap = init_page_table(page_heap);
 
-        debug!("Page table: {:?}", idmap);
+        debug!("Page table: {idmap:?}");
 
         info!("Setting MMU config");
         // SAFETY: We pass the root address of `idmap`, which has just been initialised with
@@ -187,7 +187,7 @@ fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
 
 /// Adds the given region to the page table with the given attributes, logging it first.
 pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attributes) {
-    info!("Mapping {} as {:?}.", region, attributes);
+    info!("Mapping {region} as {attributes:?}.");
     idmap
         .map_range(region, attributes)
         .expect("Error mapping memory range");
@@ -282,7 +282,7 @@ impl Translation for IdTranslation {
     }
 
     unsafe fn deallocate_table(&mut self, page_table: NonNull<PageTable>) {
-        warn!("Leaking page table allocation {:?}", page_table);
+        warn!("Leaking page table allocation {page_table:?}");
     }
 
     fn physical_to_virtual(&self, page_table_pa: PhysicalAddress) -> NonNull<PageTable> {

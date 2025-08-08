@@ -50,7 +50,7 @@ pub fn get_log_sink() -> Option<&'static LogSinkImpl> {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     if let Some(sink) = get_log_sink() {
-        writeln!(sink, "{}", info);
+        writeln!(sink, "{info}");
     }
     loop {}
 }

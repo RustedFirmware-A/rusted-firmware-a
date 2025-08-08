@@ -158,9 +158,9 @@ impl Debug for RunResult {
             Self::Smc { regs } => {
                 write!(f, "Smc {{ regs: [")?;
                 if let Some(first) = regs.first() {
-                    write!(f, "{:#x}", first)?;
+                    write!(f, "{first:#x}")?;
                     for reg in &regs[1..] {
-                        write!(f, ", {:#x}", reg)?;
+                        write!(f, ", {reg:#x}")?;
                     }
                 }
                 write!(f, "] }}")?;
@@ -181,7 +181,7 @@ impl Debug for RunResult {
 /// the ERET. After execution returns to EL3 by any exception, the reason for returning is checked
 /// and the appropriate result will be returned by this function.
 pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
-    trace!("Entering world {:?} with args {:x?}", world, in_regs);
+    trace!("Entering world {world:?} with args {in_regs:x?}");
 
     if !in_regs.is_empty() {
         exception_free(|token| {
@@ -252,10 +252,10 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
         RunResult::SYSREG_TRAP => RunResult::SysregTrap {
             esr: Esr::from_bits_retain(esr),
         },
-        r => panic!("unhandled enter world result: {}", r),
+        r => panic!("unhandled enter world result: {r}"),
     };
 
-    trace!("Returned from world {:?} with result {:?}", world, result);
+    trace!("Returned from world {world:?} with result {result:?}");
 
     result
 }

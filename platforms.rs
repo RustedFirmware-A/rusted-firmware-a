@@ -37,8 +37,7 @@ pub fn get_builder(platform: &str) -> Result<Box<dyn Builder>, Box<dyn Error>> {
         FvpBuilder::PLAT_NAME => Ok(Box::new(FvpBuilder)),
         QemuBuilder::PLAT_NAME => Ok(Box::new(QemuBuilder)),
         _ => Err(format!(
-            "Unexpected platform name {:?}. Supported platforms: {:?}",
-            platform, PLATFORMS
+            "Unexpected platform name {platform:?}. Supported platforms: {PLATFORMS:?}"
         )
         .into()),
     }
@@ -50,5 +49,5 @@ pub fn add_linker_script(path: &Path) {
 }
 
 pub fn define_linker_symbol(name: &str, value: u64) {
-    println!("cargo:rustc-link-arg=--defsym=\"{}\"={}", name, value);
+    println!("cargo:rustc-link-arg=--defsym=\"{name}\"={value}");
 }

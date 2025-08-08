@@ -91,7 +91,7 @@ impl Services {
     ///
     /// Also, initializes it if it hasn't been initialized yet.
     pub fn get() -> &'static Self {
-        &*SERVICES
+        &SERVICES
     }
 
     fn new() -> Self {
@@ -161,8 +161,7 @@ impl Services {
                 (SmcReturn::EMPTY, world)
             }
             _ => panic!(
-                "Unsupported interrupt routing. Interrupt type: {:?} world: {:?}",
-                interrupt_type, world
+                "Unsupported interrupt routing. Interrupt type: {interrupt_type:?} world: {world:?}"
             ),
         }
     }
@@ -173,6 +172,7 @@ impl Services {
         #[allow(unused)]
         let mut step_to_next_instr = false;
 
+        #[allow(clippy::match_single_binding)]
         match esr & Esr::ISS_SYSREG_OPCODE_MASK {
             // TODO: add trap handlers, should set step_to_next_instr as necessary
             _ => {

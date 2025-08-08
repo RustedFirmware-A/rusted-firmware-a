@@ -930,9 +930,9 @@ impl Psci {
             }
             Ok(ReturnCode::Error(error_code)) => {
                 // The SPMD cannot prevent the PSCI state change, so we only log the error.
-                log::error!("SPMD return {:?} on PSCI event {:?}", error_code, function)
+                log::error!("SPMD return {error_code:?} on PSCI event {function:?}")
             }
-            Err(error) => log::error!("Failed to parse PSCI event response: {:?}", error),
+            Err(error) => log::error!("Failed to parse PSCI event response: {error:?}"),
         }
     }
 }

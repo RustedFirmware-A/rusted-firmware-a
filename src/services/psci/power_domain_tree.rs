@@ -13,7 +13,7 @@ use super::{
 use arm_psci::{AffinityInfo, EntryPoint};
 use arrayvec::ArrayVec;
 use core::{
-    fmt::Debug,
+    fmt::{self, Debug, Formatter},
     ops::Range,
     slice::{Iter, IterMut},
 };
@@ -346,19 +346,19 @@ impl PowerDomainTree {
 
 impl Debug for PowerDomainTree {
     /// Outputs the tree in Graphviz DOT format.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "digraph {{")?;
         for (index, ncpu) in self.non_cpu_power_nodes.iter().enumerate() {
             let nc = ncpu.lock();
-            writeln!(f, "NC{} [label=\"{:#?}\"]", index, nc)?;
+            writeln!(f, "NC{index} [label=\"{nc:#?}\"]")?;
             if let Some(parent) = nc.parent {
-                writeln!(f, "NC{} -> NC{}", parent, index)?;
+                writeln!(f, "NC{parent} -> NC{index}")?;
             }
         }
 
         for (index, cpu) in self.cpu_power_nodes.iter().enumerate() {
             let c = cpu.lock();
-            writeln!(f, "C{} [label=\"{:#?}\"]", index, c)?;
+            writeln!(f, "C{index} [label=\"{c:#?}\"]")?;
             writeln!(f, "NC{} -> C{}", c.parent, index)?;
         }
 

@@ -203,9 +203,9 @@ impl Debug for SmcReturn {
         write!(f, "SmcReturn([")?;
         let values = self.values();
         if let Some(first) = values.first() {
-            write!(f, "{:#x}", first)?;
+            write!(f, "{first:#x}")?;
             for value in &values[1..] {
-                write!(f, ", {:#x}", value)?;
+                write!(f, ", {value:#x}")?;
             }
         }
         write!(f, "])")?;

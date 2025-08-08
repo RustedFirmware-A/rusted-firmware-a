@@ -56,6 +56,7 @@ impl Arch {
         let mut function = FunctionId(regs[0] as u32);
         function.clear_sve_hint();
 
+        #[allow(clippy::unit_arg)]
         match function.0 {
             SMCCC_VERSION => version().into(),
             SMCCC_ARCH_FEATURES => arch_features(regs[1] as u32).into(),

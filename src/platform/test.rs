@@ -70,7 +70,7 @@ impl Platform for TestPlatform {
     }
 
     fn handle_group0_interrupt(int_id: IntId) {
-        panic!("Received group 0 interrupt {:?}", int_id)
+        panic!("Received group 0 interrupt {int_id:?}")
     }
 
     fn secure_entry_point() -> EntryPointInfo {

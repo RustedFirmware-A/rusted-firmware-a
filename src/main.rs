@@ -36,7 +36,7 @@ use services::Services;
 extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
     PlatformImpl::init_before_mmu();
     info!("Rust BL31 starting");
-    info!("Parameters: {:#0x} {:#0x}", bl31_params, platform_params);
+    info!("Parameters: {bl31_params:#0x} {platform_params:#0x}");
 
     // Set up page table.
     pagetable::init();

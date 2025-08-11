@@ -13,6 +13,7 @@ mod cpu;
 #[cfg(not(test))]
 mod crash_console;
 mod debug;
+mod dram;
 mod exceptions;
 mod gicv3;
 #[cfg_attr(test, path = "layout_fake.rs")]

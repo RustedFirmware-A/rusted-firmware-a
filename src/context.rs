@@ -30,6 +30,7 @@ use crate::sysregs::{
     write_tpidrro_el0, write_ttbr0_el1, write_ttbr1_el1, write_vbar_el1,
 };
 use crate::{
+    aarch64::isb,
     gicv3,
     platform::{Platform, PlatformImpl, exception_free, plat_calc_core_pos},
     smccc::SmcReturn,
@@ -593,6 +594,8 @@ pub fn set_initial_world(world: World) {
         // This must be initialised before the EL2 system registers are written to, to avoid an
         // exception.
         write_scr_el3(context.el3_state.scr_el3);
+        isb();
+
         context.restore_lower_el_sysregs();
     });
 }

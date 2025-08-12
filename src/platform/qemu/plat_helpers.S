@@ -10,6 +10,7 @@
 	.globl	plat_crash_console_putc
 	.globl	plat_crash_console_flush
 	.globl  plat_secondary_cold_boot_setup
+	.globl	plat_cold_boot_handler
 
 func plat_my_core_pos
 	mrs	x0, mpidr_el1
@@ -54,3 +55,12 @@ func plat_crash_console_flush
 	mov_imm	x0, {PLAT_QEMU_CRASH_UART_BASE}
 	b	console_pl011_core_flush
 endfunc plat_crash_console_flush
+
+	/* ---------------------------------------------
+	 * void plat_cold_boot_handler(void)
+	 * Platform cold boot handler.
+	 * ---------------------------------------------
+	 */
+func plat_cold_boot_handler
+	ret
+endfunc plat_cold_boot_handler

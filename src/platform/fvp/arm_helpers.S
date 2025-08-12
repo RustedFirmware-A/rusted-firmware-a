@@ -9,6 +9,7 @@
 	.globl	plat_crash_console_init
 	.globl	plat_crash_console_putc
 	.globl	plat_crash_console_flush
+	.globl	plat_cold_boot_handler
 
 	/* -----------------------------------------------------
 	 *  unsigned int plat_my_core_pos(void)
@@ -59,3 +60,12 @@ func plat_crash_console_flush
 	mov_imm	x0, {PLAT_ARM_CRASH_UART_BASE}
 	b	console_pl011_core_flush
 endfunc plat_crash_console_flush
+
+	/* ---------------------------------------------
+	 * void plat_cold_boot_handler(void)
+	 * Platform cold boot handler.
+	 * ---------------------------------------------
+	 */
+func plat_cold_boot_handler
+	ret
+endfunc plat_cold_boot_handler

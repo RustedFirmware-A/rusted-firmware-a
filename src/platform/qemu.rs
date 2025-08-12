@@ -20,6 +20,7 @@ use crate::{
             PsciPlatformInterface, PsciPlatformOptionalFeatures, bl31_warm_entrypoint,
             try_get_cpu_index_by_mpidr,
         },
+        trng::NotSupportedTrngPlatformImpl,
     },
     sysregs::{IccSre, MpidrEl1, Spsr},
 };
@@ -113,6 +114,8 @@ impl Platform for Qemu {
     type LogSinkImpl =
         HybridLogger<&'static PerCoreMemoryLogger<LOG_BUFFER_SIZE>, LockedWriter<Uart<'static>>>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
+    // QEMU does not have a TRNG.
+    type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
 
     type PlatformServiceImpl = DummyService;
 

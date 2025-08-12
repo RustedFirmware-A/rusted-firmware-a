@@ -43,6 +43,7 @@ spin = { version = "0.10.0", default-features = false, features = [
 ] }
 arm-ffa = { version = "0.3.1", default-features = false }
 arm-gic = "0.6.1"
+uuid = { version = "1.18.0", default-features = false }
 
 [dev-dependencies]
 arm-gic = { version = "0.6.1", features = ["fakes"] }

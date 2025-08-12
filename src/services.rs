@@ -7,6 +7,7 @@ pub mod ffa;
 pub mod psci;
 #[cfg(feature = "rme")]
 pub mod rmmd;
+pub mod trng;
 
 use crate::{
     context::{World, cpu_state, set_initial_world, switch_world},
@@ -84,6 +85,7 @@ pub struct Services {
     pub spmd: ffa::Spmd,
     #[cfg(feature = "rme")]
     pub rmmd: rmmd::Rmmd,
+    pub trng: trng::Trng,
 }
 
 impl Services {
@@ -102,6 +104,7 @@ impl Services {
             spmd: ffa::Spmd::new(),
             #[cfg(feature = "rme")]
             rmmd: rmmd::Rmmd::new(),
+            trng: trng::Trng::new(),
         }
     }
 
@@ -120,6 +123,8 @@ impl Services {
             &self.platform
         } else if self.spmd.owns(function) {
             &self.spmd
+        } else if self.trng.owns(function) {
+            &self.trng
         } else {
             #[cfg(feature = "rme")]
             if self.rmmd.owns(function) {

@@ -17,6 +17,7 @@ use crate::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
+        trng::{TrngError, TrngPlatformInterface},
     },
     sysregs::{MpidrEl1, Spsr},
 };
@@ -26,6 +27,7 @@ use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use core::fmt;
 use percore::ExceptionFree;
 use std::io::{Write, stdout};
+use uuid::Uuid;
 
 const DEVICE0_BASE: usize = 0x0200_0000;
 const DEVICE0_SIZE: usize = 0x1000;
@@ -48,6 +50,7 @@ impl Platform for TestPlatform {
 
     type LogSinkImpl = StdOutSink;
     type PsciPlatformImpl = TestPsciPlatformImpl;
+    type TrngPlatformImpl = TestTrngPlatformImpl;
 
     type PlatformServiceImpl = DummyService;
 
@@ -333,6 +336,20 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
 
     fn sys_suspend_power_state(&self) -> PsciCompositePowerState {
         PsciCompositePowerState::OFF
+    }
+}
+
+pub struct TestTrngPlatformImpl;
+
+impl TrngPlatformInterface for TestTrngPlatformImpl {
+    const TRNG_UUID: Uuid = Uuid::from_bytes([
+        0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
+    ]);
+
+    fn get_entropy() -> Result<[u64; Self::REQ_WORDS], TrngError> {
+        // For testing purposes, provide an all-ones entropy source.
+        // A real platform would implement this using a hardware TRNG.
+        Ok([0xFFFF_FFFF_FFFF_FFFF])
     }
 }
 

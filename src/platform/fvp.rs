@@ -20,6 +20,7 @@ use crate::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
+        trng::NotSupportedTrngPlatformImpl,
     },
     sysregs::{IccSre, MpidrEl1, Spsr},
 };
@@ -109,6 +110,8 @@ impl Platform for Fvp {
 
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type PsciPlatformImpl = FvpPsciPlatformImpl;
+    // TODO: Implement TRNG for FVP.
+    type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
 
     type PlatformServiceImpl = DummyService;
 

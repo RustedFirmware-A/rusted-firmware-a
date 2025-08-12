@@ -5,6 +5,7 @@
 //! Types and helpers related to the SMC Calling Convention.
 
 use core::fmt::{self, Debug, Display, Formatter};
+use uuid::Uuid;
 
 const FAST_CALL: u32 = 0x8000_0000;
 const SMC64: u32 = 0x4000_0000;
@@ -243,6 +244,22 @@ impl From<u32> for SmcReturn {
 impl From<i32> for SmcReturn {
     fn from(value: i32) -> Self {
         Self::from(value as u64)
+    }
+}
+
+/// Acccording to section 5.3 of the SMCCC, UUIDs are returned as a single
+/// 128-bit value using the SMC32 calling convention. This value is mapped to
+/// argument registers x0-x3 on AArch64 (resp. r0-r3 on AArch32). x0 for example
+/// shall hold bytes 0 to 3, with byte 0 in the low-order bits.
+impl From<Uuid> for SmcReturn {
+    fn from(value: Uuid) -> Self {
+        let bytes = value.as_bytes();
+        Self::from([
+            u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as u64,
+            u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as u64,
+            u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as u64,
+            u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as u64,
+        ])
     }
 }
 

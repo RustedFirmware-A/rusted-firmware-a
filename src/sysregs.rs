@@ -22,7 +22,18 @@ pub mod pmcr {
 
 /// Constants for CPTR_EL3 fields.
 pub mod cptr_el3 {
-    /// Do not trap SVE instructions.
+    /// When set, trap EL2 accesses to CPTR_EL2/HCPTR, and EL2/EL1 accesses to CPACR_EL1/CPACR.
+    pub const TCPAC: u64 = 1 << 31;
+    /// When FEAT_AMUv1 implemented and set, trap accesses from EL2/EL1/EL0 to AMU registers.
+    pub const TAM: u64 = 1 << 30;
+    /// When set, trap trace system register accesses.
+    pub const TTA: u64 = 1 << 20;
+    /// When FEAT_SME is implemented and set, do not trap SME instructions and system registers
+    /// accesses.
+    pub const ESM: u64 = 1 << 12;
+    /// When set, trap Advanced SIMD instructions execution.
+    pub const TFP: u64 = 1 << 10;
+    /// When FEAT_SVE is implemented and set, do not trap SVE instructions.
     pub const EZ: u64 = 1 << 8;
 }
 

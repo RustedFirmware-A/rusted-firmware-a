@@ -113,7 +113,7 @@ endfunc restore_gp_pmcr_pauth_regs
  * ------------------------------------------------------------------
  */
 	.macro get_security_state _ret:req, _scr_reg:req
-		ubfm 	\_ret, \_scr_reg, #{SCR_NSE_SHIFT}, #1
+		ubfx 	\_ret, \_scr_reg, #{SCR_NSE_SHIFT}, #1
 		cmp 	\_ret, #1
 		beq 	realm_state
 		bfi	\_ret, \_scr_reg, #0, #1
@@ -199,10 +199,10 @@ func el3_exit
 	 * ----------------------------------------------------------
 	 */
 
-	/* The address of the per_world context is stored in x9 */
-	get_per_world_context x9
+	/* The address of the per_world context is stored in x8 */
+	get_per_world_context x8
 
-	ldp	x19, x20, [x9, #{CTX_CPTR_EL3}]
+	ldp	x19, x20, [x8, #{CTX_CPTR_EL3}]
 	msr	cptr_el3, x19
 
 	ands	x19, x19, #{CPTR_EZ_BIT}

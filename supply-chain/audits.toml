@@ -325,6 +325,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["does-not-implement-crypto", "ub-risk-2"]
 version = "1.3.0"
 
+[[audits.smccc]]
+who = "Pranjal Shrivastava <praan@google.com>"
+criteria = "safe-to-run"
+version = "0.2.2"
+notes = "safe-to-run: The crate is safe to run. It contains no code that accesses the filesystem, network, or other ambient capabilities during the build process."
+
 [[audits.spin]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "ub-risk-2"]

@@ -127,6 +127,16 @@ The risk of introducing Undefined Behavior remains negligible and is inherent to
 crate's low-level function.
 """
 
+[[audits.aarch64-rt]]
+who = "Pranjal Shrivastava <praan@google.com>"
+criteria = "safe-to-run"
+version = "0.2.2"
+notes = """
+The crate is safe-to-run. Its build.rs script only copies a linker script from the crate's source into the designated OUT_DIR.
+It then uses standard cargo:: directives to make Cargo aware of this new file. The script does not access the network, and it's
+filesystem access is confined to the expected OUT_DIR, and it does not execute any external or arbitrary shell commands.
+"""
+
 [[audits.arm-ffa]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

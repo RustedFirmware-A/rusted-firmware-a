@@ -12,16 +12,15 @@ automated check, please go right ahead and push a change to Gerrit.
 ## How To Use `unsafe`
 
 As part of meeting [the RF-A threat model][1], we aim to have as little `unsafe` code as possible.
-Keep `unsafe` as short as possible, and always write a safety comment explaining how the code
+Keep `unsafe` blocks as short as possible, and always write a safety comment explaining how the code
 upholds Rust’s safety guarantees. (The `undocumented_unsafe_blocks` and `missing_safety_doc` Clippy
 lints are set to “deny”.)
 
 Safety comments should make specific and verifiable claims about the validity of pointers, the
-block’s (non-)impingement on memory safety and type safety, and (where applicable) how the block
-meets the `# Safety` requirements in the surrounding interface’s Rustdoc.
+block's (non-)impingement on memory safety and type safety, and how the block meets the `# Safety`
+requirements of the unsafe functions it calls.
 
 During code review, get an `unsafe` expert to review your `unsafe` blocks and their safety comments.
-(Automatically requiring review is, of course, a key goal.)
 
 ## Third-party Dependencies
 
@@ -34,8 +33,10 @@ For `[build-dependencies]`, convenience and clarity can be acceptable reasons to
 
 ### Use `cargo vet`
 
-Ultimately, we will require that `cargo vet` pass cleanly before submitting new dependencies. TODO:
-Add a presubmit script to run `cargo vet`, and update this text once that is done.
+All dependencies (direct and transitive) must be audited with `cargo vet`. Ultimately, this will be
+enforced by CI.
+
+TODO: Add a presubmit script to run `cargo vet`, and update this text once that is done.
 
 The crate’s vetter and the crate’s author must not be the same person.
 

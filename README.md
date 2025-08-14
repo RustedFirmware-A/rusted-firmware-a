@@ -133,6 +133,10 @@ project are accepted under the same license and must also be made under the term
 [Developer Certificate of Origin][4], confirming that the code submitted can (legally) become part
 of the project.
 
+## Contributing
+
+See the [contribution guidelines](docs/CONTRIBUTING.md) and [style guide](docs/style-guide.md).
+
 ## Arm trademark notice
 
 Arm is a registered trademark of Arm Limited (or its subsidiaries or affiliates).

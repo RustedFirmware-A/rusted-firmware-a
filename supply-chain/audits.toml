@@ -154,6 +154,21 @@ notes = """
 `ub-risk-2`: The crate contains several unsafe blocks, for MMIO and to call assembly instructions. They are well commented and simple to reason about. While in some cases the caller has to promise safety of the block, this is standard in this kind of crates.
 """
 
+[[audits.arm-gic]]
+who = "Pranjal Shrivastava <praan@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.6.0"
+notes = """
+safe-to-deploy: The unsafe code is well-encapsulated and used appropriately for its purpose. The changes in this version add support for GICv3
+power management and expand the API for handling interrupt groups, but do not fundamentally alter the safety model. The primary safety contract
+remains on the caller to provide valid memory-mapped register addresses, which is expected for this kind of crate.
+
+does-not-implement-crypto: A review of the diff confirms that the crate does not contain or implement any cryptographic algorithms. Its functionality is strictly limited to interrupt controller management.
+
+ub-risk-2: The crate's soundness is average and appropriate for its domain. The potential for undefined behavior comes from the caller violating
+the documented safety preconditions (e.g., providing an invalid pointer to the constructor or calling from an incorrect CPU exception level), not from logical flaws within the crate itself.
+"""
+
 [[audits.arm-pl011-uart]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]

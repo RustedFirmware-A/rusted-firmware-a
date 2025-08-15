@@ -33,10 +33,7 @@ For `[build-dependencies]`, convenience and clarity can be acceptable reasons to
 
 ### Use `cargo vet`
 
-All dependencies (direct and transitive) must be audited with `cargo vet`. Ultimately, this will be
-enforced by CI.
-
-TODO: Add a presubmit script to run `cargo vet`, and update this text once that is done.
+All dependencies (direct and transitive) must be audited with `cargo vet`. This is enforced by CI.
 
 The crate’s vetter and the crate’s author must not be the same person.
 

@@ -127,6 +127,16 @@ The risk of introducing Undefined Behavior remains negligible and is inherent to
 crate's low-level function.
 """
 
+[[audits.aarch64-paging]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.9.1 -> 0.10.0"
+notes = """
+Reverting activate() back to its previous form does not change the unsafe behavior.
+activate()/deactivate() changed their behavior to expose the TTBR value instead of storing internally. It does not affect the existing safety requirement.
+Adding barriers and using atomic types ensures multicore operation correctness and avoiding race conditions.
+"""
+
 [[audits.aarch64-rt]]
 who = "Pranjal Shrivastava <praan@google.com>"
 criteria = "safe-to-run"
@@ -184,6 +194,12 @@ does-not-implement-crypto: A review of the diff confirms that the crate does not
 ub-risk-2: The crate's soundness is average and appropriate for its domain. The potential for undefined behavior comes from the caller violating
 the documented safety preconditions (e.g., providing an invalid pointer to the constructor or calling from an incorrect CPU exception level), not from logical flaws within the crate itself.
 """
+
+[[audits.arm-gic]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.6.0 -> 0.6.1"
+notes = "Only administrative updates have been made to the repository, including modifications to the README file, license headers, and dependencies. These changes do not affect the crate’s functionality or behavior."
 
 [[audits.arm-pl011-uart]]
 who = "Andrew Walbran <qwandor@google.com>"

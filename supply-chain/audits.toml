@@ -395,6 +395,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.3 -> 2.0.12"
 
+[[audits.thiserror]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.12 -> 2.0.14"
+notes = "No significant changes, only metadata and comments."
+
 [[audits.thiserror-impl]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -404,6 +410,12 @@ version = "2.0.3"
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.3 -> 2.0.12"
+
+[[audits.thiserror-impl]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.12 -> 2.0.14"
+notes = "No significant changes, only metadata and a lint attribute."
 
 [[audits.uuid]]
 who = "Chris Palmer <palmer@google.com>"

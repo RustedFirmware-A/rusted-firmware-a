@@ -1,6 +1,31 @@
-# rf-a-bl31
+# Rusted Firmware-A
 
-This directory contains an experimental Rust port of TF-A BL31.
+This project provides an experimental Rust port of Trusted Firmware-A’s (TF-A) EL3 runtime firmware
+(BL31).
+
+## Responsibilities
+
+The EL3 runtime firmware is responsible for:
+
+* Boot process coordination - Initiating the boot process of the components in the secure and normal
+  worlds
+* Security state coordination - Managing transitions between normal and secure worlds
+* Secure Monitor Call (SMC) handling - Processing SMCs invoked by other software components
+
+## Supported SMC Interfaces
+
+The current implementation supports:
+
+* Arm Architecture Calls
+* Arm Firmware Framework for Arm A-profile (FF-A)
+* Arm Power State Coordination Interface (PSCI)
+
+## Supported Platforms
+
+The following platforms are supported currently:
+
+* Arm Fixed Virtual Platform (FVP)
+* QEMU
 
 ## Getting started
 

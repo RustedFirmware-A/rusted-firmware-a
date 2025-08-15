@@ -31,21 +31,21 @@ overflow-checks = true
 [dependencies]
 aarch64-paging = { version = "0.10.0", default-features = false }
 arrayvec = { version = "0.7.6", default-features = false }
-arm-psci = "0.1.1"
+arm-psci = "0.1.3"
 bitflags = "2.9.1"
 log = "0.4.27"
 percore = "0.1.0"
-arm-pl011-uart = { version = "0.3", default-features = false }
+arm-pl011-uart = { version = "0.3.2", default-features = false }
 spin = { version = "0.10.0", default-features = false, features = [
   "lazy",
   "once",
   "spin_mutex",
 ] }
-arm-ffa = { version = "0.3.0", default-features = false }
-arm-gic = "0.6.0"
+arm-ffa = { version = "0.3.1", default-features = false }
+arm-gic = "0.6.1"
 
 [dev-dependencies]
-arm-gic = { version = "0.6.0", features = ["fakes"] }
+arm-gic = { version = "0.6.1", features = ["fakes"] }
 
 [features]
 default = ["sel2"]

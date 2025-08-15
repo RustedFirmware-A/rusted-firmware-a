@@ -153,6 +153,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.2.1 -> 0.3.0"
 notes = "There is no unsafe code in the diff, it's mostly fairly straightforward and mechanical parsing logic."
 
+[[audits.arm-ffa]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.0 -> 0.3.1"
+notes = "No significant change, only metadata and clippy lints."
+
 [[audits.arm-gic]]
 who = "Jeremi Miller <jeremimiller@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -184,10 +190,22 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
 version = "0.3.1"
 
+[[audits.arm-pl011-uart]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.1 -> 0.3.2"
+notes = "No significant change, only metadata and clippy fix."
+
 [[audits.arm-psci]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "0.1.2"
+
+[[audits.arm-psci]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.1.2 -> 0.1.3"
+notes = "No source change, only metadata."
 
 [[audits.autocfg]]
 who = "Andrew Walbran <qwandor@google.com>"

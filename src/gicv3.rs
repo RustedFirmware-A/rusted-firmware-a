@@ -2,33 +2,31 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use core::panic;
+use core::{panic, ptr::NonNull};
 
 use crate::{
     aarch64::{dsb_sy, isb},
     context::{CoresImpl, World},
     platform::{Platform, PlatformImpl},
-    sysregs::{IccSre, ScrEl3, write_icc_sre_el1, write_icc_sre_el3},
+    sysregs::ScrEl3,
 };
 use arm_gic::{
-    IntId, Trigger,
-    gicv3::{GICRError, GicV3, Group, InterruptGroup, registers::GicdCtlr},
+    IntId, Trigger, UniqueMmioPointer,
+    gicv3::{
+        GicCpuInterface, GicDistributor, GicDistributorContext, GicRedistributor,
+        GicRedistributorContext, GicRedistributorIterator, Group, HIGHEST_NS_PRIORITY,
+        InterruptGroup, SecureIntGroup,
+        registers::{Gicd, GicdCtlr, GicrSgi},
+    },
 };
-use arm_sysregs::MpidrEl1;
+use arm_sysregs::{MpidrEl1, read_mpidr_el1};
 use log::debug;
 use percore::Cores;
 use spin::{Once, mutex::SpinMutex};
 
-const GIC_HIGHEST_NS_PRIORITY: u8 = 0x80;
 const GIC_PRI_MASK: u8 = 0xff;
 
-pub static GIC: Once<Gic> = Once::new();
-
-pub struct Gic<'a> {
-    pub gic: SpinMutex<GicV3<'a>>,
-    /// Redistributor indices by core ID.
-    redistributor_indices: [usize; PlatformImpl::CORE_COUNT],
-}
+static GIC: Once<Gic> = Once::new();
 
 /// The configuration of a single interrupt.
 #[derive(Clone, Copy, Debug)]
@@ -45,7 +43,7 @@ pub struct InterruptConfig {
 impl InterruptConfig {
     /// `default()` from [Default] trait is not const.
     pub const DEFAULT: Self = Self {
-        priority: GIC_HIGHEST_NS_PRIORITY,
+        priority: HIGHEST_NS_PRIORITY,
         group: Group::Group1NS,
         trigger: Trigger::Level,
     };
@@ -67,15 +65,23 @@ pub struct GicConfig {
 }
 
 impl GicConfig {
-    fn get_interrupt_config_or_default(&self, int_id: IntId) -> InterruptConfig {
+    /// Get iterator for all interrupts.
+    fn all(&self) -> impl Iterator<Item = &InterruptConfigEntry> {
+        self.interrupts_config.iter()
+    }
+
+    /// Get iterator for shared interrupts.
+    fn shared(&self) -> impl Iterator<Item = &InterruptConfigEntry> {
+        self.interrupts_config.iter().filter(|int| int.0.is_spi())
+    }
+
+    /// Get iterator for private interrupts.
+    fn private(&self) -> impl Iterator<Item = &InterruptConfigEntry> {
         self.interrupts_config
             .iter()
-            .find(|(id, _)| *id == int_id)
-            .map(|(_, cfg)| *cfg)
-            .unwrap_or_default()
+            .filter(|int| int.0.is_private())
     }
 }
-
 /// Specifies where an interrupt should be handled.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum InterruptType {
@@ -85,137 +91,228 @@ pub enum InterruptType {
     Invalid,
 }
 
-/// Configure all available Shared Peripheral Interrupts (SPIs).
-fn configure_spis(gic: &mut GicV3, config: &GicConfig) {
-    let num_spis = gic.typer().num_spis() as usize;
+/// Registry for storing GIC redistributor instances.
+struct GicRedistributorRegistry<'a> {
+    redistributors: [SpinMutex<GicRedistributor<'a>>; PlatformImpl::CORE_COUNT],
+}
 
-    // Disable all SPIs before configuring them.
-    for int_id in IntId::spis().take(num_spis) {
-        gic.enable_interrupt(int_id, None, false);
-    }
+impl<'a> GicRedistributorRegistry<'a> {
+    /// # Safety
+    /// The caller must ensure that `base` points to a continiously mapped GIC redistributor memory
+    /// area that spans until the last redistributor block where GICR_TYPER.Last is set. There must
+    /// be no other references to this address.
+    pub unsafe fn new(base: NonNull<GicrSgi>, gic_v4: bool) -> Self {
+        let mut redistributors = [const { None }; PlatformImpl::CORE_COUNT];
 
-    gic.gicd_barrier();
+        // Safety: The function propagates the safety requirements to the caller.
+        for redist in unsafe { GicRedistributorIterator::new(base, gic_v4) } {
+            let mpidr = MpidrEl1::from_psci_mpidr(redist.typer().core_mpidr());
+            assert!(PlatformImpl::mpidr_is_valid(mpidr));
 
-    for int_id in IntId::spis().take(num_spis) {
-        let cfg = config.get_interrupt_config_or_default(int_id);
+            let core_index = PlatformImpl::core_position(mpidr.bits());
 
-        gic.set_group(int_id, None, cfg.group);
-        gic.set_trigger(int_id, None, cfg.trigger);
-        gic.set_interrupt_priority(int_id, None, cfg.priority);
-
-        // Target (E)SPIs to the primary CPU.
-        // TODO:
-        // gic_affinity_val = gicd_irouter_val_from_mpidr(read_mpidr(), 0U);
-        // gicd_write_irouter(multichip_gicd_base, intr_num, gic_affinity_val);
-    }
-
-    // Enable only the explicitly configured SPIs.
-    for (int_id, _) in config.interrupts_config.iter() {
-        if int_id.is_spi() {
-            gic.enable_interrupt(*int_id, None, true);
+            redistributors[core_index] = Some(SpinMutex::new(redist));
         }
-    }
-}
 
-fn init_distributor(gic: &mut GicV3, config: &GicConfig) {
-    // Clear the "enable" bits for G0/G1S/G1NS interrupts before configuring
-    // the ARE_S bit. The Distributor might generate a system error
-    // otherwise.
-    gic.gicd_clear_control(GicdCtlr::EnableGrp0 | GicdCtlr::EnableGrp1S | GicdCtlr::EnableGrp1NS);
-
-    // Set the ARE_S and ARE_NS bits now that interrupts have been disabled.
-    gic.gicd_set_control(GicdCtlr::ARE_S | GicdCtlr::ARE_NS);
-
-    configure_spis(gic, config);
-
-    // Enable all interrupt groups back.
-    gic.gicd_set_control(GicdCtlr::EnableGrp0 | GicdCtlr::EnableGrp1S | GicdCtlr::EnableGrp1NS);
-}
-
-/// Configure all available SGIs and PPIs.
-fn configure_private_interrupts(gic: &mut GicV3, core_index: usize, config: &GicConfig) {
-    // Assume we are running without GIC_EXT_INTID
-    // So only 16 SGIs and 16 PPIs
-
-    // Disable all private interrupts before configuring them.
-    for int_id in IntId::private() {
-        gic.enable_interrupt(int_id, Some(core_index), false);
-    }
-
-    // Wait for pending writes
-    gic.gicr_barrier(core_index);
-
-    for int_id in IntId::private() {
-        let cfg = config.get_interrupt_config_or_default(int_id);
-
-        gic.set_group(int_id, Some(core_index), cfg.group);
-        gic.set_interrupt_priority(int_id, Some(core_index), cfg.priority);
-
-        // Set interrupt configuration for PPIs.
-        // Configurations for SGIs 0-15 are ignored.
-        if int_id.is_ppi() {
-            gic.set_trigger(int_id, Some(core_index), cfg.trigger);
+        Self {
+            redistributors: redistributors.map(|r| r.unwrap()),
         }
     }
 
-    // Enable only the explicitly configured private interrupts.
-    for (int_id, _) in config.interrupts_config.iter() {
-        if int_id.is_private() {
-            gic.enable_interrupt(*int_id, Some(core_index), true);
-        }
+    /// Get redistributor by linear index.
+    pub fn redistributor(&self, index: usize) -> &SpinMutex<GicRedistributor<'a>> {
+        &self.redistributors[index]
+    }
+
+    /// Get the redistributor of the local core.
+    pub fn local_redistributor(&self) -> &SpinMutex<GicRedistributor<'a>> {
+        self.redistributor(CoresImpl::core_index())
     }
 }
 
-fn init_redistributor(gic: &mut GicV3, core_index: usize, config: &GicConfig) {
-    // TODO: power off the redistributor in PSCI ops.
-    gic.gicr_power_on(core_index);
-
-    configure_private_interrupts(gic, core_index, config);
+/// The `Gic` structure contains the driver instances of the GIC distributor and redistributors. Its
+/// implementation offers platform independent functions for initializing, enabling, disabling,
+/// saving and restoring the various components of the GIC peripheral.
+pub struct Gic<'a> {
+    distributor: SpinMutex<GicDistributor<'a>>,
+    redistributors: GicRedistributorRegistry<'a>,
 }
 
-pub fn init_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
-    gic.redistributor_mark_core_awake(current_redistributor_index())?;
+impl<'a> Gic<'a> {
+    /// # Safety
+    /// The caller must ensure that `gicr_base` points to a continiously mapped GIC redistributor
+    /// memory area that spans until the last redistributor block where GICR_TYPER.Last is set.
+    /// There must be no other references to this address range.
+    pub unsafe fn new(
+        gicd: UniqueMmioPointer<'a, Gicd>,
+        gicr_base: NonNull<GicrSgi>,
+        gic_v4: bool,
+    ) -> Self {
+        Self {
+            distributor: SpinMutex::new(GicDistributor::new(gicd)),
+            // Safety:  Our caller promised that `gicr_base` is a valid and unique pointer to a GIC
+            // redistributor block.
+            redistributors: unsafe { GicRedistributorRegistry::new(gicr_base, gic_v4) },
+        }
+    }
 
-    // Disable the legacy interrupt bypass.
-    // Enable system register access for EL3 and allow lower exception
-    // levels to configure the same for themselves. If the legacy mode is
-    // not supported, the SRE bit is RAO/WI.
-    let icc_sre = IccSre::DIB | IccSre::DFB | IccSre::EN | IccSre::SRE;
+    /// Get GIC instance.
+    pub fn get() -> &'static Self {
+        GIC.get().unwrap()
+    }
 
-    // SAFETY: This is the only place we set the SRE bit of `icc_sre_el3` to 1 and no other place
-    // is permitted to change it from 1 to 0.
-    unsafe { write_icc_sre_el3(icc_sre) };
+    /// Sets the default configuration for all interrupts of the distributor. Configures the shared
+    /// interrupts that were specificied in the `GicConfig` and enables the required interrupt
+    /// groups.
+    pub fn distributor_init(&self, config: &GicConfig) {
+        let mut distributor = self.distributor.lock();
 
-    // Prevent the selection of legacy mode where Secure Group 1 interrupts are treated as Group 0.
-    write_icc_sre_el1(IccSre::SRE);
+        // Clear the "enable" bits for G0/G1S/G1NS interrupts before configuring the ARE_S bit. The
+        // Distributor might generate a system error otherwise.
+        distributor.modify_control(
+            GicdCtlr::EnableGrp0 | GicdCtlr::EnableGrp1S | GicdCtlr::EnableGrp1NS,
+            false,
+        );
 
-    // Program the idle priority in the PMR.
-    GicV3::set_priority_mask(GIC_PRI_MASK);
+        // Set the ARE_S and ARE_NS bit now that interrupts have been disabled
+        distributor.modify_control(GicdCtlr::ARE_S | GicdCtlr::ARE_NS, true);
 
-    GicV3::enable_group0(true);
-    GicV3::enable_group1(true);
+        // Set the default attribute of all (E)SPIs
+        distributor.configure_default_settings();
 
-    isb();
-    dsb_sy();
-    Ok(())
-}
+        let mpidr = Some(read_mpidr_el1().bits());
 
-/// Disables the GIC CPU interface of the calling CPU using system register accesses.
-#[allow(unused)]
-pub fn disable_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
-    GicV3::enable_group0(false);
-    GicV3::enable_group1(false);
+        for (intid, config) in config.shared() {
+            distributor.set_group(*intid, config.group).unwrap();
+            distributor.set_trigger(*intid, config.trigger).unwrap();
+            distributor
+                .set_interrupt_priority(*intid, config.priority)
+                .unwrap();
+            distributor.set_routing(*intid, mpidr).unwrap();
+            distributor.enable_interrupt(*intid, true).unwrap();
+        }
 
-    // Synchronize accesses to group enable registers.
-    isb();
+        let gicd_ctlr = config
+            .shared()
+            .fold(GicdCtlr::empty(), |acc, (_intid, config)| {
+                acc | match config.group {
+                    Group::Secure(SecureIntGroup::Group0) => GicdCtlr::EnableGrp0,
+                    Group::Secure(SecureIntGroup::Group1S) => GicdCtlr::EnableGrp1S,
+                    Group::Group1NS => panic!("configuring Group1NS is not permitted"),
+                }
+            });
 
-    // Ensure visibility of system register writes.
-    dsb_sy();
+        distributor.modify_control(gicd_ctlr, true);
+    }
 
-    // TODO: enable errata wa 2384374
+    /// Saves the distributor context.
+    pub fn distributor_save<const IREG_COUNT: usize, const IREG_E_COUNT: usize>(
+        &self,
+        context: &mut GicDistributorContext<IREG_COUNT, IREG_E_COUNT>,
+    ) {
+        self.distributor.lock().save(context).unwrap();
+    }
 
-    gic.redistributor_mark_core_asleep(current_redistributor_index())?;
-    Ok(())
+    /// Restores the distributor context.
+    pub fn distributor_restore<const IREG_COUNT: usize, const IREG_E_COUNT: usize>(
+        &self,
+        context: &GicDistributorContext<IREG_COUNT, IREG_E_COUNT>,
+    ) {
+        self.distributor.lock().restore(context).unwrap()
+    }
+
+    /// Powers on the redistributor instance of the local core, then sets the default configuration
+    /// for all interrupts of the redistributor. Configures the private interrupts that were
+    /// specified in the `GicConfig`.
+    pub fn redistributor_init(&self, config: &GicConfig) {
+        let mut redist = self.redistributors.local_redistributor().lock();
+
+        redist.power_on();
+
+        redist.configure_default_settings();
+
+        for (intid, config) in config.private() {
+            redist.set_group(*intid, config.group).unwrap();
+            if intid.is_ppi() {
+                // Set interrupt configuration for PPIs.
+                // Configurations for SGIs 0-15 are ignored.
+                redist.set_trigger(*intid, config.trigger).unwrap();
+            }
+            redist
+                .set_interrupt_priority(*intid, config.priority)
+                .unwrap();
+            redist.enable_interrupt(*intid, true).unwrap();
+        }
+    }
+
+    /// Turns off the local core's redistributor.
+    pub fn redistributor_off(&self) {
+        self.redistributors.local_redistributor().lock().power_off();
+    }
+
+    /// Saves the context of the local core's redistributor.
+    pub fn redistributor_save<const IREG_COUNT: usize>(
+        &self,
+        context: &mut GicRedistributorContext<IREG_COUNT>,
+    ) {
+        self.redistributors
+            .local_redistributor()
+            .lock()
+            .save(context)
+            .unwrap()
+    }
+
+    /// Restores the context of the local core's redistributor.
+    pub fn redistributor_restore<const IREG_COUNT: usize>(
+        &self,
+        context: &GicRedistributorContext<IREG_COUNT>,
+    ) {
+        let mut redistributor = self.redistributors.local_redistributor().lock();
+
+        redistributor.power_on();
+        redistributor.restore(context).unwrap();
+    }
+
+    /// Enables and configures the GIC CPU interface.
+    pub fn cpu_interface_enable(&self) {
+        let mut redist = self.redistributors.local_redistributor().lock();
+        redist.mark_core_awake().unwrap();
+
+        GicCpuInterface::disable_legacy_interrupt_bypass_el3(true);
+
+        // Enable system register access for EL3 and allow lower exception
+        // levels to configure the same for themselves. If the legacy mode is
+        // not supported, the SRE bit is RAO/WI
+        GicCpuInterface::enable_system_register_el3(true, true);
+
+        // Prevent the selection of legacy mode where Secure Group 1 interrupts are treated as Group 0.
+        GicCpuInterface::enable_system_register_el1(true);
+        isb();
+
+        GicCpuInterface::set_priority_mask(GIC_PRI_MASK);
+        GicCpuInterface::enable_group0(true);
+        GicCpuInterface::enable_group1(true);
+
+        isb();
+        dsb_sy();
+    }
+
+    /// Disables the GIC CPU interface.
+    pub fn cpu_interface_disable(&self) {
+        GicCpuInterface::enable_group0(false);
+        GicCpuInterface::enable_group1_secure(false);
+        GicCpuInterface::enable_group1_non_secure(false);
+
+        isb();
+        dsb_sy();
+
+        // dsb() already issued previously after clearing the CPU group enabled, apply below
+        // workaround to toggle the "DPG*" bits of GICR_CTLR register for unblocking event.
+        // TODO: gicv3_apply_errata_wa_2384374(gicr_base);
+
+        let mut redist = self.redistributors.local_redistributor().lock();
+        redist.mark_core_asleep().unwrap();
+    }
 }
 
 /// Initializes the gic by configuring the distributor, redistributor and cpu interface, and puts
@@ -224,50 +321,14 @@ pub fn disable_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
 pub fn init() {
     GIC.call_once(|| {
         // SAFETY: This is the only place where GIC is created and there are no aliases.
-        let mut gic = unsafe { PlatformImpl::create_gic() };
+        let gic = unsafe { PlatformImpl::create_gic() };
 
-        init_distributor(&mut gic, &PlatformImpl::GIC_CONFIG);
+        gic.distributor_init(&PlatformImpl::GIC_CONFIG);
+        gic.redistributor_init(&PlatformImpl::GIC_CONFIG);
+        gic.cpu_interface_enable();
 
-        // Configure Redistributors for all cores.
-        // Secondary cores must configure only their CPU interfaces.
-        for redistributor_index in 0..PlatformImpl::CORE_COUNT {
-            init_redistributor(&mut gic, redistributor_index, &PlatformImpl::GIC_CONFIG);
-        }
-
-        // Calculate redistributor index for each CPU and store it for future use.
-        let redistributor_indices = calculate_redistributor_indices(&mut gic);
-
-        Gic {
-            gic: SpinMutex::new(gic),
-            redistributor_indices,
-        }
+        gic
     });
-
-    // thiserror does not print the error message with `expect` :(
-    if let Err(e) = init_cpu_interface(&mut GIC.get().unwrap().gic.lock()) {
-        panic!("Failed to init GIC CPU interface: {}", e);
-    }
-    debug!(
-        "GIC redistributor indices by core: {:?}",
-        GIC.get().unwrap().redistributor_indices
-    );
-}
-
-fn current_redistributor_index() -> usize {
-    GIC.get().unwrap().redistributor_indices[CoresImpl::core_index()]
-}
-
-fn calculate_redistributor_indices(gic: &mut GicV3) -> [usize; PlatformImpl::CORE_COUNT] {
-    let mut redistributor_indices = [0; PlatformImpl::CORE_COUNT];
-    for redistributor_index in 0..PlatformImpl::CORE_COUNT {
-        let mpidr = MpidrEl1::from_psci_mpidr(gic.gicr_typer(redistributor_index).core_mpidr());
-        if !PlatformImpl::mpidr_is_valid(mpidr) {
-            panic!("GIC redistributor {redistributor_index} has invalid mpidr value.");
-        }
-        let core_index = PlatformImpl::core_position(mpidr.bits());
-        redistributor_indices[core_index] = redistributor_index;
-    }
-    redistributor_indices
 }
 
 /// Configures interrupt-routing related flags in `scr_el3` bitflags.
@@ -296,7 +357,7 @@ pub fn set_routing_model(scr_el3: &mut ScrEl3, world: World) {
 
 /// Returns the type of the highest priority pending group0 interrupt.
 pub fn get_pending_interrupt_type() -> InterruptType {
-    let int_id = GicV3::get_pending_interrupt(InterruptGroup::Group0);
+    let int_id = GicCpuInterface::get_pending_interrupt(InterruptGroup::Group0);
 
     match int_id {
         None => InterruptType::Invalid,
@@ -308,11 +369,12 @@ pub fn get_pending_interrupt_type() -> InterruptType {
 
 /// Wraps a platform-specific group 0 interrupt handler.
 pub fn handle_group0_interrupt() {
-    let int_id = GicV3::get_and_acknowledge_interrupt(InterruptGroup::Group0).unwrap();
+    let int_id = GicCpuInterface::get_and_acknowledge_interrupt(InterruptGroup::Group0).unwrap();
+
     debug!("Group 0 interrupt {int_id:?} acknowledged");
 
     PlatformImpl::handle_group0_interrupt(int_id);
 
-    GicV3::end_interrupt(int_id, InterruptGroup::Group0);
+    GicCpuInterface::end_interrupt(int_id, InterruptGroup::Group0);
     debug!("Group 0 interrupt {int_id:?} EOI");
 }

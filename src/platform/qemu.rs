@@ -10,7 +10,7 @@ use crate::{
     cpu::qemu_max::QemuMax,
     debug::DEBUG,
     dram::zeroed_mut,
-    gicv3::{self, GIC, GicConfig},
+    gicv3::{Gic, GicConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
     semihosting::{AdpStopped, semihosting_exit},
@@ -28,10 +28,7 @@ use crate::{
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
     IntId,
-    gicv3::{
-        GicV3,
-        registers::{Gicd, GicrSgi},
-    },
+    gicv3::registers::{Gicd, GicrSgi},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
@@ -155,18 +152,16 @@ unsafe impl Platform for Qemu {
         map_region(idmap, &DEVICE1, MT_DEVICE);
     }
 
-    unsafe fn create_gic() -> GicV3<'static> {
-        // SAFETY: `GICD_BASE_ADDRESS` and `GICR_BASE_ADDRESS` are base addresses of a GIC device,
-        // and nothing else accesses that address range.
-        // TODO: Powering on-off secondary cores will also access their GIC Redistributors.
-        unsafe {
-            GicV3::new(
-                GICD_BASE_ADDRESS,
-                GICR_BASE_ADDRESS,
-                Qemu::CORE_COUNT,
-                false,
-            )
-        }
+    unsafe fn create_gic() -> Gic<'static> {
+        // Safety: `BASE_GICD_BASE` is a unique pointer to the Qemu's GICD register block.
+        let gicd = unsafe {
+            UniqueMmioPointer::new(NonNull::new(GICD_BASE_ADDRESS as *mut Gicd).unwrap())
+        };
+        let gicr_base = NonNull::new(GICR_BASE_ADDRESS as *mut GicrSgi).unwrap();
+
+        // Safety: `gicr_base` points to a continuously mapped GIC redistributor memory area until
+        // the last redistributor block. There are no other references to this address range.
+        unsafe { Gic::new(gicd, gicr_base, false) }
     }
 
     fn create_service() -> Self::PlatformServiceImpl {
@@ -361,12 +356,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
     fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
         assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);
 
-        let mut gic = GIC
-            .get()
-            .expect("GIC must be initialized before CPU interface is disabled.")
-            .gic
-            .lock();
-        gicv3::disable_cpu_interface(&mut gic).expect("CPU interface already disabled.");
+        Gic::get().cpu_interface_disable();
     }
 
     fn power_domain_power_down_wfi(&self, _target_state: &PsciCompositePowerState) -> ! {
@@ -397,13 +387,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 
     fn power_domain_on_finish(&self, previous_state: &PsciCompositePowerState) {
         assert_eq!(previous_state.cpu_level_state(), QemuPowerState::PowerDown);
-
-        let mut gic = GIC
-            .get()
-            .expect("GIC must be initialized before CPU interface is enabled.")
-            .gic
-            .lock();
-        gicv3::init_cpu_interface(&mut gic).expect("CPU interface already enabled.");
+        Gic::get().cpu_interface_enable();
     }
 
     fn system_off(&self) -> ! {

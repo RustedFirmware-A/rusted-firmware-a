@@ -12,7 +12,7 @@ use crate::{
     cpu::aem_generic::AemGeneric,
     cpu::define_cpu_ops,
     debug::DEBUG,
-    gicv3::GicConfig,
+    gicv3::{Gic, GicConfig},
     logger::{self, LockedWriter},
     pagetable::{IdMap, MT_DEVICE, map_region},
     services::{
@@ -35,10 +35,7 @@ use arm_fvp_base_pac::{
 };
 use arm_gic::{
     IntId,
-    gicv3::{
-        GicV3,
-        registers::{Gicd, GicrSgi},
-    },
+    gicv3::registers::{Gicd, GicrSgi},
 };
 use arm_pl011_uart::{Uart, UniqueMmioPointer};
 use arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState};
@@ -197,18 +194,15 @@ unsafe impl Platform for Fvp {
         }
     }
 
-    unsafe fn create_gic() -> GicV3<'static> {
-        // SAFETY: `GICD_BASE_ADDRESS` and `GICR_BASE_ADDRESS` are base addresses of a GIC device,
-        // and nothing else accesses that address range.
-        // TODO: Powering on-off secondary cores will also access their GIC Redistributors.
-        unsafe {
-            GicV3::new(
-                BASE_GICD_BASE as *mut Gicd,
-                BASE_GICR_BASE as *mut GicrSgi,
-                Fvp::CORE_COUNT,
-                false,
-            )
-        }
+    unsafe fn create_gic() -> Gic<'static> {
+        // Safety: `BASE_GICD_BASE` is a unique pointer to the FVP's GICD register block.
+        let gicd =
+            unsafe { UniqueMmioPointer::new(NonNull::new(BASE_GICD_BASE as *mut Gicd).unwrap()) };
+        let gicr_base = NonNull::new(BASE_GICR_BASE as *mut GicrSgi).unwrap();
+
+        // Safety: `gicr_base` points to a continuously mapped GIC redistributor memory area until
+        // the last redistributor block. There are no other references to this address range.
+        unsafe { Gic::new(gicd, gicr_base, false) }
     }
 
     fn create_service() -> Self::PlatformServiceImpl {

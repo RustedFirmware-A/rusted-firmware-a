@@ -32,7 +32,7 @@ select_platform!(test, test::TestPlatform);
 
 use crate::{
     context::EntryPointInfo,
-    gicv3,
+    gicv3::{self, Gic},
     logger::LogSink,
     pagetable::IdMap,
     services::{
@@ -40,7 +40,7 @@ use crate::{
     },
     smccc::FunctionId,
 };
-use arm_gic::{IntId, gicv3::GicV3};
+use arm_gic::IntId;
 use arm_sysregs::MpidrEl1;
 #[cfg(not(test))]
 pub use percore::exception_free;
@@ -119,7 +119,7 @@ pub unsafe trait Platform {
     /// # Safety
     ///
     /// This must only be called once, to avoid creating aliases of the GIC driver.
-    unsafe fn create_gic() -> GicV3<'static>;
+    unsafe fn create_gic() -> Gic<'static>;
 
     /// Creates instance of PlatformServiceImpl.
     ///

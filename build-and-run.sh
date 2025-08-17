@@ -172,6 +172,9 @@ case "$PLAT" in
             -C cluster1.NUM_CORES=4 \
             -C cluster0.cpu0.semihosting-cwd=target \
             -C cluster1.cpu0.semihosting-cwd=target \
+            -C gic_distributor.ARE-fixed-to-one=1 \
+            -C gic_distributor.extended-ppi-count=64 \
+            -C gic_distributor.extended-spi-count=1024 \
             -C bp.secure_memory=1 \
             -C bp.secureflashloader.fname=${BL1} \
             -C bp.flashloader0.fname=${FIP}

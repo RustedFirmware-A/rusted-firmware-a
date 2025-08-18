@@ -121,3 +121,19 @@ $ make TFA_FLAGS="FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 NEED_BL31=no" \
 ```
 
 Running the FVP with RME through RF-A build system is not supported at this time.
+
+## Documentation
+
+Build the Rustdoc documentation for a given platform:
+
+```sh
+make PLAT=<platform> cargo-doc
+```
+
+... the built documentation will be found under `target/<target>/doc/rf_a_bl31`.
+
+To display the documentation, open it with your preferred application of choice, for example:
+
+```sh
+xdg-open target/aarch64-unknown-none-softfloat/doc/rf_a_bl31/index.html
+```

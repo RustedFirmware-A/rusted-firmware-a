@@ -707,28 +707,6 @@ fn mem_reclaim_handler(interface: Interface) -> Option<Interface> {
     })
 }
 
-normal_world_test!(test_ffa_no_notification_bitmap_create);
-fn test_ffa_no_notification_bitmap_create() -> Result<(), ()> {
-    // Normal world isn't allowed to call FFA_NOTIFICATION_BITMAP_CREATE.
-    let error = log_error(
-        "NOTIFICATION_BITMAP_CREATE failed",
-        ffa::notification_bitmap_create(5, 128),
-    )?;
-
-    expect_eq!(
-        error,
-        Interface::Error {
-            error_arg: 0,
-            target_info: TargetInfo {
-                endpoint_id: 0,
-                vcpu_id: 0
-            },
-            error_code: FfaError::NotSupported
-        }
-    );
-    Ok(())
-}
-
 normal_world_test!(test_ffa_no_notification_bitmap_destroy);
 fn test_ffa_no_notification_bitmap_destroy() -> Result<(), ()> {
     // Normal world isn't allowed to call FFA_NOTIFICATION_BITMAP_DESTROY.

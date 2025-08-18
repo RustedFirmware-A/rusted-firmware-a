@@ -403,6 +403,7 @@ impl Spmd {
             | Interface::RxTxUnmap { .. }
             | Interface::PartitionInfoGet { .. }
             | Interface::PartitionInfoGetRegs { .. }
+            | Interface::NotificationBitmapCreate { .. }
             | Interface::Run { .. }
             | Interface::MemDonate { .. }
             | Interface::MemLend { .. }

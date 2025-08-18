@@ -45,6 +45,7 @@ See the [contribution guidelines](docs/CONTRIBUTING.md) and [style guide](docs/s
 ## Providing feedback
 
 We welcome your feedback on this project! You can contact us through:
+
 - the [RF-A mailing list][6];
 - the `trustedfirmware` Discord server, on the [#rusted-firmware-a][7] channel.
 
@@ -63,7 +64,7 @@ Arm word trademark.
 
 [1]: https://www.arm.com/company/policies/trademarks/arm-trademark-list
 [2]: https://www.arm.com/company/policies/trademarks/guidelines-trademarks
-[3]: doc/getting-started.md
+[3]: docs/getting-started.md
 [4]: ./LICENSE
 [5]: https://developercertificate.org
 [6]: https://lists.trustedfirmware.org/mailman3/lists/rusted-firmware-a.lists.trustedfirmware.org/

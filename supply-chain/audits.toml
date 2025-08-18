@@ -455,6 +455,12 @@ safe-to-deploy: Limited input language. `parse_str` and callees do not use
 ub-risk-2).
 """
 
+[[audits.uuid]]
+who = "Jamie Fox <jamiefox@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "1.15.1 -> 1.18.0"
+notes = "Minor changes only, no new unsafe code or crypto."
+
 [[audits.zerocopy]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"

@@ -122,16 +122,16 @@ pub extern "C" fn cpu_reset_handler() {
         ldr	x4, =({cpu_ops} + ({cpu_ops_size} * {cpu_ops_count}))
 
     1:
+        /* Check end of list */
+        cmp	x3, x4
+        b.eq	3f
+
         /* Load the midr from the CPU_OPS */
         ldr	w1, [x3, #{midr_offset}]
 
         /* Check if MIDR matches the MIDR of this core */
         cmp	w1, w2
         b.eq	2f
-
-        /* Check end of list */
-        cmp	x3, x4
-        b.eq	3f
 
         /* Step to next CPU_OPS entry */
         add	x3, x3, #{cpu_ops_size}

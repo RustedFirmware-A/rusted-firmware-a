@@ -10,10 +10,11 @@
 	/* ---------------------------------------------
 	 * Prints out relevant GIC registers whenever an
 	 * unhandled exception is taken in BL31.
-	 * Clobbers: x0 - x10, x16, x17, sp
+	 * Clobbers: x0 - x11, x16, x17, sp
 	 * ---------------------------------------------
 	 */
 func plat_crash_print_regs
+	mov	x11, lr
 	/*
 	 * Detect if we're using the base memory map or
 	 * the legacy VE memory map
@@ -32,5 +33,6 @@ use_ve_mmap:
 	mov_imm	x16, {VE_GICD_BASE}
 print_gic_regs:
 	arm_print_gic_regs
+	mov	lr, x11
 	ret
 endfunc plat_crash_print_regs

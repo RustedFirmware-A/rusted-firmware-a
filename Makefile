@@ -125,6 +125,7 @@ fvp: $(BL1) $(FIP)
 	  -C bp.pl011_uart0.unbuffered_output=1 \
 	  -C bp.pl011_uart0.out_file=- \
 	  -C bp.terminal_0.start_telnet=0 \
+	  -C bp.pl011_uart1.out_file=- \
 	  -C bp.terminal_1.start_telnet=0 \
 	  -C bp.terminal_2.start_telnet=0 \
 	  -C bp.terminal_3.start_telnet=0 \

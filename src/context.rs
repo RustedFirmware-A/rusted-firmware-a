@@ -787,7 +787,7 @@ mod asm {
         CTX_PMCR_EL0 = const offset_of!(El3State, pmcr_el0),
         CTX_SCR_EL3 = const offset_of!(El3State, scr_el3),
         CTX_SPSR_EL3 = const offset_of!(El3State, spsr_el3),
-        CTX_PERWORLD_EL3STATE_END = const size_of::<PerWorldContext>(),
+        CTX_PERWORLD_EL3STATE_SIZE = const size_of::<PerWorldContext>(),
         CTX_RUNTIME_SP_LR = const offset_of!(El3State, runtime_sp),
         CTX_CPTR_EL3 = const offset_of!(PerWorldContext, cptr_el3),
         CTX_SAVED_ELR_EL3 = const offset_of!(El3State, saved_elr_el3),

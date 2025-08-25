@@ -34,7 +34,7 @@ use crate::{
     gicv3,
     platform::{Platform, PlatformImpl, exception_free, plat_calc_core_pos},
     smccc::SmcReturn,
-    sysregs::{Esr, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3},
+    sysregs::{CptrEl3, Esr, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3},
 };
 use arm_psci::EntryPoint;
 use core::{
@@ -473,13 +473,13 @@ impl El2Sysregs {
 #[derive(Clone, Debug, Default)]
 #[repr(C)]
 struct PerWorldContext {
-    cptr_el3: u64,
+    cptr_el3: CptrEl3,
     zcr_el3: u64,
 }
 
 impl PerWorldContext {
     const EMPTY: Self = Self {
-        cptr_el3: 0,
+        cptr_el3: CptrEl3::empty(),
         zcr_el3: 0,
     };
 }
@@ -730,7 +730,7 @@ mod asm {
         debug::{CRASH_REPORTING, DEBUG, ENABLE_ASSERTIONS},
         exceptions::RunResult,
         smccc::NOT_SUPPORTED,
-        sysregs::{StackPointer, cptr_el3, pmcr},
+        sysregs::{StackPointer, pmcr},
     };
     use core::{
         arch::global_asm,
@@ -777,7 +777,7 @@ mod asm {
         PMCR_EL0_DP_BIT = const pmcr::DP,
         MODE_SP_EL0 = const StackPointer::El0 as u8,
         MODE_SP_ELX = const StackPointer::ElX as u8,
-        CPTR_EZ_BIT = const cptr_el3::EZ,
+        CPTR_EZ_BIT = const CptrEl3::EZ.bits(),
         SCR_NSE_SHIFT = const 62,
         CTX_NESTED_EA_FLAG = const offset_of!(El3State, nested_ea_flag),
         CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),

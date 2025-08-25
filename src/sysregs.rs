@@ -20,23 +20,6 @@ pub mod pmcr {
     pub const DP: u64 = 1 << 5;
 }
 
-/// Constants for CPTR_EL3 fields.
-pub mod cptr_el3 {
-    /// When set, trap EL2 accesses to CPTR_EL2/HCPTR, and EL2/EL1 accesses to CPACR_EL1/CPACR.
-    pub const TCPAC: u64 = 1 << 31;
-    /// When FEAT_AMUv1 implemented and set, trap accesses from EL2/EL1/EL0 to AMU registers.
-    pub const TAM: u64 = 1 << 30;
-    /// When set, trap trace system register accesses.
-    pub const TTA: u64 = 1 << 20;
-    /// When FEAT_SME is implemented and set, do not trap SME instructions and system registers
-    /// accesses.
-    pub const ESM: u64 = 1 << 12;
-    /// When set, trap Advanced SIMD instructions execution.
-    pub const TFP: u64 = 1 << 10;
-    /// When FEAT_SVE is implemented and set, do not trap SVE instructions.
-    pub const EZ: u64 = 1 << 8;
-}
-
 /// Implements a similar interface to `bitflags` on some newtype.
 macro_rules! bitflagslike {
     ($typename:ty: $inner:ty) => {
@@ -455,6 +438,23 @@ bitflags! {
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     pub struct HcrEl2: u64 {
         const TGE = 1 << 27;
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
+    pub struct CptrEl3: u64 {
+        /// Trap EL2 accesses to CPTR_EL2/HCPTR, and EL2/EL1 accesses to CPACR_EL1/CPACR.
+        const TCPAC = 1 << 31;
+        /// When FEAT_AMUv1 implemented and, trap accesses from EL2/EL1/EL0 to AMU registers.
+        const TAM = 1 << 30;
+        /// Ttrap trace system register accesses.
+        const TTA = 1 << 20;
+        /// When FEAT_SME is implemented, do not trap SME instructions and system registers
+        /// accesses.
+        const ESM = 1 << 12;
+        /// Trap Advanced SIMD instructions execution.
+        const TFP = 1 << 10;
+        /// Do not trap execution of SVE instructions.
+        const EZ = 1 << 8;
     }
 }
 

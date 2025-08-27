@@ -31,7 +31,8 @@ use crate::{
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, SPMC_DEFAULT_ID, SPMD_DEFAULT_ID, current_el},
 };
 use aarch64_rt::entry;
-use arm_ffa::{DirectMsgArgs, FfaError, Interface, SuccessArgsIdGet, Version};
+use arm_ffa::{DirectMsgArgs, FfaError, Interface, SuccessArgsIdGet, Version, WarmBootType};
+use arm_psci::ReturnCode;
 use core::panic::PanicInfo;
 use log::{error, info, warn};
 
@@ -164,10 +165,13 @@ fn handle_direct_message(
             }
         }
     } else if src_id == spmd_id && dst_id == spmc_id {
-        let DirectMsgArgs::VersionReq { version } = args else {
-            panic!("Received unexpected direct message type from SPMD.");
-        };
-        handle_version_request(version)
+        match args {
+            DirectMsgArgs::VersionReq { version } => handle_version_request(version),
+            DirectMsgArgs::PowerPsciReq32 { params } => handle_psci_request32(params),
+            DirectMsgArgs::PowerPsciReq64 { params } => handle_psci_request64(params),
+            DirectMsgArgs::PowerWarmBootReq { boot_type } => handle_warm_boot_request(boot_type),
+            _ => panic!("Received unexpected direct message type from SPMD."),
+        }
     } else {
         panic!("Unexpected source ID ({src_id:#x}) or destination ID ({dst_id:#x})");
     }
@@ -189,6 +193,24 @@ fn handle_version_request(version: Version) -> DirectMsgArgs {
 
     DirectMsgArgs::VersionResp {
         version: Some(out_version),
+    }
+}
+
+fn handle_psci_request32(_params: [u32; 4]) -> DirectMsgArgs {
+    DirectMsgArgs::PowerPsciResp {
+        psci_status: (ReturnCode::Success).into(),
+    }
+}
+
+fn handle_psci_request64(_params: [u64; 4]) -> DirectMsgArgs {
+    DirectMsgArgs::PowerPsciResp {
+        psci_status: (ReturnCode::Success).into(),
+    }
+}
+
+fn handle_warm_boot_request(_boot_type: WarmBootType) -> DirectMsgArgs {
+    DirectMsgArgs::PowerPsciResp {
+        psci_status: (ReturnCode::Success).into(),
     }
 }
 

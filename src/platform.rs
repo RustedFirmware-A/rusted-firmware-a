@@ -3,6 +3,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 macro_rules! select_platform {
+    (platform = $condition:literal, $mod:ident::$sub:ident::$plat_impl:ident) => {
+        #[cfg(platform = $condition)]
+        mod $mod;
+
+        #[cfg(platform = $condition)]
+        pub use $mod::$sub::{CPU_OPS, $plat_impl as PlatformImpl};
+    };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
         #[cfg(platform = $condition)]
         mod $mod;

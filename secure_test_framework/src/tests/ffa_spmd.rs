@@ -6,6 +6,8 @@
 //! viceversa) with the correct interfaces. STF BL32 does not currently implement the logic of said interfaces (for
 //! example, RXTX mapping/unmapping)
 
+use core::fmt::Error;
+
 use crate::{
     ffa,
     framework::{
@@ -20,7 +22,9 @@ use crate::{
 use arm_ffa::{
     Feature, FfaError, FuncId, Interface, MemAddr, MsgSend2Flags, NotificationBindFlags,
     NotificationGetFlags, NotificationSetFlags, PartitionInfoGetFlags, RxTxAddr, SuccessArgs,
-    SuccessArgsFeatures, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo, Uuid,
+    SuccessArgsFeatures, SuccessArgsIdGet, SuccessArgsNotificationGet,
+    SuccessArgsNotificationInfoGet, SuccessArgsNotificationInfoGet32, SuccessArgsSpmIdGet,
+    TargetInfo, Uuid,
     memory_management::{
         DataAccessPermGetSet, Handle, InstructionAccessPermGetSet, MemPermissionsGetSet,
         MemReclaimFlags,
@@ -643,6 +647,50 @@ fn test_ffa_mem_retrieve_req() -> Result<(), ()> {
     Ok(())
 }
 
+/// Check that the interface values forwarded from normal world match the expected ones.
+fn msg_send2_handler(interface: Interface) -> Option<Interface> {
+    let Interface::MsgSend2 {
+        flags,
+        sender_vm_id,
+    } = interface
+    else {
+        return None;
+    };
+
+    assert_eq!(sender_vm_id, 0x03);
+    assert_eq!(
+        flags,
+        MsgSend2Flags {
+            delay_schedule_receiver: true
+        }
+    );
+
+    Some(Interface::Success {
+        args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+    })
+}
+
+normal_world_test!(test_ffa_msg_send2, handler = msg_send2_handler);
+fn test_ffa_msg_send2() -> Result<(), ()> {
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
+        "MSG_SEND2 failed",
+        ffa::msg_send2(
+            0x03,
+            MsgSend2Flags {
+                delay_schedule_receiver: true
+            }
+        )
+    );
+
+    expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
+    Ok(())
+}
+
 // Check that the interface values forwarded from normal world match the expected ones.
 // Return a FFA_MEM_RETRIEVE_RESP with the same values that were received to emulate what would be returned by secure
 // world
@@ -710,160 +758,296 @@ fn mem_reclaim_handler(interface: Interface) -> Option<Interface> {
     })
 }
 
-normal_world_test!(test_ffa_no_notification_bitmap_destroy);
-fn test_ffa_no_notification_bitmap_destroy() -> Result<(), ()> {
-    // Normal world isn't allowed to call FFA_NOTIFICATION_BITMAP_DESTROY.
-    let error = log_error(
-        "NOTIFICATION_BITMAP_DESTROY failed",
-        ffa::notification_bitmap_destroy(65535),
-    )?;
+// Check that the interface values forwarded from normal world match the expected ones.
+fn notification_bitmap_destroy_handler(interface: Interface) -> Option<Interface> {
+    let Interface::NotificationBitmapDestroy { vm_id } = interface else {
+        return None;
+    };
 
-    expect_eq!(
-        error,
-        Interface::Error {
-            error_arg: 0,
-            target_info: TargetInfo {
-                endpoint_id: 0,
-                vcpu_id: 0
-            },
-            error_code: FfaError::NotSupported
-        }
+    assert_eq!(vm_id, 5035);
+
+    Some(Interface::Success {
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+        args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
+    })
+}
+
+normal_world_test!(
+    test_ffa_notification_bitmap_destroy,
+    handler = notification_bitmap_destroy_handler
+);
+fn test_ffa_notification_bitmap_destroy() -> Result<(), ()> {
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
+        "NOTIFICATION_BITMAP_DESTROY failed",
+        ffa::notification_bitmap_destroy(5035)
     );
+
+    expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
     Ok(())
 }
 
-normal_world_test!(test_ffa_no_notification_bind);
-fn test_ffa_no_notification_bind() -> Result<(), ()> {
-    // Normal world isn't allowed to call FFA_NOTIFICATION_BIND.
-    let error = log_error(
-        "NOTIFICATION_BIND failed",
+// Check that the interface values forwarded from normal world match the expected ones.
+fn notification_bind_handler(interface: Interface) -> Option<Interface> {
+    let Interface::NotificationBind {
+        bitmap,
+        flags,
+        receiver_id,
+        sender_id,
+    } = interface
+    else {
+        return None;
+    };
+
+    assert_eq!(sender_id, 0x8003);
+    assert_eq!(receiver_id, 0x8004);
+    assert_eq!(bitmap, 0x1051006008009030);
+    assert_eq!(
+        flags,
+        NotificationBindFlags {
+            per_vcpu_notification: false
+        }
+    );
+
+    Some(Interface::Success {
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+        args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
+    })
+}
+
+normal_world_test!(
+    test_ffa_notification_bind,
+    handler = notification_bind_handler
+);
+fn test_ffa_notification_bind() -> Result<(), ()> {
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
+        "NOTIFICATION_UNBIND failed",
         ffa::notification_bind(
-            3,
-            4,
+            0x8003,
+            0x8004,
             NotificationBindFlags {
                 per_vcpu_notification: false,
             },
             0x1051006008009030,
-        ),
-    )?;
-
-    expect_eq!(
-        error,
-        Interface::Error {
-            error_arg: 0,
-            target_info: TargetInfo {
-                endpoint_id: 0,
-                vcpu_id: 0
-            },
-            error_code: FfaError::NotSupported
-        }
+        )
     );
+
+    expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
     Ok(())
 }
 
-normal_world_test!(test_ffa_no_notification_unbind);
-fn test_ffa_no_notification_unbind() -> Result<(), ()> {
-    // Normal world isn't allowed to call FFA_NOTIFICATION_UNBIND.
-    let error = log_error(
+// Check that the interface values forwarded from normal world match the expected ones.
+fn notification_unbind_handler(interface: Interface) -> Option<Interface> {
+    let Interface::NotificationUnbind {
+        bitmap,
+        receiver_id,
+        sender_id,
+    } = interface
+    else {
+        return None;
+    };
+
+    assert_eq!(sender_id, 0x8004);
+    assert_eq!(receiver_id, 0x8003);
+    assert_eq!(bitmap, 0xff53);
+
+    Some(Interface::Success {
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+        args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
+    })
+}
+
+normal_world_test!(
+    test_ffa_notification_unbind,
+    handler = notification_unbind_handler
+);
+fn test_ffa_notification_unbind() -> Result<(), ()> {
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
         "NOTIFICATION_UNBIND failed",
-        ffa::notification_unbind(12, 43, 0x0051006388009530),
-    )?;
-
-    expect_eq!(
-        error,
-        Interface::Error {
-            error_arg: 0,
-            target_info: TargetInfo {
-                endpoint_id: 0,
-                vcpu_id: 0
-            },
-            error_code: FfaError::NotSupported
-        }
+        ffa::notification_unbind(0x8004, 0x8003, 0xff53)
     );
+
+    expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
     Ok(())
 }
 
-normal_world_test!(test_ffa_no_notification_set);
-fn test_ffa_no_notification_set() -> Result<(), ()> {
-    // Normal world isn't allowed to call FFA_NOTIFICATION_SET.
-    let error = log_error(
+// Check that the interface values forwarded from normal world match the expected ones.
+fn notification_set_handler(interface: Interface) -> Option<Interface> {
+    let Interface::NotificationSet {
+        bitmap,
+        flags,
+        receiver_id,
+        sender_id,
+    } = interface
+    else {
+        return None;
+    };
+
+    assert_eq!(sender_id, 0x8017);
+    assert_eq!(receiver_id, 0x8044);
+    assert_eq!(
+        flags,
+        NotificationSetFlags {
+            delay_schedule_receiver: true,
+            vcpu_id: Some(5)
+        }
+    );
+    assert_eq!(bitmap, 0x0051006388009530);
+
+    Some(Interface::Success {
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+        args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
+    })
+}
+
+normal_world_test!(
+    test_ffa_notification_set,
+    handler = notification_set_handler
+);
+fn test_ffa_notification_set() -> Result<(), ()> {
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
         "NOTIFICATION_SET failed",
         ffa::notification_set(
-            17,
-            44,
+            0x8017,
+            0x8044,
             NotificationSetFlags {
                 delay_schedule_receiver: true,
                 vcpu_id: Some(5),
             },
             0x0051006388009530,
-        ),
-    )?;
-
-    expect_eq!(
-        error,
-        Interface::Error {
-            error_arg: 0,
-            target_info: TargetInfo {
-                endpoint_id: 0,
-                vcpu_id: 0
-            },
-            error_code: FfaError::NotSupported
-        }
+        )
     );
+
+    expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
     Ok(())
 }
 
-normal_world_test!(test_ffa_no_notification_get);
-fn test_ffa_no_notification_get() -> Result<(), ()> {
-    // Normal world isn't allowed to call FFA_NOTIFICATION_GET.
-    let error = log_error(
+// Check that the interface values forwarded from normal world match the expected ones.
+// Return a SuccessArgsNotificationGet with some sensible values.
+fn notification_get_handler(interface: Interface) -> Option<Interface> {
+    let Interface::NotificationGet {
+        flags,
+        endpoint_id,
+        vcpu_id,
+    } = interface
+    else {
+        return None;
+    };
+
+    assert_eq!(vcpu_id, 17);
+    assert_eq!(endpoint_id, 44);
+    assert_eq!(
+        flags,
+        NotificationGetFlags {
+            sp_bitmap_id: true,
+            vm_bitmap_id: false,
+            spm_bitmap_id: true,
+            hyp_bitmap_id: true,
+        }
+    );
+
+    Some(Interface::Success {
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+        args: SuccessArgsNotificationGet {
+            sp_notifications: Some(1),
+            vm_notifications: None,
+            spm_notifications: None,
+            hypervisor_notifications: None,
+        }
+        .into(),
+    })
+}
+
+normal_world_test!(
+    test_ffa_notification_get,
+    handler = notification_get_handler
+);
+fn test_ffa_notification_get() -> Result<(), ()> {
+    let notification_get_flags = NotificationGetFlags {
+        sp_bitmap_id: true,
+        vm_bitmap_id: false,
+        spm_bitmap_id: true,
+        hyp_bitmap_id: true,
+    };
+
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
         "NOTIFICATION_GET failed",
-        ffa::notification_get(
-            17,
-            44,
-            NotificationGetFlags {
-                sp_bitmap_id: true,
-                vm_bitmap_id: false,
-                spm_bitmap_id: true,
-                hyp_bitmap_id: true,
-            },
-        ),
-    )?;
-
-    expect_eq!(
-        error,
-        Interface::Error {
-            error_arg: 0,
-            target_info: TargetInfo {
-                endpoint_id: 0,
-                vcpu_id: 0
-            },
-            error_code: FfaError::NotSupported
-        }
+        ffa::notification_get(17, 44, notification_get_flags.clone(),)
     );
-    Ok(())
+
+    let args: Result<SuccessArgsNotificationGet, arm_ffa::Error> =
+        SuccessArgsNotificationGet::try_from((notification_get_flags, args));
+
+    match args {
+        Err(_) => Err(()),
+        Ok(args) => {
+            expect_eq!(args.sp_notifications, Some(1));
+            expect_eq!(args.vm_notifications, None);
+            expect_eq!(args.spm_notifications, Some(0));
+            expect_eq!(args.hypervisor_notifications, Some(0));
+
+            Ok(())
+        }
+    }
 }
 
-normal_world_test!(test_ffa_no_notification_info_get);
-fn test_ffa_no_notification_info_get() -> Result<(), ()> {
-    // Normal world isn't allowed to call FFA_NOTIFICATION_INFO_GET.
-    let error = log_error(
-        "NOTIFICATION_INFO_GET failed",
-        ffa::notification_info_get(false),
-    )?;
+// Check that the interface values forwarded from normal world match the expected ones.
+// Return a SuccessArgsNotificationInfoGet with some sensible values.
+fn notification_info_get_handler(interface: Interface) -> Option<Interface> {
+    let Interface::NotificationInfoGet { is_32bit } = interface else {
+        return None;
+    };
 
-    expect_eq!(
-        error,
-        Interface::Error {
-            error_arg: 0,
-            target_info: TargetInfo {
-                endpoint_id: 0,
-                vcpu_id: 0
-            },
-            error_code: FfaError::NotSupported
-        }
+    assert_eq!(is_32bit, false);
+
+    Some(Interface::Success {
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+        args: SuccessArgsNotificationInfoGet32::default().into(),
+    })
+}
+normal_world_test!(
+    test_ffa_notification_info_get,
+    handler = notification_info_get_handler
+);
+fn test_ffa_notification_info_get() -> Result<(), ()> {
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
+        "NOTIFICATION_INFO_GET failed",
+        ffa::notification_info_get(false)
     );
-    Ok(())
+
+    let args: Result<SuccessArgsNotificationInfoGet32, arm_ffa::Error> =
+        SuccessArgsNotificationInfoGet::try_from(args);
+
+    match args {
+        Err(_) => Err(()),
+        Ok(args) => {
+            expect_eq!(args.more_pending_notifications, false);
+            Ok(())
+        }
+    }
 }
 
 normal_world_test!(test_ffa_no_mem_perm_get);
@@ -1035,33 +1219,6 @@ normal_world_test!(test_ffa_no_yield);
 fn test_ffa_no_yield() -> Result<(), ()> {
     // Normal world isn't allowed to call FFA_YIELD.
     let error = log_error("YIELD failed", ffa::yield_ffa())?;
-
-    expect_eq!(
-        error,
-        Interface::Error {
-            error_arg: 0,
-            target_info: TargetInfo {
-                endpoint_id: 0,
-                vcpu_id: 0
-            },
-            error_code: FfaError::NotSupported
-        }
-    );
-    Ok(())
-}
-
-normal_world_test!(test_ffa_no_msg_send2);
-fn test_ffa_no_msg_send2() -> Result<(), ()> {
-    // Normal world isn't allowed to call FFA_MSG_SEND2.
-    let error = log_error(
-        "MSG_SEND2 failed",
-        ffa::msg_send2(
-            2,
-            MsgSend2Flags {
-                delay_schedule_receiver: true,
-            },
-        ),
-    )?;
 
     expect_eq!(
         error,

@@ -355,21 +355,14 @@ impl Spmd {
 
         let out_msg = match in_msg {
             Interface::Version { input_version } => {
-                if self.spmc_version == Version(1, 0) {
-                    // If the SPMC version is 1.0, we have to show this to NWd
-                    Interface::VersionOut {
-                        output_version: Version(1, 0),
-                    }
-                } else {
-                    // Forward version call to the SPMC
-                    next_world = World::Secure;
-                    Interface::MsgSendDirectReq {
-                        src_id: Self::OWN_ID,
-                        dst_id: self.spmc_id,
-                        args: DirectMsgArgs::VersionReq {
-                            version: *input_version,
-                        },
-                    }
+                // Forward version call to the SPMC
+                next_world = World::Secure;
+                Interface::MsgSendDirectReq {
+                    src_id: Self::OWN_ID,
+                    dst_id: self.spmc_id,
+                    args: DirectMsgArgs::VersionReq {
+                        version: *input_version,
+                    },
                 }
             }
             Interface::IdGet => {
@@ -403,8 +396,15 @@ impl Spmd {
             | Interface::RxTxUnmap { .. }
             | Interface::PartitionInfoGet { .. }
             | Interface::PartitionInfoGetRegs { .. }
-            | Interface::NotificationBitmapCreate { .. }
             | Interface::Run { .. }
+            | Interface::MsgSend2 { .. }
+            | Interface::NotificationBitmapCreate { .. }
+            | Interface::NotificationBitmapDestroy { .. }
+            | Interface::NotificationBind { .. }
+            | Interface::NotificationUnbind { .. }
+            | Interface::NotificationSet { .. }
+            | Interface::NotificationGet { .. }
+            | Interface::NotificationInfoGet { .. }
             | Interface::MemDonate { .. }
             | Interface::MemLend { .. }
             | Interface::MemShare { .. }

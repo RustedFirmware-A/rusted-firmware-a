@@ -45,7 +45,7 @@ use log::{error, info, warn};
 use percore::Cores;
 
 /// The version of FF-A which we support.
-const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 1);
+const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 2);
 
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);

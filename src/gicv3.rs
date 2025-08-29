@@ -172,7 +172,7 @@ fn init_redistributor(gic: &mut GicV3, core_index: usize, config: &GicConfig) {
     configure_private_interrupts(gic, core_index, config);
 }
 
-fn init_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
+pub fn init_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
     gic.redistributor_mark_core_awake(current_redistributor_index())?;
 
     // Disable the legacy interrupt bypass.

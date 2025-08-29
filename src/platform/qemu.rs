@@ -363,8 +363,15 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         Ok(())
     }
 
-    fn power_domain_on_finish(&self, _previous_state: &PsciCompositePowerState) {
-        todo!()
+    fn power_domain_on_finish(&self, previous_state: &PsciCompositePowerState) {
+        assert_eq!(previous_state.cpu_level_state(), QemuPowerState::PowerDown);
+
+        let mut gic = GIC
+            .get()
+            .expect("GIC must be initialized before CPU interface is enabled.")
+            .gic
+            .lock();
+        gicv3::init_cpu_interface(&mut gic).expect("CPU interface already enabled.");
     }
 
     fn system_off(&self) -> ! {

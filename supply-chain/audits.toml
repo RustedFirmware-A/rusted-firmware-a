@@ -179,6 +179,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.0 -> 0.3.1"
 notes = "No significant change, only metadata and clippy lints."
 
+[[audits.arm-ffa]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.3.1 -> 0.4.0"
+notes = "Added support for new FF-A interfaces, minor fixes and Covering the crate with unit tests."
+
 [[audits.arm-fvp-base-pac]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -311,6 +317,12 @@ safe-to-deploy: Given the UB risk in `num_enum_derive`, `num_enum` callers
 should prefer `FromPrimitive` to `UnsafeFromPrimitive`.
 """
 
+[[audits.num_enum]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.7.3 -> 0.7.4"
+notes = "Dependency version bump, small changes in Cargo.toml."
+
 [[audits.num_enum_derive]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -320,6 +332,12 @@ ub-risk-2: unsafe in asserts, tests, and doc tests. `unchecked_transmute_from`:
 unexplained use of `transmute`; caller is required to check that \"`number` must
 represent a valid discriminant of `Self`.\"
 """
+
+[[audits.num_enum_derive]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.7.3 -> 0.7.4"
+notes = "Dependency version bump and minor changes in Cargo.toml."
 
 [[audits.paste]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -331,6 +349,12 @@ notes = "No substantial changes."
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.1.0"
+
+[[audits.rustversion]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.0.20 -> 1.0.22"
+notes = "Dependency update, minor refactoring in build.rs."
 
 [[audits.safe-mmio]]
 who = "Chris Palmer <palmer@google.com>"
@@ -451,6 +475,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.12 -> 2.0.14"
 notes = "No significant changes, only metadata and comments."
 
+[[audits.thiserror]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.14 -> 2.0.16"
+notes = "Bump self and dependency versions. Added option to build.rs for suppressing lint warning when building dependencies."
+
 [[audits.thiserror-impl]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -466,6 +496,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.12 -> 2.0.14"
 notes = "No significant changes, only metadata and a lint attribute."
+
+[[audits.thiserror-impl]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.14 -> 2.0.16"
+notes = "Dependency version bump only."
 
 [[audits.uuid]]
 who = "Chris Palmer <palmer@google.com>"
@@ -495,12 +531,29 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "1.15.1 -> 1.18.0"
 notes = "Minor changes only, no new unsafe code or crypto."
 
+[[audits.uuid]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "1.18.0 -> 1.18.1"
+notes = "Changed unsafe transmute calls to zerocopy if the relevant feature is enabled."
+
 [[audits.zerocopy]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"
 delta = "0.8.14 -> 0.8.26"
 
+[[audits.zerocopy]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.8.26 -> 0.8.27"
+
 [[audits.zerocopy-derive]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"
 delta = "0.8.14 -> 0.8.26"
+
+[[audits.zerocopy-derive]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.8.26 -> 0.8.27"
+notes = "Added support and tests for 128 bit types."

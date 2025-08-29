@@ -11,7 +11,7 @@ use crate::{
 };
 use arm_ffa::{
     DirectMsgArgs, FfaError, Interface, SecondaryEpRegisterAddr, SuccessArgsIdGet,
-    SuccessArgsSpmIdGet, TargetInfo, Version, WarmBootType,
+    SuccessArgsSpmIdGet, TargetInfo, Version, VersionOut, WarmBootType,
 };
 use core::{
     cell::RefCell,
@@ -69,9 +69,16 @@ impl Service for Spmd {
 
         let in_msg = match Interface::from_regs(version, regs) {
             Ok(msg) => msg,
-            Err(e) => {
-                error!("Invalid FF-A call from Normal World {e}");
-                Interface::error(e.into()).to_regs(version, out_regs.values_mut());
+            Err(error) => {
+                error!("Invalid FF-A call from Normal World {error}");
+                let response = match error {
+                    arm_ffa::Error::InvalidVersion(_) => Interface::VersionOut {
+                        output_version: VersionOut::NotSupported,
+                    },
+                    error => Interface::error(error.into()),
+                };
+
+                response.to_regs(version, out_regs.values_mut());
                 return (out_regs, World::NonSecure);
             }
         };
@@ -213,7 +220,7 @@ impl Spmd {
                 panic!("SPMC init failed with error {error_code}");
             }
             Interface::Version { input_version } => Interface::VersionOut {
-                output_version: Self::VERSION.min(*input_version),
+                output_version: VersionOut::Version(Self::VERSION.min(*input_version)),
             },
             Interface::MsgWait { .. } => {
                 // Receiving this message for the first time means that SPMC init succeeded
@@ -266,9 +273,11 @@ impl Spmd {
                     match *args {
                         DirectMsgArgs::VersionResp { version } if *src_id == self.spmc_id => {
                             next_world = World::NonSecure;
-                            match version {
-                                None => Interface::error(FfaError::NotSupported),
-                                Some(v) => Interface::VersionOut { output_version: v },
+                            Interface::VersionOut {
+                                output_version: match version {
+                                    None => VersionOut::NotSupported,
+                                    Some(v) => VersionOut::Version(v),
+                                },
                             }
                         }
                         _ => Interface::error(FfaError::InvalidParameters),

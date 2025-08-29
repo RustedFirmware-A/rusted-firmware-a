@@ -21,7 +21,7 @@ use log::{debug, error, info, warn};
 use percore::{ExceptionLock, PerCore};
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0060;
-const FUNCTION_NUMBER_MAX: u16 = 0x00FF;
+const FUNCTION_NUMBER_MAX: u16 = 0x00EF;
 
 /// Core-local state of the SPMD service
 struct SpmdLocal {

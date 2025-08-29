@@ -753,10 +753,7 @@ impl Psci {
                 | FunctionId::Migrate64
                 | FunctionId::MigrateInfoUpCpu32
                 | FunctionId::MigrateInfoUpCpu64 => Err(ErrorCode::NotSupported),
-                FunctionId::MigrateInfoType => {
-                    let migration_type = MigrateInfoType::MigrationNotRequired as u32;
-                    Ok(migration_type.into())
-                }
+                FunctionId::MigrateInfoType => Ok(SUCCESS),
                 FunctionId::SystemOff232 | FunctionId::SystemOff264 => {
                     if PsciPlatformImpl::FEATURES
                         .contains(PsciPlatformOptionalFeatures::SYSTEM_OFF2)
@@ -1698,7 +1695,7 @@ mod tests {
             psci.handle_features(PsciFeature::PsciFunction(FunctionId::SystemOff264))
         );
         assert_eq!(
-            Ok(2),
+            Ok(0),
             psci.handle_features(PsciFeature::PsciFunction(FunctionId::MigrateInfoType))
         );
 

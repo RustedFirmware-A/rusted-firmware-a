@@ -37,14 +37,26 @@ use crate::{
 use aarch64_rt::entry;
 use arm_ffa::{DirectMsgArgs, FfaError, Interface, SuccessArgsIdGet, Version, WarmBootType};
 use arm_psci::ReturnCode;
-use core::panic::PanicInfo;
+use core::{
+    panic::PanicInfo,
+    sync::atomic::{AtomicIsize, Ordering},
+};
 use log::{error, info, warn};
+use percore::Cores;
 
 /// The version of FF-A which we support.
 const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 1);
 
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
+
+/// The index of the currently-running test, or -1 if no test is active.
+static CURRENT_TEST_INDEX: AtomicIsize = AtomicIsize::new(-1);
+
+/// Returns the index of the currently-running test, or `None` if no test is active.
+fn current_test_index() -> Option<usize> {
+    CURRENT_TEST_INDEX.load(Ordering::Acquire).try_into().ok()
+}
 
 entry!(bl32_main, 4);
 fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
@@ -73,34 +85,6 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     // Negotiate the FF-A version we actually support. This must happen before any other FF-A calls.
     assert_eq!(ffa::version(FFA_VERSION), Ok(FFA_VERSION));
 
-    let spmc_id = {
-        match ffa::id_get().expect("FFA_ID_GET failed") {
-            Interface::Success { args, .. } => SuccessArgsIdGet::try_from(args).unwrap().id,
-            Interface::Error {
-                error_code: FfaError::NotSupported,
-                ..
-            } => {
-                warn!("FFA_ID_GET not supported");
-                SPMC_DEFAULT_ID
-            }
-            res => panic!("Unexpected response for FFA_ID_GET: {:?}", res),
-        }
-    };
-
-    let spmd_id = {
-        match ffa::spm_id_get().expect("FFA_SPM_ID_GET failed") {
-            Interface::Success { args, .. } => SuccessArgsIdGet::try_from(args).unwrap().id,
-            Interface::Error {
-                error_code: FfaError::NotSupported,
-                ..
-            } => {
-                warn!("FFA_SPM_ID_GET not supported");
-                SPMD_DEFAULT_ID
-            }
-            res => panic!("Unexpected response for FFA_SPM_ID_GET: {:?}", res),
-        }
-    };
-
     // Register secondary core entry point.
     expect_ffa_success(
         // SAFETY: secondary_entry is a valid secondary entry point that will set up the stack for
@@ -110,9 +94,25 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     )
     .unwrap();
 
-    let mut current_test_index = None;
+    message_loop();
+}
 
-    // Wait for the first test index.
+extern "C" fn secondary_main() -> ! {
+    set_exception_vector();
+
+    info!("BL32 secondary core starting");
+
+    message_loop();
+}
+
+/// Loops forever handling FF-A direct messages or other FF-A interfaces, to run tests and test
+/// helpers.
+fn message_loop() -> ! {
+    let core_index = PlatformImpl::core_index();
+    let spmc_id = get_spmc_id();
+    let spmd_id = get_spmd_id();
+
+    // Wait for the first message.
     let mut message = msg_wait(None).unwrap();
 
     loop {
@@ -122,14 +122,7 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
                 dst_id,
                 args,
             } => {
-                let response_args = handle_direct_message(
-                    src_id,
-                    dst_id,
-                    args,
-                    spmc_id,
-                    spmd_id,
-                    &mut current_test_index,
-                );
+                let response_args = handle_direct_message(src_id, dst_id, args, spmc_id, spmd_id);
 
                 Interface::MsgSendDirectResp {
                     src_id: dst_id,
@@ -138,14 +131,14 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
                 }
             }
             _ => {
-                if let Some(current_test_index) = current_test_index {
+                if let Some(current_test_index) = current_test_index() {
                     if let Some(response) = run_test_ffa_handler(current_test_index, message) {
                         response
                     } else {
-                        panic!("Test couldn't handle FF-A interface {:?}", message);
+                        panic!("Test couldn't handle FF-A interface {message:?}");
                     }
                 } else {
-                    panic!("Unexpected FF-A interface returned: {:?}", message)
+                    panic!("BL32 got unexpected FF-A interface on core {core_index}: {message:?}")
                 }
             }
         };
@@ -154,12 +147,40 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     }
 }
 
-extern "C" fn secondary_main() -> ! {
-    set_exception_vector();
+/// Calls `FFA_ID_GET` to get the SPMC ID (i.e. our ID).
+///
+/// Returns `SPMC_DEFAULT_ID` if the `FFA_ID_GET` call returns `NOT_SUPPORTED`, or panics on any
+/// other error.
+fn get_spmc_id() -> u16 {
+    match ffa::id_get().expect("FFA_ID_GET failed") {
+        Interface::Success { args, .. } => SuccessArgsIdGet::try_from(args).unwrap().id,
+        Interface::Error {
+            error_code: FfaError::NotSupported,
+            ..
+        } => {
+            warn!("FFA_ID_GET not supported");
+            SPMC_DEFAULT_ID
+        }
+        res => panic!("Unexpected response for FFA_ID_GET: {:?}", res),
+    }
+}
 
-    info!("BL32 secondary core starting");
-
-    loop {}
+/// Calls `FFA_SPM_ID_GET` to get the SPMD ID.
+///
+/// Returns `SPMD_DEFAULT_ID` if the `FFA_SPM_ID_GET` call returns `NOT_SUPPORTED`, or panics on any
+/// other error.
+fn get_spmd_id() -> u16 {
+    match ffa::spm_id_get().expect("FFA_SPM_ID_GET failed") {
+        Interface::Success { args, .. } => SuccessArgsIdGet::try_from(args).unwrap().id,
+        Interface::Error {
+            error_code: FfaError::NotSupported,
+            ..
+        } => {
+            warn!("FFA_SPM_ID_GET not supported");
+            SPMD_DEFAULT_ID
+        }
+        res => panic!("Unexpected response for FFA_SPM_ID_GET: {:?}", res),
+    }
 }
 
 /// Handles a direct message request and returns a response to send back.
@@ -169,11 +190,11 @@ fn handle_direct_message(
     args: DirectMsgArgs,
     spmc_id: u16,
     spmd_id: u16,
-    current_test_index: &mut Option<usize>,
 ) -> DirectMsgArgs {
+    let core_index = PlatformImpl::core_index();
     if src_id == NORMAL_WORLD_ID && dst_id == SECURE_WORLD_ID {
         match Request::try_from(args) {
-            Ok(request) => handle_request(request, current_test_index).into(),
+            Ok(request) => handle_request(request).into(),
             Err(ParseRequestError::InvalidDirectMsgType(args)) => {
                 panic!(
                     "Received unexpected direct message type from Normal World: {:?}",
@@ -187,14 +208,18 @@ fn handle_direct_message(
         }
     } else if src_id == spmd_id && dst_id == spmc_id {
         match args {
-            DirectMsgArgs::VersionReq { version } => handle_version_request(version),
+            DirectMsgArgs::VersionReq { version } if core_index == 0 => {
+                handle_version_request(version)
+            }
             DirectMsgArgs::PowerPsciReq32 { params } => handle_psci_request32(params),
             DirectMsgArgs::PowerPsciReq64 { params } => handle_psci_request64(params),
             DirectMsgArgs::PowerWarmBootReq { boot_type } => handle_warm_boot_request(boot_type),
-            _ => panic!("Received unexpected direct message type from SPMD."),
+            _ => panic!("Received unexpected direct message type from SPMD on core {core_index}."),
         }
     } else {
-        panic!("Unexpected source ID ({src_id:#x}) or destination ID ({dst_id:#x})");
+        panic!(
+            "Unexpected source ID ({src_id:#x}) or destination ID ({dst_id:#x}) on core {core_index}."
+        );
     }
 }
 
@@ -236,9 +261,11 @@ fn handle_warm_boot_request(_boot_type: WarmBootType) -> DirectMsgArgs {
 }
 
 /// Handles a request from the normal world BL33.
-fn handle_request(request: Request, current_test_index: &mut Option<usize>) -> Response {
+fn handle_request(request: Request) -> Response {
+    let core_index = PlatformImpl::core_index();
+    let is_primary_core = core_index == 0;
     match request {
-        Request::RunSecureTest { test_index } => {
+        Request::RunSecureTest { test_index } if is_primary_core => {
             if run_secure_world_test(test_index).is_ok() {
                 Response::Success {
                     return_value: [0; 4],
@@ -251,19 +278,23 @@ fn handle_request(request: Request, current_test_index: &mut Option<usize>) -> R
             Ok(return_value) => Response::Success { return_value },
             Err(()) => Response::Failure,
         },
-        Request::StartTest { test_index } => {
-            assert_eq!(*current_test_index, None);
-            *current_test_index = Some(test_index);
+        Request::StartTest { test_index } if is_primary_core => {
+            let previous_test_index =
+                CURRENT_TEST_INDEX.swap(test_index.try_into().unwrap(), Ordering::AcqRel);
+            assert_eq!(previous_test_index, -1);
             Response::Success {
                 return_value: [0; 4],
             }
         }
-        Request::StopTest => {
-            assert!(current_test_index.is_some());
-            *current_test_index = None;
+        Request::StopTest if is_primary_core => {
+            let previous_test_index = CURRENT_TEST_INDEX.swap(-1, Ordering::AcqRel);
+            assert!(!previous_test_index.is_negative());
             Response::Success {
                 return_value: [0; 4],
             }
+        }
+        _ => {
+            panic!("Unexpected STF request on secondary core {core_index}: {request:?}");
         }
     }
 }

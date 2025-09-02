@@ -16,7 +16,7 @@
  *
  * This can be called without a valid stack. It assumes that
  * plat_my_core_pos() does not clobber register x10.
- * clobbers: x0, x1, x10
+ * clobbers: x0-x5, x10
  * -----------------------------------------------------------------
  */
 func init_cpu_data_ptr

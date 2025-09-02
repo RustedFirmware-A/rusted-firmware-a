@@ -44,7 +44,10 @@ const CORES_PER_CLUSTER_LAST: usize = 4;
 /// A fake platform for unit tests.
 pub struct TestPlatform;
 
-impl Platform for TestPlatform {
+// SAFETY: The test platform is exempt from the usual safety requirements on `core_position`,
+// because it is only used in unit tests and so `TestPlatform::core_position` is never called from
+// assembly code.
+unsafe impl Platform for TestPlatform {
     const CORE_COUNT: usize = 13;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
@@ -154,6 +157,18 @@ impl Platform for TestPlatform {
 
     fn arch_workaround_4_supported() -> WorkaroundSupport {
         WorkaroundSupport::SafeButNotRequired
+    }
+
+    extern "C" fn core_position(mpidr: u64) -> usize {
+        let mpidr = MpidrEl1::from_bits_retain(mpidr);
+
+        assert!(TestPlatform::mpidr_is_valid(mpidr));
+
+        let soc_index = usize::from(mpidr.aff2());
+        let cluster_index = usize::from(mpidr.aff1());
+        let core_index = usize::from(mpidr.aff0());
+
+        ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
     }
 }
 
@@ -351,19 +366,6 @@ impl TrngPlatformInterface for TestTrngPlatformImpl {
         // A real platform would implement this using a hardware TRNG.
         Ok([0xFFFF_FFFF_FFFF_FFFF])
     }
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn plat_calc_core_pos(mpidr: u64) -> usize {
-    let mpidr = MpidrEl1::from_bits_retain(mpidr);
-
-    assert!(TestPlatform::mpidr_is_valid(mpidr));
-
-    let soc_index = usize::from(mpidr.aff2());
-    let cluster_index = usize::from(mpidr.aff1());
-    let core_index = usize::from(mpidr.aff0());
-
-    ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
 }
 
 struct TestCpu;

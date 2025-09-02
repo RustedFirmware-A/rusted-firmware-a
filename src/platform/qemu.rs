@@ -34,7 +34,11 @@ use arm_gic::{
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
-use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
+use core::{
+    arch::{global_asm, naked_asm},
+    mem::offset_of,
+    ptr::NonNull,
+};
 use percore::Cores;
 
 #[cfg(feature = "rme")]
@@ -108,7 +112,10 @@ define_cpu_ops!(QemuMax);
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
 
-impl Platform for Qemu {
+// SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
+// only clobbers x0 and x1, and returns a unique index as long as `PLATFORM_CPU_PER_CLUSTER_SHIFT`
+// is correct.
+unsafe impl Platform for Qemu {
     const CORE_COUNT: usize = CLUSTER_COUNT * MAX_CPUS_PER_CLUSTER;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
@@ -244,6 +251,20 @@ impl Platform for Qemu {
     fn arch_workaround_4_supported() -> WorkaroundSupport {
         WorkaroundSupport::SafeButNotRequired
     }
+
+    #[unsafe(naked)]
+    extern "C" fn core_position(mpidr: u64) -> usize {
+        naked_asm!(
+            "and	x1, x0, #{MPIDR_CPU_MASK}",
+            "and	x0, x0, #{MPIDR_CLUSTER_MASK}",
+            "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
+            "ret",
+            MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK,
+            MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK,
+            MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
+            PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
+        );
+    }
 }
 
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
@@ -359,14 +380,6 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 global_asm!(
     include_str!("../asm_macros_common.S"),
     include_str!("../arm_macros.S"),
-    // With this function: CorePos = (ClusterId * 4) + CoreId
-    ".globl plat_calc_core_pos",
-    "func plat_calc_core_pos",
-        "and	x1, x0, #{MPIDR_CPU_MASK}",
-        "and	x0, x0, #{MPIDR_CLUSTER_MASK}",
-        "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
-        "ret",
-    "endfunc plat_calc_core_pos",
 
     /* -----------------------------------------------------
      * void plat_secondary_cold_boot_setup (void);
@@ -378,7 +391,6 @@ global_asm!(
      * provided in the mailbox (TRUSTED_MAILBOX_BASE).
      * -----------------------------------------------------
      */
-
     ".globl plat_secondary_cold_boot_setup",
     "func plat_secondary_cold_boot_setup",
         "bl  plat_my_core_pos",
@@ -402,10 +414,6 @@ global_asm!(
     include_str!("../arm_macros_purge.S"),
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
-    MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK,
-    MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK,
-    MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
-    PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
     ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
     GICD_BASE = const GICD_BASE,
     GICD_ISPENDR = const offset_of!(Gicd, ispendr),

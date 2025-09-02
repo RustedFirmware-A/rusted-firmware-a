@@ -12,7 +12,7 @@ use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},
     cpu::cpu_power_down,
-    platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl, plat_calc_core_pos},
+    platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     services::{Service, owns},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SmcReturn},
     sysregs::{MpidrEl1, read_isr_el1},
@@ -1025,7 +1025,7 @@ pub fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<usize> {
     // the platform validates MPIDR values and calculates core position, so add them in.
     let mpidr = MpidrEl1::from_psci_mpidr(psci_mpidr.into());
     if PlatformImpl::mpidr_is_valid(mpidr) {
-        Some(plat_calc_core_pos(mpidr.bits()))
+        Some(PlatformImpl::core_position(mpidr.bits()))
     } else {
         None
     }

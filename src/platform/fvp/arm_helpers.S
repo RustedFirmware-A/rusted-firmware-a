@@ -5,22 +5,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	.globl	plat_my_core_pos
 	.globl	plat_crash_console_init
 	.globl	plat_crash_console_putc
 	.globl	plat_crash_console_flush
 	.globl	plat_cold_boot_handler
-
-	/* -----------------------------------------------------
-	 *  unsigned int plat_my_core_pos(void)
-	 *  This function uses the plat_calc_core_pos()
-	 *  definition to get the index of the calling CPU.
-	 * -----------------------------------------------------
-	 */
-func plat_my_core_pos
-	mrs	x0, mpidr_el1
-	b	plat_calc_core_pos
-endfunc plat_my_core_pos
 
 	/* ---------------------------------------------
 	 * int plat_crash_console_init(void)

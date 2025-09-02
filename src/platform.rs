@@ -66,19 +66,15 @@ pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface>::Platf
 
 pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
 
-unsafe extern "C" {
-    /// Given a valid MPIDR value, returns the corresponding linear core index.
-    ///
-    /// The implementation must never return the same index for two different valid MPIDR values,
-    /// and must never return a value greater than or equal to the corresponding
-    /// `Platform::CORE_COUNT`.
-    ///
-    /// For an invalid MPIDR value no guarantees are made about the return value.
-    pub safe fn plat_calc_core_pos(mpidr: u64) -> usize;
-}
-
 /// The hooks implemented by all platforms.
-pub trait Platform {
+///
+/// # Safety
+///
+/// The implementation of `core_position` must be a naked function which doesn't use the stack, and
+/// only clobbers registers x0-x5. For any valid MPIDR value it must always return an index less than
+/// `CORE_COUNT`, and must return a different index for different MPIDR values. (These requirements
+/// don't apply to the test platform, as it is only used in unit tests.)
+pub unsafe trait Platform {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
 
@@ -172,12 +168,22 @@ pub trait Platform {
 
     /// Returns whether this platform supports the arch WORKAROUND_4 SMC.
     fn arch_workaround_4_supported() -> WorkaroundSupport;
+
+    /// Given a valid MPIDR value, returns the corresponding linear core index.
+    ///
+    /// The implementation must never return the same index for two different valid MPIDR values,
+    /// and must never return a value greater than or equal to the corresponding
+    /// `Platform::CORE_COUNT`.
+    ///
+    /// For an invalid MPIDR value no guarantees are made about the return value.
+    extern "C" fn core_position(mpidr: u64) -> usize;
 }
 
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
+    use super::*;
     use crate::debug::DEBUG;
-    use core::arch::global_asm;
+    use core::arch::{global_asm, naked_asm};
 
     global_asm!(
         include_str!("asm_macros_common.S"),
@@ -185,4 +191,17 @@ mod asm {
         include_str!("asm_macros_common_purge.S"),
         DEBUG = const DEBUG as i32,
     );
+
+    /// Uses `PlatformImpl::core_position` to get the index of the calling CPU.
+    ///
+    /// Clobbers x0-x5.
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    extern "C" fn plat_my_core_pos() -> usize {
+        naked_asm!(
+            "mrs	x0, mpidr_el1",
+            "b	{core_position}",
+            core_position = sym PlatformImpl::core_position,
+        );
+    }
 }

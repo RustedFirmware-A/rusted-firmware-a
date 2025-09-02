@@ -32,7 +32,7 @@ use crate::sysregs::{
 use crate::{
     aarch64::isb,
     gicv3,
-    platform::{Platform, PlatformImpl, exception_free, plat_calc_core_pos},
+    platform::{Platform, PlatformImpl, exception_free},
     smccc::SmcReturn,
     sysregs::{CptrEl3, Esr, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3},
 };
@@ -74,10 +74,10 @@ impl World {
 pub struct CoresImpl;
 
 // SAFETY: This implementation never returns the same index for different cores because
-// `plat_calc_core_pos` is guaranteed not to.
+// `core_position` is guaranteed not to.
 unsafe impl Cores for CoresImpl {
     fn core_index() -> usize {
-        plat_calc_core_pos(read_mpidr_el1().bits())
+        PlatformImpl::core_position(read_mpidr_el1().bits())
     }
 }
 

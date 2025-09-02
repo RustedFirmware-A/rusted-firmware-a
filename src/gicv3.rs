@@ -7,7 +7,7 @@ use core::panic;
 use crate::{
     aarch64::{dsb_sy, isb},
     context::{CoresImpl, World},
-    platform::{Platform, PlatformImpl, plat_calc_core_pos},
+    platform::{Platform, PlatformImpl},
     sysregs::{IccSre, MpidrEl1, ScrEl3, write_icc_sre_el3},
 };
 use arm_gic::{
@@ -260,7 +260,7 @@ fn calculate_redistributor_indices(gic: &mut GicV3) -> [usize; PlatformImpl::COR
         if !PlatformImpl::mpidr_is_valid(mpidr) {
             panic!("GIC redistributor {redistributor_index} has invalid mpidr value.");
         }
-        let core_index = plat_calc_core_pos(mpidr.bits());
+        let core_index = PlatformImpl::core_position(mpidr.bits());
         redistributor_indices[core_index] = redistributor_index;
     }
     redistributor_indices

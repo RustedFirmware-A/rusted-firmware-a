@@ -26,7 +26,6 @@ use crate::{
         protocol::{ParseRequestError, Request, Response},
         run_secure_world_test, run_test_ffa_handler, run_test_helper,
     },
-    gicv3::handle_group1_interrupt,
     platform::{Platform, PlatformImpl},
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, SPMC_DEFAULT_ID, SPMD_DEFAULT_ID, current_el},
 };

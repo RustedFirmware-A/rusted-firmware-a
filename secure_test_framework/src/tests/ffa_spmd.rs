@@ -9,15 +9,14 @@
 use crate::{
     expect_eq, expect_ffa_interface, fail, ffa, normal_world_test, secure_world_test,
     util::{
-        NORMAL_WORLD_ID, SPMC_DEFAULT_ID, current_el, expect_ffa_mem_retrieve_resp,
-        expect_ffa_success, log_error,
+        NORMAL_WORLD_ID, SPMC_DEFAULT_ID, expect_ffa_mem_retrieve_resp, expect_ffa_success,
+        log_error,
     },
 };
 use arm_ffa::{
-    ConsoleLogChars, ConsoleLogChars64, Feature, FfaError, FuncId, Interface, LogChars, MemAddr,
-    MsgSend2Flags, NotificationBindFlags, NotificationGetFlags, NotificationSetFlags,
-    PartitionInfoGetFlags, RxTxAddr, SuccessArgs, SuccessArgsFeatures, SuccessArgsIdGet,
-    SuccessArgsSpmIdGet, TargetInfo, Uuid,
+    Feature, FfaError, FuncId, Interface, MemAddr, MsgSend2Flags, NotificationBindFlags,
+    NotificationGetFlags, NotificationSetFlags, PartitionInfoGetFlags, RxTxAddr, SuccessArgs,
+    SuccessArgsFeatures, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo, Uuid,
     memory_management::{
         DataAccessPermGetSet, Handle, InstructionAccessPermGetSet, MemPermissionsGetSet,
         MemReclaimFlags,

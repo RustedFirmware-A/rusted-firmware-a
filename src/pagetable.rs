@@ -23,7 +23,7 @@ use core::{
     mem::take,
     ptr::NonNull,
 };
-use log::{debug, info, warn};
+use log::{debug, info, trace, warn};
 use spin::{
     Once,
     mutex::{SpinMutex, SpinMutexGuard},
@@ -131,7 +131,7 @@ pub fn init() {
             SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
         let mut idmap = init_page_table(page_heap);
 
-        debug!("Page table: {idmap:?}");
+        trace!("Page table: {idmap:?}");
 
         info!("Setting MMU config");
         // SAFETY: We pass the root address of `idmap`, which has just been initialised with
@@ -187,7 +187,7 @@ fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
 
 /// Adds the given region to the page table with the given attributes, logging it first.
 pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attributes) {
-    info!("Mapping {region} as {attributes:?}.");
+    debug!("Mapping {region} as {attributes:?}.");
     idmap
         .map_range(region, attributes)
         .expect("Error mapping memory range");

@@ -1,7 +1,9 @@
 # Rusted Firmware-A
 
 This project provides an experimental Rust port of Trusted Firmware-A’s (TF-A) EL3 runtime firmware
-(BL31).
+(BL31) for Armv9-A.
+
+TF-A's boot images (BL1 and BL2) are out of scope of this project.
 
 ## Responsibilities
 
@@ -32,6 +34,12 @@ The following platforms are supported currently:
 
 * Arm Fixed Virtual Platform (FVP)
 * QEMU
+
+## Hardware and Software Requirements
+
+RF-A is targeted at recent Arm devices and as such it makes some assumptions about the hardware it
+runs on and the software interfaces it implements or relies on. These assumptions are outlined
+[here](docs/hw-sw-requirements.md).
 
 ## Getting started
 

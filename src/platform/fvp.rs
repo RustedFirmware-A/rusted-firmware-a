@@ -110,6 +110,7 @@ const RMM_SHARED_AREA_BASE_ADDRESS: u64 = 0;
 /// Secure timers' interrupt IDs.
 const SEL2_TIMER_ID: IntId = IntId::ppi(4);
 const SEL1_TIMER_ID: IntId = IntId::ppi(13);
+const NONSECURE_TIMER_ID: IntId = IntId::ppi(14);
 
 fn device_regions_include<T>(physical_instance: &PhysicalInstance<T>) -> bool {
     let start = physical_instance.pa();
@@ -168,6 +169,7 @@ impl Platform for Fvp {
                     trigger: Trigger::Level,
                 },
             ),
+            (NONSECURE_TIMER_ID, InterruptConfig::DEFAULT),
         ],
     };
 

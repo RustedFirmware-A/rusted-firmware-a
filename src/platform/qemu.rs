@@ -101,6 +101,7 @@ static MEMORY_LOGGER: PerCoreMemoryLogger<LOG_BUFFER_SIZE> = PerCoreMemoryLogger
 /// Secure timers' interrupt IDs.
 const SEL2_TIMER_ID: IntId = IntId::ppi(4);
 const SEL1_TIMER_ID: IntId = IntId::ppi(13);
+const NONSECURE_TIMER_ID: IntId = IntId::ppi(14);
 
 define_cpu_ops!(QemuMax);
 
@@ -137,6 +138,7 @@ impl Platform for Qemu {
                     trigger: Trigger::Level,
                 },
             ),
+            (NONSECURE_TIMER_ID, InterruptConfig::DEFAULT),
         ],
     };
 

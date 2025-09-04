@@ -380,23 +380,29 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 global_asm!(
     include_str!("../asm_macros_common.S"),
     include_str!("../arm_macros.S"),
+    include_str!("qemu/crash_print_regs.S"),
+    include_str!("qemu/plat_helpers.S"),
+    include_str!("../arm_macros_purge.S"),
+    include_str!("../asm_macros_common_purge.S"),
+    DEBUG = const DEBUG as i32,
+    ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
+    GICD_BASE = const GICD_BASE,
+    GICD_ISPENDR = const offset_of!(Gicd, ispendr),
+    PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
+    PLAT_QEMU_CRASH_UART_CLK_IN_HZ = const 1,
+    PLAT_QEMU_CONSOLE_BAUDRATE = const 115_200,
+);
 
-    /* -----------------------------------------------------
-     * void plat_secondary_cold_boot_setup (void);
-     *
-     * This function sets up the holding pen mechanism on
-     * this core. It waits for an event and then checks the
-     * value in the core's holding pen. If the core receives
-     * a HOLD_STATE_GO signal, it jumps to the location
-     * provided in the mailbox (TRUSTED_MAILBOX_BASE).
-     * -----------------------------------------------------
-     */
-    ".globl plat_secondary_cold_boot_setup",
-    "func plat_secondary_cold_boot_setup",
+/// This function sets up the holding pen mechanism on this core. It waits for an event and then
+/// checks the value in the core's holding pen. If the core receives a `HOLD_STATE_GO` signal, it
+/// jumps to the location provided in the mailbox (`TRUSTED_MAILBOX_BASE`).
+#[unsafe(naked)]
+unsafe extern "C" fn plat_secondary_cold_boot_setup() -> ! {
+    naked_asm!(
         "bl  plat_my_core_pos",
         "lsl x0, x0, #{HOLD_ENTRY_SHIFT}",
         "ldr x2, ={HOLD_BASE}",
-    "poll_mailbox:",
+    "0:",
         "ldr x1, [x2, x0]",
         "cbz x1, 1f",
         "ldr x1, ={HOLD_STATE_WAIT}",
@@ -406,26 +412,10 @@ global_asm!(
         "br  x1",
     "1:",
         "wfe",
-        "b   poll_mailbox",
-    "endfunc plat_secondary_cold_boot_setup",
-
-    include_str!("qemu/crash_print_regs.S"),
-    include_str!("qemu/plat_helpers.S"),
-    include_str!("../arm_macros_purge.S"),
-    include_str!("../asm_macros_common_purge.S"),
-    DEBUG = const DEBUG as i32,
-    ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
-    GICD_BASE = const GICD_BASE,
-    GICD_ISPENDR = const offset_of!(Gicd, ispendr),
+        "b   0b",
     TRUSTED_MAILBOX_BASE = const SHARED_RAM_BASE,
     HOLD_BASE = const HOLD_BASE,
     HOLD_ENTRY_SHIFT = const HOLD_ENTRY_SHIFT,
     HOLD_STATE_WAIT = const HOLD_STATE_WAIT,
-    PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
-    PLAT_QEMU_CRASH_UART_CLK_IN_HZ = const 1,
-    PLAT_QEMU_CONSOLE_BAUDRATE = const 115_200,
-);
-
-unsafe extern "C" {
-    pub unsafe fn plat_secondary_cold_boot_setup() -> !;
+    );
 }

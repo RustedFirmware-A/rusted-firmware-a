@@ -96,7 +96,7 @@ pub trait PsciPlatformInterface {
     fn power_domain_suspend(&self, target_state: &PsciCompositePowerState);
 
     /// Performs platform-specific operations after a wake-up from standby/retention states.
-    fn power_domain_suspend_finish(&self, target_state: &PsciCompositePowerState);
+    fn power_domain_suspend_finish(&self, previous_state: &PsciCompositePowerState);
 
     /// Callback for platform housekeeping before turning off the CPU, optional.
     fn power_domain_off_early(
@@ -121,7 +121,7 @@ pub trait PsciPlatformInterface {
     fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode>;
 
     /// Perform platform-specific actions after the CPU has been turned on.
-    fn power_domain_on_finish(&self, target_state: &PsciCompositePowerState);
+    fn power_domain_on_finish(&self, previous_state: &PsciCompositePowerState);
 
     /// Shuts down the system.
     fn system_off(&self) -> !;

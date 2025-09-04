@@ -431,13 +431,13 @@ impl FvpPsciPlatformImpl<'_> {
         self.power_controller.lock().power_off_cluster(mpidr);
     }
 
-    fn power_domain_on_finish_common(&self, target_state: &PsciCompositePowerState) {
-        assert_eq!(target_state.cpu_level_state(), FvpPowerState::Off);
+    fn power_domain_on_finish_common(&self, previous_state: &PsciCompositePowerState) {
+        assert_eq!(previous_state.cpu_level_state(), FvpPowerState::Off);
 
         let mpidr = read_mpidr_el1().bits() as u32;
 
         // Perform the common cluster specific operations.
-        if target_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
+        if previous_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
             // This CPU might have woken up whilst the cluster was attempting to power down. In
             // this case the FVP power controller will have a pending cluster power off request
             // which needs to be cleared by writing to the PPONR register. This prevents the power
@@ -454,7 +454,7 @@ impl FvpPsciPlatformImpl<'_> {
         }
 
         // Perform the common system specific operations.
-        if target_state.highest_level_state() == FvpPowerState::Off {
+        if previous_state.highest_level_state() == FvpPowerState::Off {
             self.restore_system_power_domain();
         }
 
@@ -614,13 +614,13 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
         self.power_controller.lock().power_off_processor(mpidr);
     }
 
-    fn power_domain_suspend_finish(&self, target_state: &PsciCompositePowerState) {
+    fn power_domain_suspend_finish(&self, previous_state: &PsciCompositePowerState) {
         // Nothing to be done on waking up from retention at CPU level.
-        if target_state.cpu_level_state() == FvpPowerState::Retention {
+        if previous_state.cpu_level_state() == FvpPowerState::Retention {
             return;
         }
 
-        self.power_domain_on_finish_common(target_state);
+        self.power_domain_on_finish_common(previous_state);
         self.gic_cpu_interface_enable();
     }
 
@@ -656,8 +656,8 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
         Ok(())
     }
 
-    fn power_domain_on_finish(&self, target_state: &PsciCompositePowerState) {
-        self.power_domain_on_finish_common(target_state);
+    fn power_domain_on_finish(&self, previous_state: &PsciCompositePowerState) {
+        self.power_domain_on_finish_common(previous_state);
         self.gic_redistributor_enable();
         self.gic_cpu_interface_enable();
     }

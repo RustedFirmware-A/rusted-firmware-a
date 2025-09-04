@@ -299,7 +299,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         todo!()
     }
 
-    fn power_domain_suspend_finish(&self, _target_state: &PsciCompositePowerState) {
+    fn power_domain_suspend_finish(&self, _previous_state: &PsciCompositePowerState) {
         todo!()
     }
 
@@ -340,7 +340,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         Ok(())
     }
 
-    fn power_domain_on_finish(&self, _target_state: &PsciCompositePowerState) {
+    fn power_domain_on_finish(&self, _previous_state: &PsciCompositePowerState) {
         todo!()
     }
 

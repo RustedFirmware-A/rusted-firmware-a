@@ -272,7 +272,7 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
 
     fn power_domain_suspend(&self, _target_state: &PsciCompositePowerState) {}
 
-    fn power_domain_suspend_finish(&self, _target_state: &PsciCompositePowerState) {}
+    fn power_domain_suspend_finish(&self, _previous_state: &PsciCompositePowerState) {}
 
     fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
         assert_eq!(target_state.cpu_level_state(), TestPowerState::PowerDown);
@@ -292,7 +292,7 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
         Ok(())
     }
 
-    fn power_domain_on_finish(&self, _target_state: &PsciCompositePowerState) {}
+    fn power_domain_on_finish(&self, _previous_state: &PsciCompositePowerState) {}
 
     fn system_off(&self) -> ! {
         panic!("{}", Self::SYSTEM_OFF_MAGIC);

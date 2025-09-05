@@ -97,6 +97,16 @@ impl Display for OwningEntityNumber {
 pub struct FunctionId(pub u32);
 
 impl FunctionId {
+    /// Creates a new `FunctionId` from its components.
+    pub const fn new(call_type: SmcccCallType, oen: OwningEntityNumber, number: u16) -> Self {
+        let type_bits = match call_type {
+            SmcccCallType::Fast32 => FAST_CALL,
+            SmcccCallType::Fast64 => FAST_CALL | SMC64,
+            SmcccCallType::Yielding => 0,
+        };
+        Self(type_bits | (((oen.0 as u32) << OEN_SHIFT) & OEN_MASK) | (number as u32))
+    }
+
     /// Returns the Owning Entity Number of the function ID.
     pub fn oen(self) -> OwningEntityNumber {
         OwningEntityNumber(((self.0 & OEN_MASK) >> OEN_SHIFT) as u8)

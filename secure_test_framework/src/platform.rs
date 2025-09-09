@@ -7,7 +7,8 @@ mod fvp;
 #[cfg(platform = "qemu")]
 mod qemu;
 
-use core::{arch::asm, fmt::Write};
+use crate::sysregs::{MpidrEl1, read_mpidr_el1};
+use core::fmt::Write;
 use percore::Cores;
 
 #[cfg(platform = "fvp")]
@@ -38,20 +39,7 @@ pub unsafe trait Platform {
     /// first and handles initialisation.
     ///
     /// For an invalid MPIDR value no guarantees are made about the return value.
-    extern "C" fn core_position(mpidr: u64) -> usize;
-}
-
-fn read_mpidr_el1() -> u64 {
-    let value;
-    // SAFETY: Reading the MPIDR is always safe.
-    unsafe {
-        asm!(
-            "mrs {value}, mpidr_el1",
-            options(nostack),
-            value = out(reg) value,
-        );
-    }
-    value
+    extern "C" fn core_position(mpidr: MpidrEl1) -> usize;
 }
 
 // SAFETY: `Platform::core_position` is guaranteed to return a unique value for any valid MPIDR

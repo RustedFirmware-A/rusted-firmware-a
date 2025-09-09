@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
+use crate::sysregs::MpidrEl1;
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use core::{arch::naked_asm, fmt::Write, ptr::NonNull};
 use spin::{
@@ -16,12 +17,6 @@ const PL011_BASE_ADDRESS: NonNull<PL011Registers> = NonNull::new(0x1C09_0000 as 
 const FVP_CLUSTER_COUNT: usize = 2;
 const FVP_MAX_CPUS_PER_CLUSTER: usize = 4;
 const FVP_MAX_PE_PER_CPU: usize = 1;
-
-const MPIDR_MT_MASK: u64 = 1 << 24;
-const MPIDR_AFFINITY_BITS: usize = 8;
-const MPIDR_AFF0_SHIFT: u8 = 0;
-const MPIDR_AFF1_SHIFT: u8 = 8;
-const MPIDR_AFF2_SHIFT: u8 = 16;
 
 static UART: Once<SpinMutex<Uart>> = Once::new();
 
@@ -46,7 +41,7 @@ unsafe impl Platform for Fvp {
     }
 
     #[unsafe(naked)]
-    extern "C" fn core_position(mpidr: u64) -> usize {
+    extern "C" fn core_position(mpidr: MpidrEl1) -> usize {
         // TODO: Validate that the fields are within the range we expect.
         naked_asm!(
             // Check for MT bit in MPIDR. If not set, shift MPIDR to left to make it look as if in a
@@ -66,12 +61,12 @@ unsafe impl Platform for Fvp {
             "mov	x3, #{FVP_MAX_PE_PER_CPU}",
             "madd	x0, x1, x3, x0",
             "ret",
-            MPIDR_MT_MASK = const MPIDR_MT_MASK,
-            MPIDR_AFF0_SHIFT = const MPIDR_AFF0_SHIFT,
-            MPIDR_AFF1_SHIFT = const MPIDR_AFF1_SHIFT,
-            MPIDR_AFF2_SHIFT = const MPIDR_AFF2_SHIFT,
+            MPIDR_MT_MASK = const MpidrEl1::MT.bits(),
+            MPIDR_AFF0_SHIFT = const MpidrEl1::AFF0_SHIFT,
+            MPIDR_AFF1_SHIFT = const MpidrEl1::AFF1_SHIFT,
+            MPIDR_AFF2_SHIFT = const MpidrEl1::AFF2_SHIFT,
             FVP_MAX_CPUS_PER_CLUSTER = const FVP_MAX_CPUS_PER_CLUSTER,
-            MPIDR_AFFINITY_BITS = const MPIDR_AFFINITY_BITS,
+            MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
             FVP_MAX_PE_PER_CPU = const FVP_MAX_PE_PER_CPU,
         );
     }

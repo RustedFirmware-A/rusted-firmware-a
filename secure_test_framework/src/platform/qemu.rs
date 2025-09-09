@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
+use crate::sysregs::MpidrEl1;
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use core::{arch::naked_asm, fmt::Write, ptr::NonNull};
 use spin::{
@@ -18,10 +19,6 @@ const CLUSTER_COUNT: usize = 1;
 const PLATFORM_CPU_PER_CLUSTER_SHIFT: usize = 2;
 /// The maximum number of CPUs in each cluster.
 const MAX_CPUS_PER_CLUSTER: usize = 1 << PLATFORM_CPU_PER_CLUSTER_SHIFT;
-
-const MPIDR_AFF0_MASK: u64 = 0x0000_00ff;
-const MPIDR_AFF1_MASK: u64 = 0x0000_ff00;
-const MPIDR_AFFINITY_BITS: usize = 8;
 
 static UART: Once<SpinMutex<Uart>> = Once::new();
 
@@ -45,16 +42,16 @@ unsafe impl Platform for Qemu {
     }
 
     #[unsafe(naked)]
-    extern "C" fn core_position(mpidr: u64) -> usize {
+    extern "C" fn core_position(mpidr: MpidrEl1) -> usize {
         // TODO: Validate that the fields are within the range we expect.
         naked_asm!(
             "and	x1, x0, #{MPIDR_CPU_MASK}",
             "and	x0, x0, #{MPIDR_CLUSTER_MASK}",
             "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
             "ret",
-            MPIDR_CPU_MASK = const MPIDR_AFF0_MASK,
-            MPIDR_CLUSTER_MASK = const MPIDR_AFF1_MASK,
-            MPIDR_AFFINITY_BITS = const MPIDR_AFFINITY_BITS,
+            MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK,
+            MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK,
+            MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
             PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
         );
     }

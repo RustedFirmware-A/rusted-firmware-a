@@ -16,6 +16,7 @@ mod gicv3;
 mod heap;
 mod logger;
 mod platform;
+mod sysregs;
 mod tests;
 mod util;
 

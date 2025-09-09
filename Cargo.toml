@@ -22,6 +22,7 @@ opt-level = "s"
 panic = "abort"
 
 [profile.release]
+debug = true
 panic = "abort"
 opt-level = "s"
 lto = "thin"

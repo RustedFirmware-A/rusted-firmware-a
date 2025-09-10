@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+	.globl	flush_dcache_range
 	.globl	inv_dcache_range
 
 /*
@@ -26,6 +27,15 @@ loop_\op:
 exit_loop_\op:
 	ret
 .endm
+
+	/* -------------------------------------------
+	 * DCache Clean+Invalidate by MVA from base
+	 * address till size. 'x0' = addr, 'x1' = size
+	 * -------------------------------------------
+	 */
+func flush_dcache_range
+	do_dcache_maintenance_by_mva civac
+endfunc flush_dcache_range
 
 	/* ------------------------------------------
 	 * DCache Invalidate by MVA from base address

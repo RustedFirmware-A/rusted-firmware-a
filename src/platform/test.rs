@@ -170,6 +170,18 @@ unsafe impl Platform for TestPlatform {
 
         ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
     }
+
+    unsafe extern "C" fn cold_boot_handler() {}
+
+    extern "C" fn crash_console_init() -> u32 {
+        1
+    }
+
+    extern "C" fn crash_console_putc(_char: u32) -> i32 {
+        unimplemented!()
+    }
+
+    extern "C" fn crash_console_flush() {}
 }
 
 /// Runs the given function and returns the result.

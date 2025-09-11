@@ -308,7 +308,7 @@ do_crash_reporting:
 	stp	x4, x5, [x0, #{REGSZ} * 4]
 	stp	x6, x30, [x0, #{REGSZ} * 6]
 	/* Initialize the crash console */
-	bl	plat_crash_console_init
+	bl	{plat_crash_console_init}
 	/* Verify the console is initialized */
 	cbz	x0, crash_panic
 	/* Print the crash message. sp points to the crash message */
@@ -416,7 +416,7 @@ print_el3_sys_regs:
 	/* Print some platform registers */
 	bl	plat_crash_print_regs
 
-	bl	plat_crash_console_flush
+	bl	{plat_crash_console_flush}
 
 	/* Done reporting */
 	no_ret	plat_panic_handler

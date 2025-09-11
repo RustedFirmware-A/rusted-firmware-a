@@ -358,6 +358,51 @@ unsafe impl Platform for Fvp {
             FVP_MAX_PE_PER_CPU = const FVP_MAX_PE_PER_CPU,
         );
     }
+
+    #[unsafe(naked)]
+    unsafe extern "C" fn cold_boot_handler() {
+        naked_asm!("ret");
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn crash_console_init() -> u32 {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x0, {PLAT_ARM_CRASH_UART_BASE}",
+            "mov_imm	x1, {PLAT_ARM_CRASH_UART_CLK_IN_HZ}",
+            "mov_imm	x2, {ARM_CONSOLE_BAUDRATE}",
+            "b	console_pl011_core_init",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_ARM_CRASH_UART_BASE = const V2M_IOFPGA_UART1_BASE,
+            PLAT_ARM_CRASH_UART_CLK_IN_HZ = const 24_000_000,
+            ARM_CONSOLE_BAUDRATE = const 115_200,
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn crash_console_putc(char: u32) -> i32 {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x1, {PLAT_ARM_CRASH_UART_BASE}",
+            "b	console_pl011_core_putc",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_ARM_CRASH_UART_BASE = const V2M_IOFPGA_UART1_BASE,
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn crash_console_flush() {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x1, {PLAT_ARM_CRASH_UART_BASE}",
+            "b	console_pl011_core_flush",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_ARM_CRASH_UART_BASE = const V2M_IOFPGA_UART1_BASE,
+        );
+    }
 }
 
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
@@ -757,7 +802,6 @@ global_asm!(
     include_str!("../asm_macros_common.S"),
     include_str!("../arm_macros.S"),
     include_str!("fvp/crash_print_regs.S"),
-    include_str!("fvp/arm_helpers.S"),
     include_str!("../arm_macros_purge.S"),
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
@@ -769,7 +813,4 @@ global_asm!(
     BLD_GIC_VE_MMAP = const BLD_GIC_VE_MMAP,
     BASE_GICD_BASE = const BASE_GICD_BASE,
     VE_GICD_BASE = const VE_GICD_BASE,
-    PLAT_ARM_CRASH_UART_BASE = const V2M_IOFPGA_UART1_BASE,
-    PLAT_ARM_CRASH_UART_CLK_IN_HZ = const 24_000_000,
-    ARM_CONSOLE_BAUDRATE = const 115_200,
 );

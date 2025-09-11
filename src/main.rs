@@ -116,6 +116,7 @@ extern "C" fn psci_warmboot_entrypoint() -> ! {
 
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
+    use super::*;
     use crate::{
         debug::{DEBUG, ENABLE_ASSERTIONS},
         sysregs::SctlrEl3,
@@ -191,5 +192,6 @@ mod asm {
         TCPAC_BIT = const TCPAC_BIT,
         TTA_BIT = const TTA_BIT,
         TFP_BIT = const TFP_BIT,
+        plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
     );
 }

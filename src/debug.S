@@ -36,7 +36,7 @@ dec_print_loop:
 	udiv	x0, x4, x5			/* Get the quotient */
 	msub	x4, x0, x5, x4			/* Find the remainder */
 	add	x0, x0, #ASCII_OFFSET_NUM	/* Convert to ascii */
-	bl	plat_crash_console_putc
+	bl	{plat_crash_console_putc}
 	udiv	x5, x5, x6			/* Reduce divisor */
 	cbnz	x5, dec_print_loop
 	.endm
@@ -59,7 +59,7 @@ func asm_assert
 	mov	x5, x0
 
 	/* Ensure the console is initialized */
-	bl	plat_crash_console_init
+	bl	{plat_crash_console_init}
 
 	/* Check if the console is initialized */
 	cbz	x0, _assert_loop
@@ -70,7 +70,7 @@ func asm_assert
 	mov	x4, x5
 	bl	asm_print_str
 
-	bl	plat_crash_console_flush
+	bl	{plat_crash_console_flush}
 _assert_loop:
 .endif /* LOG_LEVEL >= LOG_LEVEL_INFO */
 	no_ret	plat_panic_handler
@@ -87,7 +87,7 @@ func asm_print_str
 1:
 	ldrb	w0, [x4], #0x1
 	cbz	x0, 2f
-	bl	plat_crash_console_putc
+	bl	{plat_crash_console_putc}
 	b	1b
 2:
 	ret	x3
@@ -116,7 +116,7 @@ asm_print_hex_bits:
 	add	x0, x0, #0x27
 2:
 	add	x0, x0, #ASCII_OFFSET_NUM
-	bl	plat_crash_console_putc
+	bl	{plat_crash_console_putc}
 	cbnz	x5, 1b
 	ret	x3
 endfunc asm_print_hex
@@ -127,7 +127,7 @@ endfunc asm_print_hex
  */
 func asm_print_newline
 	mov	x0, '\n'
-	b	plat_crash_console_putc
+	b	{plat_crash_console_putc}
 endfunc asm_print_newline
 
 	/***********************************************************
@@ -159,7 +159,7 @@ func el3_panic
 
 panic_common:
 	mov	x6, x30
-	bl	plat_crash_console_init
+	bl	{plat_crash_console_init}
 
 	/* Check if the console is initialized */
 	cbz	x0, _panic_handler
@@ -176,7 +176,7 @@ panic_common:
 	/* Print new line */
 	bl	asm_print_newline
 
-	bl	plat_crash_console_flush
+	bl	{plat_crash_console_flush}
 
 _panic_handler:
 	/* Pass to plat_panic_handler the address from where el3_panic was

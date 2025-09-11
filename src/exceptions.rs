@@ -262,6 +262,7 @@ mod asm {
     use crate::{
         context::{CpuData, CrashBuf, GpRegs},
         debug::{CRASH_REPORTING, DEBUG},
+        platform::{Platform, PlatformImpl},
         sysregs::SctlrEl3,
     };
     use core::{arch::global_asm, mem::offset_of};
@@ -281,6 +282,8 @@ mod asm {
         MODE_EL2 = const 2,
         SCTLR_EnIA_BIT = const SctlrEl3::ENIA.bits(),
         SCTLR_EnIB_BIT = const SctlrEl3::ENIB.bits(),
+        plat_crash_console_init = sym PlatformImpl::crash_console_init,
+        plat_crash_console_flush = sym PlatformImpl::crash_console_flush,
     );
 }
 

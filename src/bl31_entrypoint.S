@@ -222,7 +222,7 @@ func bl31_entrypoint
         sub     x1, x1, x0
         bl      zeromem
 
-        bl      plat_cold_boot_handler
+        bl      {plat_cold_boot_handler}
 
         /* ---------------------------------------------------------------------
          * Use SP_EL0 for the C runtime stack.

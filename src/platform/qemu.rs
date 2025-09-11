@@ -274,6 +274,51 @@ unsafe impl Platform for Qemu {
             PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
         );
     }
+
+    #[unsafe(naked)]
+    unsafe extern "C" fn cold_boot_handler() {
+        naked_asm!("ret");
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn crash_console_init() -> u32 {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x0, {PLAT_QEMU_CRASH_UART_BASE}",
+            "mov_imm	x1, {PLAT_QEMU_CRASH_UART_CLK_IN_HZ}",
+            "mov_imm	x2, {PLAT_QEMU_CONSOLE_BAUDRATE}",
+            "b	console_pl011_core_init",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
+            PLAT_QEMU_CRASH_UART_CLK_IN_HZ = const 1,
+            PLAT_QEMU_CONSOLE_BAUDRATE = const 115_200,
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn crash_console_putc(char: u32) -> i32 {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x1, {PLAT_QEMU_CRASH_UART_BASE}",
+            "b	console_pl011_core_putc",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn crash_console_flush() {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x1, {PLAT_QEMU_CRASH_UART_BASE}",
+            "b	console_pl011_core_flush",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
+        );
+    }
 }
 
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
@@ -397,16 +442,12 @@ global_asm!(
     include_str!("../asm_macros_common.S"),
     include_str!("../arm_macros.S"),
     include_str!("qemu/crash_print_regs.S"),
-    include_str!("qemu/plat_helpers.S"),
     include_str!("../arm_macros_purge.S"),
     include_str!("../asm_macros_common_purge.S"),
     DEBUG = const DEBUG as i32,
     ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
     GICD_BASE = const GICD_BASE,
     GICD_ISPENDR = const offset_of!(Gicd, ispendr),
-    PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
-    PLAT_QEMU_CRASH_UART_CLK_IN_HZ = const 1,
-    PLAT_QEMU_CONSOLE_BAUDRATE = const 115_200,
 );
 
 /// This function sets up the holding pen mechanism on this core. It waits for an event and then

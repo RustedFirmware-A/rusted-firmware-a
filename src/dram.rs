@@ -51,6 +51,7 @@ macro_rules! zeroed_mut {
         });
     };
 }
+pub(crate) use zeroed_mut;
 
 #[cfg(test)]
 mod tests {

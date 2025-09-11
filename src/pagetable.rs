@@ -163,6 +163,11 @@ pub fn enable() {
 fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
     let mut idmap = IdMap::new(pages);
 
+    // If the BL32 entry point is in the middle of our memory range then something is misconfigured.
+    let secure_entry_pc = PlatformImpl::secure_entry_point().pc;
+    assert!(secure_entry_pc < bl31_start() || secure_entry_pc >= bl31_end());
+    assert!(secure_entry_pc < bss2_start() || secure_entry_pc >= bss2_end());
+
     // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
     // BL31_TOTAL
     map_region(

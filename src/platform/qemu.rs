@@ -9,6 +9,7 @@ use crate::{
     cpu::qemu_max::QemuMax,
     debug::DEBUG,
     define_cpu_ops,
+    dram::zeroed_mut,
     gicv3::{self, GIC, GicConfig, InterruptConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
@@ -40,7 +41,7 @@ use core::{
     ptr::NonNull,
 };
 use percore::Cores;
-use spin::mutex::{SpinMutex, SpinMutexGuard};
+use spin::mutex::SpinMutexGuard;
 
 #[cfg(feature = "rme")]
 compile_error!("RME is not supported on QEMU");
@@ -97,9 +98,10 @@ const MAX_CPUS_PER_CLUSTER: usize = 1 << PLATFORM_CPU_PER_CLUSTER_SHIFT;
 /// The per-core log buffer size in bytes.
 const LOG_BUFFER_SIZE: usize = 1024;
 
-/// Buffers for the per-core in-memory logger.
-static LOG_BUFFERS: SpinMutex<[[u8; LOG_BUFFER_SIZE]; Qemu::CORE_COUNT]> =
-    SpinMutex::new([[0; LOG_BUFFER_SIZE]; Qemu::CORE_COUNT]);
+zeroed_mut! {
+    /// Buffers for the per-core in-memory logger.
+    LOG_BUFFERS, [[u8; LOG_BUFFER_SIZE]; Qemu::CORE_COUNT], unsafe(link_section = ".bss2.dram")
+}
 
 /// Secure timers' interrupt IDs.
 const SEL2_TIMER_ID: IntId = IntId::ppi(4);

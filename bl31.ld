@@ -7,6 +7,7 @@
 MEMORY
 {
 	image : ORIGIN = BL31_BASE, LENGTH = BL31_SIZE
+	bl31_dram : ORIGIN = BL31_DRAM_BASE, LENGTH = BL31_DRAM_SIZE
 }
 
 /*
@@ -83,6 +84,18 @@ SECTIONS
 
 	. = ALIGN(PAGE_SIZE);
 	__BL31_END__ = .;
+
+	/* DRAM section */
+	. = BL31_DRAM_BASE;
+
+	.bss2.dram (NOLOAD) : ALIGN(PAGE_SIZE) {
+		__BSS2_START__ = .;
+
+		*(.bss2.dram)
+
+		. = ALIGN(PAGE_SIZE);
+		__BSS2_END__ = .;
+	} >bl31_dram
 
 	/*
 	 * Remove unused sections from the image.

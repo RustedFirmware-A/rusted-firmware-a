@@ -13,8 +13,17 @@ use std::{env, path::PathBuf};
 const PAGE_SIZE: u64 = 0x1000;
 
 fn setup_linker(builder: &dyn Builder) {
+    if builder.bl31_dram_base().is_none() {
+        assert_eq!(builder.bl31_dram_size(), 0);
+    }
+
     define_linker_symbol("BL31_BASE", builder.bl31_base());
     define_linker_symbol("BL31_SIZE", builder.bl31_size());
+    define_linker_symbol(
+        "BL31_DRAM_BASE",
+        builder.bl31_dram_base().unwrap_or_default(),
+    );
+    define_linker_symbol("BL31_DRAM_SIZE", builder.bl31_dram_size());
     define_linker_symbol("PAGE_SIZE", PAGE_SIZE);
 
     add_linker_script(&PathBuf::from("bl31.ld"));

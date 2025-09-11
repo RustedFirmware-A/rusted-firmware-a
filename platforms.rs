@@ -16,15 +16,31 @@ type BuildResult = Result<(), Box<dyn Error>>;
 pub trait Builder {
     /// Base address of the BL31 binary.
     ///
-    /// Passed to platform-independent linker script by
-    /// defining BL31_BASE symbol.
+    /// This is passed to the linker script through the `BL31_BASE` symbol.
     fn bl31_base(&self) -> u64;
 
     /// Size of the BL31 binary.
     ///
-    /// Passed to platform-independent linker script by
-    /// defining BL31_SIZE symbol.
+    /// This is passed to the linker script through the `BL31_SIZE` symbol.
     fn bl31_size(&self) -> u64;
+
+    /// Base address of the DRAM section reserved for BL31, if any.
+    ///
+    /// If no DRAM is reserved for BL31 then this should return `None`.
+    ///
+    /// This is passed to the linker script though the `BL31_DRAM_BASE` symbol.
+    fn bl31_dram_base(&self) -> Option<u64> {
+        None
+    }
+
+    /// Size of the DRAM section reserved for BL31, if any.
+    ///
+    /// If no DRAM is reserved for BL31 then this should return 0.
+    ///
+    /// This is passed to the linker script though the `BL31_DRAM_SIZE` symbol.
+    fn bl31_dram_size(&self) -> u64 {
+        0
+    }
 
     /// Sets up platform-specific configurations (code generation, file inclusions, etc.).
     fn configure_build(&self) -> BuildResult {

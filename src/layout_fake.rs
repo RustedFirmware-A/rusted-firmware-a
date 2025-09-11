@@ -25,3 +25,11 @@ pub fn bl_ro_data_base() -> usize {
 pub fn bl_ro_data_end() -> usize {
     0x4_0000
 }
+
+pub fn bss2_start() -> usize {
+    0
+}
+
+pub fn bss2_end() -> usize {
+    0
+}

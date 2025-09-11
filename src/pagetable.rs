@@ -4,7 +4,10 @@
 
 use crate::{
     aarch64::{dsb_ish, dsb_sy, isb, tlbi_alle3},
-    layout::{bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end, bl31_end, bl31_start},
+    layout::{
+        bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end, bl31_end, bl31_start, bss2_end,
+        bss2_start,
+    },
     platform::{Platform, PlatformImpl},
     sysregs::{
         SctlrEl3, read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3,
@@ -178,6 +181,15 @@ fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
         &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
         MT_RO_DATA,
     );
+    let bss2_start = bss2_start();
+    let bss2_end = bss2_end();
+    if bss2_start != bss2_end {
+        map_region(
+            &mut idmap,
+            &MemoryRegion::new(bss2_start, bss2_end),
+            MT_RW_DATA,
+        );
+    }
 
     // Corresponds to `plat_regions` in C TF-A.
     PlatformImpl::map_extra_regions(&mut idmap);

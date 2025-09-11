@@ -7,7 +7,7 @@ use crate::{
     aarch64::sev,
     context::EntryPointInfo,
     cpu::Cpu,
-    define_cpu_ops,
+    cpu::define_cpu_ops,
     gicv3::GicConfig,
     logger::{self, LogSink},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},

@@ -70,9 +70,9 @@ pub fn expect_ffa_mem_retrieve_resp(response: Interface) -> Result<(u32, u32), (
 
 /// Triggers a SMC call with the given function/interface, checks that this call was successful (logs an error
 /// otherwise) and checks whether the response's interface matches the expected one.
-#[macro_export]
 macro_rules! expect_ffa_interface {
     ($expect:ident, $message:expr, $call:expr) => {
         $expect(crate::util::log_error($message, $call)?)?
     };
 }
+pub(crate) use expect_ffa_interface;

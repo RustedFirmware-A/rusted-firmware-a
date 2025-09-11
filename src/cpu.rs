@@ -68,23 +68,23 @@ impl CpuOps {
 }
 
 /// Calculates the count of specified Cpu types.
-#[macro_export]
 macro_rules! cpu_ops_count {
     ($cpu:ty) => { 1 };
     ($cpu:ty, $($cpus:ty),+) => {
-        $crate::cpu_ops_count!($cpu) + $crate::cpu_ops_count!($($cpus),+)
+        $crate::cpu::cpu_ops_count!($cpu) + $crate::cpu::cpu_ops_count!($($cpus),+)
     };
 }
+pub(crate) use cpu_ops_count;
 
 /// Declares the CPU_OPS array.
-#[macro_export]
 macro_rules! define_cpu_ops {
     ($($cpus:ty),+) => {
-        pub static CPU_OPS : [$crate::cpu::CpuOps; $crate::cpu_ops_count!($($cpus),+)] = [
+        pub static CPU_OPS : [$crate::cpu::CpuOps; $crate::cpu::cpu_ops_count!($($cpus),+)] = [
             $($crate::cpu::CpuOps::from_cpu::<$cpus>()),*,
         ];
     }
 }
+pub(crate) use define_cpu_ops;
 
 fn find_cpu_ops() -> &'static CpuOps {
     let midr = read_midr_el1();

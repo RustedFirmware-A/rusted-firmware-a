@@ -7,10 +7,14 @@
 //! example, RXTX mapping/unmapping)
 
 use crate::{
-    expect_eq, expect_ffa_interface, fail, ffa, normal_world_test, secure_world_test,
+    ffa,
+    framework::{
+        expect::{expect_eq, fail},
+        normal_world_test, secure_world_test,
+    },
     util::{
-        NORMAL_WORLD_ID, SPMC_DEFAULT_ID, expect_ffa_mem_retrieve_resp, expect_ffa_success,
-        log_error,
+        NORMAL_WORLD_ID, SPMC_DEFAULT_ID, expect_ffa_interface, expect_ffa_mem_retrieve_resp,
+        expect_ffa_success, log_error,
     },
 };
 use arm_ffa::{

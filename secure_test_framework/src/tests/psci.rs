@@ -4,7 +4,7 @@
 
 //! Tests for PSCI calls.
 
-use crate::{expect_eq, normal_world_test, secure_world_test};
+use crate::framework::{expect::expect_eq, normal_world_test, secure_world_test};
 use smccc::{Smc, psci};
 
 normal_world_test!(test_psci_version);

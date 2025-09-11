@@ -21,7 +21,6 @@ use log::info;
 use spin::Lazy;
 
 /// Helper macro to define the range of SMC function ID values covered by a service
-#[macro_export]
 macro_rules! owns {
     // service handles the entire Owning Entity Number (OEN)
     ($owning_entity:expr) => {

@@ -4,7 +4,7 @@
 
 //! Tests for standard Arm architecture SMCCC calls.
 
-use crate::{expect_eq, normal_world_test, secure_world_test};
+use crate::framework::{expect::expect_eq, normal_world_test, secure_world_test};
 use smccc::{Smc, arch};
 
 normal_world_test!(test_arch_normal);

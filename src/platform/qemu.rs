@@ -6,9 +6,9 @@ use super::{DummyService, Platform};
 use crate::{
     aarch64::{dsb_sy, sev, wfi},
     context::{CoresImpl, EntryPointInfo},
+    cpu::define_cpu_ops,
     cpu::qemu_max::QemuMax,
     debug::DEBUG,
-    define_cpu_ops,
     dram::zeroed_mut,
     gicv3::{self, GIC, GicConfig, InterruptConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},

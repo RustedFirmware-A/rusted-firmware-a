@@ -5,9 +5,11 @@
 //! Tests for interrupt handling and forwarding.
 
 use crate::{
-    framework::{TestHelperProxy, TestHelperRequest, TestHelperResponse},
+    framework::{
+        TestHelperProxy, TestHelperRequest, TestHelperResponse, normal_world_test,
+        secure_world_test,
+    },
     gicv3::set_interrupt_handler,
-    normal_world_test, secure_world_test,
     util::{
         current_el,
         timer::{NonSecureTimer, SEL1Timer, SEL2Timer, Timer},

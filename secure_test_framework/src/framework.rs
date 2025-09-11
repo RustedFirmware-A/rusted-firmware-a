@@ -4,7 +4,7 @@
 
 //! Framework for registering and running tests and their helpers.
 
-mod expect;
+pub mod expect;
 pub mod protocol;
 
 use crate::call_test_helper;
@@ -170,7 +170,6 @@ pub fn run_test_ffa_handler(test_index: usize, interface: Interface) -> Option<I
 }
 
 /// Registers a normal world test with the test framework.
-#[macro_export]
 macro_rules! normal_world_test {
     ($function:ident) => {
         paste::paste! {
@@ -219,9 +218,9 @@ macro_rules! normal_world_test {
         }
     };
 }
+pub(crate) use normal_world_test;
 
 /// Registers a secure world test with the test framework.
-#[macro_export]
 macro_rules! secure_world_test {
     ($function:ident) => {
         paste::paste! {
@@ -233,3 +232,4 @@ macro_rules! secure_world_test {
         }
     };
 }
+pub(crate) use secure_world_test;

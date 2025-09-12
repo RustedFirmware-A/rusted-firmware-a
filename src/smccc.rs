@@ -55,7 +55,7 @@ pub enum OwningEntity {
 }
 
 /// Owning Entity Number (OEN)
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct OwningEntityNumber(pub u8);
 
 impl OwningEntityNumber {
@@ -68,6 +68,15 @@ impl OwningEntityNumber {
     pub const VENDOR_SPECIFIC_HYPERVISOR: Self = Self(6);
     pub const VENDOR_SPECIFIC_EL3_MONITOR: Self = Self(7);
 
+    const TRUSTED_APPLICATIONS_START_VAL: u8 = 48;
+    const TRUSTED_APPLICATIONS_END_VAL: u8 = 49;
+    const TRUSTED_OS_START_VAL: u8 = 50;
+    const TRUSTED_OS_END_VAL: u8 = 63;
+    pub const TRUSTED_APPLICATIONS_START: Self = Self(Self::TRUSTED_APPLICATIONS_START_VAL);
+    pub const TRUSTED_APPLICATIONS_END: Self = Self(Self::TRUSTED_APPLICATIONS_END_VAL);
+    pub const TRUSTED_OS_START: Self = Self(Self::TRUSTED_OS_START_VAL);
+    pub const TRUSTED_OS_END: Self = Self(Self::TRUSTED_OS_END_VAL);
+
     pub fn oe(self) -> OwningEntity {
         match self {
             Self::ARM_ARCHITECTURE => OwningEntity::ArmArchitectureService,
@@ -78,8 +87,10 @@ impl OwningEntityNumber {
             Self::STANDARD_HYPERVISOR => OwningEntity::StandardHypervisorService,
             Self::VENDOR_SPECIFIC_HYPERVISOR => OwningEntity::VendorSpecificHypervisorService,
             Self::VENDOR_SPECIFIC_EL3_MONITOR => OwningEntity::VendorSpecificEL3MonitorService,
-            Self(48..=49) => OwningEntity::TrustedApplications,
-            Self(50..=63) => OwningEntity::TrustedOS,
+            Self(Self::TRUSTED_APPLICATIONS_START_VAL..=Self::TRUSTED_APPLICATIONS_END_VAL) => {
+                OwningEntity::TrustedApplications
+            }
+            Self(Self::TRUSTED_OS_START_VAL..=Self::TRUSTED_OS_END_VAL) => OwningEntity::TrustedOS,
             _ => OwningEntity::Unknown,
         }
     }

@@ -22,12 +22,11 @@ use crate::{
         },
         trng::NotSupportedTrngPlatformImpl,
     },
-    sysregs::{IccSre, SctlrEl3, Spsr, read_sctlr_el3, write_cntfrq_el0},
+    sysregs::{IccSre, Spsr, write_cntfrq_el0},
 };
 use aarch64_paging::paging::{MemoryRegion, VirtualAddress};
 use arm_fvp_base_pac::{
-    Cci550Map, MemoryMap, Peripherals, PhysicalInstance,
-    arm_cci::{Cci5x0, Cci5x0Registers},
+    MemoryMap, Peripherals, PhysicalInstance,
     arm_generic_timer::{CntAcr, CntControlBase, CntCtlBase, GenericTimerControl, GenericTimerCtl},
     power_controller::{FvpPowerController, FvpPowerControllerRegisters, SystemStatus},
     system::{FvpSystemPeripheral, FvpSystemRegisters, SystemConfigFunction},
@@ -190,12 +189,8 @@ unsafe impl Platform for Fvp {
             peripherals.system,
             peripherals.refclk_cntcontrol,
             peripherals.ap_refclk_cntctl,
-            peripherals.cci_550,
         );
 
-        // Safety: At this point the MMU and the caches are off on the primary core and all other
-        // cores are off. It is safe to enter coherency.
-        unsafe { psci_platform.enter_coherency() };
         psci_platform.init_generic_timer();
 
         *FVP_PSCI_PLATFORM_IMPL.lock() = Some(psci_platform);
@@ -449,7 +444,6 @@ pub struct FvpPsciPlatformImpl<'a> {
     system: SpinMutex<FvpSystemPeripheral<'a>>,
     timer_control: SpinMutex<GenericTimerControl<'a>>,
     timer_ctl: SpinMutex<GenericTimerCtl<'a>>,
-    cci550: SpinMutex<Cci5x0<'a>>,
 }
 
 impl FvpPsciPlatformImpl<'_> {
@@ -461,7 +455,6 @@ impl FvpPsciPlatformImpl<'_> {
         system: PhysicalInstance<FvpSystemRegisters>,
         timer_control: PhysicalInstance<CntControlBase>,
         timer_ctl: PhysicalInstance<CntCtlBase>,
-        cci550: PhysicalInstance<Cci5x0Registers>,
     ) -> Self {
         Self {
             power_controller: SpinMutex::new(FvpPowerController::new(map_peripheral(
@@ -470,62 +463,7 @@ impl FvpPsciPlatformImpl<'_> {
             system: SpinMutex::new(FvpSystemPeripheral::new(map_peripheral(system))),
             timer_control: SpinMutex::new(GenericTimerControl::new(map_peripheral(timer_control))),
             timer_ctl: SpinMutex::new(GenericTimerCtl::new(map_peripheral(timer_ctl))),
-            cci550: SpinMutex::new(Cci5x0::new(map_peripheral(cci550))),
         }
-    }
-
-    /// Enter current core to the cache coherency domain.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the master only enables allocating shareable data into its cache
-    /// after this function completes.
-    pub unsafe fn enter_coherency(&self) {
-        // Safety: The function propagates the same safety requirements to the caller.
-        unsafe {
-            self.cci550
-                .lock()
-                .add_master_to_coherency(Self::get_cci_master_index());
-        }
-    }
-
-    /// Remove current core from the cache coherency domain.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the master is configured so that it does not allocate shareable
-    /// data into its cache, for example by disabling the data cache. The caller also has to clean
-    /// and invalidate all shareable data from the caches in the master prior calling this function.
-    unsafe fn exit_coherency(&self) {
-        // Safety: The function propagates the same safety requirements to the caller.
-        unsafe {
-            self.cci550
-                .lock()
-                .remove_master_from_coherency(Self::get_cci_master_index());
-        }
-    }
-
-    fn get_cci_master_index() -> usize {
-        let mpidr_el1 = read_mpidr_el1();
-
-        match mpidr_el1.aff2() {
-            0 => Cci550Map::CLUSTER0,
-            1 => Cci550Map::CLUSTER1,
-            cluster_index => panic!("Invalid cluster index {cluster_index}"),
-        }
-    }
-
-    fn cluster_off(&self, mpidr: u32) {
-        assert!(!read_sctlr_el3().contains(SctlrEl3::C));
-
-        // Safety: At this point the CPU specific power down function must have turned off the cache
-        // on the local core and flushes the cache contents. This is handled by `cpu_power_down`
-        // calls in the generic Psci implementation.
-        unsafe {
-            self.exit_coherency();
-        }
-
-        self.power_controller.lock().power_off_cluster(mpidr);
     }
 
     fn power_domain_on_finish_common(&self, previous_state: &PsciCompositePowerState) {
@@ -541,13 +479,6 @@ impl FvpPsciPlatformImpl<'_> {
             // controller from interpreting a subsequent entry of this cpu into a simple wfi as a
             // power down request.
             self.power_controller.lock().power_on_processor(mpidr);
-
-            // Enable coherency if this cluster was off
-            // Safety: It is safe to enter coherency, because the platform provides
-            // hardware-assisted coherency.
-            unsafe {
-                self.enter_coherency();
-            }
         }
 
         // Perform the common system specific operations.
@@ -694,7 +625,7 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
         // reaching the CPUIF and/or might lead to losing register context.
 
         if target_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
-            self.cluster_off(mpidr);
+            self.power_controller.lock().power_off_cluster(mpidr);
         }
 
         // Perform the common system specific operations.
@@ -725,7 +656,7 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
         self.power_controller.lock().power_off_processor(mpidr);
 
         if target_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
-            self.cluster_off(mpidr);
+            self.power_controller.lock().power_off_cluster(mpidr);
         }
     }
 

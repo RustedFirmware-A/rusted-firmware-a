@@ -5,13 +5,10 @@
 #![allow(unused)]
 
 #[cfg(test)]
-#[macro_use]
 pub mod fake;
 
-use arm_psci::Mpidr;
+use arm_sysregs::{read_sysreg, read_write_sysreg, write_sysreg};
 use bitflags::bitflags;
-#[cfg(not(test))]
-use core::arch::asm;
 use core::fmt::{self, Debug, Formatter};
 
 /// Constants for PMCR_EL0 fields.
@@ -20,223 +17,63 @@ pub mod pmcr {
     pub const DP: u64 = 1 << 5;
 }
 
-/// Generates a public function named `$function_name` to read the system register `$sysreg` as a
-/// value of type `$type`.
-///
-/// `safe` should only be specified for system registers which are indeed safe to read.
-#[cfg(not(test))]
-macro_rules! read_sysreg {
-    ($sysreg:ident, $type:ty, safe $function_name:ident) => {
-        pub fn $function_name() -> $type {
-            let value;
-            // SAFETY: The macro call site's author (i.e. see below) has determined that it is
-            // always safe to read the given `$sysreg.`
-            unsafe {
-                asm!(
-                    concat!("mrs {value}, ", stringify!($sysreg)),
-                    options(nostack),
-                    value = out(reg) value,
-                );
-            }
-            value
-        }
-    };
-    ($sysreg:ident, $type:ty, $function_name:ident) => {
-        pub unsafe fn $function_name() -> $type {
-            let value;
-            // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
-            unsafe {
-                asm!(
-                    concat!("mrs {value}, ", stringify!($sysreg)),
-                    options(nostack),
-                    value = out(reg) value,
-                );
-            }
-            value
-        }
-    };
-    ($sysreg:ident, $raw_type:ty : $type:ty, safe $function_name:ident) => {
-        pub fn $function_name() -> $type {
-            let value: $raw_type;
-            // SAFETY: The macro call site's author (i.e. see below) has determined that it is
-            // always safe to read the given `$sysreg.`
-            unsafe {
-                asm!(
-                    concat!("mrs {value}, ", stringify!($sysreg)),
-                    options(nostack),
-                    value = out(reg) value,
-                );
-            }
-            <$type>::from_bits_retain(value)
-        }
-    };
-    ($sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident) => {
-        pub unsafe fn $function_name() -> $type {
-            let value: $raw_type;
-            // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
-            unsafe {
-                asm!(
-                    concat!("mrs {value}, ", stringify!($sysreg)),
-                    options(nostack),
-                    value = out(reg) value,
-                );
-            }
-            <$type>::from_bits_retain(value)
-        }
-    };
-}
-
-/// Generates a public function named `$function_name` to write a value of type `$type` to the
-/// system register `$sysreg`.
-///
-/// `safe` should only be specified for system registers which are indeed safe to write any value
-/// to.
-#[cfg(not(test))]
-macro_rules! write_sysreg {
-    ($sysreg:ident, $type:ty, safe $function_name:ident) => {
-        pub fn $function_name(value: $type) {
-            // SAFETY: The macro call site's author (i.e. see below) has determined that it is safe
-            // to write any value to the given `$sysreg.`
-            unsafe {
-                asm!(
-                    concat!("msr ", stringify!($sysreg), ", {value}"),
-                    options(nostack),
-                    value = in(reg) value,
-                );
-            }
-        }
-    };
-    (
-        $(#[$attributes:meta])*
-        $sysreg:ident, $type:ty, $function_name:ident
-    ) => {
-        $(#[$attributes])*
-        pub unsafe fn $function_name(value: $type) {
-            // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.
-            unsafe {
-                asm!(
-                    concat!("msr ", stringify!($sysreg), ", {value}"),
-                    options(nostack),
-                    value = in(reg) value,
-                );
-            }
-        }
-    };
-    ($sysreg:ident, $raw_type:ty : $type:ty, safe $function_name:ident) => {
-        pub fn $function_name(value: $type) {
-            let value: $raw_type = value.bits();
-            // SAFETY: The macro call site's author (i.e. see below) has determined that it is safe
-            // to write any value to the given `$sysreg.`
-            unsafe {
-                asm!(
-                    concat!("msr ", stringify!($sysreg), ", {value}"),
-                    options(nostack),
-                    value = in(reg) value,
-                );
-            }
-        }
-    };
-    (
-        $(#[$attributes:meta])*
-        $sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident
-    ) => {
-        $(#[$attributes])*
-        pub unsafe fn $function_name(value: $type) {
-            let value: $raw_type = value.bits();
-            // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.
-            unsafe {
-                asm!(
-                    concat!("msr ", stringify!($sysreg), ", {value}"),
-                    options(nostack),
-                    value = in(reg) value,
-                );
-            }
-        }
-    };
-}
-
-macro_rules! read_write_sysreg {
-    ($sysreg:ident, $type:ty, safe $read_function_name:ident, safe $write_function_name:ident) => {
-        read_sysreg!($sysreg, $type, safe $read_function_name);
-        write_sysreg!($sysreg, $type, safe $write_function_name);
-    };
-    ($sysreg:ident, $type:ty, safe $read_function_name:ident, $write_function_name:ident) => {
-        read_sysreg!($sysreg, $type, safe $read_function_name);
-        write_sysreg!($sysreg, $type, $write_function_name);
-    };
-    ($sysreg:ident, $raw_type:ty : $type:ty, safe $read_function_name:ident, safe $write_function_name:ident) => {
-        read_sysreg!($sysreg, $raw_type : $type, safe $read_function_name);
-        write_sysreg!($sysreg, $raw_type : $type, safe $write_function_name);
-    };
-    (
-        $(#[$attributes:meta])*
-        $sysreg:ident, $raw_type:ty : $type:ty, safe $read_function_name:ident, $write_function_name:ident
-    ) => {
-        read_sysreg!($sysreg, $raw_type : $type, safe $read_function_name);
-        write_sysreg! {
-            $(#[$attributes])*
-            $sysreg, $raw_type : $type, $write_function_name
-        }
-    };
-}
-
-read_sysreg!(id_aa64mmfr1_el1, u64, safe read_id_aa64mmfr1_el1);
-read_sysreg!(mpidr_el1, u64: MpidrEl1, safe read_mpidr_el1);
-read_write_sysreg!(actlr_el1, u64, safe read_actlr_el1, safe write_actlr_el1);
-read_write_sysreg!(actlr_el2, u64, safe read_actlr_el2, safe write_actlr_el2);
-read_write_sysreg!(afsr0_el1, u64, safe read_afsr0_el1, safe write_afsr0_el1);
-read_write_sysreg!(afsr0_el2, u64, safe read_afsr0_el2, safe write_afsr0_el2);
-read_write_sysreg!(afsr1_el1, u64, safe read_afsr1_el1, safe write_afsr1_el1);
-read_write_sysreg!(afsr1_el2, u64, safe read_afsr1_el2, safe write_afsr1_el2);
-read_write_sysreg!(amair_el1, u64, safe read_amair_el1, safe write_amair_el1);
-read_write_sysreg!(amair_el2, u64, safe read_amair_el2, safe write_amair_el2);
-read_write_sysreg!(cntfrq_el0, u64, safe read_cntfrq_el0, safe write_cntfrq_el0);
-read_write_sysreg!(cnthctl_el2, u64, safe read_cnthctl_el2, safe write_cnthctl_el2);
-read_write_sysreg!(cntvoff_el2, u64, safe read_cntvoff_el2, safe write_cntvoff_el2);
-read_write_sysreg!(contextidr_el1, u64, safe read_contextidr_el1, safe write_contextidr_el1);
-read_write_sysreg!(contextidr_el2, u64, safe read_contextidr_el2, safe write_contextidr_el2);
-read_write_sysreg!(cpacr_el1, u64, safe read_cpacr_el1, safe write_cpacr_el1);
-read_write_sysreg!(cptr_el2, u64, safe read_cptr_el2, safe write_cptr_el2);
-read_write_sysreg!(csselr_el1, u64, safe read_csselr_el1, safe write_csselr_el1);
-read_write_sysreg!(elr_el1, usize, safe read_elr_el1, safe write_elr_el1);
-read_write_sysreg!(elr_el2, usize, safe read_elr_el2, safe write_elr_el2);
-read_write_sysreg!(esr_el1, u64: Esr, safe read_esr_el1, safe write_esr_el1);
-read_write_sysreg!(esr_el2, u64: Esr, safe read_esr_el2, safe write_esr_el2);
-read_write_sysreg!(far_el1, u64, safe read_far_el1, safe write_far_el1);
-read_write_sysreg!(far_el2, u64, safe read_far_el2, safe write_far_el2);
-read_write_sysreg!(hacr_el2, u64, safe read_hacr_el2, safe write_hacr_el2);
-read_write_sysreg!(hcr_el2, u64: HcrEl2, safe read_hcr_el2, safe write_hcr_el2);
-read_write_sysreg!(hpfar_el2, u64, safe read_hpfar_el2, safe write_hpfar_el2);
-read_write_sysreg!(hstr_el2, u64, safe read_hstr_el2, safe write_hstr_el2);
-read_write_sysreg!(icc_sre_el1, u64: IccSre, safe read_icc_sre_el1, safe write_icc_sre_el1);
-read_write_sysreg!(icc_sre_el2, u64: IccSre, safe read_icc_sre_el2, safe write_icc_sre_el2);
+read_sysreg!(id_aa64mmfr1_el1, u64, safe read_id_aa64mmfr1_el1, fake::SYSREGS);
+read_sysreg!(mpidr_el1, u64: MpidrEl1, safe read_mpidr_el1, fake::SYSREGS);
+read_write_sysreg!(actlr_el1, u64, safe read_actlr_el1, safe write_actlr_el1, fake::SYSREGS);
+read_write_sysreg!(actlr_el2, u64, safe read_actlr_el2, safe write_actlr_el2, fake::SYSREGS);
+read_write_sysreg!(afsr0_el1, u64, safe read_afsr0_el1, safe write_afsr0_el1, fake::SYSREGS);
+read_write_sysreg!(afsr0_el2, u64, safe read_afsr0_el2, safe write_afsr0_el2, fake::SYSREGS);
+read_write_sysreg!(afsr1_el1, u64, safe read_afsr1_el1, safe write_afsr1_el1, fake::SYSREGS);
+read_write_sysreg!(afsr1_el2, u64, safe read_afsr1_el2, safe write_afsr1_el2, fake::SYSREGS);
+read_write_sysreg!(amair_el1, u64, safe read_amair_el1, safe write_amair_el1, fake::SYSREGS);
+read_write_sysreg!(amair_el2, u64, safe read_amair_el2, safe write_amair_el2, fake::SYSREGS);
+read_write_sysreg!(cntfrq_el0, u64, safe read_cntfrq_el0, safe write_cntfrq_el0, fake::SYSREGS);
+read_write_sysreg!(cnthctl_el2, u64, safe read_cnthctl_el2, safe write_cnthctl_el2, fake::SYSREGS);
+read_write_sysreg!(cntvoff_el2, u64, safe read_cntvoff_el2, safe write_cntvoff_el2, fake::SYSREGS);
+read_write_sysreg!(contextidr_el1, u64, safe read_contextidr_el1, safe write_contextidr_el1, fake::SYSREGS);
+read_write_sysreg!(contextidr_el2, u64, safe read_contextidr_el2, safe write_contextidr_el2, fake::SYSREGS);
+read_write_sysreg!(cpacr_el1, u64, safe read_cpacr_el1, safe write_cpacr_el1, fake::SYSREGS);
+read_write_sysreg!(cptr_el2, u64, safe read_cptr_el2, safe write_cptr_el2, fake::SYSREGS);
+read_write_sysreg!(csselr_el1, u64, safe read_csselr_el1, safe write_csselr_el1, fake::SYSREGS);
+read_write_sysreg!(elr_el1, usize, safe read_elr_el1, safe write_elr_el1, fake::SYSREGS);
+read_write_sysreg!(elr_el2, usize, safe read_elr_el2, safe write_elr_el2, fake::SYSREGS);
+read_write_sysreg!(esr_el1, u64: Esr, safe read_esr_el1, safe write_esr_el1, fake::SYSREGS);
+read_write_sysreg!(esr_el2, u64: Esr, safe read_esr_el2, safe write_esr_el2, fake::SYSREGS);
+read_write_sysreg!(far_el1, u64, safe read_far_el1, safe write_far_el1, fake::SYSREGS);
+read_write_sysreg!(far_el2, u64, safe read_far_el2, safe write_far_el2, fake::SYSREGS);
+read_write_sysreg!(hacr_el2, u64, safe read_hacr_el2, safe write_hacr_el2, fake::SYSREGS);
+read_write_sysreg!(hcr_el2, u64: HcrEl2, safe read_hcr_el2, safe write_hcr_el2, fake::SYSREGS);
+read_write_sysreg!(hpfar_el2, u64, safe read_hpfar_el2, safe write_hpfar_el2, fake::SYSREGS);
+read_write_sysreg!(hstr_el2, u64, safe read_hstr_el2, safe write_hstr_el2, fake::SYSREGS);
+read_write_sysreg!(icc_sre_el1, u64: IccSre, safe read_icc_sre_el1, safe write_icc_sre_el1, fake::SYSREGS);
+read_write_sysreg!(icc_sre_el2, u64: IccSre, safe read_icc_sre_el2, safe write_icc_sre_el2, fake::SYSREGS);
 write_sysreg! {
     /// # Safety
     ///
     /// The SRE bit of `icc_sre_el3` must not be changed from 1 to 0, as this can result in
     /// unpredictable behaviour.
-    icc_sre_el3, u64: IccSre, write_icc_sre_el3
+    icc_sre_el3, u64: IccSre, write_icc_sre_el3, fake::SYSREGS
 }
-read_write_sysreg!(ich_hcr_el2, u64, safe read_ich_hcr_el2, safe write_ich_hcr_el2);
-read_write_sysreg!(ich_vmcr_el2, u64, safe read_ich_vmcr_el2, safe write_ich_vmcr_el2);
-read_sysreg!(isr_el1, u64, safe read_isr_el1);
-read_write_sysreg!(mair_el1, u64, safe read_mair_el1, safe write_mair_el1);
-read_write_sysreg!(mair_el2, u64, safe read_mair_el2, safe write_mair_el2);
+read_write_sysreg!(ich_hcr_el2, u64, safe read_ich_hcr_el2, safe write_ich_hcr_el2, fake::SYSREGS);
+read_write_sysreg!(ich_vmcr_el2, u64, safe read_ich_vmcr_el2, safe write_ich_vmcr_el2, fake::SYSREGS);
+read_sysreg!(isr_el1, u64, safe read_isr_el1, fake::SYSREGS);
+read_write_sysreg!(mair_el1, u64, safe read_mair_el1, safe write_mair_el1, fake::SYSREGS);
+read_write_sysreg!(mair_el2, u64, safe read_mair_el2, safe write_mair_el2, fake::SYSREGS);
 write_sysreg! {
     /// # Safety
     ///
     /// The caller must ensure that `value` is a correct and safe configuration value for the EL3
     /// memory attribute indirection register.
-    mair_el3, u64, write_mair_el3
+    mair_el3, u64, write_mair_el3, fake::SYSREGS
 }
-read_write_sysreg!(mdccint_el1, u64, safe read_mdccint_el1, safe write_mdccint_el1);
-read_write_sysreg!(mdcr_el2, u64, safe read_mdcr_el2, safe write_mdcr_el2);
-read_write_sysreg!(mdscr_el1, u64, safe read_mdscr_el1, safe write_mdscr_el1);
-read_sysreg!(midr_el1, u64, safe read_midr_el1);
-read_write_sysreg!(par_el1, u64, safe read_par_el1, safe write_par_el1);
-read_write_sysreg!(scr_el3, u64: ScrEl3, safe read_scr_el3, safe write_scr_el3);
-read_write_sysreg!(sctlr_el1, u64: SctlrEl1, safe read_sctlr_el1, safe write_sctlr_el1);
-read_write_sysreg!(sctlr_el2, u64, safe read_sctlr_el2, safe write_sctlr_el2);
+read_write_sysreg!(mdccint_el1, u64, safe read_mdccint_el1, safe write_mdccint_el1, fake::SYSREGS);
+read_write_sysreg!(mdcr_el2, u64, safe read_mdcr_el2, safe write_mdcr_el2, fake::SYSREGS);
+read_write_sysreg!(mdscr_el1, u64, safe read_mdscr_el1, safe write_mdscr_el1, fake::SYSREGS);
+read_sysreg!(midr_el1, u64, safe read_midr_el1, fake::SYSREGS);
+read_write_sysreg!(par_el1, u64, safe read_par_el1, safe write_par_el1, fake::SYSREGS);
+read_write_sysreg!(scr_el3, u64: ScrEl3, safe read_scr_el3, safe write_scr_el3, fake::SYSREGS);
+read_write_sysreg!(sctlr_el1, u64: SctlrEl1, safe read_sctlr_el1, safe write_sctlr_el1, fake::SYSREGS);
+read_write_sysreg!(sctlr_el2, u64, safe read_sctlr_el2, safe write_sctlr_el2, fake::SYSREGS);
 read_write_sysreg! {
     /// # Safety
     ///
@@ -245,43 +82,43 @@ read_write_sysreg! {
     /// tagging, branch target identification, and pointer authentication, and more. Callers of
     /// `write_sctlr_el3` must ensure that the register value upholds TF-A security and reliability
     /// requirements.
-    sctlr_el3, u64: SctlrEl3, safe read_sctlr_el3, write_sctlr_el3
+    sctlr_el3, u64: SctlrEl3, safe read_sctlr_el3, write_sctlr_el3, fake::SYSREGS
 }
-read_write_sysreg!(sp_el1, u64, safe read_sp_el1, safe write_sp_el1);
-read_write_sysreg!(sp_el2, u64, safe read_sp_el2, safe write_sp_el2);
-read_write_sysreg!(spsr_el1, u64: Spsr, safe read_spsr_el1, safe write_spsr_el1);
-read_write_sysreg!(spsr_el2, u64: Spsr, safe read_spsr_el2, safe write_spsr_el2);
-read_write_sysreg!(tcr_el1, u64, safe read_tcr_el1, safe write_tcr_el1);
-read_write_sysreg!(tcr_el2, u64, safe read_tcr_el2, safe write_tcr_el2);
+read_write_sysreg!(sp_el1, u64, safe read_sp_el1, safe write_sp_el1, fake::SYSREGS);
+read_write_sysreg!(sp_el2, u64, safe read_sp_el2, safe write_sp_el2, fake::SYSREGS);
+read_write_sysreg!(spsr_el1, u64: Spsr, safe read_spsr_el1, safe write_spsr_el1, fake::SYSREGS);
+read_write_sysreg!(spsr_el2, u64: Spsr, safe read_spsr_el2, safe write_spsr_el2, fake::SYSREGS);
+read_write_sysreg!(tcr_el1, u64, safe read_tcr_el1, safe write_tcr_el1, fake::SYSREGS);
+read_write_sysreg!(tcr_el2, u64, safe read_tcr_el2, safe write_tcr_el2, fake::SYSREGS);
 write_sysreg! {
     /// # Safety
     ///
     /// The caller must ensure that `value` is a correct and safe configuration value for the EL3
     /// translation control register.
-    tcr_el3, u64, write_tcr_el3
+    tcr_el3, u64, write_tcr_el3, fake::SYSREGS
 }
-read_write_sysreg!(tpidr_el0, u64, safe read_tpidr_el0, safe write_tpidr_el0);
-read_write_sysreg!(tpidr_el1, u64, safe read_tpidr_el1, safe write_tpidr_el1);
-read_write_sysreg!(tpidr_el2, u64, safe read_tpidr_el2, safe write_tpidr_el2);
-read_write_sysreg!(tpidrro_el0, u64, safe read_tpidrro_el0, safe write_tpidrro_el0);
-read_write_sysreg!(ttbr0_el1, u64, safe read_ttbr0_el1, safe write_ttbr0_el1);
-read_write_sysreg!(ttbr0_el2, u64, safe read_ttbr0_el2, safe write_ttbr0_el2);
+read_write_sysreg!(tpidr_el0, u64, safe read_tpidr_el0, safe write_tpidr_el0, fake::SYSREGS);
+read_write_sysreg!(tpidr_el1, u64, safe read_tpidr_el1, safe write_tpidr_el1, fake::SYSREGS);
+read_write_sysreg!(tpidr_el2, u64, safe read_tpidr_el2, safe write_tpidr_el2, fake::SYSREGS);
+read_write_sysreg!(tpidrro_el0, u64, safe read_tpidrro_el0, safe write_tpidrro_el0, fake::SYSREGS);
+read_write_sysreg!(ttbr0_el1, u64, safe read_ttbr0_el1, safe write_ttbr0_el1, fake::SYSREGS);
+read_write_sysreg!(ttbr0_el2, u64, safe read_ttbr0_el2, safe write_ttbr0_el2, fake::SYSREGS);
 write_sysreg! {
     /// # Safety
     ///
     /// The caller must ensure that `value` is a valid base address for the EL3 translation table:
     /// it must be page-aligned, and must point to a stage 1 translation table in the EL3
     /// translation regime.
-    ttbr0_el3, usize, write_ttbr0_el3
+    ttbr0_el3, usize, write_ttbr0_el3, fake::SYSREGS
 }
-read_write_sysreg!(ttbr1_el1, u64, safe read_ttbr1_el1, safe write_ttbr1_el1);
-read_write_sysreg!(ttbr1_el2, u64, safe read_ttbr1_el2, safe write_ttbr1_el2);
-read_write_sysreg!(vbar_el1, usize, safe read_vbar_el1, safe write_vbar_el1);
-read_write_sysreg!(vbar_el2, usize, safe read_vbar_el2, safe write_vbar_el2);
-read_write_sysreg!(vmpidr_el2, u64, safe read_vmpidr_el2, safe write_vmpidr_el2);
-read_write_sysreg!(vpidr_el2, u64, safe read_vpidr_el2, safe write_vpidr_el2);
-read_write_sysreg!(vtcr_el2, u64, safe read_vtcr_el2, safe write_vtcr_el2);
-read_write_sysreg!(vttbr_el2, u64, safe read_vttbr_el2, safe write_vttbr_el2);
+read_write_sysreg!(ttbr1_el1, u64, safe read_ttbr1_el1, safe write_ttbr1_el1, fake::SYSREGS);
+read_write_sysreg!(ttbr1_el2, u64, safe read_ttbr1_el2, safe write_ttbr1_el2, fake::SYSREGS);
+read_write_sysreg!(vbar_el1, usize, safe read_vbar_el1, safe write_vbar_el1, fake::SYSREGS);
+read_write_sysreg!(vbar_el2, usize, safe read_vbar_el2, safe write_vbar_el2, fake::SYSREGS);
+read_write_sysreg!(vmpidr_el2, u64, safe read_vmpidr_el2, safe write_vmpidr_el2, fake::SYSREGS);
+read_write_sysreg!(vpidr_el2, u64, safe read_vpidr_el2, safe write_vpidr_el2, fake::SYSREGS);
+read_write_sysreg!(vtcr_el2, u64, safe read_vtcr_el2, safe write_vtcr_el2, fake::SYSREGS);
+read_write_sysreg!(vttbr_el2, u64, safe read_vttbr_el2, safe write_vttbr_el2, fake::SYSREGS);
 
 bitflags! {
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]

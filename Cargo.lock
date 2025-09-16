@@ -128,6 +128,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "arm-sysregs"
+version = "0.1.0"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -251,6 +255,7 @@ dependencies = [
  "arm-gic 0.6.1",
  "arm-pl011-uart",
  "arm-psci",
+ "arm-sysregs",
  "arrayvec",
  "bitflags",
  "log",
@@ -269,6 +274,7 @@ dependencies = [
  "arm-gic 0.7.1",
  "arm-pl011-uart",
  "arm-psci",
+ "arm-sysregs",
  "bitflags",
  "buddy_system_allocator",
  "linkme",

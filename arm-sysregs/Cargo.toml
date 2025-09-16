@@ -1,0 +1,23 @@
+# Copyright The Rusted Firmware-A Contributors.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[package]
+name = "arm-sysregs"
+version = "0.1.0"
+edition = "2024"
+authors = ["Andrew Walbran <qwandor@google.com>"]
+rust-version = "1.88"
+license = "BSD-3-Clause"
+
+[features]
+fakes = []
+
+[lints.clippy]
+missing_safety_doc = "deny"
+undocumented_unsafe_blocks = "deny"
+unreadable_literal = "deny"
+
+[lints.rust]
+missing_docs = "deny"
+unsafe_op_in_unsafe_fn = "deny"

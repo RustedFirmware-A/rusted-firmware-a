@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "3"
-members = ["secure_test_framework"]
+members = ["secure_test_framework", "arm-sysregs"]
 
 [package]
 name = "rf-a-bl31"
@@ -33,6 +33,7 @@ overflow-checks = true
 aarch64-paging = { version = "0.10.0", default-features = false }
 arrayvec = { version = "0.7.6", default-features = false }
 arm-psci = "0.1.3"
+arm-sysregs = { version = "0.1.0", path = "arm-sysregs" }
 bitflags = "2.9.1"
 log = "0.4.27"
 percore = "0.1.0"
@@ -50,6 +51,7 @@ zerocopy = { version = "0.8.26", features = ["derive"] }
 
 [dev-dependencies]
 arm-gic = { version = "0.6.1", features = ["fakes"] }
+arm-sysregs = { version = "0.1.0", features = ["fakes"], path = "arm-sysregs" }
 
 [features]
 default = ["sel2"]

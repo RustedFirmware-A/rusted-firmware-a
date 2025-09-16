@@ -2,73 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+use arm_sysregs::read_sysreg;
 use bitflags::bitflags;
-
-/// Generates a public function named `$function_name` to read the system register `$sysreg` as a
-/// value of type `$type`.
-///
-/// `safe` should only be specified for system registers which are indeed safe to read.
-#[cfg(not(test))]
-macro_rules! read_sysreg {
-    ($sysreg:ident, $type:ty, safe $function_name:ident) => {
-        pub fn $function_name() -> $type {
-            let value;
-            // SAFETY: The macro call site's author (i.e. see below) has determined that it is
-            // always safe to read the given `$sysreg.`
-            unsafe {
-                core::arch::asm!(
-                    concat!("mrs {value}, ", stringify!($sysreg)),
-                    options(nostack),
-                    value = out(reg) value,
-                );
-            }
-            value
-        }
-    };
-    ($sysreg:ident, $type:ty, $function_name:ident) => {
-        pub unsafe fn $function_name() -> $type {
-            let value;
-            // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
-            unsafe {
-                core::arch::asm!(
-                    concat!("mrs {value}, ", stringify!($sysreg)),
-                    options(nostack),
-                    value = out(reg) value,
-                );
-            }
-            value
-        }
-    };
-    ($sysreg:ident, $raw_type:ty : $type:ty, safe $function_name:ident) => {
-        pub fn $function_name() -> $type {
-            let value: $raw_type;
-            // SAFETY: The macro call site's author (i.e. see below) has determined that it is
-            // always safe to read the given `$sysreg.`
-            unsafe {
-                core::arch::asm!(
-                    concat!("mrs {value}, ", stringify!($sysreg)),
-                    options(nostack),
-                    value = out(reg) value,
-                );
-            }
-            <$type>::from_bits_retain(value)
-        }
-    };
-    ($sysreg:ident, $raw_type:ty : $type:ty, $function_name:ident) => {
-        pub unsafe fn $function_name() -> $type {
-            let value: $raw_type;
-            // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
-            unsafe {
-                core::arch::asm!(
-                    concat!("mrs {value}, ", stringify!($sysreg)),
-                    options(nostack),
-                    value = out(reg) value,
-                );
-            }
-            <$type>::from_bits_retain(value)
-        }
-    };
-}
 
 bitflags! {
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]

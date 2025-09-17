@@ -20,61 +20,6 @@ pub mod pmcr {
     pub const DP: u64 = 1 << 5;
 }
 
-/// Implements a similar interface to `bitflags` on some newtype.
-macro_rules! bitflagslike {
-    ($typename:ty: $inner:ty) => {
-        impl $typename {
-            pub const fn empty() -> Self {
-                Self(0)
-            }
-
-            pub const fn bits(self) -> $inner {
-                self.0
-            }
-
-            pub const fn from_bits_retain(bits: $inner) -> Self {
-                Self(bits)
-            }
-        }
-
-        impl core::ops::Not for $typename {
-            type Output = Self;
-
-            fn not(self) -> Self {
-                Self(!self.0)
-            }
-        }
-
-        impl core::ops::BitOr for $typename {
-            type Output = Self;
-
-            fn bitor(self, rhs: Self) -> Self {
-                Self(self.0 | rhs.0)
-            }
-        }
-
-        impl core::ops::BitOrAssign for $typename {
-            fn bitor_assign(&mut self, rhs: Self) {
-                *self = *self | rhs
-            }
-        }
-
-        impl core::ops::BitAnd for $typename {
-            type Output = Self;
-
-            fn bitand(self, rhs: Self) -> Self {
-                Self(self.0 & rhs.0)
-            }
-        }
-
-        impl core::ops::BitAndAssign for $typename {
-            fn bitand_assign(&mut self, rhs: Self) {
-                *self = *self & rhs
-            }
-        }
-    };
-}
-
 /// Generates a public function named `$function_name` to read the system register `$sysreg` as a
 /// value of type `$type`.
 ///
@@ -474,10 +419,34 @@ pub enum StackPointer {
     ElX = 1,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Spsr(u64);
+bitflags! {
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct Spsr: u64 {
+        /// Exception was taken from AArch32 state.
+        const M_EXECUTION_STATE = 1 << 4;
 
-bitflagslike!(Spsr: u64);
+        /// FIQ interrupt mask.
+        const F = 1 << 6;
+        /// IRQ interrupt mask.
+        const I = 1 << 7;
+        /// SError exception mask.
+        const A = 1 << 8;
+        /// Debug exception mask.
+        const D = 1 << 9;
+
+        /// Illegal Execution state.
+        const IL = 1 << 20;
+        /// Software Step.
+        const SS = 1 << 21;
+
+        const DIT = 1 << 24;
+
+        const V = 1 << 28;
+        const C = 1 << 29;
+        const Z = 1 << 30;
+        const N = 1 << 31;
+    }
+}
 
 impl Spsr {
     const EL_MASK: u64 = 0x3;
@@ -485,52 +454,29 @@ impl Spsr {
     const SP_MASK: u64 = 0x1;
 
     /// AArch64 execution state, EL0.
-    pub const M_AARCH64_EL0: Self = Self(0b00000);
+    pub const M_AARCH64_EL0: Self = Self::from_bits_retain(0b00000);
     /// AArch64 execution state, EL1 with SP_EL0.
-    pub const M_AARCH64_EL1T: Self = Self(0b00100);
+    pub const M_AARCH64_EL1T: Self = Self::from_bits_retain(0b00100);
     /// AArch64 execution state, EL1 with SP_EL1.
-    pub const M_AARCH64_EL1H: Self = Self(0b00101);
+    pub const M_AARCH64_EL1H: Self = Self::from_bits_retain(0b00101);
     /// AArch64 execution state, EL2 with SP_EL0.
-    pub const M_AARCH64_EL2T: Self = Self(0b01000);
+    pub const M_AARCH64_EL2T: Self = Self::from_bits_retain(0b01000);
     /// AArch64 execution state, EL2 with SP_EL2.
-    pub const M_AARCH64_EL2H: Self = Self(0b01001);
+    pub const M_AARCH64_EL2H: Self = Self::from_bits_retain(0b01001);
     /// AArch64 execution state, EL3 with SP_EL0.
-    pub const M_AARCH64_EL3T: Self = Self(0b01100);
+    pub const M_AARCH64_EL3T: Self = Self::from_bits_retain(0b01100);
     /// AArch64 execution state, EL3 with SP_EL3.
-    pub const M_AARCH64_EL3H: Self = Self(0b01101);
+    pub const M_AARCH64_EL3H: Self = Self::from_bits_retain(0b01101);
 
     /// Exception was taken with PSTATE.SP set to SP_EL0.
-    pub const SP_EL0: Self = Self(0);
+    pub const SP_EL0: Self = Self::from_bits_retain(0);
     /// Exception was taken with PSTATE.SP set to SP_ELx.
-    pub const SP_ELX: Self = Self(1);
+    pub const SP_ELX: Self = Self::from_bits_retain(1);
 
-    /// Exception was taken from AArch32 state.
-    pub const M_EXECUTION_STATE: Self = Self(1 << 4);
-
-    /// FIQ interrupt mask.
-    pub const F: Self = Self(1 << 6);
-    /// IRQ interrupt mask.
-    pub const I: Self = Self(1 << 7);
-    /// SError exception mask.
-    pub const A: Self = Self(1 << 8);
-    /// Debug exception mask.
-    pub const D: Self = Self(1 << 9);
-
-    /// Illegal Execution state.
-    pub const IL: Self = Self(1 << 20);
-    /// Software Step.
-    pub const SS: Self = Self(1 << 21);
-
-    pub const DIT: Self = Self(1 << 24);
-
-    pub const V: Self = Self(1 << 28);
-    pub const C: Self = Self(1 << 29);
-    pub const Z: Self = Self(1 << 30);
-    pub const N: Self = Self(1 << 31);
-    pub const NZCV: Self = Self(Spsr::V.0 | Spsr::C.0 | Spsr::Z.0 | Spsr::N.0);
+    pub const NZCV: Self = Spsr::V.union(Spsr::C).union(Spsr::Z).union(Spsr::N);
 
     pub const fn exception_level(self) -> ExceptionLevel {
-        match (self.0 >> Self::EL_SHIFT) & Self::EL_MASK {
+        match (self.bits() >> Self::EL_SHIFT) & Self::EL_MASK {
             0 => ExceptionLevel::El0,
             1 => ExceptionLevel::El1,
             2 => ExceptionLevel::El2,
@@ -540,7 +486,7 @@ impl Spsr {
     }
 
     pub const fn stack_pointer(self) -> StackPointer {
-        match self.0 & Self::SP_MASK {
+        match self.bits() & Self::SP_MASK {
             0 => StackPointer::El0,
             1 => StackPointer::ElX,
             _ => unreachable!(),
@@ -548,8 +494,12 @@ impl Spsr {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub struct Esr(u64);
+bitflags! {
+    #[derive(Clone, Copy, Eq, PartialEq)]
+    pub struct Esr: u64 {
+        const IL = 1 << 25;
+    }
+}
 
 impl Debug for Esr {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -557,17 +507,17 @@ impl Debug for Esr {
     }
 }
 
-bitflagslike!(Esr: u64);
-
 impl Esr {
-    pub const ISS_SYSREG_OPCODE_MASK: Self = Self(0x003f_fc1e);
-    pub const IL: Self = Self(1 << 25);
+    pub const ISS_SYSREG_OPCODE_MASK: Self = Self::from_bits_retain(0x003f_fc1e);
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MpidrEl1(u64);
-
-bitflagslike!(MpidrEl1: u64);
+bitflags! {
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct MpidrEl1: u64 {
+        const MT = 1 << 24;
+        const U = 1 << 30;
+    }
+}
 
 impl MpidrEl1 {
     pub const AFF0_MASK: u64 = 0x0000_00ff;
@@ -577,8 +527,6 @@ impl MpidrEl1 {
     pub const AFF1_SHIFT: u8 = 8;
     pub const AFF2_SHIFT: u8 = 16;
     pub const AFF3_SHIFT: u8 = 32;
-    pub const MT: Self = Self(1 << 24);
-    pub const U: Self = Self(1 << 30);
 
     /// Converts a PSCI MPIDR value into the equivalent `MpidrEL1` value.
     ///
@@ -589,27 +537,23 @@ impl MpidrEl1 {
     /// MT and U bits.
     pub fn from_psci_mpidr(psci_mpidr: u64) -> Self {
         let mpidr_el1 = read_mpidr_el1();
-        Self(psci_mpidr) | (mpidr_el1 & (Self::MT | Self::U))
+        Self::from_bits_retain(psci_mpidr) | (mpidr_el1 & (Self::MT | Self::U))
     }
 
     pub fn aff0(self) -> u8 {
-        (self.0 >> Self::AFF0_SHIFT) as u8
+        (self.bits() >> Self::AFF0_SHIFT) as u8
     }
 
     pub fn aff1(self) -> u8 {
-        (self.0 >> Self::AFF1_SHIFT) as u8
+        (self.bits() >> Self::AFF1_SHIFT) as u8
     }
 
     pub fn aff2(self) -> u8 {
-        (self.0 >> Self::AFF2_SHIFT) as u8
+        (self.bits() >> Self::AFF2_SHIFT) as u8
     }
 
     pub fn aff3(self) -> u8 {
-        (self.0 >> Self::AFF3_SHIFT) as u8
-    }
-
-    pub fn mt(self) -> bool {
-        self & Self::MT != Self::empty()
+        (self.bits() >> Self::AFF3_SHIFT) as u8
     }
 }
 
@@ -625,9 +569,9 @@ mod tests {
 
     #[test]
     fn debug_spsr() {
-        assert_eq!(format!("{:?}", Spsr::empty()), "Spsr(0)");
-        assert_eq!(format!("{:?}", Spsr::NZCV), "Spsr(4026531840)");
-        assert_eq!(format!("{:?}", Spsr::M_AARCH64_EL3H), "Spsr(13)");
+        assert_eq!(format!("{:?}", Spsr::empty()), "Spsr(0x0)");
+        assert_eq!(format!("{:?}", Spsr::NZCV), "Spsr(V | C | Z | N)");
+        assert_eq!(format!("{:?}", Spsr::M_AARCH64_EL3H), "Spsr(0xd)");
     }
 
     #[test]
@@ -642,14 +586,14 @@ mod tests {
 
     #[test]
     fn debug_mpidr_el1() {
-        assert_eq!(format!("{:?}", MpidrEl1::empty()), "MpidrEl1(0)");
+        assert_eq!(format!("{:?}", MpidrEl1::empty()), "MpidrEl1(0x0)");
         assert_eq!(
             format!("{:?}", MpidrEl1::MT | MpidrEl1::U),
-            "MpidrEl1(1090519040)"
+            "MpidrEl1(MT | U)"
         );
         assert_eq!(
             format!("{:?}", MpidrEl1::from_bits_retain(0x12_4134_5678)),
-            "MpidrEl1(78403360376)"
+            "MpidrEl1(MT | U | 0x1200345678)"
         );
     }
 }

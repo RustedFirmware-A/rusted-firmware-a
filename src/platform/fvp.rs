@@ -290,7 +290,7 @@ unsafe impl Platform for Fvp {
     }
 
     fn mpidr_is_valid(mpidr: MpidrEl1) -> bool {
-        if mpidr.mt() {
+        if mpidr.contains(MpidrEl1::MT) {
             mpidr.aff3() == 0
                 && usize::from(mpidr.aff2()) < FVP_CLUSTER_COUNT
                 && usize::from(mpidr.aff1()) < FVP_MAX_CPUS_PER_CLUSTER

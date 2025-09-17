@@ -618,3 +618,38 @@ pub fn is_feat_vhe_present() -> bool {
 
     read_id_aa64mmfr1_el1() & VHE != 0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_spsr() {
+        assert_eq!(format!("{:?}", Spsr::empty()), "Spsr(0)");
+        assert_eq!(format!("{:?}", Spsr::NZCV), "Spsr(4026531840)");
+        assert_eq!(format!("{:?}", Spsr::M_AARCH64_EL3H), "Spsr(13)");
+    }
+
+    #[test]
+    fn debug_esr() {
+        assert_eq!(format!("{:?}", Esr::empty()), "Esr(0x0)");
+        assert_eq!(format!("{:?}", Esr::IL), "Esr(0x2000000)");
+        assert_eq!(
+            format!("{:?}", Esr::ISS_SYSREG_OPCODE_MASK),
+            "Esr(0x3ffc1e)"
+        );
+    }
+
+    #[test]
+    fn debug_mpidr_el1() {
+        assert_eq!(format!("{:?}", MpidrEl1::empty()), "MpidrEl1(0)");
+        assert_eq!(
+            format!("{:?}", MpidrEl1::MT | MpidrEl1::U),
+            "MpidrEl1(1090519040)"
+        );
+        assert_eq!(
+            format!("{:?}", MpidrEl1::from_bits_retain(0x12_4134_5678)),
+            "MpidrEl1(78403360376)"
+        );
+    }
+}

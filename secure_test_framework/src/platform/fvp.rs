@@ -4,6 +4,10 @@
 
 use super::Platform;
 use crate::sysregs::MpidrEl1;
+use arm_gic::gicv3::{
+    GicV3,
+    registers::{Gicd, GicrSgi},
+};
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use core::{arch::naked_asm, fmt::Write, ptr::NonNull};
 use spin::{
@@ -13,6 +17,8 @@ use spin::{
 
 /// Base address of the primary PL011 UART.
 const PL011_BASE_ADDRESS: NonNull<PL011Registers> = NonNull::new(0x1C09_0000 as _).unwrap();
+const GICD_BASE: NonNull<Gicd> = NonNull::new(0x2f00_0000 as _).unwrap();
+const GICR_BASE: NonNull<GicrSgi> = NonNull::new(0x2f10_0000 as _).unwrap();
 
 const FVP_CLUSTER_COUNT: usize = 2;
 const FVP_MAX_CPUS_PER_CLUSTER: usize = 4;
@@ -38,6 +44,20 @@ unsafe impl Platform for Fvp {
         });
         let uart: &'static mut Uart = SpinMutexGuard::leak(uart.lock());
         uart
+    }
+
+    unsafe fn create_gic() -> GicV3<'static> {
+        // Safety: GICD_BASE refers exclusively to the distributor register block, with no other
+        // references. Similarly, GICR_BASE refers exclusively to the redistributor register block,
+        // with no other references. The caller guarantees that this function is only called once.
+        unsafe {
+            GicV3::new(
+                UniqueMmioPointer::new(GICD_BASE),
+                GICR_BASE,
+                Fvp::CORE_COUNT,
+                false,
+            )
+        }
     }
 
     #[unsafe(naked)]

@@ -10,7 +10,7 @@ use crate::{
     cpu::qemu_max::QemuMax,
     debug::DEBUG,
     dram::zeroed_mut,
-    gicv3::{self, GIC, GicConfig, InterruptConfig},
+    gicv3::{self, GIC, GicConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
     semihosting::{AdpStopped, semihosting_exit},
@@ -27,9 +27,9 @@ use crate::{
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
-    IntId, Trigger,
+    IntId,
     gicv3::{
-        GicV3, Group, SecureIntGroup,
+        GicV3,
         registers::{Gicd, GicrSgi},
     },
 };
@@ -103,11 +103,6 @@ zeroed_mut! {
     LOG_BUFFERS, [[u8; LOG_BUFFER_SIZE]; Qemu::CORE_COUNT], unsafe(link_section = ".bss2.dram")
 }
 
-/// Secure timers' interrupt IDs.
-const SEL2_TIMER_ID: IntId = IntId::ppi(4);
-const SEL1_TIMER_ID: IntId = IntId::ppi(13);
-const NONSECURE_TIMER_ID: IntId = IntId::ppi(14);
-
 define_cpu_ops!(QemuMax);
 
 /// The aarch64 'virt' machine of the QEMU emulator.
@@ -137,25 +132,7 @@ unsafe impl Platform for Qemu {
     type PlatformServiceImpl = DummyService;
 
     const GIC_CONFIG: GicConfig = GicConfig {
-        interrupts_config: &[
-            (
-                SEL2_TIMER_ID,
-                InterruptConfig {
-                    priority: 0x80,
-                    group: Group::Secure(SecureIntGroup::Group1S),
-                    trigger: Trigger::Level,
-                },
-            ),
-            (
-                SEL1_TIMER_ID,
-                InterruptConfig {
-                    priority: 0x80,
-                    group: Group::Secure(SecureIntGroup::Group1S),
-                    trigger: Trigger::Level,
-                },
-            ),
-            (NONSECURE_TIMER_ID, InterruptConfig::DEFAULT),
-        ],
+        interrupts_config: &[],
     };
 
     fn init_before_mmu() {

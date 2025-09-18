@@ -12,7 +12,7 @@ use crate::{
     cpu::aem_generic::AemGeneric,
     cpu::define_cpu_ops,
     debug::DEBUG,
-    gicv3::{GicConfig, InterruptConfig},
+    gicv3::GicConfig,
     logger::{self, LockedWriter},
     pagetable::{IdMap, MT_DEVICE, map_region},
     services::{
@@ -34,9 +34,9 @@ use arm_fvp_base_pac::{
     system::{FvpSystemPeripheral, FvpSystemRegisters, SystemConfigFunction},
 };
 use arm_gic::{
-    IntId, Trigger,
+    IntId,
     gicv3::{
-        GicV3, Group, SecureIntGroup,
+        GicV3,
         registers::{Gicd, GicrSgi},
     },
 };
@@ -111,11 +111,6 @@ const RMM_BOOT_VERSION: u64 = 0;
 #[cfg(feature = "rme")]
 const RMM_SHARED_AREA_BASE_ADDRESS: u64 = 0;
 
-/// Secure timers' interrupt IDs.
-const SEL2_TIMER_ID: IntId = IntId::ppi(4);
-const SEL1_TIMER_ID: IntId = IntId::ppi(13);
-const NONSECURE_TIMER_ID: IntId = IntId::ppi(14);
-
 fn device_regions_include<T>(physical_instance: &PhysicalInstance<T>) -> bool {
     let start = physical_instance.pa();
     let end = start + size_of::<T>() - 1;
@@ -159,25 +154,7 @@ unsafe impl Platform for Fvp {
     type PlatformServiceImpl = DummyService;
 
     const GIC_CONFIG: GicConfig = GicConfig {
-        interrupts_config: &[
-            (
-                SEL2_TIMER_ID,
-                InterruptConfig {
-                    priority: 0x80,
-                    group: Group::Secure(SecureIntGroup::Group1S),
-                    trigger: Trigger::Level,
-                },
-            ),
-            (
-                SEL1_TIMER_ID,
-                InterruptConfig {
-                    priority: 0x80,
-                    group: Group::Secure(SecureIntGroup::Group1S),
-                    trigger: Trigger::Level,
-                },
-            ),
-            (NONSECURE_TIMER_ID, InterruptConfig::DEFAULT),
-        ],
+        interrupts_config: &[],
     };
 
     fn init_before_mmu() {

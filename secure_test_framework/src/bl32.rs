@@ -65,7 +65,7 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     logger::init(log_sink).unwrap();
 
     set_exception_vector();
-    gicv3::init();
+    gicv3::init(true);
 
     info!(
         "Rust BL32 starting at EL {} with args {:#x}, {:#x}, {:#x}, {:#x}",

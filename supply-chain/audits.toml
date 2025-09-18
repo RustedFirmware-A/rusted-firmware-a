@@ -235,6 +235,11 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.6.0 -> 0.6.1"
 notes = "Only administrative updates have been made to the repository, including modifications to the README file, license headers, and dependencies. These changes do not affect the crate’s functionality or behavior."
 
+[[audits.arm-gic]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.6.1 -> 0.7.1"
+
 [[audits.arm-pl011-uart]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]

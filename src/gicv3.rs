@@ -8,7 +8,7 @@ use crate::{
     aarch64::{dsb_sy, isb},
     context::{CoresImpl, World},
     platform::{Platform, PlatformImpl},
-    sysregs::{IccSre, MpidrEl1, ScrEl3, write_icc_sre_el3},
+    sysregs::{IccSre, MpidrEl1, ScrEl3, write_icc_sre_el1, write_icc_sre_el3},
 };
 use arm_gic::{
     IntId, Trigger,
@@ -184,6 +184,9 @@ pub fn init_cpu_interface(gic: &mut GicV3) -> Result<(), GICRError> {
     // SAFETY: This is the only place we set the SRE bit of `icc_sre_el3` to 1 and no other place
     // is permitted to change it from 1 to 0.
     unsafe { write_icc_sre_el3(icc_sre) };
+
+    // Prevent the selection of legacy mode where Secure Group 1 interrupts are treated as Group 0.
+    write_icc_sre_el1(IccSre::SRE);
 
     // Program the idle priority in the PMR.
     GicV3::set_priority_mask(GIC_PRI_MASK);

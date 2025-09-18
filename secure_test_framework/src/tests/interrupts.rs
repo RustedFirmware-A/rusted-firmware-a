@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use arm_ffa::Interface;
-use arm_gic::wfi;
+use arm_gic::{Trigger, wfi};
 use core::sync::atomic::{AtomicBool, Ordering};
 use log::debug;
 
@@ -90,7 +90,7 @@ fn timer_helper<TIMER: Timer>(request: TestHelperRequest) -> Result<TestHelperRe
 
         // Register the custom handler.
         // The closure can be passed as a function pointer.
-        set_interrupt_handler(TIMER::INTERRUPT_ID, Some(timer_handler));
+        set_interrupt_handler(TIMER::INTERRUPT_ID, Trigger::Level, Some(timer_handler));
 
         // Configure the specific timer `TIMER`.
         TIMER::set(1_000_000);
@@ -106,7 +106,7 @@ fn timer_helper<TIMER: Timer>(request: TestHelperRequest) -> Result<TestHelperRe
 
     let cleanup_phase = || {
         // Clear the handler for timer interrupt.
-        set_interrupt_handler(TIMER::INTERRUPT_ID, None);
+        set_interrupt_handler(TIMER::INTERRUPT_ID, Trigger::Level, None);
 
         Ok(PHASE_SUCCESS)
     };
@@ -127,19 +127,6 @@ fn nonsecure_timer_helper(ns_world_request: TestHelperRequest) -> Result<TestHel
 /// Calls the generic `timer_helper` with appropriate secure world timer implementation.
 fn secure_timer_helper(ns_world_request: TestHelperRequest) -> Result<TestHelperResponse, ()> {
     if current_el() == 2 {
-        // TODO: Enable SEL2Timer test for FVP.
-        //
-        // Right now ACKing a SEL2 interrupt in FVP
-        // always returns special value 1023 (means spurious interrupt).
-        // It looks like a bug in FVP itself.
-        // Enable the test after figuring out what was the issue.
-        #[cfg(platform = "fvp")]
-        {
-            log::warn!("SEL2 timer test skipped!");
-            // This is ugly, but will be removed soon when we fix the test for FVP.
-            return Ok([1, 0, 0, 0]);
-        }
-
         timer_helper::<SEL2Timer>(ns_world_request)
     } else {
         timer_helper::<SEL1Timer>(ns_world_request)

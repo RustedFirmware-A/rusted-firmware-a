@@ -8,6 +8,7 @@ mod fvp;
 mod qemu;
 
 use crate::sysregs::{MpidrEl1, read_mpidr_el1};
+use arm_gic::gicv3::GicV3;
 use core::fmt::Write;
 use percore::Cores;
 
@@ -30,6 +31,13 @@ pub unsafe trait Platform {
     ///
     /// This should only be called once, and may panic on subsequent calls.
     fn make_log_sink() -> &'static mut (dyn Write + Send);
+
+    /// Returns the GIC instance of the platform.
+    ///
+    /// # Safety
+    ///
+    /// This must only be called once, to avoid creating aliases of the GIC driver.
+    unsafe fn create_gic() -> GicV3<'static>;
 
     /// Given a valid MPIDR value, returns the corresponding linear core index.
     ///

@@ -1,12 +1,19 @@
 # Copyright The Rusted Firmware-A Contributors.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+#
 
-BL31_BIN := target/bl31.bin
-BL32 := target/bl32.bin
-BL33 := target/bl33.bin
-FIP := target/fip.bin
-BL31_ELF := target/bl31.elf
+ifneq ($(CARGO_TARGET_DIR),)
+OUT := $(CARGO_TARGET_DIR)
+else
+OUT := target
+endif
+
+BL31_BIN := $(OUT)/bl31.bin
+BL32 := $(OUT)/bl32.bin
+BL33 := $(OUT)/bl33.bin
+FIP := $(OUT)/fip.bin
+BL31_ELF := $(OUT)/bl31.elf
 
 OBJCOPY ?= rust-objcopy
 
@@ -68,15 +75,15 @@ all: images
 
 build:
 	$(TARGET_CARGO) build $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
-	ln -fsr target/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
+	ln -fsr $(OUT)/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
 
 build-stf:
 	$(STF_CARGO) build --package rf-a-secure-test-framework $(CARGO_FLAGS) $(STF_CARGO_FLAGS)
 $(BL32): build-stf
-	$(OBJCOPY) target/$(TARGET)/release/bl32 -O binary $@
+	$(OBJCOPY) $(OUT)/$(TARGET)/release/bl32 -O binary $@
 $(BL33): build-stf
-	$(OBJCOPY) target/$(TARGET)/release/bl33 -O binary $@
+	$(OBJCOPY) $(OUT)/$(TARGET)/release/bl33 -O binary $@
 
 clippy-test:
 	$(CARGO) clippy --tests --features "$(FEATURES)"
@@ -92,7 +99,6 @@ images: $(BL32) $(BL33) build
 
 clean:
 	$(CARGO) clean
-	rm -f target/*.bin
 
 list_platforms:
 	@echo "${PLATFORMS_AVAILABLE}"

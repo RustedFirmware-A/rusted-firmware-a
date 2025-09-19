@@ -27,6 +27,12 @@ if [ -z "${CARGO}" ]; then
     CARGO="cargo"
 fi
 
+if [ -z "${CARGO_TARGET_DIR}" ]; then
+    OUT=${PWD}/target
+else
+    OUT=${CARGO_TARGET_DIR}
+fi
+
 BL1=${TFA}/build/${PLAT}/${BUILDTYPE}/bl1.bin
 BL2=${TFA}/build/${PLAT}/${BUILDTYPE}/bl2.bin
 FIP=${TFA}/build/${PLAT}/${BUILDTYPE}/fip.bin
@@ -50,11 +56,11 @@ case "$PLAT" in
     fi
     make -C $TFA PLAT=qemu ${DEBUG} CC=clang NEED_BL32=yes NEED_BL31=no bl1 bl2
     make PLAT=qemu ${DEBUG} CARGO="${CARGO}" BTI_EL3=${BTI_EL3} all
-    ln -fsr ${BL1} target
-    ln -fsr ${BL2} target
-    cd target
+    ln -fsr ${BL1} ${OUT}
+    ln -fsr ${BL2} ${OUT}
+    cd ${OUT}
     if [[ "${GDB}" == 1 ]]; then
-        gdb-multiarch target/${TARGET}/${BUILDTYPE}/rf-a-bl31 --eval-command="target remote :${GDB_PORT}"
+        gdb-multiarch ${OUT}/${TARGET}/${BUILDTYPE}/rf-a-bl31 --eval-command="target remote :${GDB_PORT}"
     else
         ${QEMU} ${QEMU_FLAGS} ${QEMU_WAIT}
     fi
@@ -67,8 +73,8 @@ case "$PLAT" in
     # build flag is required to stop TF-A from complaining that RF-A does not fit.
     if [[ "${RME:-}" == 1 ]]; then
         make PLAT=fvp FEATURES=sel2,rme ${DEBUG} CARGO="${CARGO}" BTI_EL3=${BTI_EL3} all
-        make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 BL31="$(pwd)/target/bl31.bin" \
-            BL32="$(pwd)/target/bl32.bin" BL33="$(pwd)/target/bl33.bin" all fip
+        make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 BL31="${OUT}/bl31.bin" \
+            BL32="${OUT}/bl32.bin" BL33="${OUT}/bl33.bin" all fip
         FVP_Base_RevC-2xAEMvA \
             -C bp.ve_sysregs.exit_on_shutdown=1 \
             -C pctl.startup=0.0.0.0 \
@@ -152,8 +158,8 @@ case "$PLAT" in
             -C pctl.startup=0.0.0.0 \
             -C cluster0.NUM_CORES=4 \
             -C cluster1.NUM_CORES=4 \
-            -C cluster0.cpu0.semihosting-cwd=target \
-            -C cluster1.cpu0.semihosting-cwd=target \
+            -C cluster0.cpu0.semihosting-cwd=${OUT} \
+            -C cluster1.cpu0.semihosting-cwd=${OUT} \
             -C bp.secureflashloader.fname=${BL1} \
             -C bp.flashloader0.fname=${FIP}
     else
@@ -164,7 +170,7 @@ case "$PLAT" in
         # layout file.
         make PLAT=fvp ${DEBUG} CARGO="${CARGO}" BTI_EL3=${BTI_EL3} all
         make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=0 \
-            BL31="$(pwd)/target/bl31.bin" BL32="$(pwd)/target/bl32.bin" BL33="$(pwd)/target/bl33.bin" CTX_INCLUDE_AARCH32_REGS=0 all fip
+            BL31="${OUT}/bl31.bin" BL32="${OUT}/bl32.bin" BL33="${OUT}/bl33.bin" CTX_INCLUDE_AARCH32_REGS=0 all fip
         FVP_Base_RevC-2xAEMvA \
             -C cluster0.has_arm_v9-0=1 \
             -C cluster1.has_arm_v9-0=1 \
@@ -182,8 +188,8 @@ case "$PLAT" in
             -C cache_state_modelled=1 \
             -C cluster0.NUM_CORES=4 \
             -C cluster1.NUM_CORES=4 \
-            -C cluster0.cpu0.semihosting-cwd=target \
-            -C cluster1.cpu0.semihosting-cwd=target \
+            -C cluster0.cpu0.semihosting-cwd=${OUT} \
+            -C cluster1.cpu0.semihosting-cwd=${OUT} \
             -C gic_distributor.ARE-fixed-to-one=1 \
             -C gic_distributor.extended-ppi-count=64 \
             -C gic_distributor.extended-spi-count=1024 \

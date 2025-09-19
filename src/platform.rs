@@ -39,9 +39,9 @@ use crate::{
         Service, arch::WorkaroundSupport, psci::PsciPlatformInterface, trng::TrngPlatformInterface,
     },
     smccc::FunctionId,
-    sysregs::MpidrEl1,
 };
 use arm_gic::{IntId, gicv3::GicV3};
+use arm_sysregs::MpidrEl1;
 #[cfg(not(test))]
 pub use percore::exception_free;
 #[cfg(test)]

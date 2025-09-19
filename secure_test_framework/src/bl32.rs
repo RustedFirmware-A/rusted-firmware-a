@@ -17,7 +17,6 @@ mod heap;
 mod logger;
 mod platform;
 mod secondary;
-mod sysregs;
 mod tests;
 mod util;
 

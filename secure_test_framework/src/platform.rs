@@ -7,8 +7,8 @@ mod fvp;
 #[cfg(platform = "qemu")]
 mod qemu;
 
-use crate::sysregs::{MpidrEl1, read_mpidr_el1};
 use arm_gic::gicv3::GicV3;
+use arm_sysregs::{MpidrEl1, read_mpidr_el1};
 use core::fmt::Write;
 use percore::Cores;
 

@@ -18,7 +18,6 @@ pub mod pmcr {
 }
 
 read_sysreg!(id_aa64mmfr1_el1, u64, safe read_id_aa64mmfr1_el1, fake::SYSREGS);
-read_sysreg!(mpidr_el1, u64: MpidrEl1, safe read_mpidr_el1, fake::SYSREGS);
 read_write_sysreg!(actlr_el1, u64, safe read_actlr_el1, safe write_actlr_el1, fake::SYSREGS);
 read_write_sysreg!(actlr_el2, u64, safe read_actlr_el2, safe write_actlr_el2, fake::SYSREGS);
 read_write_sysreg!(afsr0_el1, u64, safe read_afsr0_el1, safe write_afsr0_el1, fake::SYSREGS);
@@ -348,52 +347,6 @@ impl Esr {
     pub const ISS_SYSREG_OPCODE_MASK: Self = Self::from_bits_retain(0x003f_fc1e);
 }
 
-bitflags! {
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    pub struct MpidrEl1: u64 {
-        const MT = 1 << 24;
-        const U = 1 << 30;
-    }
-}
-
-impl MpidrEl1 {
-    pub const AFF0_MASK: u64 = 0x0000_00ff;
-    pub const AFF1_MASK: u64 = 0x0000_ff00;
-    pub const AFFINITY_BITS: usize = 8;
-    pub const AFF0_SHIFT: u8 = 0;
-    pub const AFF1_SHIFT: u8 = 8;
-    pub const AFF2_SHIFT: u8 = 16;
-    pub const AFF3_SHIFT: u8 = 32;
-
-    /// Converts a PSCI MPIDR value into the equivalent `MpidrEL1` value.
-    ///
-    /// This reads the MT and U bits from the current CPU's MPIDR_EL1 value and combines them with
-    /// the affinity values from the given `psci_mpidr`.
-    ///
-    /// This assumes that the MPIDR_EL1 values of all CPUs in a system have the same values for the
-    /// MT and U bits.
-    pub fn from_psci_mpidr(psci_mpidr: u64) -> Self {
-        let mpidr_el1 = read_mpidr_el1();
-        Self::from_bits_retain(psci_mpidr) | (mpidr_el1 & (Self::MT | Self::U))
-    }
-
-    pub fn aff0(self) -> u8 {
-        (self.bits() >> Self::AFF0_SHIFT) as u8
-    }
-
-    pub fn aff1(self) -> u8 {
-        (self.bits() >> Self::AFF1_SHIFT) as u8
-    }
-
-    pub fn aff2(self) -> u8 {
-        (self.bits() >> Self::AFF2_SHIFT) as u8
-    }
-
-    pub fn aff3(self) -> u8 {
-        (self.bits() >> Self::AFF3_SHIFT) as u8
-    }
-}
-
 pub fn is_feat_vhe_present() -> bool {
     const VHE: u64 = 1 << 8;
 
@@ -418,19 +371,6 @@ mod tests {
         assert_eq!(
             format!("{:?}", Esr::ISS_SYSREG_OPCODE_MASK),
             "Esr(0x3ffc1e)"
-        );
-    }
-
-    #[test]
-    fn debug_mpidr_el1() {
-        assert_eq!(format!("{:?}", MpidrEl1::empty()), "MpidrEl1(0x0)");
-        assert_eq!(
-            format!("{:?}", MpidrEl1::MT | MpidrEl1::U),
-            "MpidrEl1(MT | U)"
-        );
-        assert_eq!(
-            format!("{:?}", MpidrEl1::from_bits_retain(0x12_4134_5678)),
-            "MpidrEl1(MT | U | 0x1200345678)"
         );
     }
 }

@@ -15,13 +15,14 @@ use crate::{
     platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     services::{Service, owns},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SmcReturn},
-    sysregs::{MpidrEl1, read_isr_el1},
+    sysregs::read_isr_el1,
 };
 use arm_psci::{
     AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
     Function, FunctionId, HwState, MemProtectRange, MigrateInfoType, Mpidr, PowerState,
     PsciFeature, ResetType, ReturnCode, SystemOff2Type, Version,
 };
+use arm_sysregs::MpidrEl1;
 use bitflags::bitflags;
 use core::fmt::{self, Debug, Formatter};
 use log::info;
@@ -1036,8 +1037,8 @@ unsafe extern "C" {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sysregs::fake::SYSREGS;
     use arm_psci::ArchitecturalResetType;
+    use arm_sysregs::fake::SYSREGS;
     use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
     const ENTRY_POINT: EntryPoint = EntryPoint::Entry64 {

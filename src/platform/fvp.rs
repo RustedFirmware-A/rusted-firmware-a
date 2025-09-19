@@ -23,7 +23,7 @@ use crate::{
         },
         trng::NotSupportedTrngPlatformImpl,
     },
-    sysregs::{IccSre, MpidrEl1, SctlrEl3, Spsr, read_mpidr_el1, read_sctlr_el3, write_cntfrq_el0},
+    sysregs::{IccSre, SctlrEl3, Spsr, read_sctlr_el3, write_cntfrq_el0},
 };
 use aarch64_paging::paging::{MemoryRegion, VirtualAddress};
 use arm_fvp_base_pac::{
@@ -42,6 +42,7 @@ use arm_gic::{
 };
 use arm_pl011_uart::{Uart, UniqueMmioPointer};
 use arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState};
+use arm_sysregs::{MpidrEl1, read_mpidr_el1};
 use core::{
     arch::{global_asm, naked_asm},
     mem::offset_of,

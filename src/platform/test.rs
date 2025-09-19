@@ -19,11 +19,12 @@ use crate::{
         },
         trng::{TrngError, TrngPlatformInterface},
     },
-    sysregs::{MpidrEl1, Spsr},
+    sysregs::Spsr,
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{IntId, gicv3::GicV3};
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
+use arm_sysregs::MpidrEl1;
 use core::fmt;
 use percore::ExceptionFree;
 use std::io::{Write, stdout};

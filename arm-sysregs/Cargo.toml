@@ -10,6 +10,9 @@ authors = ["Andrew Walbran <qwandor@google.com>"]
 rust-version = "1.88"
 license = "BSD-3-Clause"
 
+[dependencies]
+bitflags = "2.9.1"
+
 [features]
 fakes = []
 

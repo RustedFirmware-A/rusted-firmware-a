@@ -34,9 +34,10 @@ use crate::{
     gicv3,
     platform::{Platform, PlatformImpl, exception_free},
     smccc::SmcReturn,
-    sysregs::{CptrEl3, Esr, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3},
+    sysregs::{CptrEl3, Esr, ScrEl3, Spsr, write_scr_el3},
 };
 use arm_psci::EntryPoint;
+use arm_sysregs::read_mpidr_el1;
 use core::{
     cell::{RefCell, RefMut},
     ops::{Index, IndexMut},

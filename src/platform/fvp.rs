@@ -396,7 +396,7 @@ unsafe impl Platform for Fvp {
     extern "C" fn crash_console_flush() {
         naked_asm!(
             include_str!("../asm_macros_common.S"),
-            "mov_imm	x1, {PLAT_ARM_CRASH_UART_BASE}",
+            "mov_imm	x0, {PLAT_ARM_CRASH_UART_BASE}",
             "b	console_pl011_core_flush",
             include_str!("../asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,

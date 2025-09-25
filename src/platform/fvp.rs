@@ -650,7 +650,10 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
                 match power_downstate & POWER_LEVEL_STATE_MASK {
                     0x002 => [FvpPowerState::Off, FvpPowerState::Run, FvpPowerState::Run],
                     0x022 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
-                    0x222 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Off],
+                    // Ensure that the system power domain level is never suspended via PSCI
+                    // CPU_SUSPEND API. System suspend is only supported via PSCI SYSTEM_SUSPEND
+                    // API.
+                    0x222 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
                     _ => return None,
                 }
             }

@@ -132,6 +132,7 @@ name = "arm-sysregs"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "paste",
 ]
 
 [[package]]

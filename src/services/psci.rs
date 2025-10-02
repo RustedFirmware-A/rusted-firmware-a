@@ -15,14 +15,13 @@ use crate::{
     platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     services::{Service, owns},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SmcReturn},
-    sysregs::read_isr_el1,
 };
 use arm_psci::{
     AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
     Function, FunctionId, HwState, MemProtectRange, MigrateInfoType, Mpidr, PowerState,
     PsciFeature, ResetType, ReturnCode, SystemOff2Type, Version,
 };
-use arm_sysregs::MpidrEl1;
+use arm_sysregs::{MpidrEl1, read_isr_el1};
 use bitflags::bitflags;
 use core::fmt::{self, Debug, Formatter};
 use log::info;

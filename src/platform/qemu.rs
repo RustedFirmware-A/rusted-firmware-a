@@ -24,7 +24,6 @@ use crate::{
         },
         trng::NotSupportedTrngPlatformImpl,
     },
-    sysregs::{IccSre, Spsr},
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
@@ -33,7 +32,7 @@ use arm_gic::{
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
-use arm_sysregs::MpidrEl1;
+use arm_sysregs::{IccSre, MpidrEl1, Spsr};
 use core::{
     arch::global_asm,
     mem::offset_of,

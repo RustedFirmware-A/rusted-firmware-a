@@ -7,11 +7,12 @@ use crate::{
     context::{World, cpu_state},
     platform::exception_free,
     smccc::SmcReturn,
-    sysregs::{
-        Esr, ExceptionLevel, HcrEl2, ScrEl3, Spsr, StackPointer, is_feat_vhe_present, read_hcr_el2,
-        read_vbar_el1, read_vbar_el2, write_elr_el1, write_elr_el2, write_esr_el1, write_esr_el2,
-        write_spsr_el1, write_spsr_el2,
-    },
+    sysregs::is_feat_vhe_present,
+};
+use arm_sysregs::{
+    Esr, ExceptionLevel, HcrEl2, ScrEl3, Spsr, StackPointer, read_hcr_el2, read_vbar_el1,
+    read_vbar_el2, write_elr_el1, write_elr_el2, write_esr_el1, write_esr_el2, write_spsr_el1,
+    write_spsr_el2,
 };
 #[cfg(not(test))]
 use core::arch::asm;
@@ -266,8 +267,8 @@ mod asm {
         context::{CpuData, CrashBuf, GpRegs},
         debug::{CRASH_REPORTING, DEBUG},
         platform::{Platform, PlatformImpl},
-        sysregs::SctlrEl3,
     };
+    use arm_sysregs::SctlrEl3;
     use core::{arch::global_asm, mem::offset_of};
 
     global_asm!(

@@ -117,10 +117,8 @@ extern "C" fn psci_warmboot_entrypoint() -> ! {
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
-    use crate::{
-        debug::{DEBUG, ENABLE_ASSERTIONS},
-        sysregs::SctlrEl3,
-    };
+    use crate::debug::{DEBUG, ENABLE_ASSERTIONS};
+    use arm_sysregs::SctlrEl3;
     use core::arch::global_asm;
 
     const MDCR_MTPME_BIT: u64 = 1 << 28;

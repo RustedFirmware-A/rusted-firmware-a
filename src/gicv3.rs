@@ -8,7 +8,6 @@ use crate::{
     aarch64::{dsb_sy, isb},
     context::{CoresImpl, World},
     platform::{Platform, PlatformImpl},
-    sysregs::ScrEl3,
 };
 use arm_gic::{
     IntId, Trigger, UniqueMmioPointer,
@@ -19,7 +18,7 @@ use arm_gic::{
         registers::{Gicd, GicdCtlr, GicrSgi},
     },
 };
-use arm_sysregs::{MpidrEl1, read_mpidr_el1};
+use arm_sysregs::{MpidrEl1, ScrEl3, read_mpidr_el1};
 use log::debug;
 use percore::Cores;
 use spin::{Once, mutex::SpinMutex};

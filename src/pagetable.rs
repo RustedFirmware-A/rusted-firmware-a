@@ -9,9 +9,6 @@ use crate::{
         bss2_start,
     },
     platform::{Platform, PlatformImpl},
-    sysregs::{
-        SctlrEl3, read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3,
-    },
 };
 use aarch64_paging::{
     MapError, Mapping,
@@ -20,6 +17,9 @@ use aarch64_paging::{
         Attributes, Constraints, MemoryRegion, PageTable, PhysicalAddress, Translation,
         TranslationRegime, VaRange, VirtualAddress,
     },
+};
+use arm_sysregs::{
+    SctlrEl3, read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3,
 };
 use core::{
     fmt::{self, Debug, Formatter},

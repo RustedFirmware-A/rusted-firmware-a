@@ -15,8 +15,8 @@ use crate::{
     gicv3::{self, InterruptType},
     platform::{self, Platform, PlatformImpl, exception_free},
     smccc::{FunctionId, NOT_SUPPORTED, SmcReturn},
-    sysregs::Esr,
 };
+use arm_sysregs::Esr;
 use log::info;
 use spin::Lazy;
 

@@ -12,7 +12,8 @@ macro_rules! add_cpu_mod {
 add_cpu_mod!(aem_generic);
 add_cpu_mod!(qemu_max);
 
-use crate::{platform::CPU_OPS, sysregs::read_midr_el1};
+use crate::platform::CPU_OPS;
+use arm_sysregs::read_midr_el1;
 
 /// The `Cpu` trait captures low level CPU specific operations.
 /// # Safety
@@ -166,9 +167,8 @@ pub fn cpu_power_down(level: usize) {
 
 #[cfg(test)]
 mod test {
-    use crate::sysregs::fake::SYSREGS;
-
     use super::*;
+    use arm_sysregs::fake::SYSREGS;
 
     #[test]
     fn test_reset_handler() {

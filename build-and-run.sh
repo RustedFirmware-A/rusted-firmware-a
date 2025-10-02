@@ -48,7 +48,7 @@ case "$PLAT" in
     if [[ "${GDB}" == 1 ]]; then
         gdb-multiarch target/${TARGET}/${BUILDTYPE}/rf-a-bl31 --eval-command="target remote :${GDB_PORT}"
     else
-        ${QEMU} ${QEMU_FLAGS} ${QEMU_WAIT} &
+        ${QEMU} ${QEMU_FLAGS} ${QEMU_WAIT}
     fi
     ;;
 

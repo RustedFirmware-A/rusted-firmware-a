@@ -346,6 +346,12 @@ notes = "Dependency version bump and minor changes in Cargo.toml."
 
 [[audits.paste]]
 who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+version = "1.0.15"
+notes = "Fairly straightforward proc macro."
+
+[[audits.paste]]
+who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
 delta = "1.0.14 -> 1.0.15"
 notes = "No substantial changes."

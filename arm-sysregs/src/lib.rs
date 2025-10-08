@@ -39,6 +39,7 @@ macro_rules! read_write_sysreg {
 bitflags! {
     /// MPIDR_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
     pub struct MpidrEl1: u64 {
         /// MT
         const MT = 1 << 24;

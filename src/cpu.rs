@@ -107,7 +107,7 @@ pub extern "C" fn cpu_reset_handler() {
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cpu_reset_handler() {
-    core::arch::naked_asm!(
+    crate::naked_asm!(
         "/* Read and mask MIDR_EL1 */
         mrs	x2, midr_el1
         mov	w3, ({midr_mask} & 0xffff)

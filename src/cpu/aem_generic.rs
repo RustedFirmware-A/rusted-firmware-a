@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Cpu;
-use core::arch::naked_asm;
+use crate::naked_asm;
 
 pub struct AemGeneric;
 

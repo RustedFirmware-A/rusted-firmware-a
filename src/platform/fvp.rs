@@ -13,6 +13,7 @@ use crate::{
     debug::DEBUG,
     gicv3::{Gic, GicConfig, InterruptConfig},
     logger::{self, LockedWriter},
+    naked_asm,
     pagetable::{IdMap, MT_DEVICE, map_region},
     services::{
         arch::WorkaroundSupport,
@@ -42,7 +43,7 @@ use arm_pl011_uart::{Uart, UniqueMmioPointer};
 use arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState};
 use arm_sysregs::{MpidrEl1, read_mpidr_el1};
 use core::{
-    arch::{global_asm, naked_asm},
+    arch::global_asm,
     mem::offset_of,
     ptr::NonNull,
 };

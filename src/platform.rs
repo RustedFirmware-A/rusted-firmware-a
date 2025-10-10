@@ -221,7 +221,8 @@ pub unsafe trait Platform {
 mod asm {
     use super::*;
     use crate::debug::DEBUG;
-    use core::arch::{global_asm, naked_asm};
+    use crate::naked_asm;
+    use core::arch::global_asm;
 
     global_asm!(
         include_str!("asm_macros_common.S"),

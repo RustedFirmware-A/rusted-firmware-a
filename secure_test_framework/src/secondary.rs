@@ -7,9 +7,9 @@
 use crate::{
     platform::{Platform, PlatformImpl},
     secondary_main,
+    util::naked_asm,
 };
 use aarch64_rt::Stack;
-use core::arch::naked_asm;
 
 /// The number of 4 KiB pages to reserve for each secondary CPU stack.
 const SECONDARY_STACK_PAGES: usize = 1 << SECONDARY_STACK_PAGES_LOG2;

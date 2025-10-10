@@ -3,13 +3,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
+use crate::util::naked_asm;
 use arm_gic::gicv3::{
     GicV3,
     registers::{Gicd, GicrSgi},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_sysregs::MpidrEl1;
-use core::{arch::naked_asm, fmt::Write, ptr::NonNull};
+use core::{fmt::Write, ptr::NonNull};
 use spin::{
     Once,
     mutex::{SpinMutex, SpinMutexGuard},

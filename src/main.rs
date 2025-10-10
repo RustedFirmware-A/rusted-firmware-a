@@ -194,4 +194,19 @@ mod asm {
         TFP_BIT = const TFP_BIT,
         plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
     );
+
+    /// This macro wraps a naked_asm block with `bti`, or any other universal
+    /// prologue we'd still like added.
+    ///
+    /// Use this over `core::arch::naked_asm` by default, otherwise you may
+    /// need to ensure that e.g. `bti` landing pads are in place yourself.
+    macro_rules! naked_asm {
+        ($($inner:tt)*) => {
+           ::core::arch::naked_asm!("bti c", $($inner)*)
+        }
+    }
+    pub(crate) use naked_asm;
 }
+
+#[cfg(all(target_arch = "aarch64", not(test)))]
+pub(crate) use asm::naked_asm;

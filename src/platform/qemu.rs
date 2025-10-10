@@ -13,6 +13,7 @@ use crate::{
     gicv3::{Gic, GicConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
+    naked_asm,
     semihosting::{AdpStopped, semihosting_exit},
     services::{
         arch::WorkaroundSupport,
@@ -34,7 +35,7 @@ use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 use arm_sysregs::MpidrEl1;
 use core::{
-    arch::{global_asm, naked_asm},
+    arch::global_asm,
     mem::offset_of,
     ptr::NonNull,
 };

@@ -195,13 +195,6 @@ pub fn partition_info_get_regs(
     })
 }
 
-pub fn mem_retrieve_resp(total_len: u32, frag_len: u32) -> Result<Interface, Error> {
-    call(Interface::MemRetrieveResp {
-        total_len,
-        frag_len,
-    })
-}
-
 pub fn notification_bitmap_create(vm_id: u16, vcpu_cnt: u32) -> Result<Interface, Error> {
     call(Interface::NotificationBitmapCreate { vm_id, vcpu_cnt })
 }

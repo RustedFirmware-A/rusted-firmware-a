@@ -9,10 +9,7 @@ use crate::{
 };
 use arm_gic::{
     IntId, Trigger,
-    gicv3::{
-        GicCpuInterface, GicV3, Group, HIGHEST_NS_PRIORITY, InterruptGroup, SecureIntGroup,
-        registers::GicdCtlr,
-    },
+    gicv3::{GicCpuInterface, GicV3, Group, HIGHEST_NS_PRIORITY, InterruptGroup, SecureIntGroup},
 };
 use log::debug;
 use percore::{Cores, ExceptionLock, exception_free};

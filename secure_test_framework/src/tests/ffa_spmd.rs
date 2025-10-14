@@ -6,8 +6,6 @@
 //! viceversa) with the correct interfaces. STF BL32 does not currently implement the logic of said interfaces (for
 //! example, RXTX mapping/unmapping)
 
-use core::fmt::Error;
-
 use crate::{
     ffa,
     framework::{

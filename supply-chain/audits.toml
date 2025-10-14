@@ -194,6 +194,12 @@ The crate uses safe-mmio to access the peripheral registers.
 The user can obtain multiple Peripherals instances via an unsafe function. In this case the callers responsibility to not use the same peripheral multiple times, as described in the safety requirement.
 """
 
+[[audits.arm-fvp-base-pac]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.1.3 -> 0.1.4"
+notes = "Just updates dependencies and adds new TrustZone controller device with some constants."
+
 [[audits.arm-generic-timer]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

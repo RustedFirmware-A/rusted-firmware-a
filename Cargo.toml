@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "3"
-members = ["secure_test_framework"]
+members = ["rf-a-bl31-build", "secure_test_framework"]
 
 [package]
 name = "rf-a-bl31"
@@ -58,6 +58,9 @@ spin = { version = "0.10.0", default-features = false, features = [
 ] }
 uuid = { version = "1.19.0", default-features = false }
 zerocopy = { version = "0.8.27", features = ["derive"] }
+
+[build-dependencies]
+rf-a-bl31-build = { version = "0.1.0", path = "rf-a-bl31-build" }
 
 [dev-dependencies]
 arm-gic = { version = "0.8.1", features = ["fakes"] }

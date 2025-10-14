@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::Builder;
+use rf_a_bl31_build::Builder;
 
 pub struct FvpBuilder;
 

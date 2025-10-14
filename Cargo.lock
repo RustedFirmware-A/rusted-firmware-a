@@ -287,10 +287,15 @@ dependencies = [
  "num_enum",
  "paste",
  "percore",
+ "rf-a-bl31-build",
  "spin 0.10.0",
  "uuid",
  "zerocopy",
 ]
+
+[[package]]
+name = "rf-a-bl31-build"
+version = "0.1.0"
 
 [[package]]
 name = "rf-a-secure-test-framework"

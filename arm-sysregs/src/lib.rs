@@ -108,6 +108,7 @@ impl MpidrEl1 {
 bitflags! {
     /// SCR_EL3 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
     pub struct ScrEl3: u64 {
         /// RES1 bits in the `scr_el3` register.
         const RES1 = (1 << 4) | (1 << 5);
@@ -223,6 +224,7 @@ bitflags! {
 
     /// Type for the `icc_sre_el2` and `icc_sre_el3` registers.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
     pub struct IccSre: u64 {
         /// Enable the system register interface.
         const SRE = 1 << 0;
@@ -236,6 +238,7 @@ bitflags! {
 
     /// SCTLR_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
     pub struct SctlrEl1: u64 {
         /// RES1 bits in the `sctlr_el1` register.
         const RES1 = (1 << 29) | (1 << 28) | (1 << 23) | (1 << 22) | (1 << 20) | (1 << 11);
@@ -243,6 +246,7 @@ bitflags! {
 
     /// SCTLR_EL3 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
     pub struct SctlrEl3: u64 {
         /// MMU enable for EL3 stage 1 address translation.
         const M = 1 << 0;
@@ -267,6 +271,7 @@ bitflags! {
 
     /// HCR_EL2 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
     pub struct HcrEl2: u64 {
         /// Trap general exceptions to EL2.
         const TGE = 1 << 27;
@@ -274,6 +279,7 @@ bitflags! {
 
     /// CPTR_EL3 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
+    #[repr(transparent)]
     pub struct CptrEl3: u64 {
         /// Trap EL2 accesses to CPTR_EL2/HCPTR, and EL2/EL1 accesses to CPACR_EL1/CPACR.
         const TCPAC = 1 << 31;
@@ -325,6 +331,7 @@ pub enum StackPointer {
 bitflags! {
     /// SPSR_ELn system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
     pub struct Spsr: u64 {
         /// Exception was taken from AArch32 state.
         const M_EXECUTION_STATE = 1 << 4;
@@ -409,6 +416,7 @@ impl Spsr {
 bitflags! {
     /// ESR_ELn value.
     #[derive(Clone, Copy, Eq, PartialEq)]
+    #[repr(transparent)]
     pub struct Esr: u64 {
         /// 32-bit instruction length.
         const IL = 1 << 25;

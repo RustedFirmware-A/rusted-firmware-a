@@ -157,6 +157,12 @@ The unsafe assembly block only contains barrier instructions that does not viola
 The driver provides functions for entering and exiting cache coherency. This requires further actions from the caller that are described in the safety comments.
 """
 
+[[audits.arm-cci]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.1.0 -> 0.1.1"
+notes = "No code changes, only metadata."
+
 [[audits.arm-ffa]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -208,6 +214,12 @@ notes = """
 The crate uses safe-mmio to access the peripheral registers.
 It provies an unsafe function for generating interrupt, where the required safety conditions are properly described.
 """
+
+[[audits.arm-generic-timer]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.1.0 -> 0.1.1"
+notes = "No code changes, only metadata."
 
 [[audits.arm-gic]]
 who = "Jeremi Miller <jeremimiller@google.com>"
@@ -274,6 +286,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "0.1.1"
 notes = "The crate uses safe-mmio to access the peripheral registers. It does not have any unsafe code."
 
+[[audits.arm-sp805]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.1.1 -> 0.1.2"
+notes = "No substantial changes, only a lint fix."
+
 [[audits.autocfg]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
@@ -308,17 +326,35 @@ criteria = "safe-to-run"
 version = "0.3.33"
 notes = "There's not much logic here, just some types and simple methods. Nothing that affects the local environment."
 
+[[audits.linkme]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "safe-to-run"
+delta = "0.3.33 -> 0.3.35"
+notes = "Build script just checks Rust toolchain version, nothing else surprising."
+
 [[audits.linkme-impl]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
 version = "0.3.33"
 notes = "Fairly straightforward proc macro, doesn't do anything unexpected."
 
+[[audits.linkme-impl]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "safe-to-run"
+delta = "0.3.33 -> 0.3.35"
+notes = "Fairly straightforward macro changes, nothing surprisingly run locally."
+
 [[audits.lock_api]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
 delta = "0.4.10 -> 0.4.13"
 notes = "No access to local resources."
+
+[[audits.lock_api]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = "safe-to-run"
+delta = "0.4.13 -> 0.4.14"
+notes = "Doesn't access any sensitive local resources."
 
 [[audits.log]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -378,6 +414,18 @@ notes = "No substantial changes."
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.1.0"
+
+[[audits.proc-macro2]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.0.94 -> 1.0.101"
+notes = "Changes are mostly around probing for span support in proc macro. No unsafe code."
+
+[[audits.quote]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.0.40 -> 1.0.41"
+notes = "Build script just checks the Rust version. Other changes are minor refactoring."
 
 [[audits.rustversion]]
 who = "Imre Kis <imre.kis@arm.com>"
@@ -488,6 +536,12 @@ criteria = ["safe-to-deploy", "ub-risk-2"]
 version = "2.0.87"
 notes = "Extensive unsafe code in buffer.rs is probably fine, but not very well documented. Unsafe APIs aren't exposed at least."
 
+[[audits.syn]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
+delta = "2.0.87 -> 2.0.106"
+notes = "Lots of parsing logic changes, but nothing that looks dangerous. The only change near unsafe code is to compare pointers more safely."
+
 [[audits.thiserror]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -543,6 +597,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.16 -> 2.0.17"
 notes = "Minor refactoring only."
+
+[[audits.unicode-ident]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.0.18 -> 1.0.19"
+notes = "Just changes to data and tests."
 
 [[audits.uuid]]
 who = "Chris Palmer <palmer@google.com>"

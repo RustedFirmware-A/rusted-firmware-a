@@ -4,14 +4,13 @@
 
 //! RF-A: A new implementation of TF-A for AArch64.
 
-#![cfg_attr(not(test), no_main)]
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, feature = "fakes")), no_std)]
 
 mod aarch64;
 mod context;
-mod cpu;
+pub mod cpu;
 mod cpu_extensions;
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 mod crash_console;
 mod debug;
 mod dram;
@@ -43,9 +42,9 @@ use crate::{
     platform::Platform,
     services::{Services, psci::PsciPlatformInterface, trng::TrngPlatformInterface},
 };
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 pub use asm::bl31_warm_entrypoint;
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use include_first::include_first;
 use log::{debug, info};
 use percore::Cores;
@@ -155,7 +154,7 @@ extern "C" fn psci_warmboot_entrypoint<
     PlatformImpl::warmboot()
 }
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 mod asm {
     use super::*;
     use crate::{
@@ -233,7 +232,7 @@ mod asm {
 }
 
 /// Generates a naked function for the cold boot entrypoint assembly code.
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 #[include_first]
 macro_rules! main_asm {
     ($platform:ty) => {
@@ -282,11 +281,11 @@ macro_rules! main_asm {
     };
 }
 #[allow(clippy::single_component_path_imports)]
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 pub(crate) use main_asm;
 
 /// Generates `global_asm!` blocks for the given platform.
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 #[macro_export]
 macro_rules! all_asm {
     ($platform:ty) => {
@@ -297,7 +296,7 @@ macro_rules! all_asm {
     };
 }
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 pub(crate) use asm::naked_asm;
 
 /// Generates static variables for the platform, trait implementations to access them, and the cold

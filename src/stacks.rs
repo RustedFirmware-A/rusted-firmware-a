@@ -4,13 +4,13 @@
 
 //! Stacks for EL3.
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 pub use asm::set_my_stack;
 
 /// The number of bytes of stack space to reserve for each core.
 pub const STACK_SIZE: usize = 0x2000;
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 mod asm {
     use super::*;
     use crate::{
@@ -55,7 +55,7 @@ mod asm {
 }
 
 /// Generates a `global_asm!` block for stack-related assembly code.
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 #[macro_export]
 macro_rules! stacks_asm {
     ($platform:ty) => {
@@ -111,5 +111,5 @@ macro_rules! stacks_asm {
     };
 }
 #[allow(clippy::single_component_path_imports)]
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 pub use stacks_asm;

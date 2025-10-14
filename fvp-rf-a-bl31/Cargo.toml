@@ -1,0 +1,39 @@
+# Copyright The Rusted Firmware-A Contributors.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[package]
+name = "fvp-rf-a-bl31"
+version = "0.1.0"
+edition = "2024"
+authors = ["Andrew Walbran <qwandor@google.com>"]
+rust-version = "1.90"
+license = "BSD-3-Clause"
+description = "RF-A BL31 for the Arm Fixed Virtual Platform"
+
+[dependencies]
+rf-a-bl31 = { version = "0.1.0", default-features = false, path = ".." }
+
+[build-dependencies]
+rf-a-bl31-build = { version = "0.1.0", path = "../rf-a-bl31-build" }
+
+[features]
+default = ["sel2"]
+pauth = ["rf-a-bl31/pauth"]
+rme = ["rf-a-bl31/rme"]
+sel2 = ["rf-a-bl31/sel2"]
+max_log_off = ["rf-a-bl31/max_log_off"]
+max_log_error = ["rf-a-bl31/max_log_error"]
+max_log_warn = ["rf-a-bl31/max_log_warn"]
+max_log_info = ["rf-a-bl31/max_log_info"]
+max_log_debug = ["rf-a-bl31/max_log_debug"]
+max_log_trace = ["rf-a-bl31/max_log_trace"]
+
+[lints.clippy]
+missing_safety_doc = "deny"
+undocumented_unsafe_blocks = "deny"
+unreadable_literal = "deny"
+
+[lints.rust]
+missing_docs = "deny"
+unsafe_op_in_unsafe_fn = "deny"

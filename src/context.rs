@@ -56,14 +56,14 @@ use arm_sysregs::{
     CptrEl3, EsrEl3, MdcrEl3, Mpam3El3, ScrEl3, SpsrEl3, read_mpidr_el1, write_cptr_el3,
     write_mpam3_el3, write_scr_el3,
 };
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 pub use asm::init_cpu_data_ptr;
 use core::{
     cell::{RefCell, RefMut},
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use include_first::include_first;
 use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
 use spin::Once;
@@ -159,7 +159,7 @@ impl CpuContext {
     /// the execution in lower EL will continue from the next instruction instead of repeating the
     /// one that has caused the trap.
     /// Should only be used by [`crate::services::Services::handle_sysreg_trap()`].
-    pub fn skip_lower_el_instruction(&mut self) {
+    pub(crate) fn skip_lower_el_instruction(&mut self) {
         self.el3_state.elr_el3 += core::mem::size_of::<u32>();
     }
 }
@@ -1068,7 +1068,7 @@ pub struct EntryPointInfo {
     pub args: [u64; 8],
 }
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 #[allow(clippy::manual_bits)]
 mod asm {
     use super::*;
@@ -1211,7 +1211,7 @@ pub unsafe trait CpuDataIndex {
 }
 
 /// Generates some naked functions for context-related assembly code.
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 #[macro_export]
 #[include_first]
 macro_rules! context_asm {
@@ -1246,5 +1246,5 @@ macro_rules! context_asm {
     };
 }
 #[allow(clippy::single_component_path_imports)]
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 pub use context_asm;

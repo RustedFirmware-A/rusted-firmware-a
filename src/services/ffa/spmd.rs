@@ -654,7 +654,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: CpuStateAccess + Platform + Platform
 
 /// Fake SPM implementation for tests.
 #[cfg(test)]
-pub struct TestSpm;
+pub(crate) struct TestSpm;
 
 #[cfg(test)]
 impl PsciSpmInterface for TestSpm {

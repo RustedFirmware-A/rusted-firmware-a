@@ -10,7 +10,7 @@ use crate::services::rmmd::svc::{EccCurve, RmmCommandReturnCode};
 use crate::{
     aarch64::sev,
     context::{CoresImpl, CpuData, CpuDataIndex, EntryPointInfo},
-    cpu::{Cpu, define_cpu_ops},
+    cpu::{Cpu, CpuOps, PlatformCpuOps},
     cpu_extensions::CpuExtension,
     errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
     gicv3::GicConfig,
@@ -256,17 +256,6 @@ unsafe impl CpuDataIndex for TestPlatform {
     extern "C" fn cpu_data_by_index(_cpu_index: usize) -> *mut CpuData {
         unimplemented!()
     }
-}
-
-/// Runs the given function and returns the result.
-///
-/// This is a fake version of `percore::exception_free` for use in unit tests only, which must be
-/// run on a single thread.
-pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
-    // SAFETY: This is only used in unit tests, which are run on the host where there are no
-    // hardware exceptions nor multiple threads.
-    let token = unsafe { ExceptionFree::new() };
-    f(token)
 }
 
 /// A log sink for tests which writes logs to standard output.
@@ -627,7 +616,10 @@ unsafe impl Cpu for TestCpu {
     fn power_down_level1() {}
 }
 
-define_cpu_ops!(TestPlatform, [TestCpu]);
+// SAFETY: `get_cpu_ops` doesn't exist in the test/fake build.
+unsafe impl PlatformCpuOps for TestPlatform {
+    const CPU_OPS: &'static [CpuOps] = &[CpuOps::from_cpu::<TestCpu>()];
+}
 
 /// A fake reset erratum which always applies.
 pub struct TestMitigatedErratum;

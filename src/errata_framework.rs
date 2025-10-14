@@ -4,7 +4,7 @@
 
 //! Framework for working around CPU and other errata.
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 pub mod dsu;
 
 /// A unique identifier for an erratum.
@@ -154,12 +154,13 @@ macro_rules! define_errata_list {
         unsafe impl $crate::errata_framework::PlatformErrata for $platform {
             const ERRATA_LIST: &'static [$crate::errata_framework::ErratumEntry] = &ERRATA_LIST;
 
-            #[cfg(all(target_arch = "aarch64", not(test)))]
+            #[cfg(not(test))]
             #[unsafe(naked)]
             extern "C" fn apply_reset_errata() {
                 use core::mem::offset_of;
                 use $crate::errata_framework::{ErratumEntry, ErratumType};
 
+                #[cfg(target_arch = "aarch64")]
                 $crate::naked_asm!(
                     // Save LR
                     "mov x8, x30",

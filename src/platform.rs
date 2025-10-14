@@ -39,12 +39,24 @@ use crate::{
 use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
 use arm_sysregs::MpidrEl1;
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 pub use asm::my_core_pos;
-#[cfg(not(test))]
+#[cfg(any(test, feature = "fakes"))]
+use percore::ExceptionFree;
+#[cfg(not(any(test, feature = "fakes")))]
 pub use percore::exception_free;
-#[cfg(test)]
-pub use test::exception_free;
+
+/// Runs the given function and returns the result.
+///
+/// This is a fake version of `percore::exception_free` for use in unit tests only, which must be
+/// run on a single thread.
+#[cfg(any(test, feature = "fakes"))]
+pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
+    // SAFETY: This is only used in unit tests, which are run on the host where there are no
+    // hardware exceptions nor multiple threads.
+    let token = unsafe { ExceptionFree::new() };
+    f(token)
+}
 
 /// For platforms that do not want to implement any custom SMC handlers.
 pub struct DummyService;
@@ -250,7 +262,7 @@ pub unsafe trait Platform: Sized + Send + Sync {
     ///
     /// The default implementation loops forever, but platforms may override it to do something
     /// else, like rebooting.
-    #[cfg(all(target_arch = "aarch64", not(test)))]
+    #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
     #[unsafe(naked)]
     extern "C" fn panic_handler() -> ! {
         // Endless loop.
@@ -291,7 +303,7 @@ pub unsafe trait Platform: Sized + Send + Sync {
     ) -> Result<(usize, usize), RmmCommandReturnCode>;
 }
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 mod asm {
     use super::*;
     use crate::naked_asm;

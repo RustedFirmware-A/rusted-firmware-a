@@ -15,7 +15,7 @@ use crate::{
 };
 use core::marker::PhantomData;
 
-pub const SMCCC_VERSION: u32 = 0x8000_0000;
+pub(crate) const SMCCC_VERSION: u32 = 0x8000_0000;
 const SMCCC_ARCH_FEATURES: u32 = 0x8000_0001;
 const SMCCC_ARCH_SOC_ID_32: u32 = 0x8000_0002;
 const SMCCC_ARCH_SOC_ID_64: u32 = 0xc000_0002;
@@ -27,7 +27,7 @@ const SMCCC_ARCH_WORKAROUND_2: u32 = 0x8000_7FFF;
 const SMCCC_ARCH_WORKAROUND_3: u32 = 0x8000_3FFF;
 const SMCCC_ARCH_WORKAROUND_4: u32 = 0x8000_0004;
 
-pub const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
+pub(crate) const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
 
 /// Arm architecture SMCs.
 pub struct Arch<PlatformImpl: Platform> {

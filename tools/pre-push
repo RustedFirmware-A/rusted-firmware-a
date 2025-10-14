@@ -30,7 +30,7 @@ must() {
     fi
 }
 
-must cargo test --workspace --exclude rf-a-secure-test-framework
+must cargo test --package rf-a-bl31-build
 must make clippy-test
 
 IFS=" " read -a all_features <<< "$(make --silent list_test_features)"
@@ -64,7 +64,3 @@ done
 
 must cargo vet
 must cargo fmt --all --check
-
-cd secure_test_framework
-must cargo fmt --all --check
-cd -

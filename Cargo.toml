@@ -4,7 +4,12 @@
 
 [workspace]
 resolver = "3"
-members = ["rf-a-bl31-build", "secure_test_framework"]
+members = [
+  "fvp-rf-a-bl31",
+  "qemu-rf-a-bl31",
+  "rf-a-bl31-build",
+  "secure_test_framework",
+]
 
 [package]
 name = "rf-a-bl31"
@@ -68,6 +73,7 @@ arm-sysregs = { version = "0.2.7", features = ["fakes"] }
 
 [features]
 default = ["sel2"]
+fakes = ["arm-gic/fakes", "arm-sysregs/fakes"]
 pauth = []
 rme = []
 sel2 = []

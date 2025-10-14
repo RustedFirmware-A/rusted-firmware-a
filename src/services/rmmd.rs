@@ -238,7 +238,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Rmmd<CORE_COUNT, PlatformI
         PlatformImpl::rme_prepare_manifest(buf);
         debug!("RMM Boot Manifest ready");
 
-        #[cfg(all(target_arch = "aarch64", not(test)))]
+        #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
         GRANULE_PROTECTION_TABLE.call_once(|| {
             // Safety: this code can only be executed once due to [`Once::call_once`]. The
             // `discover()` function is not called anywhere else in the code.

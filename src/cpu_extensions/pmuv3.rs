@@ -33,7 +33,7 @@ impl CpuExtension for MultiThreadedPmu {
 
 /// Initialise PMCR_EL0 setting all fields rather than relying
 /// on hw. Some fields are architecturally UNKNOWN on reset.
-pub fn init() {
+pub(crate) fn init() {
     // PMCR_EL0.DP: Set to one so that the cycle counter,
     // PMCCNTR_EL0 does not count when event counting is prohibited.
     // Necessary on PMUv3 <= p7 where MDCR_EL3.{SCCD,MCCD} are not
@@ -53,7 +53,7 @@ pub fn init() {
     write_pmcr_el0(pmcr_el0);
 }
 
-pub fn configure_per_cpu(ctx: &mut CpuContext) {
+pub(crate) fn configure_per_cpu(ctx: &mut CpuContext) {
     #[cfg(feature = "sel2")]
     {
         use arm_sysregs::read_mdcr_el2;

@@ -6,7 +6,7 @@
 
 macro_rules! add_cpu_mod {
     ($module:ident) => {
-        #[cfg(all(target_arch = "aarch64", not(test)))]
+        #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
         pub mod $module;
     };
 }
@@ -113,7 +113,7 @@ pub unsafe trait PlatformCpuOps {
     /// Returns a pointer to the `CpuOps` struct, or null if no matching `CpuOps` was found.
     ///
     /// Returns the CpuOps pointer in x0, and clobbers x1-x3.
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "fakes")))]
     extern "C" fn get_cpu_ops() -> *const CpuOps;
 }
 
@@ -133,15 +133,17 @@ fn find_cpu_ops<PlatformImpl: PlatformCpuOps>() -> &'static CpuOps {
 }
 
 /// Calculates the count of specified Cpu types.
+#[macro_export]
 macro_rules! cpu_ops_count {
     ($cpu:ty) => { 1 };
     ($cpu:ty, $($cpus:ty),+) => {
         $crate::cpu::cpu_ops_count!($cpu) + $crate::cpu::cpu_ops_count!($($cpus),+)
     };
 }
-pub(crate) use cpu_ops_count;
+pub use cpu_ops_count;
 
 /// Declares the CPU_OPS array for the platform, and implements `PlatformCpuOps` to access it.
+#[macro_export]
 macro_rules! define_cpu_ops {
     ($platform:ty, [$($cpus:ty),+]) => {
         static CPU_OPS : [$crate::cpu::CpuOps; $crate::cpu::cpu_ops_count!($($cpus),+)] = [
@@ -199,10 +201,10 @@ macro_rules! define_cpu_ops {
         }
     }
 }
-pub(crate) use define_cpu_ops;
+pub use define_cpu_ops;
 
 /// Finds the CPU operations for the current CPU and calls the reset handler for it.
-#[cfg(test)]
+#[cfg(any(test, feature = "fakes"))]
 pub extern "C" fn cpu_reset_handler<PlatformImpl: PlatformCpuOps>() {
     let ops = find_cpu_ops::<PlatformImpl>();
 
@@ -210,7 +212,7 @@ pub extern "C" fn cpu_reset_handler<PlatformImpl: PlatformCpuOps>() {
 }
 
 /// Finds the CPU operations for the current CPU and calls the reset handler for it.
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 #[unsafe(naked)]
 pub extern "C" fn cpu_reset_handler<PlatformImpl: PlatformCpuOps>() {
     crate::naked_asm!(
@@ -240,7 +242,7 @@ pub extern "C" fn cpu_reset_handler<PlatformImpl: PlatformCpuOps>() {
 /// # Safety
 ///
 /// Should only be called from assembly as it doesn't follow the standard calling convention.
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn cpu_dump_registers<PlatformImpl: PlatformCpuOps>() {
     crate::naked_asm!(

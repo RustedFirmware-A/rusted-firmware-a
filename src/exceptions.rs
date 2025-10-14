@@ -14,7 +14,7 @@ use arm_sysregs::{
     read_sctlr_el1, read_sctlr_el2, read_vbar_el1, read_vbar_el2, write_elr_el1, write_elr_el2,
     write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2,
 };
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 use core::arch::asm;
 use core::fmt::Debug;
 use log::trace;
@@ -245,7 +245,7 @@ pub fn enter_world<PlatformImpl: CpuStateAccess>(regs: &mut SmcReturn, world: Wo
     // SAFETY: The CPU context is always valid, and will only be used via this pointer by assembly
     // code after the Rust code returns to prepare for the eret, and after the next exception before
     // entering the Rust code again.
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "fakes")))]
     unsafe {
         asm!(
             // Save x19 and x29 manually as Rust won't let us specify them as clobbers.
@@ -283,7 +283,7 @@ pub fn enter_world<PlatformImpl: CpuStateAccess>(regs: &mut SmcReturn, world: Wo
             out("x30") _,
         );
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "fakes"))]
     {
         let _ = context;
         let _ = per_world_context;

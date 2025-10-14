@@ -292,7 +292,7 @@ macro_rules! define_early_mapping {
             EARLY_PAGE_TABLE_RANGE_COUNT] = RANGES_AND_COUNT.0;
         const EARLY_PAGE_TABLE_SIZE: usize = RANGES_AND_COUNT.1;
 
-        #[cfg(all(target_arch = "aarch64", not(test)))]
+        #[cfg(not(test))]
         // SAFETY: init_early_page_tables is a naked function, doesn't use atomics, and maps the
         // ranges specified by the platform.
         unsafe impl $crate::pagetable::early_pagetable::PlatformEarlyPagetable for $platform {
@@ -301,6 +301,7 @@ macro_rules! define_early_mapping {
                 use core::mem::offset_of;
                 use $crate::pagetable::{GRANULE_SIZE, early_pagetable::DescriptorRange};
 
+                #[cfg(target_arch = "aarch64")]
                 $crate::naked_asm!(
                     "/* x0 = RANGES start */
                     ldr	x0, ={ranges}

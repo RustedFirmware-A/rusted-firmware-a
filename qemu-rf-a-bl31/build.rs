@@ -2,13 +2,22 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use rf_a_bl31_build::Builder;
+//! Build script for RF-A on QEMU.
 
+use rf_a_bl31_build::{Builder, configure_build};
+use std::env;
+
+fn main() {
+    let platform = env::var("CARGO_CFG_PLATFORM").expect("Missing platform name");
+    assert_eq!(platform, "qemu");
+
+    configure_build(&QemuBuilder);
+}
+
+/// Platform builder implementation for QEMU.
 pub struct QemuBuilder;
 
 impl QemuBuilder {
-    pub const PLAT_NAME: &str = "qemu";
-
     const BL31_BASE: u64 = 0x0e09_0000;
     const BL31_SIZE: u64 = Self::BL31_DRAM_BASE - Self::BL31_BASE;
 

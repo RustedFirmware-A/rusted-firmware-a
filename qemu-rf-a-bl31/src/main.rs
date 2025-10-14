@@ -2,4 +2,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-pub const PLATFORMS: [&str; 2] = ["fvp", "qemu"];
+//! RF-A BL31 deployment for QEMU.
+
+#![no_main]
+#![no_std]
+
+use rf_a_bl31 as _;

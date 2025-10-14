@@ -53,7 +53,7 @@ const MAIR_NON_CACHEABLE_INDEX: u8 = 2;
 
 // Values for MAIR entries.
 const MAIR_DEVICE: MairAttribute = MairAttribute::DEVICE_NGNRE;
-pub const MAIR_IWBRWA_OWBRWA_NTR: MairAttribute = MairAttribute::normal(
+pub(crate) const MAIR_IWBRWA_OWBRWA_NTR: MairAttribute = MairAttribute::normal(
     NormalMemory::WriteBackNonTransientReadWriteAllocate,
     NormalMemory::WriteBackNonTransientReadWriteAllocate,
 );
@@ -201,7 +201,7 @@ pub fn flush_dcache<T>(value: &T) {
     let ptr = value as *const T;
     trace!("Flushing {} bytes at {ptr:?} from dcache", size_of::<T>());
     // SAFETY: The pointer must be valid because it came from a reference.
-    #[cfg(all(target_arch = "aarch64", not(test)))]
+    #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
     unsafe {
         asm::flush_dcache_range(ptr as usize, size_of::<T>());
     }
@@ -253,32 +253,26 @@ pub fn flush_dcache_to_popa_range(
     gpi: GPIAccessType,
 ) -> Result<(), Error> {
     trace!("Flushing {len:?} bytes at {addr:?} from dcache");
-    #[cfg(all(target_arch = "aarch64", not(test)))]
-    {
-        // Both `flush_dcache_to_popa_range` and `flush_dcache_to_popa_range_mte2` expect an
-        // address, that has at most 56 bits used for the physical address.
-        // Addresses with any value in the top byte are invalid.
-        let mask = 0xFF00_0000_0000_0000;
-        if addr & mask != 0 {
-            return Err(Error::AddressOutOfRange);
+    // Both `flush_dcache_to_popa_range` and `flush_dcache_to_popa_range_mte2` expect an
+    // address, that has at most 56 bits used for the physical address.
+    // Addresses with any value in the top byte are invalid.
+    let mask = 0xFF00_0000_0000_0000;
+    if addr & mask != 0 {
+        return Err(Error::AddressOutOfRange);
+    }
+    let bits = PhysicalAddressSpace::try_from(gpi)?;
+    let addr_masked = addr as u64 | u64::from(bits);
+    if mte2_is_present() {
+        // SAFETY: We just checked that `addr` is not out of range, and added the NS and NSE bits.
+        #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+        unsafe {
+            asm::flush_dcache_to_popa_range_mte2(addr_masked as usize, len);
         }
-        let bits = PhysicalAddressSpace::try_from(gpi)?;
-        let addr_masked = addr as u64 | u64::from(bits);
-
-        if mte2_is_present() {
-            // SAFETY:
-            // Flushing the dcache does not violate Rust safety guarantees.
-            // `addr` is not out of range, and contains the correct values for the NS and NSE bits.
-            unsafe {
-                asm::flush_dcache_to_popa_range_mte2(addr_masked as usize, len);
-            }
-        } else {
-            // SAFETY:
-            // Flushing the dcache does not violate Rust safety guarantees.
-            // `addr` is not out of range, and contains the correct values for the NS and NSE bits.
-            unsafe {
-                asm::flush_dcache_to_popa_range(addr_masked as usize, len);
-            }
+    } else {
+        // SAFETY: We just checked that `addr` is not out of range, and added the NS and NSE bits.
+        #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+        unsafe {
+            asm::flush_dcache_to_popa_range(addr_masked as usize, len);
         }
     }
     Ok(())
@@ -399,7 +393,7 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> Default for PageHeap<PAGE_HEAP_PAGE_COUN
 ///
 /// Sets `MAIR_EL3`, `TCR_EL3` and `TTBR0_EL3` then sets
 /// `SCTLR_EL3 = (SCTLR_EL3 | sctlr_set) & !sctlr_clear`.
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 #[unsafe(naked)]
 pub extern "C" fn enable_mmu<PlatformImpl: Platform>(
     ttbr: usize,
@@ -626,7 +620,7 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> IdMap<PAGE_HEAP_PAGE_COUNT> {
     }
 }
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 mod asm {
     use crate::debug::DEBUG;
     use core::arch::global_asm;

@@ -122,8 +122,8 @@ STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" $(CA
 all: images
 
 build:
-	$(TARGET_CARGO) build $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
-	ln -fsr $(OUT)/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
+	$(TARGET_CARGO) build --package $(PLAT)-rf-a-bl31 $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
+	ln -fsr $(OUT)/$(TARGET)/$(BUILDTYPE)/$(PLAT)-rf-a-bl31 $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
 	$(OBJDUMP) -d $(BL31_ELF) > $(BL31_DUMP)
 
@@ -142,13 +142,15 @@ $(STF_RMM): build-stf
 
 clippy-test:
 	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --features "$(FEATURES)"
+	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --package rf-a-bl31-build
 
 cargo-doc:
 	RUSTDOCFLAGS="-D warnings --cfg platform=\"${PLAT}\"" $(TARGET_CARGO) doc --target $(TARGET) --no-deps  \
 	--features "$(FEATURES)"
 
 clippy:
-	$(TARGET_CARGO) clippy $(CARGO_FLAGS)  --features "$(FEATURES)"
+	$(TARGET_CARGO) clippy $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
+	$(TARGET_CARGO) clippy --package $(PLAT)-rf-a-bl31 $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
 	$(STF_CARGO) clippy \
 		--package rf-a-secure-test-framework \
 		$(CARGO_FLAGS) \
@@ -173,7 +175,7 @@ else ifeq (${PLAT}, fvp)
 endif
 
 list_test_features:
-	@echo "'' 'sel2' 'rme' 'sel2,rme'"
+	@echo "'fakes' 'fakes,sel2' 'fakes,rme' 'fakes,sel2,rme'"
 
 help:
 	@echo "usage: ${MAKE} PLAT=<platform> [VAR=<value> [...]] <target> [...]"

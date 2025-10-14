@@ -4,20 +4,20 @@
 
 //! Debug output.
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use include_first::include_first;
 
 /// True if the build is configured with debug assertions on.
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 pub const DEBUG: bool = cfg!(debug_assertions);
 
 /// Whether to enable assertions in assembly code.
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 pub const ENABLE_ASSERTIONS: bool = DEBUG;
 
 /// Whether to enable crash reporting in assembly code.
 // TODO: Should this be configurable separately from `DEBUG`?
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "fakes")))]
 pub const CRASH_REPORTING: bool = DEBUG;
 
 /// The number of registers which can be saved in the crash buffer.
@@ -34,7 +34,7 @@ impl CrashBuffer {
 }
 
 /// Generates a `global_asm!` block for debug-related assembly code.
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 #[macro_export]
 #[include_first]
 macro_rules! debug_asm {
@@ -71,5 +71,5 @@ macro_rules! debug_asm {
     };
 }
 #[allow(clippy::single_component_path_imports)]
-#[cfg(all(target_arch = "aarch64", not(test)))]
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 pub use debug_asm;

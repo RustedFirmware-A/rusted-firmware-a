@@ -279,6 +279,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.9.0 -> 2.9.1"
 
+[[audits.bitflags]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.9.1 -> 2.9.4"
+notes = "No new unsafe code, just changes to documentation and refactoring of macros."
+
 [[audits.buddy_system_allocator]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
@@ -312,6 +318,12 @@ notes = "No access to local resources."
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.4.26 -> 0.4.27"
+
+[[audits.log]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.4.27 -> 0.4.28"
+notes = "Minor changes and tests, no new unsafe code."
 
 [[audits.num_enum]]
 who = "Chris Palmer <palmer@google.com>"
@@ -492,6 +504,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.14 -> 2.0.16"
 notes = "Bump self and dependency versions. Added option to build.rs for suppressing lint warning when building dependencies."
 
+[[audits.thiserror]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.16 -> 2.0.17"
+notes = "Build script change should be safe."
+
 [[audits.thiserror-impl]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -513,6 +531,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.14 -> 2.0.16"
 notes = "Dependency version bump only."
+
+[[audits.thiserror-impl]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.16 -> 2.0.17"
+notes = "Minor refactoring only."
 
 [[audits.uuid]]
 who = "Chris Palmer <palmer@google.com>"

@@ -32,6 +32,7 @@ select_platform!(test, test::TestPlatform);
 
 use crate::{
     context::EntryPointInfo,
+    cpu_extensions::CpuExtension,
     gicv3::{self, Gic},
     logger::LogSink,
     pagetable::IdMap,
@@ -88,6 +89,9 @@ pub unsafe trait Platform {
 
     /// The GIC configuration.
     const GIC_CONFIG: gicv3::GicConfig;
+
+    /// The CPU extensions enabled by this platform.
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension];
 
     /// The number of pages to reserve for the page heap.
     const PAGE_HEAP_PAGE_COUNT: usize = 5;

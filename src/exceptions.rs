@@ -194,7 +194,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
     }
 
     let context = world_context(world);
-    let per_world_context = &PER_WORLD_CONTEXT[world];
+    let per_world_context = &PER_WORLD_CONTEXT.get().unwrap()[world];
     let mut out_values = [0; 18];
     let return_reason: u64;
     let esr: u64;

@@ -15,6 +15,7 @@ use crate::{
     logger::{self, LockedWriter},
     naked_asm,
     pagetable::{IdMap, MT_DEVICE, map_region},
+    platform::CpuExtension,
     services::{
         arch::WorkaroundSupport,
         psci::{
@@ -175,6 +176,8 @@ unsafe impl Platform for Fvp {
             secure_sgi_configuration(15),
         ],
     };
+
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[];
 
     fn init_before_mmu() {
         let peripherals = Peripherals::take().unwrap();

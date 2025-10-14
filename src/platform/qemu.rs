@@ -12,6 +12,7 @@ use crate::{
     dram::zeroed_mut,
     gicv3::{Gic, GicConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
+    platform::CpuExtension,
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
     naked_asm,
     semihosting::{AdpStopped, semihosting_exit},
@@ -132,6 +133,8 @@ unsafe impl Platform for Qemu {
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],
     };
+
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[];
 
     fn init_before_mmu() {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else

@@ -6,8 +6,8 @@ use super::{DummyService, Platform};
 use crate::{
     aarch64::sev,
     context::EntryPointInfo,
-    cpu::Cpu,
-    cpu::define_cpu_ops,
+    cpu::{Cpu, define_cpu_ops},
+    cpu_extensions::CpuExtension,
     gicv3::{Gic, GicConfig},
     logger::{self, LogSink},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
@@ -60,6 +60,8 @@ unsafe impl Platform for TestPlatform {
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],
     };
+
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[];
 
     fn init_before_mmu() {
         logger::init(StdOutSink).expect("Failed to initialise logger");

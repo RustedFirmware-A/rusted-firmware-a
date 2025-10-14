@@ -10,6 +10,7 @@
 mod aarch64;
 mod context;
 mod cpu;
+mod cpu_extensions;
 #[cfg(not(test))]
 mod crash_console;
 mod debug;
@@ -30,7 +31,10 @@ mod stacks;
 mod sysregs;
 
 use crate::{
-    context::{CoresImpl, initialise_contexts, update_contexts_suspend},
+    context::{
+        CoresImpl, initialise_contexts, initialise_per_world_contexts, update_contexts_suspend,
+    },
+    cpu_extensions::initialise_el3_sysregs,
     platform::{Platform, PlatformImpl},
     services::{Services, psci::WakeUpReason},
 };
@@ -55,6 +59,9 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
     let secure_entry_point = PlatformImpl::secure_entry_point();
     #[cfg(feature = "rme")]
     let realm_entry_point = PlatformImpl::realm_entry_point();
+
+    initialise_el3_sysregs();
+    initialise_per_world_contexts();
     initialise_contexts(
         &non_secure_entry_point,
         &secure_entry_point,

@@ -43,12 +43,13 @@ use percore::Cores;
 
 #[unsafe(no_mangle)]
 extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
-    PlatformImpl::init_before_mmu();
+    pagetable::init_runtime_mapping();
+
+    PlatformImpl::init();
+
     info!("Rust BL31 starting");
     info!("Parameters: {bl31_params:#0x} {platform_params:#0x}");
 
-    // Set up page table.
-    pagetable::init();
     info!("Page table activated.");
 
     // Set up GIC.
@@ -74,7 +75,6 @@ extern "C" fn bl31_main(bl31_params: u64, platform_params: u64) -> ! {
 
 #[unsafe(no_mangle)]
 extern "C" fn psci_warmboot_entrypoint() -> ! {
-    pagetable::enable();
     debug!("Warmboot on core #{}", CoresImpl::core_index());
 
     let services = Services::get();
@@ -127,6 +127,7 @@ mod asm {
     use crate::debug::{DEBUG, ENABLE_ASSERTIONS};
     use arm_sysregs::SctlrEl3;
     use core::arch::global_asm;
+    use pagetable::PAGE_TABLE_ADDR;
 
     const MDCR_MTPME_BIT: u64 = 1 << 28;
     const MDCR_TPM_BIT: u64 = 1 << 6;
@@ -167,6 +168,8 @@ mod asm {
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         DEBUG = const DEBUG as i32,
         SCTLR_M_BIT = const SctlrEl3::M.bits(),
+        SCTLR_C_BIT = const SctlrEl3::C.bits(),
+        SCTLR_WXN_BIT = const SctlrEl3::WXN.bits(),
         SCTLR_A_BIT = const SctlrEl3::A.bits(),
         SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
         SCTLR_I_BIT = const SctlrEl3::I.bits(),
@@ -198,6 +201,7 @@ mod asm {
         TTA_BIT = const TTA_BIT,
         TFP_BIT = const TFP_BIT,
         plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
+        PAGE_TABLE_ADDR = sym PAGE_TABLE_ADDR,
     );
 
     /// This macro wraps a naked_asm block with `bti`, or any other universal

@@ -237,6 +237,20 @@ func bl31_entrypoint
 	 */
 	bl	plat_set_my_stack
 
+        /* Clear and build early page tables. */
+        ldr     x0, =early_page_table_start
+        ldr     x1, =early_page_table_end
+        sub     x1, x1, x0
+        bl      zeromem
+
+        bl init_early_page_tables
+
+        /* Enable MMU using early page tables. This maps BL31 as RWX, thus WXN is cleared. */
+        ldr x0, =early_page_table_start
+        mov_imm x1, ({SCTLR_M_BIT} | {SCTLR_C_BIT})
+        mov x2, {SCTLR_WXN_BIT}
+        bl enable_mmu
+
         mov     x0, x20
         mov     x1, x21
         mov     x2, x22
@@ -400,6 +414,13 @@ func bl31_warm_entrypoint
 	 * ---------------------------------------------------------------------
 	 */
 	bl	plat_set_my_stack
+
+        /* Enable page tables using the runtime page tables created by the primary core. */
+        ldr x0, ={PAGE_TABLE_ADDR}
+        ldr x0, [x0]
+        mov_imm x1, ({SCTLR_M_BIT} | {SCTLR_C_BIT} | {SCTLR_WXN_BIT})
+        mov x2, xzr
+        bl enable_mmu
 
         // TODO: gpt_enable for RME to set up sysregs?
 

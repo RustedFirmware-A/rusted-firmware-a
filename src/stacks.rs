@@ -4,7 +4,7 @@
 
 use crate::{
     debug::DEBUG,
-    platform::{Platform, PlatformImpl},
+    platform::{EARLY_PAGE_TABLE_SIZE, Platform, PlatformImpl},
 };
 use core::arch::global_asm;
 
@@ -55,11 +55,25 @@ global_asm!(
     ".section    .tzfw_normal_stacks, \"aw\", %nobits",
     ".align TZ_COUNT",
     "platform_normal_stacks:",
-    ".space (({PLATFORM_CORE_COUNT}) * ({STACK_SIZE})), 0",
+    // Primary core stack
+    ".space (({STACK_SIZE})), 0",
+    // Reusing secondary core stacks as the early page tables. Early page tables are only used
+    // during the primary core early boot, so the secondary cores are still turned off, and it is
+    // safe to use their stack for other purpuses.
+    ".global early_page_table_start",
+    "early_page_table_start:",
+    ".space (({PLATFORM_CORE_COUNT} - 1) * ({STACK_SIZE})), 0",
+    ".global early_page_table_end",
+    "early_page_table_end:",
     include_str!("asm_macros_common_purge.S"),
 
     DEBUG = const DEBUG as i32,
     STACK_SIZE = const STACK_SIZE,
     PLATFORM_CORE_COUNT = const PlatformImpl::CORE_COUNT,
     CACHE_WRITEBACK_GRANULE = const PlatformImpl::CACHE_WRITEBACK_GRANULE,
+);
+
+const _: () = assert!(
+    EARLY_PAGE_TABLE_SIZE <= (PlatformImpl::CORE_COUNT - 1) * STACK_SIZE,
+    "The early page tables do not fit into the secondary core stack range."
 );

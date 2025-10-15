@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+pub mod early_pagetable;
+
 use crate::{
-    aarch64::{dsb_ish, dsb_sy, isb, tlbi_alle3},
+    aarch64::{dsb_sy, isb, tlbi_alle3},
     layout::{
         bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end, bl31_end, bl31_start, bss2_end,
         bss2_start,
@@ -18,9 +20,7 @@ use aarch64_paging::{
         TranslationRegime, VaRange, VirtualAddress,
     },
 };
-use arm_sysregs::{
-    SctlrEl3, read_sctlr_el3, write_mair_el3, write_sctlr_el3, write_tcr_el3, write_ttbr0_el3,
-};
+use arm_sysregs::{SctlrEl3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
 use core::{
     fmt::{self, Debug, Formatter},
     mem::take,
@@ -55,6 +55,13 @@ const MAIR: Mair = Mair::EMPTY
     .with_attribute(MAIR_DEVICE_INDEX, MAIR_DEVICE)
     .with_attribute(MAIR_IWTRWA_OWTRWA_NTR_INDEX, MAIR_IWTRWA_OWTRWA_NTR)
     .with_attribute(MAIR_NON_CACHEABLE_INDEX, MAIR_NON_CACHEABLE);
+
+const TCR: u64 = (0b101 << 16) // 48 bit physical address size (256 TiB).
+        | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
+
+const TOP_LEVEL_BLOCK_SIZE: usize = 0x4000_0000; // 1GB block size at level 0
+const TOP_LEVEL_DESCRIPTOR_COUNT: usize = 512; // 512 descriptors in the level 0 table.
+const GRANULE_SIZE: usize = 4096; // Using 4k pages.
 
 // Attribute values corresponding to the above MAIR indices.
 const IWTRWA_OWTRWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;
@@ -132,10 +139,22 @@ static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
     SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
 static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
 
-/// Initialises and enables the page table.
+/// The runtime page table address is shared via this variable. After the primary core finished
+/// initializing the page tables it sets this value to point to the address of the top level table.
+/// The variable is written when primary core uses the early page tables, so flushing the variable
+/// from the cache to the system memory is required. This is the only time when the variable is
+/// modified.
+/// The secondary core early boot sequence reads the variable with device attributes and then uses
+/// it set its TTBR.
+pub static mut PAGE_TABLE_ADDR: usize = 0;
+
+/// Initialises and enables the runtime page tables.
 ///
-/// This should be called once early in startup, before anything else that depends on it.
-pub fn init() {
+/// At this point the early page tables are active with the required MAIR and TCR values, so the
+/// function only switches the TTBR value and updates SCTLR to add WXN.
+///
+/// This should be called once in the startup sequence of the primary core.
+pub fn init_runtime_mapping() {
     PAGE_TABLE.call_once(|| {
         let page_heap =
             SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
@@ -143,12 +162,49 @@ pub fn init() {
 
         trace!("Page table: {idmap:?}");
 
-        info!("Setting MMU config");
-        // SAFETY: We pass the root address of `idmap`, which has just been initialised with
-        // appropriate mappings, and will remain valid forever.
+        // Safety: `PAGE_TABLE_ADDR` is only written once here and then its value is flushed from
+        // the cache to make it visible to other core's early boot sequence.
         unsafe {
-            setup_mmu_cfg(idmap.root_address());
+            // Expose page table address so other cores can access it in their boot sequence.
+            PAGE_TABLE_ADDR = idmap.root_address().0;
+
+            #[cfg(all(target_arch = "aarch64", not(test)))]
+            asm::flush_dcache_range(&raw mut PAGE_TABLE_ADDR as usize, size_of::<usize>());
         }
+
+        info!("Setting MMU config");
+
+        let mut sctlr = read_sctlr_el3();
+        assert!(sctlr.contains(SctlrEl3::C | SctlrEl3::M));
+
+        // Ensure all translation table writes have drained into memory.
+        dsb_sy();
+        isb();
+
+        // Safety: The MMU is already enabled with the correct configuration parameters MAIR, TCR.
+        // `idmap` provides a valid address to the runtime page tables.
+        unsafe {
+            write_ttbr0_el3(idmap.root_address().0);
+        }
+
+        // Make sure that any entry from the early page table is invalidated. If WXN is not cached,
+        // setting WXN removes execution right of the current PC that would result in an exception.
+        tlbi_alle3();
+        isb();
+
+        sctlr |= SctlrEl3::WXN;
+
+        // Safety: `sctlr` is a valid and safe value for the EL3 system control register. At this
+        // point we only set `WXN` to prevent having RWX regions.
+        unsafe {
+            write_sctlr_el3(sctlr);
+        }
+        isb();
+
+        // Invalidate entries to prevent having entries cached without WXN.
+        tlbi_alle3();
+        isb();
+
         info!("Marking page table as active");
         idmap.mark_active();
 
@@ -156,13 +212,40 @@ pub fn init() {
     });
 }
 
-/// Enables the MMU for a newly booted core, assuming the page table is already initialised.
-pub fn enable() {
-    // SAFETY: We pass the root address of the IdMap from `PAGE_TABLE`, which has previously been
-    // initialised with appropriate mappings, and will remain valid forever.
-    unsafe {
-        setup_mmu_cfg(PAGE_TABLE.get().unwrap().lock().root_address());
-    }
+/// Enables the MMU for a newly booted core.
+///
+/// Sets `MAIR_EL3`, `TCR_EL3` and `TTBR0_EL3` then sets
+/// `SCTLR_EL3 = (SCTLR_EL3 | sctlr_set) & !sctlr_clear`.
+#[cfg(target_arch = "aarch64")]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
+    core::arch::naked_asm!(
+        "tlbi	alle3
+
+        ldr	x3, ={mair}
+        msr	mair_el3, x3
+
+        ldr	x3, ={tcr}
+        msr	tcr_el3, x3
+
+        msr	ttbr0_el3, x0
+
+        dsb	sy
+        isb
+
+        mrs	x3, sctlr_el3
+
+        orr	x3, x3, x1
+        bic	x3, x3, x2
+
+        msr	sctlr_el3, x3
+
+        isb
+        ret",
+        mair = const MAIR.0,
+        tcr = const TCR,
+    )
 }
 
 /// Creates the page table and maps initial regions needed for boot, including any platform-specific
@@ -215,44 +298,6 @@ pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attribut
     idmap
         .map_range(region, attributes)
         .expect("Error mapping memory range");
-}
-
-/// # Safety
-///
-/// `root_address` must be the physical address of a valid page table which maps all the memory that
-/// EL3 uses.
-unsafe fn setup_mmu_cfg(root_address: PhysicalAddress) {
-    let tcr = (0b101 << 16) // 48 bit physical address size (256 TiB).
-        | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
-    let ttbr0 = root_address.0;
-
-    let mut sctlr = read_sctlr_el3();
-    // Assert that the MMU is not yet enabled:
-    assert!(!sctlr.contains(SctlrEl3::M));
-
-    tlbi_alle3();
-    // SAFETY: We enable the MMU with valid and correct configuration parameters MAIR, TCR, and
-    // TTBR0 (which is a valid address).
-    unsafe {
-        write_mair_el3(MAIR.0);
-        write_tcr_el3(tcr);
-        write_ttbr0_el3(ttbr0);
-    }
-
-    // Ensure all translation table writes have drained into memory, the TLB invalidation is
-    // complete, and translation register writes are committed before enabling the MMU.
-    dsb_ish();
-    isb();
-
-    sctlr |= SctlrEl3::M | SctlrEl3::C | SctlrEl3::WXN;
-    // SAFETY: `sctlr` is a valid and safe value for the EL3 system control register. At this point,
-    // the MMU is turned off (as `assert!`ed above), the translation table base register has been
-    // set to a valid address, and we are about to turn the MMU on with a safe configuration
-    // (`SctlrEl3::C | SctlrEl3::WXN`).
-    unsafe {
-        write_sctlr_el3(sctlr);
-    }
-    isb();
 }
 
 /// # Safety
@@ -361,6 +406,10 @@ mod asm {
         include_str!("asm_macros_common_purge.S"),
         DEBUG = const DEBUG as i32,
     );
+
+    unsafe extern "C" {
+        pub fn flush_dcache_range(addr: usize, size: usize);
+    }
 }
 
 #[cfg(test)]

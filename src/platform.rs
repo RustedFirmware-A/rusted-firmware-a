@@ -8,21 +8,27 @@ macro_rules! select_platform {
         mod $mod;
 
         #[cfg(platform = $condition)]
-        pub use $mod::$sub::{CPU_OPS, $plat_impl as PlatformImpl};
+        pub use $mod::$sub::{
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, $plat_impl as PlatformImpl,
+        };
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
         #[cfg(platform = $condition)]
         mod $mod;
 
         #[cfg(platform = $condition)]
-        pub use $mod::{CPU_OPS, $plat_impl as PlatformImpl};
+        pub use $mod::{
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, $plat_impl as PlatformImpl,
+        };
     };
     (test, $mod:ident::$plat_impl:ident) => {
         #[cfg(test)]
         mod $mod;
 
         #[cfg(test)]
-        pub use $mod::{CPU_OPS, $plat_impl as PlatformImpl};
+        pub use $mod::{
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, $plat_impl as PlatformImpl,
+        };
     };
 }
 
@@ -73,7 +79,8 @@ pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
 ///
 /// The implementation of `core_position` must be a naked function which doesn't use the stack, and
 /// only clobbers registers x0-x5. For any valid MPIDR value it must always return an index less than
-/// `CORE_COUNT`, and must return a different index for different MPIDR values.
+/// `CORE_COUNT`, and must return a different index for different MPIDR values. The index must be 0
+/// for the primary core that boots first on cold boot.
 ///
 /// The implementations of `cold_boot_handler`, `crash_console_init`, `crash_console_putc` and
 /// `crash_console_flush` must be naked functions which doesn't use the stack, and only clobber the
@@ -112,7 +119,7 @@ pub unsafe trait Platform {
     /// MMU is enabled.
     ///
     /// Any logs sent before this is called will be ignored.
-    fn init_before_mmu();
+    fn init();
 
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.

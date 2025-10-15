@@ -12,9 +12,11 @@ use crate::{
     dram::zeroed_mut,
     gicv3::{Gic, GicConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
-    platform::CpuExtension,
-    pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, map_region},
     naked_asm,
+    pagetable::{
+        IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping, map_region,
+    },
+    platform::CpuExtension,
     semihosting::{AdpStopped, semihosting_exit},
     services::{
         arch::WorkaroundSupport,
@@ -34,11 +36,7 @@ use arm_gic::{
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 use arm_sysregs::{IccSre, MpidrEl1, Spsr};
-use core::{
-    arch::global_asm,
-    mem::offset_of,
-    ptr::NonNull,
-};
+use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
 use percore::Cores;
 use spin::mutex::SpinMutexGuard;
 
@@ -116,6 +114,8 @@ fn log_buffers() -> [&'static mut [u8]; Qemu::CORE_COUNT] {
         .map(|buffer| &mut buffer[..])
 }
 
+define_early_mapping!([]);
+
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0 and x1, and returns a unique index as long as `PLATFORM_CPU_PER_CLUSTER_SHIFT`
 // is correct.
@@ -136,7 +136,7 @@ unsafe impl Platform for Qemu {
 
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[];
 
-    fn init_before_mmu() {
+    fn init() {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
         // accesses that address range. The address remains valid after turning on the MMU
         // because of the identity mapping of the `DEVICE1` region.

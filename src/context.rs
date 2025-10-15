@@ -491,7 +491,6 @@ pub type CrashBuf = [u64; CPU_DATA_CRASH_BUF_COUNT];
 #[derive(Clone, Debug)]
 #[repr(C, align(64))]
 pub struct CpuData {
-    cpu_context: [*mut u8; CPU_DATA_CONTEXT_NUM],
     cpu_ops_ptr: *const CpuOps,
     pub crash_buf: CrashBuf,
 }
@@ -501,7 +500,6 @@ const _: () = assert!(size_of::<CpuData>() % PlatformImpl::CACHE_WRITEBACK_GRANU
 
 impl CpuData {
     const EMPTY: Self = Self {
-        cpu_context: [null_mut(); CPU_DATA_CONTEXT_NUM],
         cpu_ops_ptr: null(),
         crash_buf: [0; CPU_DATA_CRASH_BUF_COUNT],
     };

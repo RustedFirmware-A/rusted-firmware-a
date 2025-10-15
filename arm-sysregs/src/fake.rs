@@ -11,7 +11,7 @@ use std::sync::Mutex;
 /// type `$type`.
 #[macro_export]
 macro_rules! read_sysreg {
-    ($sysreg:ident, $type:ty, safe, $fake_sysregs:expr) => {
+    ($sysreg:ident $(: $asm_sysreg:ident)?, $type:ty, safe, $fake_sysregs:expr) => {
         $crate::_paste::paste! {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
@@ -21,7 +21,7 @@ macro_rules! read_sysreg {
             }
         }
     };
-    ($(#[$attributes:meta])* $sysreg:ident, $type:ty, $fake_sysregs:expr) => {
+    ($(#[$attributes:meta])* $sysreg:ident $(: $asm_sysreg:ident)?, $type:ty, $fake_sysregs:expr) => {
         $crate::_paste::paste! {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
@@ -32,7 +32,7 @@ macro_rules! read_sysreg {
             }
         }
     };
-    ($sysreg:ident, $type:ty : $bitflags_type:ty, safe, $fake_sysregs:expr) => {
+    ($sysreg:ident $(: $asm_sysreg:ident)?, $type:ty : $bitflags_type:ty, safe, $fake_sysregs:expr) => {
         $crate::_paste::paste! {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
@@ -42,7 +42,7 @@ macro_rules! read_sysreg {
             }
         }
     };
-    ($(#[$attributes:meta])* $sysreg:ident, $type:ty : $bitflags_type:ty, $fake_sysregs:expr) => {
+    ($(#[$attributes:meta])* $sysreg:ident $(: $asm_sysreg:ident)?, $type:ty : $bitflags_type:ty, $fake_sysregs:expr) => {
         $crate::_paste::paste! {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
@@ -59,7 +59,7 @@ macro_rules! read_sysreg {
 /// of type `$type`.
 #[macro_export]
 macro_rules! write_sysreg {
-    ($sysreg:ident, $type:ty, safe, $fake_sysregs:expr) => {
+    ($sysreg:ident $(: $asm_sysreg:ident)?, $type:ty, safe, $fake_sysregs:expr) => {
         $crate::_paste::paste! {
             #[doc = "Writes `value` to the `"]
             #[doc = stringify!($sysreg)]
@@ -71,7 +71,7 @@ macro_rules! write_sysreg {
     };
     (
         $(#[$attributes:meta])*
-        $sysreg:ident, $type:ty, $fake_sysregs:expr
+        $sysreg:ident $(: $asm_sysreg:ident)?, $type:ty, $fake_sysregs:expr
     ) => {
         $crate::_paste::paste! {
             #[doc = "Writes `value` to the `"]
@@ -83,7 +83,7 @@ macro_rules! write_sysreg {
             }
         }
     };
-    ($sysreg:ident, $type:ty : $bitflags_type:ty, safe, $fake_sysregs:expr) => {
+    ($sysreg:ident $(: $asm_sysreg:ident)?, $type:ty : $bitflags_type:ty, safe, $fake_sysregs:expr) => {
         $crate::_paste::paste! {
             #[doc = "Writes `value` to the `"]
             #[doc = stringify!($sysreg)]
@@ -95,7 +95,7 @@ macro_rules! write_sysreg {
     };
     (
         $(#[$attributes:meta])*
-        $sysreg:ident, $type:ty : $bitflags_type:ty, $fake_sysregs:expr
+        $sysreg:ident $(: $asm_sysreg:ident)?, $type:ty : $bitflags_type:ty, $fake_sysregs:expr
     ) => {
         $crate::_paste::paste! {
             #[doc = "Writes `value` to the `"]

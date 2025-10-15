@@ -9,7 +9,7 @@
 #[cfg(not(any(test, feature = "fakes")))]
 #[macro_export]
 macro_rules! read_sysreg {
-    ($sysreg:ident, $type:ty, safe $(, $fake_sysregs:expr)?) => {
+    ($sysreg:ident : $asm_sysreg:ident, $type:ty, safe $(, $fake_sysregs:expr)?) => {
         $crate::_paste::paste! {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
@@ -20,7 +20,7 @@ macro_rules! read_sysreg {
                 // always safe to read the given `$sysreg.`
                 unsafe {
                     core::arch::asm!(
-                        concat!("mrs {value}, ", stringify!($sysreg)),
+                        concat!("mrs {value}, ", stringify!($asm_sysreg)),
                         options(nostack),
                         value = out(reg) value,
                     );
@@ -29,7 +29,7 @@ macro_rules! read_sysreg {
             }
         }
     };
-    ($(#[$attributes:meta])* $sysreg:ident, $type:ty $(, $fake_sysregs:expr)?) => {
+    ($(#[$attributes:meta])* $sysreg:ident : $asm_sysreg:ident, $type:ty $(, $fake_sysregs:expr)?) => {
         $crate::_paste::paste! {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
@@ -40,7 +40,7 @@ macro_rules! read_sysreg {
                 // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
                 unsafe {
                     core::arch::asm!(
-                        concat!("mrs {value}, ", stringify!($sysreg)),
+                        concat!("mrs {value}, ", stringify!($asm_sysreg)),
                         options(nostack),
                         value = out(reg) value,
                     );
@@ -49,7 +49,7 @@ macro_rules! read_sysreg {
             }
         }
     };
-    ($sysreg:ident, $type:ty : $bitflags_type:ty, safe $(, $fake_sysregs:expr)?) => {
+    ($sysreg:ident : $asm_sysreg:ident, $type:ty : $bitflags_type:ty, safe $(, $fake_sysregs:expr)?) => {
         $crate::_paste::paste! {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
@@ -60,7 +60,7 @@ macro_rules! read_sysreg {
                 // always safe to read the given `$sysreg.`
                 unsafe {
                     core::arch::asm!(
-                        concat!("mrs {value}, ", stringify!($sysreg)),
+                        concat!("mrs {value}, ", stringify!($asm_sysreg)),
                         options(nostack),
                         value = out(reg) value,
                     );
@@ -69,7 +69,7 @@ macro_rules! read_sysreg {
             }
         }
     };
-    ($(#[$attributes:meta])* $sysreg:ident, $type:ty : $bitflags_type:ty $(, $fake_sysregs:expr)?) => {
+    ($(#[$attributes:meta])* $sysreg:ident : $asm_sysreg:ident, $type:ty : $bitflags_type:ty $(, $fake_sysregs:expr)?) => {
         $crate::_paste::paste! {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
@@ -80,7 +80,7 @@ macro_rules! read_sysreg {
                 // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
                 unsafe {
                     core::arch::asm!(
-                        concat!("mrs {value}, ", stringify!($sysreg)),
+                        concat!("mrs {value}, ", stringify!($asm_sysreg)),
                         options(nostack),
                         value = out(reg) value,
                     );
@@ -88,6 +88,18 @@ macro_rules! read_sysreg {
                 <$bitflags_type>::from_bits_retain(value)
             }
         }
+    };
+    ($sysreg:ident, $type:ty, safe $(, $fake_sysregs:expr)?) => {
+        $crate::read_sysreg!($sysreg : $sysreg, $type, safe $(, $fake_sysregs)?);
+    };
+    ($(#[$attributes:meta])* $sysreg:ident, $type:ty $(, $fake_sysregs:expr)?) => {
+        $crate::read_sysreg!($(#[$attributes])* $sysreg : $sysreg, $type $(, $fake_sysregs)?);
+    };
+    ($sysreg:ident, $type:ty : $bitflags_type:ty, safe $(, $fake_sysregs:expr)?) => {
+        $crate::read_sysreg!($sysreg : $sysreg, $type : $bitflags_type, safe $(, $fake_sysregs)?);
+    };
+    ($(#[$attributes:meta])* $sysreg:ident, $type:ty : $bitflags_type:ty $(, $fake_sysregs:expr)?) => {
+        $crate::read_sysreg($(#[$attributes])* $sysreg : $sysreg, $type : $bitflags_type $(, $fake_sysregs)?);
     };
 }
 
@@ -99,7 +111,7 @@ macro_rules! read_sysreg {
 #[cfg(not(any(test, feature = "fakes")))]
 #[macro_export]
 macro_rules! write_sysreg {
-    ($sysreg:ident, $type:ty, safe $(, $fake_sysregs:expr)?) => {
+    ($sysreg:ident : $asm_sysreg:ident, $type:ty, safe $(, $fake_sysregs:expr)?) => {
         $crate::_paste::paste! {
             #[doc = "Writes `value` to the `"]
             #[doc = stringify!($sysreg)]
@@ -109,7 +121,7 @@ macro_rules! write_sysreg {
                 // to write any value to the given `$sysreg.`
                 unsafe {
                     core::arch::asm!(
-                        concat!("msr ", stringify!($sysreg), ", {value}"),
+                        concat!("msr ", stringify!($asm_sysreg), ", {value}"),
                         options(nostack),
                         value = in(reg) value,
                     );
@@ -119,7 +131,7 @@ macro_rules! write_sysreg {
     };
     (
         $(#[$attributes:meta])*
-        $sysreg:ident, $type:ty $(, $fake_sysregs:expr)?
+        $sysreg:ident : $asm_sysreg:ident, $type:ty $(, $fake_sysregs:expr)?
     ) => {
         $crate::_paste::paste! {
             #[doc = "Writes `value` to the `"]
@@ -130,7 +142,7 @@ macro_rules! write_sysreg {
                 // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.
                 unsafe {
                     core::arch::asm!(
-                        concat!("msr ", stringify!($sysreg), ", {value}"),
+                        concat!("msr ", stringify!($asm_sysreg), ", {value}"),
                         options(nostack),
                         value = in(reg) value,
                     );
@@ -138,7 +150,7 @@ macro_rules! write_sysreg {
             }
         }
     };
-    ($sysreg:ident, $type:ty : $bitflags_type:ty, safe $(, $fake_sysregs:expr)?) => {
+    ($sysreg:ident : $asm_sysreg:ident, $type:ty : $bitflags_type:ty, safe $(, $fake_sysregs:expr)?) => {
         $crate::_paste::paste! {
             #[doc = "Writes `value` to the `"]
             #[doc = stringify!($sysreg)]
@@ -149,7 +161,7 @@ macro_rules! write_sysreg {
                 // to write any value to the given `$sysreg.`
                 unsafe {
                     core::arch::asm!(
-                        concat!("msr ", stringify!($sysreg), ", {value}"),
+                        concat!("msr ", stringify!($asm_sysreg), ", {value}"),
                         options(nostack),
                         value = in(reg) value,
                     );
@@ -159,7 +171,7 @@ macro_rules! write_sysreg {
     };
     (
         $(#[$attributes:meta])*
-        $sysreg:ident, $type:ty : $bitflags_type:ty $(, $fake_sysregs:expr)?
+        $sysreg:ident : $asm_sysreg:ident, $type:ty : $bitflags_type:ty $(, $fake_sysregs:expr)?
     ) => {
         $crate::_paste::paste! {
             #[doc = "Writes `value` to the `"]
@@ -171,12 +183,30 @@ macro_rules! write_sysreg {
                 // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.
                 unsafe {
                     core::arch::asm!(
-                        concat!("msr ", stringify!($sysreg), ", {value}"),
+                        concat!("msr ", stringify!($asm_sysreg), ", {value}"),
                         options(nostack),
                         value = in(reg) value,
                     );
                 }
             }
         }
+    };
+    ($sysreg:ident, $type:ty, safe $(, $fake_sysregs:expr)?) => {
+        $crate::write_sysreg!($sysreg : $sysreg, $type, safe $(, $fake_sysregs)?);
+    };
+    (
+        $(#[$attributes:meta])*
+        $sysreg:ident, $type:ty $(, $fake_sysregs:expr)?
+    ) => {
+        $crate::write_sysreg!($(#[$attributes])* $sysreg : $sysreg, $type $(, $fake_sysregs)?);
+    };
+    ($sysreg:ident, $type:ty : $bitflags_type:ty, safe $(, $fake_sysregs:expr)?) => {
+        $crate::write_sysreg!($sysreg : $sysreg, $type : $bitflags_type, safe $(, $fake_sysregs)?);
+    };
+    (
+        $(#[$attributes:meta])*
+        $sysreg:ident, $type:ty : $bitflags_type:ty $(, $fake_sysregs:expr)?
+    ) => {
+        $crate::write_sysreg!($(#[$attributes])* $sysreg : $sysreg, $type : $bitflags_type $(, $fake_sysregs)?);
     };
 }

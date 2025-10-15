@@ -23,18 +23,18 @@ use bitflags::bitflags;
 /// to read from or write any value to.
 #[macro_export]
 macro_rules! read_write_sysreg {
-    ($sysreg:ident, $type:ty $(: $bitflags_type:ty)?, safe_read, safe_write $(, $fake_sysregs:expr)?) => {
-        $crate::read_sysreg!($sysreg, $type $(: $bitflags_type)?, safe $(, $fake_sysregs)?);
-        $crate::write_sysreg!($sysreg, $type $(: $bitflags_type)?, safe $(, $fake_sysregs)?);
+    ($sysreg:ident $(: $asm_sysreg:ident)?, $type:ty $(: $bitflags_type:ty)?, safe_read, safe_write $(, $fake_sysregs:expr)?) => {
+        $crate::read_sysreg!($sysreg $(: $asm_sysreg)?, $type $(: $bitflags_type)?, safe $(, $fake_sysregs)?);
+        $crate::write_sysreg!($sysreg $(: $asm_sysreg)?, $type $(: $bitflags_type)?, safe $(, $fake_sysregs)?);
     };
     (
         $(#[$attributes:meta])*
-        $sysreg:ident, $type:ty $(: $bitflags_type:ty)?, safe_read $(, $fake_sysregs:expr)?
+        $sysreg:ident $(: $asm_sysreg:ident)?, $type:ty $(: $bitflags_type:ty)?, safe_read $(, $fake_sysregs:expr)?
     ) => {
-        $crate::read_sysreg!($sysreg, $type $(: $bitflags_type)?, safe $(, $fake_sysregs)?);
+        $crate::read_sysreg!($sysreg $(: $asm_sysreg)?, $type $(: $bitflags_type)?, safe $(, $fake_sysregs)?);
         $crate::write_sysreg! {
             $(#[$attributes])*
-            $sysreg, $type $(: $bitflags_type)? $(, $fake_sysregs)?
+            $sysreg $(: $asm_sysreg)?, $type $(: $bitflags_type)? $(, $fake_sysregs)?
         }
     };
 }

@@ -123,25 +123,6 @@ endfunc restore_gp_pmcr_pauth_regs
 	end:
 	.endm
 
-/* -----------------------------------------------------------------
-* The below macro returns the address of the per_world context for
-* the security state, retrieved through "get_security_state" macro.
-* The per_world context address is returned in the register argument.
-* Clobbers: x9, x10
-* ------------------------------------------------------------------
-*/
-
-.macro get_per_world_context _reg:req
-	ldr 	x10, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_SCR_EL3}]
-	get_security_state x9, x10
-	mov_imm	x10, {CTX_PERWORLD_EL3STATE_SIZE}
-	mul	x9, x9, x10
-	adrp	x10, per_world_context
-	add	x10, x10, :lo12:per_world_context
-	add	x9, x9, x10
-	mov 	\_reg, x9
-.endm
-
 	.macro	restore_ptw_el1_sys_regs
 .if {ERRATA_SPECULATIVE_AT}
 	/* -----------------------------------------------------------
@@ -169,8 +150,9 @@ endfunc restore_gp_pmcr_pauth_regs
 
 
 /* ------------------------------------------------------------------
- * This routine assumes that x0 is pointing to a valid context structure
- * from where the gp regs and other special registers can be retrieved.
+ * This routine assumes that x0 is pointing to a valid CpuContext structure
+ * from where the gp regs and other special registers can be retrieved, and that
+ * x1 is pointing to a PerWorldContext structure.
  * Also, it sets SP_EL3 to the value from x0, which will be used when
  * handling the next exception to EL3.
  * ------------------------------------------------------------------
@@ -199,10 +181,8 @@ func el3_exit
 	 * ----------------------------------------------------------
 	 */
 
-	/* The address of the per_world context is stored in x8 */
-	get_per_world_context x8
-
-	ldp	x19, x20, [x8, #{CTX_CPTR_EL3}]
+	/* The address of the PerWorldContext is stored in x1 */
+	ldp	x19, x20, [x1, #{CTX_CPTR_EL3}]
 	msr	cptr_el3, x19
 
 	ands	x19, x19, #{CPTR_EZ_BIT}

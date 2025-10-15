@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::context::world_context;
+use crate::context::{PER_WORLD_CONTEXT, world_context};
 use crate::{
     context::{World, cpu_state},
     platform::exception_free,
@@ -194,6 +194,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
     }
 
     let context = world_context(world);
+    let per_world_context = &PER_WORLD_CONTEXT[world];
     let mut out_values = [0; 18];
     let return_reason: u64;
     let esr: u64;
@@ -209,7 +210,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
             "bl el3_exit",
             "ldp x19, x29, [sp], #16",
             inout("x0") context => out_values[0],
-            out("x1") out_values[1],
+            inout("x1") per_world_context => out_values[1],
             out("x2") out_values[2],
             out("x3") out_values[3],
             out("x4") out_values[4],
@@ -242,6 +243,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
     #[cfg(test)]
     {
         let _ = context;
+        let _ = per_world_context;
         out_values[0] = 42;
         return_reason = RunResult::SMC;
         esr = 0;

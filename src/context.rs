@@ -474,7 +474,7 @@ impl El2Sysregs {
 /// Registers whose values can be shared across CPUs.
 #[derive(Clone, Debug, Default)]
 #[repr(C)]
-struct PerWorldContext {
+pub struct PerWorldContext {
     cptr_el3: CptrEl3,
     zcr_el3: u64,
 }
@@ -527,8 +527,7 @@ struct CpuOps {
 
 const _: () = assert!(size_of::<CpuOps>() % align_of::<CpuOps>() == 0);
 
-#[unsafe(export_name = "per_world_context")]
-static PER_WORLD_CONTEXT: PerWorld<PerWorldContext> =
+pub static PER_WORLD_CONTEXT: PerWorld<PerWorldContext> =
     PerWorld([PerWorldContext::EMPTY; CPU_DATA_CONTEXT_NUM]);
 
 #[unsafe(export_name = "percpu_data")]
@@ -789,7 +788,6 @@ mod asm {
         CTX_PMCR_EL0 = const offset_of!(El3State, pmcr_el0),
         CTX_SCR_EL3 = const offset_of!(El3State, scr_el3),
         CTX_SPSR_EL3 = const offset_of!(El3State, spsr_el3),
-        CTX_PERWORLD_EL3STATE_SIZE = const size_of::<PerWorldContext>(),
         CTX_RUNTIME_SP_LR = const offset_of!(El3State, runtime_sp),
         CTX_CPTR_EL3 = const offset_of!(PerWorldContext, cptr_el3),
         CTX_SAVED_ELR_EL3 = const offset_of!(El3State, saved_elr_el3),

@@ -128,7 +128,7 @@ impl<'a> GicRedistributorRegistry<'a> {
 
     /// Get the redistributor of the local core.
     pub fn local_redistributor(&self) -> &SpinMutex<GicRedistributor<'a>> {
-        self.redistributor(CoresImpl::core_index())
+        self.redistributor(CoresImpl::<PlatformImpl>::core_index())
     }
 }
 

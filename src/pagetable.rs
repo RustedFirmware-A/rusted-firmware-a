@@ -297,7 +297,7 @@ pub fn init_runtime_mapping() {
     PAGE_TABLE.call_once(|| {
         let page_heap =
             SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
-        let mut idmap = init_page_table(page_heap);
+        let mut idmap = init_page_table::<PlatformImpl>(page_heap);
 
         trace!("Page table: {idmap:?}");
 
@@ -391,7 +391,9 @@ pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
 
 /// Creates the page table and maps initial regions needed for boot, including any platform-specific
 /// regions.
-fn init_page_table(pages: &'static mut [PageTable<El23Attributes>]) -> IdMap {
+fn init_page_table<PlatformImpl: Platform>(
+    pages: &'static mut [PageTable<El23Attributes>],
+) -> IdMap {
     let mut idmap = IdMap::new(pages);
 
     // If the BL32 entry point is in the middle of our memory range then something is misconfigured.
@@ -624,7 +626,7 @@ mod tests {
         let page_heap =
             SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
 
-        let mut idmap = init_page_table(page_heap);
+        let mut idmap = init_page_table::<TestPlatform>(page_heap);
         assert_ne!(idmap.root_address().0, 0);
         idmap.mark_active();
         // `aarch64-paging` will detect the dropped idmap and panic

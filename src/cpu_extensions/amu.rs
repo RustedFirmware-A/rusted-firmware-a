@@ -212,10 +212,12 @@ impl AmuContext {
     }
 }
 
-static AMU_CTX: PerCore<[ExceptionLock<RefCell<AmuContext>>; PlatformImpl::CORE_COUNT], CoresImpl> =
-    PerCore::new(
-        [const { ExceptionLock::new(RefCell::new(AmuContext::EMPTY)) }; PlatformImpl::CORE_COUNT],
-    );
+static AMU_CTX: PerCore<
+    [ExceptionLock<RefCell<AmuContext>>; PlatformImpl::CORE_COUNT],
+    CoresImpl<PlatformImpl>,
+> = PerCore::new(
+    [const { ExceptionLock::new(RefCell::new(AmuContext::EMPTY)) }; PlatformImpl::CORE_COUNT],
+);
 
 pub struct Amu;
 

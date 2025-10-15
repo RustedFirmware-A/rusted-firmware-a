@@ -11,7 +11,7 @@ macro_rules! select_platform {
         #[cfg(platform = $condition)]
         pub use $mod::$sub::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT, $plat_impl as PlatformImpl,
         };
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
@@ -21,7 +21,7 @@ macro_rules! select_platform {
         #[cfg(platform = $condition)]
         pub use $mod::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT, $plat_impl as PlatformImpl,
         };
     };
     (test, $mod:ident::$plat_impl:ident) => {
@@ -31,7 +31,7 @@ macro_rules! select_platform {
         #[cfg(test)]
         pub use $mod::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT, $plat_impl as PlatformImpl,
         };
     };
 }
@@ -84,9 +84,8 @@ pub type TrngPlatformImpl = <PlatformImpl as Platform>::TrngPlatformImpl;
 pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface<
     PSCI_STATE_COUNT,
     PSCI_MAX_POWER_LEVEL,
+    PSCI_NON_CPU_DOMAIN_COUNT,
 >>::PlatformPowerState;
-
-pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
 
 pub const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 

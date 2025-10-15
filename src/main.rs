@@ -59,7 +59,7 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
     // SAFETY: This function never returns, so it is safe to enable PAuth part way through it.
     #[cfg(feature = "pauth")]
     unsafe {
-        pauth::init();
+        pauth::init::<PlatformImpl>();
     }
 
     // Set up GIC.
@@ -71,7 +71,7 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
     #[cfg(feature = "rme")]
     let realm_entry_point = PlatformImpl::realm_entry_point();
 
-    initialise_contexts(
+    initialise_contexts::<PlatformImpl>(
         &non_secure_entry_point,
         &secure_entry_point,
         #[cfg(feature = "rme")]
@@ -82,13 +82,16 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
 }
 
 #[cfg_attr(test, allow(unused))]
-extern "C" fn psci_warmboot_entrypoint() -> ! {
-    debug!("Warmboot on core #{}", CoresImpl::core_index());
+extern "C" fn psci_warmboot_entrypoint<PlatformImpl: Platform>() -> ! {
+    debug!(
+        "Warmboot on core #{}",
+        CoresImpl::<PlatformImpl>::core_index()
+    );
 
     // SAFETY: This function never returns, so it is safe to enable PAuth part way through it.
     #[cfg(feature = "pauth")]
     unsafe {
-        pauth::init();
+        pauth::init::<PlatformImpl>();
     }
 
     let services = Services::get();
@@ -114,7 +117,7 @@ extern "C" fn psci_warmboot_entrypoint() -> ! {
             #[cfg(feature = "rme")]
             let realm_entry_point = PlatformImpl::realm_entry_point();
 
-            initialise_contexts(
+            initialise_contexts::<PlatformImpl>(
                 &non_secure_entry_point,
                 &secure_entry_point,
                 #[cfg(feature = "rme")]
@@ -131,7 +134,7 @@ extern "C" fn psci_warmboot_entrypoint() -> ! {
 
             // TODO: instead of modifying the context directly, should we rather pass the initial
             // gpregs of each world as arguments to run_loop()?
-            update_contexts_suspend(
+            update_contexts_suspend::<PlatformImpl>(
                 psci_entrypoint,
                 &secure_args,
                 #[cfg(feature = "rme")]
@@ -221,7 +224,7 @@ mod asm {
             PAGE_TABLE_ADDR = sym PAGE_TABLE_ADDR,
             cpu_reset_handler = sym cpu_reset_handler,
             enable_mmu = sym enable_mmu,
-            psci_warmboot_entrypoint = sym psci_warmboot_entrypoint,
+            psci_warmboot_entrypoint = sym psci_warmboot_entrypoint::<PlatformImpl>,
             apply_reset_errata = sym errata_framework::apply_reset_errata,
             plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
             init_cpu_data_ptr = sym init_cpu_data_ptr::<PlatformImpl>,

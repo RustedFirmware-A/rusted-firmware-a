@@ -281,7 +281,7 @@ unsafe impl Platform for Qemu {
     }
 
     fn secure_entry_point() -> EntryPointInfo {
-        let core_linear_id = CoresImpl::core_index() as u64;
+        let core_linear_id = CoresImpl::<Self>::core_index() as u64;
         EntryPointInfo {
             pc: 0x0e10_0000,
             args: [
@@ -456,12 +456,15 @@ enum PowerDownKind {
 
 pub const PSCI_MAX_POWER_LEVEL: usize = 2;
 const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
+pub const PSCI_NON_CPU_DOMAIN_COUNT: usize = CLUSTER_COUNT + 1;
 
 pub struct QemuPsciPlatformImpl {
     per_cpu_powerdown_kinds: [SpinMutex<PowerDownKind>; Qemu::CORE_COUNT],
 }
 
-impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciPlatformImpl {
+impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
+    for QemuPsciPlatformImpl
+{
     const POWER_DOMAIN_COUNT: usize = 1 + CLUSTER_COUNT + Qemu::CORE_COUNT;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::OS_INITIATED_MODE;
@@ -476,8 +479,14 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciP
 
     fn try_parse_power_state(
         power_state: PowerState,
-    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex>>
-    {
+    ) -> Option<
+        PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
+            Self::NodeIndex,
+        >,
+    > {
         const POWER_STATES_MASK: u32 = 0x0000_0fff;
         const LOCAL_PSTATE_WIDTH: u32 = 4;
         const LOCAL_PSTATE_MASK: u32 = (1 << LOCAL_PSTATE_WIDTH) - 1;
@@ -555,6 +564,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciP
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) -> Result<(), ErrorCode> {
@@ -566,10 +576,12 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciP
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
-        *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() = PowerDownKind::Suspend;
+        *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock() =
+            PowerDownKind::Suspend;
     }
 
     fn power_domain_suspend_finish(
@@ -577,6 +589,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciP
         _previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -587,13 +600,14 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciP
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
         assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);
 
         Gic::get().cpu_interface_disable();
-        *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() = PowerDownKind::Off;
+        *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock() = PowerDownKind::Off;
     }
 
     fn power_domain_power_down(
@@ -601,10 +615,13 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciP
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
-        if *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() == PowerDownKind::Off {
+        if *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock()
+            == PowerDownKind::Off
+        {
             // SAFETY: `disable_mmu_el3` is safe to call here as the CPU is about to be switched off.
             // `plat_secondary_cold_boot_setup` is trusted assembly.
             unsafe {
@@ -625,7 +642,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciP
     }
 
     fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode> {
-        let cpu_index = try_get_cpu_index_by_mpidr::<Self::NodeIndex>(mpidr)
+        let cpu_index = try_get_cpu_index_by_mpidr::<Qemu, Self::NodeIndex>(mpidr)
             .ok_or(ErrorCode::InvalidParameters)?;
         debug_assert!(usize::from(cpu_index) < Qemu::CORE_COUNT);
         plat_hold_pen_signal(cpu_index.into(), bl31_warm_entrypoint::<Qemu>);
@@ -637,6 +654,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciP
         previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {

@@ -15,7 +15,7 @@
 use crate::{
     aarch64::isb,
     context::cpu_data_set_apkey,
-    platform::{Platform, PlatformImpl, exception_free},
+    platform::{Platform, exception_free},
 };
 use arm_sysregs::{
     ApiakeyhiEl1, ApiakeyloEl1, Sctlr2El3, SctlrEl3, read_id_aa64isar1_el1, read_id_aa64isar2_el1,
@@ -39,7 +39,7 @@ fn is_feat_pauth_lr_present() -> bool {
 }
 
 /// Setup the PAuth registers and the CPU data with the PAuth key.
-fn set_apkey() {
+fn set_apkey<PlatformImpl: Platform>() {
     let key = PlatformImpl::init_apkey();
 
     // SAFETY: We haven't yet enabled PAuth, so it is safe to set the key.
@@ -48,7 +48,7 @@ fn set_apkey() {
         write_apiakeyhi_el1(ApiakeyhiEl1::from_bits_retain((key >> 64) as u64));
     }
 
-    exception_free(|token| cpu_data_set_apkey(token, key));
+    exception_free(|token| cpu_data_set_apkey::<PlatformImpl>(token, key));
 }
 
 /// Enables Pointer Authentication at EL3.
@@ -59,8 +59,8 @@ fn set_apkey() {
 /// never returns, otherwise authentication will fail when the caller's function returns. This
 /// function is always inlined to ensure that it does not introduce PAuth guards of its own.
 #[inline(always)]
-pub unsafe fn init() {
-    set_apkey();
+pub unsafe fn init<PlatformImpl: Platform>() {
+    set_apkey::<PlatformImpl>();
 
     // SAFETY: It is safe to enable pointer authentication here because this function is always
     // inlined so it does not have PAuth guards and the caller has called it from a context without

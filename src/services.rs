@@ -18,10 +18,7 @@ use crate::{
     context::{World, cpu_state, set_initial_world, switch_world},
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
-    platform::{
-        PSCI_MAX_POWER_LEVEL, PSCI_STATE_COUNT, Platform, PlatformImpl, PlatformServiceImpl,
-        PsciPlatformImpl, exception_free,
-    },
+    platform::{PSCI_MAX_POWER_LEVEL, PSCI_STATE_COUNT, Platform, PlatformImpl, exception_free},
     services::{
         arch::Arch,
         errata_management::ErrataManagement,
@@ -92,39 +89,46 @@ pub trait Service {
     }
 }
 
-static SERVICES: Lazy<Services> = Lazy::new(Services::new);
+const NON_CPU_DOMAIN_COUNT: usize =
+    <PlatformImpl as Platform>::PsciPlatformImpl::POWER_DOMAIN_COUNT - PlatformImpl::CORE_COUNT;
+static SERVICES: Lazy<
+    Services<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>,
+> = Lazy::new(Services::new);
 
 /// Contains an instance of all of the currently implemented services.
-pub struct Services {
-    arch: Arch,
+pub struct Services<
+    const PSCI_STATE_COUNT: usize,
+    const PSCI_MAX_POWER_LEVEL: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    PlatformImpl: Platform,
+> where
+    <PlatformImpl as Platform>::PsciPlatformImpl:
+        PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT>,
+{
+    arch: Arch<PlatformImpl>,
     pub psci: Psci<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
-        <PsciPlatformImpl as PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>>::NodeIndex,
+        NON_CPU_DOMAIN_COUNT,
+        PlatformImpl::PsciPlatformImpl,
+        Spmd,
     >,
-    platform: PlatformServiceImpl,
+    platform: PlatformImpl::PlatformServiceImpl,
     /// The FF-A SPMD service.
     pub spmd: Spmd,
     /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
-    pub rmmd: Rmmd,
+    pub rmmd: Rmmd<PlatformImpl>,
     trng: Trng,
     errata_management: ErrataManagement,
 }
 
-impl Services {
-    /// Returns a reference to the global Services instance.
-    ///
-    /// Also, initializes it if it hasn't been initialized yet.
-    pub fn get() -> &'static Self {
-        &SERVICES
-    }
-
+impl Services<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl> {
     /// Constructs a new instance of the services.
     fn new() -> Self {
         Self {
             arch: Arch::new(),
-            psci: Psci::new(PlatformImpl::psci_platform().unwrap()),
+            psci: Psci::new(PlatformImpl::psci_platform().unwrap(), || &Self::get().spmd),
             platform: PlatformImpl::create_service(),
             spmd: Spmd::new(),
             #[cfg(feature = "rme")]
@@ -134,6 +138,24 @@ impl Services {
         }
     }
 
+    /// Returns a reference to the global Services instance.
+    ///
+    /// Also initializes it if it hasn't been initialized yet.
+    pub fn get() -> &'static Self {
+        &SERVICES
+    }
+}
+
+impl<
+    const STATE_COUNT: usize,
+    const MAX_POWER_LEVEL: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    PlatformImpl: Platform,
+> Services<STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>
+where
+    <PlatformImpl as Platform>::PsciPlatformImpl:
+        PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT>,
+{
     fn handle_smc(&self, regs: &mut SmcReturn, world: World) -> World {
         let function = FunctionId(regs.values()[0] as u32);
 
@@ -261,7 +283,7 @@ impl Services {
         let mut regs = SmcReturn::EMPTY;
 
         debug!("Booting Secure World");
-        set_initial_world(World::Secure);
+        set_initial_world::<PlatformImpl>(World::Secure);
         // TODO: implement separate boot loop for Secure World
         let next_world = self.per_world_loop(&mut regs, World::Secure);
         assert_eq!(next_world, World::NonSecure);
@@ -271,7 +293,7 @@ impl Services {
             // If the RMM boot failed, do not try to boot Realm world again.
             if !self.rmmd.boot_failure() {
                 debug!("Booting Realm World");
-                switch_world(current_world, World::Realm);
+                switch_world::<PlatformImpl>(current_world, World::Realm);
                 current_world = World::Realm;
                 // TODO: implement separate boot loop for Realm World
                 regs.mark_empty();
@@ -285,7 +307,7 @@ impl Services {
         debug!("Booting Normal World");
 
         loop {
-            switch_world(current_world, next_world);
+            switch_world::<PlatformImpl>(current_world, next_world);
             current_world = next_world;
             next_world = self.per_world_loop(&mut regs, current_world);
             assert_ne!(current_world, next_world);

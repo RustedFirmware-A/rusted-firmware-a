@@ -23,7 +23,7 @@ pub mod trf;
 
 use crate::{
     context::{CpuContext, PerWorldContext, World},
-    platform::{Platform, PlatformImpl},
+    platform::Platform,
 };
 
 /// A trait for managing CPU extensions.
@@ -74,7 +74,7 @@ pub trait CpuExtension {
 /// Enable architecture extensions for EL3 execution. This function only updates
 /// registers in-place which are expected to either never change or be
 /// overwritten by el3_exit.
-pub fn initialise_el3_sysregs() {
+pub fn initialise_el3_sysregs<PlatformImpl: Platform>() {
     for ext in PlatformImpl::CPU_EXTENSIONS {
         if ext.is_present() {
             ext.init();

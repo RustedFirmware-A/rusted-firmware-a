@@ -588,7 +588,7 @@ impl PsciSpmInterface for Spmd {
 
         msg.to_regs(version, regs.mark_all_used());
 
-        switch_world(World::NonSecure, World::Secure);
+        switch_world::<PlatformImpl>(World::NonSecure, World::Secure);
 
         let ret: i32 = loop {
             match enter_world(&mut regs, World::Secure) {
@@ -608,7 +608,7 @@ impl PsciSpmInterface for Spmd {
             }
         };
 
-        switch_world(World::Secure, World::NonSecure);
+        switch_world::<PlatformImpl>(World::Secure, World::NonSecure);
 
         ReturnCode::try_from(ret).unwrap_or_else(|e| {
             error!("SPMD returned unrecognised PSCI code {ret}: {e:?}");
@@ -623,7 +623,7 @@ impl PsciSpmInterface for Spmd {
     fn notify_cpu_suspend_powerdown_abandoned(&self) {
         let mut regs = self.handle_wake_from_cpu_suspend();
 
-        switch_world(World::NonSecure, World::Secure);
+        switch_world::<PlatformImpl>(World::NonSecure, World::Secure);
         let _ret: i32 = loop {
             match enter_world(&mut regs, World::Secure) {
                 RunResult::Smc => match Interface::from_regs(self.spmc_version, regs.values()) {
@@ -645,7 +645,7 @@ impl PsciSpmInterface for Spmd {
         // The PSCI request was sent and a response was received in enter_world. As such, revert
         // the state back to Runtime.
         self.switch_spmc_local_state(SpmcState::PsciEventHandling, SpmcState::Runtime);
-        switch_world(World::Secure, World::NonSecure);
+        switch_world::<PlatformImpl>(World::Secure, World::NonSecure);
     }
 }
 

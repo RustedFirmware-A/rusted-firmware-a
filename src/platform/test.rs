@@ -374,8 +374,11 @@ impl TestPsciPlatformImpl {
 /// Maximum PSCI power level for fake platform.
 pub const PSCI_MAX_POWER_LEVEL: usize = 3;
 const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
+pub const PSCI_NON_CPU_DOMAIN_COUNT: usize = 7;
 
-impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciPlatformImpl {
+impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
+    for TestPsciPlatformImpl
+{
     const POWER_DOMAIN_COUNT: usize = 20;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::all();
@@ -390,8 +393,14 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
 
     fn try_parse_power_state(
         power_state: PowerState,
-    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex>>
-    {
+    ) -> Option<
+        PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
+            Self::NodeIndex,
+        >,
+    > {
         let states = match power_state {
             PowerState::StandbyOrRetention(0) => [
                 TestPowerState::Standby0,
@@ -442,9 +451,14 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
         };
         Some(PsciCompositePowerState::new_with_last_power_level(
             states,
-            PsciCompositePowerState::<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex>::new(states)
-                .find_highest_non_run_level()
-                .unwrap(),
+            PsciCompositePowerState::<
+                PSCI_STATE_COUNT,
+                PSCI_MAX_POWER_LEVEL,
+                PSCI_NON_CPU_DOMAIN_COUNT,
+                Self::NodeIndex,
+            >::new(states)
+            .find_highest_non_run_level()
+            .unwrap(),
         ))
     }
 
@@ -455,6 +469,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -465,6 +480,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
         _previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -475,6 +491,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) -> Result<(), ErrorCode> {
@@ -486,6 +503,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -497,6 +515,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -518,6 +537,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
         _previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -565,7 +585,12 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
 
     fn sys_suspend_power_state(
         &self,
-    ) -> PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex> {
+    ) -> PsciCompositePowerState<
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        PSCI_NON_CPU_DOMAIN_COUNT,
+        Self::NodeIndex,
+    > {
         PsciCompositePowerState::OFF
     }
 }

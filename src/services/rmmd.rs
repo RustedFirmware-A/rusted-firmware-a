@@ -9,15 +9,14 @@ pub mod svc;
 
 use core::{
     cell::RefCell,
+    marker::PhantomData,
     slice::from_raw_parts_mut,
     sync::atomic::{AtomicU8, Ordering},
 };
 use log::{debug, error, warn};
 use num_enum::TryFromPrimitive;
 use percore::{Cores, ExceptionLock, PerCore};
-use spin::Once;
-
-use spin::mutex::SpinMutex;
+use spin::{Once, mutex::SpinMutex};
 
 use crate::{
     aarch64::dsb_osh,
@@ -50,7 +49,7 @@ pub const RMM_SHARED_BUFFER_SIZE: usize = 0x1000;
 /// 2. After calling `get_shared_buffer`, the return reference must be dropped before any other call
 ///    to it is made.
 /// 3. No PE is running in Realm World while the reference is held, otherwise see [`get_shared_buffer_slice`].
-unsafe fn get_shared_buffer() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
+unsafe fn get_shared_buffer<PlatformImpl: Platform>() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
     // Safety: (relative to [`slice::from_raw_parts_mut`][https://doc.rust-lang.org/stable/core/slice/fn.from_raw_parts_mut.html])
     // - Condition #1 ensures that the location is valid, and as it occupies exactly one page, it
     //   will always be aligned.
@@ -80,11 +79,11 @@ unsafe fn get_shared_buffer() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
 /// 2. The `address` and `len` parameter must be provided by RMM.
 /// 3. The returned reference must be dropped before any other call is made with overlapping parameters.
 /// 4. The reference must be dropped before switching to Realm World.
-unsafe fn get_shared_buffer_slice(
+unsafe fn get_shared_buffer_slice<PlatformImpl: Platform>(
     address: usize,
     len: usize,
 ) -> Result<&'static mut [u8], RmmCommandReturnCode> {
-    check_shared_buffer_range(address, len)?;
+    check_shared_buffer_range::<PlatformImpl>(address, len)?;
     // Safety: (relative to [`slice::from_raw_parts_mut`][https://doc.rust-lang.org/stable/core/slice/fn.from_raw_parts_mut.html])
     // - Condition #1 of `get_shared_buffer()` ensures that the location is valid, and as it
     //   occupies exactly one page, it will always be aligned.
@@ -99,7 +98,10 @@ unsafe fn get_shared_buffer_slice(
 }
 
 /// Checks that `buf_pa..buf_size` is a valid subrange of the shared buffer.
-fn check_shared_buffer_range(buf_pa: usize, buf_size: usize) -> Result<(), RmmCommandReturnCode> {
+fn check_shared_buffer_range<PlatformImpl: Platform>(
+    buf_pa: usize,
+    buf_size: usize,
+) -> Result<(), RmmCommandReturnCode> {
     let shared_buffer_range = PlatformImpl::RMM_SHARED_BUFFER_START
         ..PlatformImpl::RMM_SHARED_BUFFER_START + RMM_SHARED_BUFFER_SIZE;
 
@@ -184,15 +186,16 @@ enum RmiFuncId {
 ///
 /// This is described at
 /// <https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html>
-pub struct Rmmd {
+pub struct Rmmd<PlatformImpl: Platform> {
     core_local: PerCoreState<RmmdLocal>,
     attestation_token_read_index: SpinMutex<usize>,
     // Boot status of RMM across all cores.
     // If RMM fails to boot on any core then it is disabled for all cores.
     rmm_boot_state: AtomicU8,
+    _platform: PhantomData<PlatformImpl>,
 }
 
-impl Service for Rmmd {
+impl<PlatformImpl: Platform> Service for Rmmd<PlatformImpl> {
     owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x01CF}
 
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
@@ -221,11 +224,12 @@ impl Service for Rmmd {
     }
 }
 
-impl Rmmd {
+const CORE_COUNT: usize = PlatformImpl::CORE_COUNT;
+
+impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
     pub(super) fn new() -> Self {
         let core_local = PerCore::new(
-            [const { ExceptionLock::new(RefCell::new(RmmdLocal::new())) };
-                PlatformImpl::CORE_COUNT],
+            [const { ExceptionLock::new(RefCell::new(RmmdLocal::new())) }; CORE_COUNT],
         );
 
         // Safety:
@@ -234,7 +238,7 @@ impl Rmmd {
         //   upon return, before another call is made.
         // - This function is called before the first switch to Realm world and, similarly to above,
         //   the reference is dropped before that switch.
-        let buf = unsafe { get_shared_buffer() };
+        let buf = unsafe { get_shared_buffer::<PlatformImpl>() };
         PlatformImpl::rme_prepare_manifest(buf);
         debug!("RMM Boot Manifest ready");
 
@@ -251,6 +255,7 @@ impl Rmmd {
             core_local,
             attestation_token_read_index: SpinMutex::new(0),
             rmm_boot_state: AtomicU8::new(RmmBootState::Unknown as u8),
+            _platform: PhantomData,
         }
     }
 
@@ -267,7 +272,12 @@ impl Rmmd {
                 .unwrap_or_default()
         });
 
-        [CoresImpl::core_index() as u64, activation_token, 0, 0]
+        [
+            CoresImpl::<PlatformImpl>::core_index() as u64,
+            activation_token,
+            0,
+            0,
+        ]
     }
     pub(crate) fn boot_success(&self) -> bool {
         self.rmm_boot_state.load(Ordering::Acquire) == RmmBootState::ColdBootDone as u8
@@ -478,7 +488,8 @@ impl Rmmd {
                 // - This function never calls again `get_shared_buffer()`, thus the reference will
                 //   be dropped upon return, before another call is made.
                 // - Similarly to the above, this function does not switch to the Realm World.
-                let shared_buffer = unsafe { get_shared_buffer_slice(buf_pa, buf_size)? };
+                let shared_buffer =
+                    unsafe { get_shared_buffer_slice::<PlatformImpl>(buf_pa, buf_size)? };
 
                 let key_size = PlatformImpl::read_attestation_key(shared_buffer, ecc_curve)?;
 
@@ -508,8 +519,9 @@ impl Rmmd {
                 // - This function never calls again `get_shared_buffer()`, thus the reference will
                 //   be dropped upon return, before another call is made.
                 // - Similarly to the above, this function does not switch to the Realm World.
-                let shared_buffer =
-                    unsafe { get_shared_buffer_slice(buf_pa, buf_size.max(c_size))? };
+                let shared_buffer = unsafe {
+                    get_shared_buffer_slice::<PlatformImpl>(buf_pa, buf_size.max(c_size))?
+                };
 
                 // If not generating the first chunck, `c_size` will be zero and the hash will not
                 // written nor passed to `PlatformImpl::read_attestation_token`.
@@ -580,7 +592,7 @@ impl Rmmd {
             } else {
                 warn!(
                     "Received multiple `RMM_BOOT_COMPLETE` SMCs from core {}",
-                    CoresImpl::core_index()
+                    CoresImpl::<PlatformImpl>::core_index()
                 );
 
                 regs.set_from(NOT_SUPPORTED);
@@ -591,7 +603,7 @@ impl Rmmd {
 
     /// Returns arguments to pass to the RMM entrypoint.
     pub fn entrypoint_args(&self) -> [u64; 8] {
-        let core_linear_id = CoresImpl::core_index() as u64;
+        let core_linear_id = CoresImpl::<PlatformImpl>::core_index() as u64;
         if self.boot_success() {
             // When warmbooting a PE for the first time, it should only receive the core id as
             // per the RMM-EL3 warmboot interface. Activation token is set to 0 as it was not
@@ -621,6 +633,7 @@ impl Rmmd {
 mod tests {
     use crate::{
         context::World,
+        platform::test::TestPlatform,
         services::{
             Rmmd, Service,
             rmmd::{RMM_BOOT_COMPLETE, RmiFuncId, RmmBootState},
@@ -628,7 +641,7 @@ mod tests {
         smccc::{SetFrom, SmcReturn},
     };
 
-    fn setup() -> Rmmd {
+    fn setup() -> Rmmd<TestPlatform> {
         Rmmd::new()
     }
 

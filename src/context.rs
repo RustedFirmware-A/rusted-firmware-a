@@ -59,6 +59,7 @@ use arm_sysregs::{
 pub use asm::init_cpu_data_ptr;
 use core::{
     cell::{RefCell, RefMut},
+    marker::PhantomData,
     ops::{Index, IndexMut},
 };
 use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
@@ -69,7 +70,7 @@ pub const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 
 
 /// Per-core mutable state.
 pub type PerCoreState<T> =
-    PerCore<[ExceptionLock<RefCell<T>>; PlatformImpl::CORE_COUNT], CoresImpl>;
+    PerCore<[ExceptionLock<RefCell<T>>; PlatformImpl::CORE_COUNT], CoresImpl<PlatformImpl>>;
 
 /// A world which a CPU may be in.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -91,11 +92,13 @@ impl World {
 }
 
 /// Implementation of the `Cores` trait to get the index of the current CPU core.
-pub struct CoresImpl;
+pub struct CoresImpl<PlatformImpl: Platform> {
+    _platform: PhantomData<PlatformImpl>,
+}
 
 // SAFETY: This implementation never returns the same index for different cores because
 // `core_position` is guaranteed not to.
-unsafe impl Cores for CoresImpl {
+unsafe impl<PlatformImpl: Platform> Cores for CoresImpl<PlatformImpl> {
     fn core_index() -> usize {
         PlatformImpl::core_position(read_mpidr_el1().bits())
     }
@@ -704,10 +707,10 @@ static mut PERCPU_DATA: [CpuData; PlatformImpl::CORE_COUNT] =
 
 /// Sets the apkey fields of the current CPU's data.
 #[cfg(feature = "pauth")]
-pub fn cpu_data_set_apkey(_token: ExceptionFree, apkey: u128) {
+pub fn cpu_data_set_apkey<PlatformImpl: Platform>(_token: ExceptionFree, apkey: u128) {
     // SAFETY: Only the current CPU's data is ever accessed and exceptions are masked so the
     // modification will not be interrupted part-way through.
-    let cpu_data = unsafe { &mut PERCPU_DATA[CoresImpl::core_index()] };
+    let cpu_data = unsafe { &mut PERCPU_DATA[CoresImpl::<PlatformImpl>::core_index()] };
     cpu_data.apiakey_lo = apkey as u64;
     cpu_data.apiakey_hi = (apkey >> 64) as u64;
 }
@@ -752,7 +755,7 @@ pub fn world_cpu_context(world: World) -> *mut CpuContext {
 }
 
 /// Restores the context for the given world.
-fn restore_world(world: World, context: &CpuContext) {
+fn restore_world<PlatformImpl: Platform>(world: World, context: &CpuContext) {
     let world_context = world_context(world);
 
     // Restore EL3 sysregs first, e.g. to allow SVE register access before restoring SVE context.
@@ -767,7 +770,7 @@ fn restore_world(world: World, context: &CpuContext) {
 
 /// Saves lower EL system registers from the current world, restores lower EL and some per-world
 /// EL3 system registers of the given world.
-pub fn switch_world(old_world: World, new_world: World) {
+pub fn switch_world<PlatformImpl: Platform>(old_world: World, new_world: World) {
     assert_ne!(old_world, new_world);
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
@@ -776,7 +779,7 @@ pub fn switch_world(old_world: World, new_world: World) {
             ext.save_context(old_world);
         }
 
-        restore_world(new_world, &cpu_state[new_world]);
+        restore_world::<PlatformImpl>(new_world, &cpu_state[new_world]);
     });
 }
 
@@ -784,7 +787,7 @@ pub fn switch_world(old_world: World, new_world: World) {
 ///
 /// This doesn't save the current state of the lower EL system registers, so should only be used for
 /// initial boot where we don't care about their state.
-pub fn set_initial_world(world: World) {
+pub fn set_initial_world<PlatformImpl: Platform>(world: World) {
     exception_free(|token| {
         let cpu_state = cpu_state(token);
         let context = &cpu_state[world];
@@ -798,7 +801,7 @@ pub fn set_initial_world(world: World) {
         }
         isb();
 
-        restore_world(world, context);
+        restore_world::<PlatformImpl>(world, context);
     });
 }
 
@@ -810,7 +813,7 @@ pub fn cpu_state(token: ExceptionFree) -> RefMut<CpuState> {
 }
 
 /// Initialises the per-world contexts.
-fn initialise_per_world_contexts() {
+fn initialise_per_world_contexts<PlatformImpl: Platform>() {
     PER_WORLD_CONTEXT.call_once(|| {
         let mut per_world = PerWorld::<PerWorldContext>::default();
 
@@ -855,20 +858,23 @@ fn initialise_per_world_contexts() {
 }
 
 /// Initialises all CPU contexts for this CPU, ready for first boot.
-pub fn initialise_contexts(
+pub fn initialise_contexts<PlatformImpl: Platform>(
     non_secure_entry_point: &EntryPointInfo,
     secure_entry_point: &EntryPointInfo,
     #[cfg(feature = "rme")] realm_entry_point: &EntryPointInfo,
 ) {
-    initialise_el3_sysregs();
-    initialise_per_world_contexts();
+    initialise_el3_sysregs::<PlatformImpl>();
+    initialise_per_world_contexts::<PlatformImpl>();
 
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
-        initialise_nonsecure(&mut cpu_state[World::NonSecure], non_secure_entry_point);
-        initialise_secure(&mut cpu_state[World::Secure], secure_entry_point);
+        initialise_nonsecure::<PlatformImpl>(
+            &mut cpu_state[World::NonSecure],
+            non_secure_entry_point,
+        );
+        initialise_secure::<PlatformImpl>(&mut cpu_state[World::Secure], secure_entry_point);
         #[cfg(feature = "rme")]
-        initialise_realm(&mut cpu_state[World::Realm], realm_entry_point);
+        initialise_realm::<PlatformImpl>(&mut cpu_state[World::Realm], realm_entry_point);
     });
 }
 
@@ -936,7 +942,10 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 }
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.
-fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
+fn initialise_nonsecure<PlatformImpl: Platform>(
+    context: &mut CpuContext,
+    entry_point: &EntryPointInfo,
+) {
     initialise_common(context, entry_point);
 
     // Configure CPU extensions for the non-secure world.
@@ -948,7 +957,10 @@ fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) 
 }
 
 /// Initialises the given CPU context ready for booting S-EL2 or S-EL1.
-fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
+fn initialise_secure<PlatformImpl: Platform>(
+    context: &mut CpuContext,
+    entry_point: &EntryPointInfo,
+) {
     initialise_common(context, entry_point);
 
     #[cfg(not(feature = "sel2"))]
@@ -967,7 +979,10 @@ fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 
 /// Initialises the given CPU context ready for booting Realm world
 #[cfg(feature = "rme")]
-fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
+fn initialise_realm<PlatformImpl: Platform>(
+    context: &mut CpuContext,
+    entry_point: &EntryPointInfo,
+) {
     initialise_common(context, entry_point);
 
     // Configure CPU extensions for the Realm world.
@@ -983,12 +998,12 @@ fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 /// When the CPU wakes up from a powerdown suspend state, lower ELs in each world expect a specific
 /// state for resuming their execution. This can be a different entry point or just arguments passed
 /// in registers.
-pub fn update_contexts_suspend(
+pub fn update_contexts_suspend<PlatformImpl: Platform>(
     psci_entrypoint: EntryPoint,
     secure_args: &SmcReturn,
     #[cfg(feature = "rme")] realm_args: &[u64],
 ) {
-    initialise_el3_sysregs();
+    initialise_el3_sysregs::<PlatformImpl>();
 
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
@@ -1002,7 +1017,7 @@ pub fn update_contexts_suspend(
         // 6.4.3.3 of the PSCI 1.3 specification. The execution state and endianness will also match
         // the state when the PSCI call was made, because the lower EL can't change these so they
         // are always the state we set initially.
-        initialise_nonsecure(&mut cpu_state[World::NonSecure], &entry_point);
+        initialise_nonsecure::<PlatformImpl>(&mut cpu_state[World::NonSecure], &entry_point);
 
         cpu_state[World::Secure].gpregs.registers[..18].copy_from_slice(secure_args.values());
 

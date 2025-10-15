@@ -472,7 +472,7 @@ unsafe impl Platform for Fvp {
     }
 
     fn secure_entry_point() -> EntryPointInfo {
-        let core_linear_id = CoresImpl::core_index() as u64;
+        let core_linear_id = CoresImpl::<Self>::core_index() as u64;
         EntryPointInfo {
             pc: 0x0600_0000,
             args: [
@@ -792,7 +792,12 @@ impl FvpPsciPlatformImpl<'_> {
 
     fn power_domain_on_finish_common(
         &self,
-        previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NodeIndex>,
+        previous_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
+            NodeIndex,
+        >,
     ) {
         assert_eq!(previous_state.cpu_level_state(), FvpPowerState::Off);
 
@@ -869,10 +874,13 @@ const _: () = assert!(
 
 pub const PSCI_MAX_POWER_LEVEL: usize = 2;
 const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
+pub const PSCI_NON_CPU_DOMAIN_COUNT: usize = 1 + FVP_CLUSTER_COUNT;
 
 type NodeIndex = u8;
 
-impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPlatformImpl<'_> {
+impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
+    for FvpPsciPlatformImpl<'_>
+{
     const POWER_DOMAIN_COUNT: usize =
         1 + FVP_CLUSTER_COUNT + FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER;
 
@@ -908,8 +916,14 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
     /// Based on 6.5 Recommended StateID Encoding
     fn try_parse_power_state(
         power_state: PowerState,
-    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex>>
-    {
+    ) -> Option<
+        PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
+            Self::NodeIndex,
+        >,
+    > {
         const POWER_LEVEL_STATE_MASK: u32 = 0x0000_0fff;
         const ARM_LOCAL_PSTATE_WIDTH: u32 = 4;
         const ARM_LOCAL_PSTATE_MASK: u32 = (1 << ARM_LOCAL_PSTATE_WIDTH) - 1;
@@ -966,6 +980,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -1003,6 +1018,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
         previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -1020,6 +1036,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -1041,6 +1058,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -1069,6 +1087,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
         previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) {
@@ -1119,7 +1138,12 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     fn sys_suspend_power_state(
         &self,
-    ) -> PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex> {
+    ) -> PsciCompositePowerState<
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        PSCI_NON_CPU_DOMAIN_COUNT,
+        Self::NodeIndex,
+    > {
         PsciCompositePowerState::OFF
     }
 
@@ -1135,6 +1159,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
         >,
     ) -> Result<(), ErrorCode> {

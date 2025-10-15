@@ -369,21 +369,8 @@ func imp_def_el3_handler
 	stp	x2, x3, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X2}]
 	stp	x4, x5, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X4}]
 
-	/* Get the cpu_ops pointer */
-	bl	get_cpu_ops_ptr
+	/* TODO: Do we need a CPU-specific exception handler? If so, look it up and call it here. */
 
-	/* Get the cpu_ops exception handler */
-	ldr	x0, [x0, #{CPU_E_HANDLER_FUNC}]
-
-	/*
-	 * If the reserved function pointer is NULL, this CPU does not have an
-	 * implementation defined exception handler function
-	 */
-	cbz	x0, el3_handler_exit
-	mrs	x1, esr_el3
-	ubfx	x1, x1, #ESR_EC_SHIFT, #ESR_EC_LENGTH
-	blr	x0
-el3_handler_exit:
 	ldp	x0, x1, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X0}]
 	ldp	x2, x3, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X2}]
 	ldp	x4, x5, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X4}]

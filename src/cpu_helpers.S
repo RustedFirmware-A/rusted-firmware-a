@@ -5,25 +5,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	/*
-	 * Initializes the cpu_ops_ptr if not already initialized
-	 * in cpu_data. This can be called without a runtime stack, but may
-	 * only be called after the MMU is enabled.
-	 * clobbers: x0 - x6, x10
-	 */
-	.globl	init_cpu_ops
-func init_cpu_ops
-	mrs	x6, tpidr_el3
-	ldr	x0, [x6, #{CPU_DATA_CPU_OPS_PTR}]
-	cbnz	x0, 1f
-	mov	x10, x30
-	bl	get_cpu_ops_ptr
-	str	x0, [x6, #{CPU_DATA_CPU_OPS_PTR}]!
-	mov x30, x10
-1:
-	ret
-endfunc init_cpu_ops
-
 .if {CRASH_REPORTING}
 	/*
 	 * The cpu specific registers which need to be reported in a crash
@@ -35,94 +16,9 @@ endfunc init_cpu_ops
 func do_cpu_reg_dump
 	mov	x16, x30
 
-	/* Get the matching cpu_ops pointer */
-	bl	get_cpu_ops_ptr
-	cbz	x0, 1f
+	/* TODO: Add cpu_reg_dump to CpuOps */
 
-	/* Get the cpu_ops cpu_reg_dump */
-	ldr	x2, [x0, #{CPU_REG_DUMP}]
-	cbz	x2, 1f
-	blr	x2
-1:
 	mov	x30, x16
 	ret
 endfunc do_cpu_reg_dump
 .endif
-
-	/*
-	 * The below function returns the cpu_ops structure matching the
-	 * midr of the core. It reads the MIDR_EL1 and finds the matching
-	 * entry in cpu_ops entries. Only the implementation and part number
-	 * are used to match the entries.
-	 *
-	 * If cpu_ops for the MIDR_EL1 cannot be found and
-	 * SUPPORT_UNKNOWN_MPID is enabled, it will try to look for a
-	 * default cpu_ops with an MIDR value of 0.
-	 * (Implementation number 0x0 should be reserved for software use
-	 * and therefore no clashes should happen with that default value).
-	 *
-	 * Return :
-	 *     x0 - The matching cpu_ops pointer on Success
-	 *     x0 - 0 on failure.
-	 * Clobbers : x0 - x5
-	 */
-	.globl	get_cpu_ops_ptr
-func get_cpu_ops_ptr
-	/* Read the MIDR_EL1 */
-	mrs	x2, midr_el1
-	mov_imm	x3, {CPU_IMPL_PN_MASK}
-
-	/* Retain only the implementation and part number using mask */
-	and	w2, w2, w3
-
-	/* Get the cpu_ops end location */
-	adr_l	x5, (__CPU_OPS_END__ + {CPU_MIDR})
-
-	/* Initialize the return parameter */
-	mov	x0, #0
-1:
-	/* Get the cpu_ops start location */
-	adr_l	x4, (__CPU_OPS_START__ + {CPU_MIDR})
-
-2:
-	/* Check if we have reached end of list */
-	cmp	x4, x5
-	b.eq	search_def_ptr
-
-	/* load the midr from the cpu_ops */
-	ldr	x1, [x4], #{CPU_OPS_SIZE}
-	and	w1, w1, w3
-
-	/* Check if midr matches to midr of this core */
-	cmp	w1, w2
-	b.ne	2b
-
-	/* Subtract the increment and offset to get the cpu-ops pointer */
-	sub	x0, x4, #({CPU_OPS_SIZE} + {CPU_MIDR})
-.if {ENABLE_ASSERTIONS}
-	cmp	x0, #0
-	ASM_ASSERT ne, "get_cpu_ops_ptr got null pointer", cpu_ops_ptr_nonnull
-.endif
-.if {SUPPORT_UNKNOWN_MPID}
-	cbnz	x2, exit_mpid_found
-	/* Mark the unsupported MPID flag */
-	adrp	x1, unsupported_mpid_flag
-	add	x1, x1, :lo12:unsupported_mpid_flag
-	str	w2, [x1]
-exit_mpid_found:
-.endif
-	ret
-
-	/*
-	 * Search again for a default pointer (MIDR = 0x0)
-	 * or return error if already searched.
-	 */
-search_def_ptr:
-.if {SUPPORT_UNKNOWN_MPID}
-	cbz	x2, error_exit
-	mov	x2, #0
-	b	1b
-error_exit:
-.endif
-	ret
-endfunc get_cpu_ops_ptr

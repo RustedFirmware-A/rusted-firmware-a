@@ -39,9 +39,6 @@ SECTIONS
 		__RODATA_START__ = .;
 		*(.rodata.*)
 		. = ALIGN(8);
-		__CPU_OPS_START__ = .;
-		KEEP(*(.cpu_ops))
-		__CPU_OPS_END__ = .;
 	} >image
 	__RODATA_END__ = .;
 

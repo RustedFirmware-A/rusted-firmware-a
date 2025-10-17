@@ -456,7 +456,7 @@ bitflags! {
         const TCPAC = 1 << 31;
         /// When FEAT_AMUv1 implemented and, trap accesses from EL2/EL1/EL0 to AMU registers.
         const TAM = 1 << 30;
-        /// Ttrap trace system register accesses.
+        /// Trap trace system register accesses.
         const TTA = 1 << 20;
         /// When FEAT_SME is implemented, do not trap SME instructions and system registers
         /// accesses.
@@ -605,6 +605,27 @@ impl Debug for Esr {
     }
 }
 
+bitflags! {
+    /// ID_AA64DFR0_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64dfr0El1: u64 {}
+}
+
+impl IdAa64dfr0El1 {
+    const TRACE_VER_SHIFT: u64 = 4;
+    const TRACE_VER_MASK: u64 = 0b1111;
+    const SYS_REG_TRACE_SUPPORTED: u64 = 1;
+
+    /// Trace support. Indicates whether System register interface to a PE trace unit is
+    /// implemented.
+    pub fn is_feat_sys_reg_trace_present(self) -> bool {
+        (self.bits() >> Self::TRACE_VER_SHIFT) & Self::TRACE_VER_MASK
+            == Self::SYS_REG_TRACE_SUPPORTED
+    }
+}
+
+read_sysreg!(id_aa64dfr0_el1, u64: IdAa64dfr0El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr1_el1, u64, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
 read_sysreg!(mpidr_el1, u64: MpidrEl1, safe, fake::SYSREGS);

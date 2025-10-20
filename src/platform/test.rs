@@ -384,11 +384,15 @@ impl TrngPlatformInterface for TestTrngPlatformImpl {
 
 struct TestCpu;
 
-/// Safety: The dummy implementation of `reset_handler` simply returns without doing anything.
+/// SAFETY: The dummy implementations of `reset_handler` and `dump_registers` simply return without
+/// doing anything. For unit tests it is allowed for them not to be naked functions, because they
+/// are never called from assembly code.
 unsafe impl Cpu for TestCpu {
     const MIDR: u64 = 0;
 
     extern "C" fn reset_handler() {}
+
+    extern "C" fn dump_registers() {}
 
     fn power_down_level0() {}
 

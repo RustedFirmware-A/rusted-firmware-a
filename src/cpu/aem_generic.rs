@@ -115,12 +115,18 @@ unsafe fn flush_cache_levels(levels: RangeInclusive<u8>) {
 /// The AEM FVP requires cache maintenance operations on CPU/Cluster power down, because it does not
 /// implement DynamIQ Shared Unit (DSU).
 ///
-/// Safety: The reset handler is implemented as a naked function and does not clobber any registers.
+/// SAFETY: `reset_handler` and `dump_registers` are implemented as naked functions and don't touch
+/// any registers.
 unsafe impl Cpu for AemGeneric {
     const MIDR: u64 = 0x410f_d0f0;
 
     #[unsafe(naked)]
     extern "C" fn reset_handler() {
+        naked_asm!("ret");
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn dump_registers() {
         naked_asm!("ret");
     }
 

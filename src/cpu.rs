@@ -16,11 +16,15 @@ use crate::platform::CPU_OPS;
 use arm_sysregs::read_midr_el1;
 
 /// The `Cpu` trait captures low level CPU specific operations.
+///
 /// # Safety
 ///
 /// Except in unit-test-only builds for the host, the `reset_handler` function must be implemented
 /// as a naked function. It should only clobber X0-X18, and X30 registers. It must not use the
 /// stack, because it might be called at a point when the stack has not been configured.
+///
+/// Likewise, the `dump_registers` function must be a naked function, and only clobber x0-x6 and
+/// x8-x15. It mustn't use the stack.
 pub unsafe trait Cpu {
     /// Main ID register value, only the 'Implementer' and 'PartNum' fields are used for identifying
     /// the `Cpu` implementation.
@@ -28,6 +32,11 @@ pub unsafe trait Cpu {
 
     /// This function is called on CPU cold boot.
     extern "C" fn reset_handler();
+
+    /// Dumps CPU-specific registers as part of a crash dump.
+    ///
+    /// Returns the register name list in x6, and register values in x8-x15. Clobbers x0-x5.
+    extern "C" fn dump_registers();
 
     /// Prepares for a power down that only affects power level 0.
     fn power_down_level0();
@@ -42,6 +51,7 @@ pub unsafe trait Cpu {
 pub struct CpuOps {
     midr: u64,
     reset_handler: extern "C" fn(),
+    dump_registers: extern "C" fn(),
     power_down_level0: fn(),
     power_down_level1: fn(),
 }
@@ -62,6 +72,7 @@ impl CpuOps {
         Self {
             midr: T::MIDR & Self::MIDR_MASK,
             reset_handler: T::reset_handler,
+            dump_registers: T::dump_registers,
             power_down_level0: T::power_down_level0,
             power_down_level1: T::power_down_level1,
         }
@@ -104,54 +115,108 @@ pub extern "C" fn cpu_reset_handler() {
     (ops.reset_handler)()
 }
 
+/// Looks up the `CpuOps` struct for the current CPU based in its MIDR.
+///
+/// Returns a pointer to the `CpuOps` struct, or null if no matching `CpuOps` was found.
+///
+/// Returns the CpuOps pointer in x0, and clobbers x1-x3.
 #[cfg(not(test))]
 #[unsafe(naked)]
-#[unsafe(no_mangle)]
-pub extern "C" fn cpu_reset_handler() {
+extern "C" fn get_cpu_ops() -> *const CpuOps {
     crate::naked_asm!(
         "/* Read and mask MIDR_EL1 */
         mrs	x2, midr_el1
-        mov	w3, ({midr_mask} & 0xffff)
-        movk	w3, (({midr_mask} >> 16) & 0xffff), LSL 16
-        and	w2, w2, w3
+        mov	w0, ({midr_mask} & 0xffff)
+        movk	w0, (({midr_mask} >> 16) & 0xffff), LSL 16
+        and	w2, w2, w0
 
         /* Get address of the beginning of CPU_OPS */
-        ldr	x3, ={cpu_ops}
+        ldr	x0, ={cpu_ops}
 
         /* Get address of the end of CPU_OPS */
-        ldr	x4, =({cpu_ops} + ({cpu_ops_size} * {cpu_ops_count}))
+        ldr	x3, =({cpu_ops} + ({cpu_ops_size} * {cpu_ops_count}))
 
     1:
         /* Check end of list */
-        cmp	x3, x4
-        b.eq	3f
+        cmp	x0, x3
+        b.eq	2f
 
         /* Load the midr from the CPU_OPS */
-        ldr	w1, [x3, #{midr_offset}]
+        ldr	w1, [x0, #{midr_offset}]
 
         /* Check if MIDR matches the MIDR of this core */
         cmp	w1, w2
-        b.eq	2f
+        b.eq	3f
 
         /* Step to next CPU_OPS entry */
-        add	x3, x3, #{cpu_ops_size}
+        add	x0, x0, #{cpu_ops_size}
         b	1b
 
     2:
-        /* Read and jump to reset handler function */
-        ldr	x1, [x3, #{reset_handler_offset}]
-        br	x1
-
+        /* The MIDR value was not found. */
+        mov x0, xzr
     3:
-        /* The MIDR values was not found */
-        b	el3_panic
-        ",
+        ret",
         midr_mask = const CpuOps::MIDR_MASK,
         cpu_ops = sym CPU_OPS,
         cpu_ops_size = const core::mem::size_of::<CpuOps>(),
         cpu_ops_count = const CPU_OPS.len(),
         midr_offset = const core::mem::offset_of!(CpuOps, midr),
+    );
+}
+
+#[cfg(not(test))]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub extern "C" fn cpu_reset_handler() {
+    crate::naked_asm!(
+        "mov	x4, x30
+        bl	{get_cpu_ops}
+        mov	x30, x4
+        cbz	x0, 1f
+
+        /* Read and jump to reset handler function */
+        ldr	x1, [x0, #{reset_handler_offset}]
+        br	x1
+
+    1:
+        /* The MIDR values was not found */
+        b	el3_panic
+        ",
+        get_cpu_ops = sym get_cpu_ops,
         reset_handler_offset = const core::mem::offset_of!(CpuOps, reset_handler),
+    );
+}
+
+/// Fetches up to 8 CPU-specific registers of the current CPU for a crash dump.
+///
+/// Returns the register name list in x6, and register values in x8-x15.
+/// Clobbers x0-x5.
+///
+/// # Safety
+///
+/// Should only be called from assembly as it doesn't follow the standard calling convention.
+#[cfg(not(test))]
+#[unsafe(naked)]
+pub unsafe extern "C" fn cpu_dump_registers() {
+    crate::naked_asm!(
+        "mov	x4, x30
+        bl	{get_cpu_ops}
+        mov	x30, x4
+        cbz	x0, 1f
+
+        /* Read and jump to dump_registers function */
+        ldr	x1, [x0, #{dump_registers_offset}]
+        br	x1
+
+    1:
+        /*
+         * The MIDR value was not found. We are already in the middle of a crash dump, so just
+         * ignore rather than panicking recursively.
+         */
+        ret",
+        get_cpu_ops = sym get_cpu_ops,
+        dump_registers_offset = const core::mem::offset_of!(CpuOps, dump_registers),
     );
 }
 

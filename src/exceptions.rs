@@ -267,6 +267,7 @@ pub fn enter_world(in_regs: &SmcReturn, world: World) -> RunResult {
 mod asm {
     use crate::{
         context::{CpuData, CrashBuf, GpRegs},
+        cpu::cpu_dump_registers,
         debug::{CRASH_REPORTING, DEBUG},
         platform::{Platform, PlatformImpl},
     };
@@ -290,6 +291,7 @@ mod asm {
         SCTLR_EnIB_BIT = const SctlrEl3::ENIB.bits(),
         plat_crash_console_init = sym PlatformImpl::crash_console_init,
         plat_crash_console_flush = sym PlatformImpl::crash_console_flush,
+        cpu_dump_registers = sym cpu_dump_registers,
     );
 }
 

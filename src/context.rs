@@ -753,7 +753,7 @@ pub struct EntryPointInfo {
 mod asm {
     use super::*;
     use crate::{
-        debug::{CRASH_REPORTING, DEBUG, ENABLE_ASSERTIONS},
+        debug::{DEBUG, ENABLE_ASSERTIONS},
         exceptions::RunResult,
         smccc::NOT_SUPPORTED,
     };
@@ -791,7 +791,6 @@ mod asm {
         include_str!("asm_macros_common.S"),
         include_str!("context.S"),
         include_str!("runtime_exceptions.S"),
-        include_str!("cpu_helpers.S"),
         include_str!("cpu_data.S"),
         include_str!("asm_macros_common_purge.S"),
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
@@ -837,7 +836,6 @@ mod asm {
         RUN_RESULT_SMC = const RunResult::SMC,
         RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
         RUN_RESULT_INTERRUPT = const RunResult::INTERRUPT,
-        CRASH_REPORTING = const CRASH_REPORTING as u32,
         CPU_DATA_SIZE = const size_of::<CpuData>(),
     );
 }

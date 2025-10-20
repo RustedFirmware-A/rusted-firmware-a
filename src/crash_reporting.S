@@ -410,7 +410,7 @@ print_el3_sys_regs:
 	bl	str_in_crash_buf_print
 
 	/* Get the cpu specific registers to report */
-	bl	do_cpu_reg_dump
+	bl	{cpu_dump_registers}
 	bl	str_in_crash_buf_print
 
 	/* Print some platform registers */

@@ -7,12 +7,18 @@ use crate::naked_asm;
 
 pub struct QemuMax;
 
-/// Safety: The reset handler is implemented as a naked function and does not clobber any registers.
+/// SAFETY: `reset_handler` and `dump_registers` are implemented as naked functions and don't touch
+/// any registers.
 unsafe impl Cpu for QemuMax {
     const MIDR: u64 = 0x000f_0510;
 
     #[unsafe(naked)]
     extern "C" fn reset_handler() {
+        naked_asm!("ret");
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn dump_registers() {
         naked_asm!("ret");
     }
 

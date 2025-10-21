@@ -4,12 +4,13 @@
 
 use crate::{
     aarch64::isb,
+    cpu_extensions::{CpuExtension, trf::TraceFiltering},
     gicv3,
     platform::{Platform, PlatformImpl, exception_free},
     smccc::SmcReturn,
 };
 use arm_psci::EntryPoint;
-use arm_sysregs::{CptrEl3, Esr, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3};
+use arm_sysregs::{CptrEl3, Esr, MdcrEl3, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3};
 #[cfg(not(feature = "sel2"))]
 use arm_sysregs::{
     CsselrEl1, SctlrEl1, read_actlr_el1, read_afsr0_el1, read_afsr1_el1, read_amair_el1,
@@ -171,6 +172,7 @@ pub struct El3State {
     is_in_el3: u64,
     saved_elr_el3: u64,
     nested_ea_flag: u64,
+    pub mdcr_el3: MdcrEl3,
 }
 
 impl El3State {
@@ -185,6 +187,7 @@ impl El3State {
         is_in_el3: 0,
         saved_elr_el3: 0,
         nested_ea_flag: 0,
+        mdcr_el3: MdcrEl3::empty(),
     };
 }
 
@@ -663,6 +666,12 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     {
         context.el1_sysregs.sctlr_el1 = SctlrEl1::RES1;
     }
+
+    if TraceFiltering.is_present() {
+        // Trap Trace Filter controls by default.
+        // This bit will be overwritten if the platform supports TRF.
+        context.el3_state.mdcr_el3 |= MdcrEl3::TTRF;
+    }
 }
 
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.
@@ -808,6 +817,7 @@ mod asm {
         CTX_PMCR_EL0 = const offset_of!(El3State, pmcr_el0),
         CTX_SCR_EL3 = const offset_of!(El3State, scr_el3),
         CTX_SPSR_EL3 = const offset_of!(El3State, spsr_el3),
+        CTX_MDCR_EL3 = const offset_of!(El3State, mdcr_el3),
         CTX_RUNTIME_SP_LR = const offset_of!(El3State, runtime_sp),
         CTX_CPTR_EL3 = const offset_of!(PerWorldContext, cptr_el3),
         CTX_SAVED_ELR_EL3 = const offset_of!(El3State, saved_elr_el3),

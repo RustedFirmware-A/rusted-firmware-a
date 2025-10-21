@@ -543,6 +543,19 @@ bitflags! {
         /// Disable cycle counter when event counting is prohibited.
         const DP = 1 << 5;
     }
+
+    /// MDCR_EL3 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct MdcrEl3: u64 {
+        /// Realm Trace enable. Enables tracing in Realm state.
+        const RLTE = 1 << 0;
+        /// Secure Trace enable. Enables tracing in Secure state.
+        const STE = 1 << 18;
+        /// Trap Trace Filter controls. Traps use of the Trace Filter control registers at EL2 and
+        /// EL1 to EL3.
+        const TTRF = 1 << 19;
+    }
 }
 
 /// An AArch64 exception level.
@@ -687,11 +700,20 @@ impl IdAa64dfr0El1 {
     const TRACE_VER_MASK: u64 = 0b1111;
     const SYS_REG_TRACE_SUPPORTED: u64 = 1;
 
+    const TRACE_FILT_SHIFT: u64 = 40;
+    const TRACE_FILT_MASK: u64 = 0b1111;
+    const TRF_SUPPORTED: u64 = 1;
+
     /// Trace support. Indicates whether System register interface to a PE trace unit is
     /// implemented.
     pub fn is_feat_sys_reg_trace_present(self) -> bool {
         (self.bits() >> Self::TRACE_VER_SHIFT) & Self::TRACE_VER_MASK
             == Self::SYS_REG_TRACE_SUPPORTED
+    }
+
+    /// Indicates whether Armv8.4 Self-hosted Trace Extension is implemented.
+    pub fn is_feat_trf_present(self) -> bool {
+        (self.bits() >> Self::TRACE_FILT_SHIFT) & Self::TRACE_FILT_MASK == Self::TRF_SUPPORTED
     }
 }
 

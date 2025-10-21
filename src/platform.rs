@@ -82,9 +82,9 @@ pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
 /// `CORE_COUNT`, and must return a different index for different MPIDR values. The index must be 0
 /// for the primary core that boots first on cold boot.
 ///
-/// The implementations of `cold_boot_handler`, `crash_console_init`, `crash_console_putc` and
-/// `crash_console_flush` must be naked functions which doesn't use the stack, and only clobber the
-/// registers they are documented to clobber.
+/// The implementations of `cold_boot_handler`, `crash_console_init`, `crash_console_putc`,
+/// `crash_console_flush` and `dump_registers` must be naked functions which doesn't use the stack,
+/// and only clobber the registers they are documented to clobber.
 ///
 /// (These requirements don't apply to the test platform, as it is only used in unit tests.)
 pub unsafe trait Platform {
@@ -226,6 +226,18 @@ pub unsafe trait Platform {
     /// May clobber x0-x1.
     #[cfg_attr(test, allow(unused))]
     extern "C" fn crash_console_flush();
+
+    /// Dumps platform-specific registers, e.g. for the GIC, for a crash dump.
+    ///
+    /// This may be called without a Rust runtime, e.g. with no stack.
+    ///
+    /// May clobber x0-x11, x16, x17, sp.
+    ///
+    /// # Safety
+    ///
+    /// Should only be called from assembly as it doesn't follow the standard calling convention.
+    #[cfg_attr(test, allow(unused))]
+    unsafe extern "C" fn dump_registers();
 }
 
 #[cfg(all(target_arch = "aarch64", not(test)))]

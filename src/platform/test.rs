@@ -188,6 +188,8 @@ unsafe impl Platform for TestPlatform {
     }
 
     extern "C" fn crash_console_flush() {}
+
+    unsafe extern "C" fn dump_registers() {}
 }
 
 /// Runs the given function and returns the result.

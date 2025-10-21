@@ -6,6 +6,7 @@
 
 pub mod hcx;
 pub mod sys_reg_trace;
+pub mod trbe;
 pub mod trf;
 
 use crate::{

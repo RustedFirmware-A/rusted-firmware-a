@@ -555,6 +555,14 @@ bitflags! {
         /// Trap Trace Filter controls. Traps use of the Trace Filter control registers at EL2 and
         /// EL1 to EL3.
         const TTRF = 1 << 19;
+        /// Enable TRBE register access for the security state that owns the buffer.
+        const NSTB_EN = 1 << 24;
+        /// Together with MDCR_EL3.NSTBE determines which security state owns the trace buffer
+        const NSTB_SS = 1 << 25;
+        /// Non-secure Trace Buffer Extended. Together with MDCR_EL3.NSTB, controls the trace
+        /// buffer owning Security state and accesses to trace buffer System registers from EL2
+        /// and EL1.
+        const NSTBE = 1 << 26;
     }
 }
 
@@ -704,6 +712,10 @@ impl IdAa64dfr0El1 {
     const TRACE_FILT_MASK: u64 = 0b1111;
     const TRF_SUPPORTED: u64 = 1;
 
+    const TRACE_BUFFER_SHIFT: u64 = 44;
+    const TRACE_BUFFER_MASK: u64 = 0b1111;
+    const TRBE_NOT_SUPPORTED: u64 = 0;
+
     /// Trace support. Indicates whether System register interface to a PE trace unit is
     /// implemented.
     pub fn is_feat_sys_reg_trace_present(self) -> bool {
@@ -714,6 +726,12 @@ impl IdAa64dfr0El1 {
     /// Indicates whether Armv8.4 Self-hosted Trace Extension is implemented.
     pub fn is_feat_trf_present(self) -> bool {
         (self.bits() >> Self::TRACE_FILT_SHIFT) & Self::TRACE_FILT_MASK == Self::TRF_SUPPORTED
+    }
+
+    /// Indicates whether Trace Buffer Extension is implemented.
+    pub fn is_feat_trbe_present(self) -> bool {
+        (self.bits() >> Self::TRACE_BUFFER_SHIFT) & Self::TRACE_BUFFER_MASK
+            != Self::TRBE_NOT_SUPPORTED
     }
 }
 

@@ -5,6 +5,7 @@
 //! A framework for managing ARM architectural CPU extensions using a trait-based approach.
 
 pub mod hcx;
+pub mod pmuv3;
 pub mod ras;
 pub mod sys_reg_trace;
 pub mod trbe;
@@ -57,5 +58,6 @@ pub fn initialise_el3_sysregs() {
             ext.init();
         }
     }
-    // TODO: initialize PMU
+
+    pmuv3::init();
 }

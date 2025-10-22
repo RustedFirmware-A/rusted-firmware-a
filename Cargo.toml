@@ -25,9 +25,10 @@ panic = "abort"
 debug = true
 panic = "abort"
 opt-level = "s"
-lto = "thin"
+lto = "fat"
 strip = true
 overflow-checks = true
+codegen-units = 1
 
 [dependencies]
 aarch64-paging = { version = "0.10.0", default-features = false }

@@ -28,7 +28,6 @@ mod services;
 mod smccc;
 #[cfg(not(test))]
 mod stacks;
-mod sysregs;
 
 use crate::{
     context::{

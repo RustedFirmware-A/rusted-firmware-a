@@ -41,6 +41,33 @@ macro_rules! read_write_sysreg {
 }
 
 bitflags! {
+    /// ID_AA64MMFR1_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64mmfr1El1: u64 {}
+}
+
+impl IdAa64mmfr1El1 {
+    const VH_SHIFT: u64 = 8;
+    const VH_MASK: u64 = 0b1111;
+    const VH_SUPPORTED: u64 = 0b0001;
+
+    const HCX_SHIFT: u64 = 40;
+    const HCX_MASK: u64 = 0b1111;
+    const HCX_SUPPORTED: u64 = 0b0001;
+
+    /// Indicates presence of FEAT_VHE.
+    pub fn is_feat_vhe_present(self) -> bool {
+        (self.bits() >> Self::VH_SHIFT) & Self::VH_MASK >= Self::VH_SUPPORTED
+    }
+
+    /// Indicates presence of FEAT_HCX.
+    pub fn is_feat_hcx_present(self) -> bool {
+        (self.bits() >> Self::HCX_SHIFT) & Self::HCX_MASK >= Self::HCX_SUPPORTED
+    }
+}
+
+bitflags! {
     /// ID_AA64MMFR2_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
@@ -448,6 +475,38 @@ bitflags! {
         const TGE = 1 << 27;
     }
 
+    /// HCRX_EL2 - Extended Hypervisor Configuration Register.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct HcrxEl2: u64 {
+        /// Do not trap execution of an ST64BV0 instruction at EL0 or EL1 to EL2.
+        const EnAS0 = 1 << 0;
+        /// Do not trap execution of an LD64B or ST64B instruction at EL0 or EL1 to EL2.
+        const EnALS = 1 << 1;
+        /// Do not trap execution of an ST64BV instruction at EL0 or EL1 to EL2.
+        const EnASR = 1 << 2;
+        /// Determines the behavior of TLBI instructions affected by the XS attribute.
+        const FnXS = 1 << 3;
+        /// Determines if the fine-grained traps in HFGITR_EL2 also apply to the corresponding TLBI
+        /// maintenance instructions with the nXS qualifier.
+        const FGTnXS = 1 << 4;
+        /// Controls mapping of the value of SMPRI_EL1.Priority for streaming execution priority at
+        /// EL0 or EL1.
+        const SMPME = 1 << 5;
+        /// Traps MSR writes of ALLINT at EL1 using AArch64 to EL2.
+        const TALLINT = 1 << 6;
+        /// Enables signaling of virtual IRQ interrupts with Superpriority.
+        const VINMI = 1 << 7;
+        /// Enables signaling of virtual FIQ interrupts with Superpriority.
+        const VFNMI = 1 << 8;
+        /// Controls the required permissions for cache maintenance instructions at EL1 or EL0.
+        const CMOW = 1 << 9;
+        /// Controls Memory Copy and Memory Set exceptions generated from EL1.
+        const MCE2 = 1 << 10;
+        /// Enables execution of Memory Set and Memory Copy instructions at EL1 or EL0.
+        const MSCEn = 1 << 11;
+    }
+
     /// CPTR_EL3 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
     #[repr(transparent)]
@@ -626,7 +685,7 @@ impl IdAa64dfr0El1 {
 }
 
 read_sysreg!(id_aa64dfr0_el1, u64: IdAa64dfr0El1, safe, fake::SYSREGS);
-read_sysreg!(id_aa64mmfr1_el1, u64, safe, fake::SYSREGS);
+read_sysreg!(id_aa64mmfr1_el1, u64: IdAa64mmfr1El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
 read_sysreg!(mpidr_el1, u64: MpidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(actlr_el1, u64, safe_read, safe_write, fake::SYSREGS);
@@ -656,6 +715,7 @@ read_write_sysreg!(far_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(far_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hacr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hcr_el2, u64: HcrEl2, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(hcrx_el2: s3_4_c1_c2_2, u64: HcrxEl2, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hpfar_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hstr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(icc_sre_el1, u64: IccSre, safe_read, safe_write, fake::SYSREGS);

@@ -440,6 +440,16 @@ bitflags! {
     pub struct SctlrEl1: u64 {
         /// RES1 bits in the `sctlr_el1` register.
         const RES1 = (1 << 29) | (1 << 28) | (1 << 23) | (1 << 22) | (1 << 20) | (1 << 11);
+        /// Do not set Privileged Access Never, on taking an exception to EL1.
+        const SPAN = 1 << 23;
+    }
+
+    /// SCTLR_EL2 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct SctlrEl2: u64 {
+        /// Do not set Privileged Access Never, on taking an exception to EL2.
+        const SPAN = 1 << 23;
     }
 
     /// SCTLR_EL3 system register value.
@@ -579,7 +589,8 @@ bitflags! {
         const IL = 1 << 20;
         /// Software Step.
         const SS = 1 << 21;
-
+        /// Privileged Access Never.
+        const PAN = 1 << 22;
         /// Data independent timing.
         const DIT = 1 << 24;
 
@@ -746,7 +757,7 @@ read_sysreg!(midr_el1, u64, safe, fake::SYSREGS);
 read_write_sysreg!(par_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(scr_el3, u64: ScrEl3, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(sctlr_el1, u64: SctlrEl1, safe_read, safe_write, fake::SYSREGS);
-read_write_sysreg!(sctlr_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(sctlr_el2, u64: SctlrEl2, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg! {
     /// # Safety
     ///

@@ -24,7 +24,7 @@ use arm_sysregs::{
 };
 #[cfg(feature = "sel2")]
 use arm_sysregs::{
-    HcrEl2, IccSre, read_actlr_el2, read_afsr0_el2, read_afsr1_el2, read_amair_el2,
+    HcrEl2, IccSre, SctlrEl2, read_actlr_el2, read_afsr0_el2, read_afsr1_el2, read_amair_el2,
     read_cnthctl_el2, read_cntvoff_el2, read_contextidr_el2, read_cptr_el2, read_elr_el2,
     read_esr_el2, read_far_el2, read_hacr_el2, read_hcr_el2, read_hpfar_el2, read_hstr_el2,
     read_icc_sre_el2, read_ich_hcr_el2, read_ich_vmcr_el2, read_id_aa64mmfr1_el1, read_mair_el2,
@@ -330,7 +330,7 @@ struct El2Sysregs {
     ich_vmcr_el2: u64,
     mair_el2: u64,
     mdcr_el2: u64,
-    sctlr_el2: u64,
+    sctlr_el2: SctlrEl2,
     spsr_el2: Spsr,
     sp_el2: u64,
     tcr_el2: u64,
@@ -367,7 +367,7 @@ impl El2Sysregs {
         ich_vmcr_el2: 0,
         mair_el2: 0,
         mdcr_el2: 0,
-        sctlr_el2: 0,
+        sctlr_el2: SctlrEl2::empty(),
         spsr_el2: Spsr::empty(),
         sp_el2: 0,
         tcr_el2: 0,

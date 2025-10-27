@@ -2,16 +2,15 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::context::{PER_WORLD_CONTEXT, world_context};
 use crate::{
-    context::{World, cpu_state},
+    context::{PER_WORLD_CONTEXT, World, cpu_state, world_context},
     platform::exception_free,
     smccc::SmcReturn,
 };
 use arm_sysregs::{
-    Esr, ExceptionLevel, HcrEl2, ScrEl3, Spsr, StackPointer, read_hcr_el2, read_id_aa64mmfr1_el1,
-    read_vbar_el1, read_vbar_el2, write_elr_el1, write_elr_el2, write_esr_el1, write_esr_el2,
-    write_spsr_el1, write_spsr_el2,
+    Esr, ExceptionLevel, HcrEl2, ScrEl3, SctlrEl1, SctlrEl2, Spsr, StackPointer, read_hcr_el2,
+    read_id_aa64mmfr1_el1, read_sctlr_el1, read_sctlr_el2, read_vbar_el1, read_vbar_el2,
+    write_elr_el1, write_elr_el2, write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2,
 };
 #[cfg(not(test))]
 use core::arch::asm;
@@ -107,13 +106,15 @@ fn is_secure_trap_without_sel2(scr: ScrEl3) -> bool {
 
 /// Explicitly create all bits of SPSR to get PSTATE at exception return.
 ///
-/// The code is based on "Aarch64.exceptions.takeexception" described in DDI0602 revision 2023-06.
-/// <https://developer.arm.com/documentation/ddi0602/2023-06/Shared-Pseudocode/aarch64-exceptions-takeexception>
+/// The code is based on "Aarch64.exceptions.takeexception" described in DDI0602 revision 2025-09.
+/// <https://developer.arm.com/documentation/ddi0602/2025-09/Shared-Pseudocode/aarch64-exceptions-takeexception>
 ///
 /// NOTE: This piece of code must be reviewed every release to ensure that we keep up with new ARCH
 /// features which introduces a new SPSR bit.
 fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
     let mut new_spsr = Spsr::empty();
+    let sctlr_el1 = read_sctlr_el1();
+    let sctlr_el2 = read_sctlr_el2();
 
     // Set M bits for target EL in AArch64 mode.
     if target_el == ExceptionLevel::El2 {
@@ -134,7 +135,18 @@ fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
     // BTYPE bits should be cleared to ensure that when injecting an undefined exception,
     // BTI does not trigger when performing an exception return as it will be unexpected.
 
-    // TODO: Add support for SSBS, NMI, PAN, UAO, MTE2, EBEP, SEBEP and GCS.
+    // Update PSTATE.PAN bit
+    // NOTE: We assume that FEAT_PAN is present as it is mandatory from Armv8.1.
+    new_spsr |= old_spsr & Spsr::PAN;
+    if (target_el == ExceptionLevel::El1 && !sctlr_el1.contains(SctlrEl1::SPAN))
+        || (target_el == ExceptionLevel::El2
+            && is_tge_enabled()
+            && !sctlr_el2.contains(SctlrEl2::SPAN))
+    {
+        new_spsr |= Spsr::PAN;
+    }
+
+    // TODO: Add support for SSBS, NMI, UAO, MTE2, EBEP, SEBEP and GCS.
 
     new_spsr
 }

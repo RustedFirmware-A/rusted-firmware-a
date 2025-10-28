@@ -169,24 +169,6 @@
 .endif
 	.endm
 
-/* TODO: Set this to 1. As of Arm v8.2, it is mandatory. */
-.set ENABLE_FEAT_RAS, 0
-
-	/* Macro for error synchronization on exception boundries.
-	 * With FEAT_RAS enabled, it is assumed that FEAT_IESB is also present
-	 * and enabled.
-	 * FEAT_IESB provides an implicit error synchronization event at exception
-	 * entry and exception return, so there is no need for any explicit instruction.
-	 */
-	.macro synchronize_errors
-.if !ENABLE_FEAT_RAS
-	/* Complete any stores that may return an abort */
-	dsb	sy
-	/* Synchronise the CPU context with the completion of the dsb */
-	isb
-.endif
-	.endm
-
 	/*
 	 * Helper macro to instruction adr <reg>, <symbol> where <symbol> is
 	 * within the range +/- 4 GB.

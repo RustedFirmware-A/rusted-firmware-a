@@ -76,7 +76,13 @@
 	 * On detecting a pending SError it reflects it back to lower EL (KFH).
 	 */
 	.macro	sync_and_handle_pending_serror
-	synchronize_errors
+	/*
+	 * FEAT_IESB provides an implicit error synchronization event at exception
+	 * entry and exception return, so there is no need for any explicit
+	 * synchronization instruction.
+	 * NOTE: We assume FEAT_RAS is present as it is mandatory from Armv8.2. With
+	 * FEAT_RAS present, we assume that FEAT_IESB is also present.
+	 */
 	mrs	x30, ISR_EL1
 	tbz	x30, #{ISR_A_SHIFT}, 2f
 1:

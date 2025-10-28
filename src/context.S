@@ -192,7 +192,13 @@ func el3_exit
 	msr	S3_6_C1_C2_0, x20 /* zcr_el3 */
 sve_not_enabled:
 
-	synchronize_errors
+	/*
+	 * FEAT_IESB provides an implicit error synchronization event at exception
+	 * entry and exception return, so there is no need for any explicit
+	 * synchronization instruction.
+	 * NOTE: We assume FEAT_RAS is present as it is mandatory from Armv8.2. With
+	 * FEAT_RAS present, we assume that FEAT_IESB is also present.
+	 */
 
 	/* ----------------------------------------------------------
 	 * Restore MDCR_EL3, SPSR_EL3, ELR_EL3 and SCR_EL3 prior to ERET

@@ -169,6 +169,7 @@ mod asm {
         SCTLR_M_BIT = const SctlrEl3::M.bits(),
         SCTLR_C_BIT = const SctlrEl3::C.bits(),
         SCTLR_WXN_BIT = const SctlrEl3::WXN.bits(),
+        SCTLR_IESB_BIT = const SctlrEl3::IESB.bits(),
         SCTLR_A_BIT = const SctlrEl3::A.bits(),
         SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
         SCTLR_I_BIT = const SctlrEl3::I.bits(),

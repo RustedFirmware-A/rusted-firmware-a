@@ -648,14 +648,14 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     // SCR_EL3.SMD: Set to zero to enable SMC calls at EL1 and above, from
     // both Security states and both Execution states.
     //
-    // SCR_EL3.EA: Set to one to route External Aborts and SError Interrupts
-    // to EL3 when executing at any EL.
+    // SCR_EL3.EA: Set to zero so that External aborts and SError exceptions are
+    // not taken to EL3.
     //
     // SCR_EL3.EEL2: Set to one if S-EL2 is present and enabled.
     //
     // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
     // against ERRATA_V2_3099206.
-    context.el3_state.scr_el3 = ScrEl3::RES1 | ScrEl3::HCE | ScrEl3::EA | ScrEl3::SIF | ScrEl3::RW;
+    context.el3_state.scr_el3 = ScrEl3::RES1 | ScrEl3::HCE | ScrEl3::SIF | ScrEl3::RW;
     #[cfg(feature = "sel2")]
     {
         context.el3_state.scr_el3 |= ScrEl3::EEL2;

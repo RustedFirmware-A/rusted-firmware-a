@@ -469,6 +469,8 @@ bitflags! {
         /// Write permission implies XN (Execute-never). For the EL3 translation regime, this bit
         /// can force all memory regions that are writable to be treated as XN.
         const WXN = 1 << 19;
+        /// Enable Implicit Error Synchronization events.
+        const IESB = 1 << 21;
         /// RES1 bits in the `sctlr_el3` register.
         const RES1 = (1 << 23) | (1 << 18);
         /// Enable pointer authentication using APIBKey_EL1.
@@ -758,6 +760,7 @@ read_write_sysreg!(cpacr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(cptr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(csselr_el1, u64: CsselrEl1, safe_read, safe_write, fake::SYSREGS);
 read_sysreg!(ctr_el0, u64: CtrEl0, safe, fake::SYSREGS);
+read_write_sysreg!(disr_el1: s3_0_c12_c1_1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(elr_el1, usize, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(elr_el2, usize, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(esr_el1, u64: Esr, safe_read, safe_write, fake::SYSREGS);
@@ -839,8 +842,10 @@ read_write_sysreg!(ttbr1_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(ttbr1_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vbar_el1, usize, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vbar_el2, usize, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(vdisr_el2: s3_4_c12_c1_1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vmpidr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vpidr_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(vsesr_el2: s3_4_c5_c2_3, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vtcr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vttbr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 

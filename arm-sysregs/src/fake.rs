@@ -156,6 +156,8 @@ pub struct SystemRegisters {
     pub csselr_el1: CsselrEl1,
     /// Fake value for the CTR_EL0 system register.
     pub ctr_el0: CtrEl0,
+    /// Fake value for the DISR_EL1 system register.
+    pub disr_el1: u64,
     /// Fake value for the ELR_EL1 system register.
     pub elr_el1: usize,
     /// Fake value for the ELR_EL2 system register.
@@ -260,10 +262,14 @@ pub struct SystemRegisters {
     pub vbar_el1: usize,
     /// Fake value for THEVBAR_EL2 system register.
     pub vbar_el2: usize,
+    /// Fake value for the VDISR_EL2 system register.
+    pub vdisr_el2: u64,
     /// Fake value for THEVMPIDR_EL2 system register.
     pub vmpidr_el2: u64,
     /// Fake value for THEVPIDR_EL2 system register.
     pub vpidr_el2: u64,
+    /// Fake value for the VSESR_EL2 system register.
+    pub vsesr_el2: u64,
     /// Fake value for THEVTCR_EL2 system register.
     pub vtcr_el2: u64,
     /// Fake value for THEVTTBR_EL2 system register.
@@ -292,6 +298,7 @@ impl SystemRegisters {
             cptr_el2: 0,
             csselr_el1: CsselrEl1::empty(),
             ctr_el0: CtrEl0::empty(),
+            disr_el1: 0,
             elr_el1: 0,
             elr_el2: 0,
             esr_el1: Esr::empty(),
@@ -344,8 +351,10 @@ impl SystemRegisters {
             ttbr1_el2: 0,
             vbar_el1: 0,
             vbar_el2: 0,
+            vdisr_el2: 0,
             vmpidr_el2: 0,
             vpidr_el2: 0,
+            vsesr_el2: 0,
             vtcr_el2: 0,
             vttbr_el2: 0,
         }

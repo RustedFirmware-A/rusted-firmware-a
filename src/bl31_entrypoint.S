@@ -33,6 +33,9 @@ func bl31_entrypoint
          * SCTLR_EL3 has already been initialised - read current value before
          * modifying.
          *
+         * SCTLR_EL3.IESB: Enable implicit error synchronization events. Assume
+         *  that FEAT_IESB is present.
+         *
          * SCTLR_EL3.I: Enable the instruction cache.
          *
          * SCTLR_EL3.SA: Enable Stack Alignment check. A SP alignment fault
@@ -46,7 +49,7 @@ func bl31_entrypoint
          *  being accessed.
          * ---------------------------------------------------------------------
          */
-        mov     x1, #({SCTLR_I_BIT} | {SCTLR_A_BIT} | {SCTLR_SA_BIT})
+        mov_imm x1, ({SCTLR_IESB_BIT} | {SCTLR_I_BIT} | {SCTLR_A_BIT} | {SCTLR_SA_BIT})
         mrs     x0, sctlr_el3
         orr     x0, x0, x1
         msr     sctlr_el3, x0
@@ -276,6 +279,9 @@ func bl31_warm_entrypoint
          * SCTLR_EL3 has already been initialised - read current value before
          * modifying.
          *
+         * SCTLR_EL3.IESB: Enable implicit error synchronization events. Assume
+         *  that FEAT_IESB is present.
+         *
          * SCTLR_EL3.I: Enable the instruction cache.
          *
          * SCTLR_EL3.SA: Enable Stack Alignment check. A SP alignment fault
@@ -289,7 +295,7 @@ func bl31_warm_entrypoint
          *  being accessed.
          * ---------------------------------------------------------------------
          */
-        mov     x1, #({SCTLR_I_BIT} | {SCTLR_A_BIT} | {SCTLR_SA_BIT})
+        mov_imm x1, ({SCTLR_IESB_BIT} | {SCTLR_I_BIT} | {SCTLR_A_BIT} | {SCTLR_SA_BIT})
         mrs     x0, sctlr_el3
         orr     x0, x0, x1
         msr     sctlr_el3, x0

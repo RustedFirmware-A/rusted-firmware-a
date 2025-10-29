@@ -5,6 +5,7 @@
 //! A framework for managing ARM architectural CPU extensions using a trait-based approach.
 
 pub mod hcx;
+pub mod mpam;
 pub mod pmuv3;
 pub mod ras;
 pub mod sys_reg_trace;

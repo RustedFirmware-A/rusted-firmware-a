@@ -6,8 +6,8 @@
 
 use super::{
     ClidrEl1, CsselrEl1, CtrEl0, Esr, HcrEl2, HcrxEl2, IccSre, IdAa64dfr0El1, IdAa64mmfr1El1,
-    IdAa64mmfr2El1, IdAa64mmfr3El1, MdcrEl2, MpidrEl1, Pmcr, ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3,
-    Spsr,
+    IdAa64mmfr2El1, IdAa64mmfr3El1, IdAa64pfr0El1, MdcrEl2, Mpam3El3, MpamIdrEl1, MpidrEl1, Pmcr,
+    ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3, Spsr,
 };
 use std::sync::Mutex;
 
@@ -199,6 +199,8 @@ pub struct SystemRegisters {
     pub id_aa64mmfr2_el1: IdAa64mmfr2El1,
     /// Fake value for the ID_AA64MMFR3_EL1 system register.
     pub id_aa64mmfr3_el1: IdAa64mmfr3El1,
+    /// Fake value for the ID_AA64PFR0_EL1 system register.
+    pub id_aa64pfr0_el1: IdAa64pfr0El1,
     /// Fake value for the ISR_EL1 system register.
     pub isr_el1: u64,
     /// Fake value for the MAIR_EL1 system register.
@@ -215,6 +217,32 @@ pub struct SystemRegisters {
     pub mdscr_el1: u64,
     /// Fake value for the MIDR_EL1 system register.
     pub midr_el1: u64,
+    /// Fake value for the MPAM2_EL2 system register.
+    pub mpam2_el2: u64,
+    /// Fake value for the MPAM3_EL3 system register.
+    pub mpam3_el3: Mpam3El3,
+    /// Fake value for the MPAMHCR_EL2 system register.
+    pub mpamhcr_el2: u64,
+    /// Fake value for the MPAMIDR_EL1 system register.
+    pub mpamidr_el1: MpamIdrEl1,
+    /// Fake value for the MPAMVPMV_EL2 system register.
+    pub mpamvpmv_el2: u64,
+    /// Fake value for the MPAMVPM0_EL2 system register.
+    pub mpamvpm0_el2: u64,
+    /// Fake value for the MPAMVPM1_EL2 system register.
+    pub mpamvpm1_el2: u64,
+    /// Fake value for the MPAMVPM2_EL2 system register.
+    pub mpamvpm2_el2: u64,
+    /// Fake value for the MPAMVPM3_EL2 system register.
+    pub mpamvpm3_el2: u64,
+    /// Fake value for the MPAMVPM4_EL2 system register.
+    pub mpamvpm4_el2: u64,
+    /// Fake value for the MPAMVPM5_EL2 system register.
+    pub mpamvpm5_el2: u64,
+    /// Fake value for the MPAMVPM6_EL2 system register.
+    pub mpamvpm6_el2: u64,
+    /// Fake value for the MPAMVPM7_EL2 system register.
+    pub mpamvpm7_el2: u64,
     /// Fake value for the MPIDR_EL1 system register.
     pub mpidr_el1: MpidrEl1,
     /// Fake value for THEPAR_EL1 system register.
@@ -328,6 +356,7 @@ impl SystemRegisters {
             id_aa64mmfr1_el1: IdAa64mmfr1El1::empty(),
             id_aa64mmfr2_el1: IdAa64mmfr2El1::empty(),
             id_aa64mmfr3_el1: IdAa64mmfr3El1::empty(),
+            id_aa64pfr0_el1: IdAa64pfr0El1::empty(),
             isr_el1: 0,
             mair_el1: 0,
             mair_el2: 0,
@@ -336,6 +365,19 @@ impl SystemRegisters {
             mdcr_el2: MdcrEl2::empty(),
             mdscr_el1: 0,
             midr_el1: 0,
+            mpam2_el2: 0,
+            mpam3_el3: Mpam3El3::empty(),
+            mpamhcr_el2: 0,
+            mpamidr_el1: MpamIdrEl1::empty(),
+            mpamvpmv_el2: 0,
+            mpamvpm0_el2: 0,
+            mpamvpm1_el2: 0,
+            mpamvpm2_el2: 0,
+            mpamvpm3_el2: 0,
+            mpamvpm4_el2: 0,
+            mpamvpm5_el2: 0,
+            mpamvpm6_el2: 0,
+            mpamvpm7_el2: 0,
             mpidr_el1: MpidrEl1::empty(),
             par_el1: 0,
             pmcr_el0: Pmcr::empty(),

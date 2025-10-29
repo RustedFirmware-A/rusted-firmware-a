@@ -616,6 +616,40 @@ bitflags! {
         /// controls when event counters are enabled at EL3 and in other Secure Exception levels.
         const MPMX = 1 << 35;
     }
+
+    /// Indicates the maximum PARTID and PMG values supported in the implementation and the support
+    /// for other optional features.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
+    #[repr(transparent)]
+    pub struct MpamIdrEl1: u64 {
+        /// Indicates support for MPAM virtualization
+        const HAS_HCR = 1 << 17;
+    }
+
+    /// Holds information to generate MPAM labels for memory requests when executing at EL3
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
+    #[repr(transparent)]
+    pub struct Mpam3El3: u64 {
+        /// Trap direct accesses to MPAM System registers that are not UNDEFINED from all ELn lower
+        /// than EL3
+        const TRAPLOWER = 1 << 62;
+        /// MPAM Enable
+        /// If set, MPAM information is output based on the MPAMn_ELx register for ELn according
+        /// the MPAM configuration.
+        /// If not set, the default PARTID and default PMG are output in MPAM information when
+        /// executing at any ELn.
+        const MPAMEN = 1 << 63;
+    }
+}
+
+impl MpamIdrEl1 {
+    const VPMR_MAX_MASK: u64 = 0b111;
+    const VPMR_MAX_SHIFT: u64 = 18;
+
+    /// Indicates the maximum register index n for the MPAMVPM\<n\>_EL2 registers.
+    pub fn vpmr_max(self) -> u64 {
+        (self.bits() >> Self::VPMR_MAX_SHIFT) & Self::VPMR_MAX_MASK
+    }
 }
 
 /// An AArch64 exception level.
@@ -753,6 +787,11 @@ bitflags! {
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
     pub struct IdAa64dfr0El1: u64 {}
+
+    /// ID_AA64PFR0_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64pfr0El1: u64 {}
 }
 
 impl IdAa64dfr0El1 {
@@ -796,10 +835,35 @@ impl IdAa64dfr0El1 {
     }
 }
 
+impl IdAa64pfr0El1 {
+    const MPAM_SHIFT: u64 = 40;
+    const MPAM_MASK: u64 = 0b1111;
+    const MPAM_SUPPORTED: u64 = 1;
+
+    /// Indicates whether MPAM Extension is implemented.
+    pub fn is_feat_mpam_present(self) -> bool {
+        (self.bits() >> Self::MPAM_SHIFT) & Self::MPAM_MASK == Self::MPAM_SUPPORTED
+    }
+}
+
 read_sysreg!(id_aa64dfr0_el1, u64: IdAa64dfr0El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr1_el1, u64: IdAa64mmfr1El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr3_el1, u64: IdAa64mmfr3El1, safe, fake::SYSREGS);
+read_sysreg!(id_aa64pfr0_el1, u64: IdAa64pfr0El1, safe, fake::SYSREGS);
+read_write_sysreg!(mpam2_el2: s3_4_c10_c5_0, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpam3_el3: s3_6_c10_c5_0, u64: Mpam3El3, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamhcr_el2: s3_4_c10_c4_0, u64, safe_read, safe_write, fake::SYSREGS);
+read_sysreg!(mpamidr_el1: s3_0_c10_c4_4, u64: MpamIdrEl1, safe, fake::SYSREGS);
+read_write_sysreg!(mpamvpmv_el2: s3_4_c10_c4_1, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamvpm0_el2: s3_4_c10_c6_0, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamvpm1_el2: s3_4_c10_c6_1, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamvpm2_el2: s3_4_c10_c6_2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamvpm3_el2: s3_4_c10_c6_3, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamvpm4_el2: s3_4_c10_c6_4, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamvpm5_el2: s3_4_c10_c6_5, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamvpm6_el2: s3_4_c10_c6_6, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(mpamvpm7_el2: s3_4_c10_c6_7, u64, safe_read, safe_write, fake::SYSREGS);
 read_sysreg!(mpidr_el1, u64: MpidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(actlr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(actlr_el2, u64, safe_read, safe_write, fake::SYSREGS);

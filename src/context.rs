@@ -4,13 +4,15 @@
 
 use crate::{
     aarch64::isb,
-    cpu_extensions::{CpuExtension, pmuv3, trf::TraceFiltering},
+    cpu_extensions::{CpuExtension, mpam::Mpam, pmuv3, trf::TraceFiltering},
     gicv3,
     platform::{Platform, PlatformImpl, exception_free},
     smccc::SmcReturn,
 };
 use arm_psci::EntryPoint;
-use arm_sysregs::{CptrEl3, Esr, MdcrEl3, ScrEl3, Spsr, read_mpidr_el1, write_scr_el3};
+use arm_sysregs::{
+    CptrEl3, Esr, MdcrEl3, Mpam3El3, ScrEl3, Spsr, read_mpidr_el1, write_mpam3_el3, write_scr_el3,
+};
 #[cfg(not(feature = "sel2"))]
 use arm_sysregs::{
     CsselrEl1, SctlrEl1, read_actlr_el1, read_afsr0_el1, read_afsr1_el1, read_amair_el1,
@@ -479,14 +481,32 @@ impl El2Sysregs {
 #[repr(C)]
 pub struct PerWorldContext {
     pub cptr_el3: CptrEl3,
+    /// MPAM3_EL3 belongs to the global `PerWorldContext`
+    /// (instead of an additional extension specific context)
+    /// because we should trap MPAM register access
+    /// if a platform does not support MPAM.
+    pub mpam3_el3: Mpam3El3,
     zcr_el3: u64,
 }
 
 impl PerWorldContext {
-    const EMPTY: Self = Self {
+    /// By default trap accesses to extensions' sysregs. The configuration may be
+    /// overwritten if a platform supports an extension.
+    ///
+    /// TODO: configure the defaults.
+    const DEFAULT: Self = Self {
         cptr_el3: CptrEl3::empty(),
+        mpam3_el3: Mpam3El3::TRAPLOWER,
         zcr_el3: 0,
     };
+
+    /// Restores world-specific EL3 system register configuration.
+    fn restore_el3_sysregs(&self) {
+        // TODO: move the entire per_world_context restoration here from `el3_exit`.
+        if Mpam.is_present() {
+            write_mpam3_el3(self.mpam3_el3);
+        }
+    }
 }
 
 pub type CrashBuf = [u64; CPU_DATA_CRASH_BUF_COUNT];
@@ -550,8 +570,8 @@ pub fn world_context(world: World) -> *mut CpuContext {
     unsafe { &raw mut (*CPU_STATE.get().as_ptr()).0[world.index()] }
 }
 
-/// Saves lower EL system registers from the current world, restores lower EL system registers of
-/// the given world.
+/// Saves lower EL system registers from the current world, restores lower EL and some per-world
+/// EL3 system registers of the given world.
 pub fn switch_world(old_world: World, new_world: World) {
     assert_ne!(old_world, new_world);
     exception_free(|token| {
@@ -565,6 +585,9 @@ pub fn switch_world(old_world: World, new_world: World) {
             ext.restore_context(new_world);
         }
         cpu_state[new_world].restore_lower_el_sysregs();
+
+        let new_world_context = &PER_WORLD_CONTEXT.get().unwrap()[new_world];
+        new_world_context.restore_el3_sysregs();
     });
 }
 
@@ -600,7 +623,7 @@ pub fn cpu_state(token: ExceptionFree) -> RefMut<CpuState> {
 /// Initialises the per-world contexts.
 pub fn initialise_per_world_contexts() {
     PER_WORLD_CONTEXT.call_once(|| {
-        let mut per_world = PerWorld([PerWorldContext::EMPTY; CPU_DATA_CONTEXT_NUM]);
+        let mut per_world = PerWorld([PerWorldContext::DEFAULT; CPU_DATA_CONTEXT_NUM]);
 
         for ext in PlatformImpl::CPU_EXTENSIONS {
             if ext.is_present() {

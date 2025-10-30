@@ -214,6 +214,14 @@ impl SmcReturn {
         &mut self.values[0..self.used]
     }
 
+    /// Marks all values as used and returns a mutable reference to the values. The function does
+    /// not clear the contents of the values array for performance reasons. It is the responsibility
+    /// of the caller to set all items of the array.
+    pub fn mark_all_used(&mut self) -> &mut [u64; Self::MAX_VALUES] {
+        self.used = Self::MAX_VALUES;
+        &mut self.values
+    }
+
     /// Returns true if no values are used.
     pub fn is_empty(&self) -> bool {
         self.used == 0

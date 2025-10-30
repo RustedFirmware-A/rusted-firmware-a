@@ -512,7 +512,7 @@ impl Spmd {
 impl PsciSpmInterface for Spmd {
     fn forward_psci_request(&self, psci_request: &[u64; 4]) -> u64 {
         let version = self.spmc_version;
-        let mut out_regs = SmcReturn::from([0u64; 18]);
+        let mut regs = SmcReturn::from([0u64; 18]);
 
         let msg = Interface::MsgSendDirectReq {
             src_id: Self::OWN_ID,
@@ -522,13 +522,13 @@ impl PsciSpmInterface for Spmd {
             },
         };
 
-        msg.to_regs(version, out_regs.values_mut());
+        msg.to_regs(version, regs.values_mut());
 
         switch_world(World::NonSecure, World::Secure);
 
         let ret: i32 = loop {
-            match enter_world(&out_regs, World::Secure) {
-                RunResult::Smc { regs } => match Interface::from_regs(version, &regs) {
+            match enter_world(&mut regs, World::Secure) {
+                RunResult::Smc => match Interface::from_regs(version, regs.values()) {
                     Ok(Interface::MsgSendDirectResp {
                         src_id,
                         dst_id: Self::OWN_ID,

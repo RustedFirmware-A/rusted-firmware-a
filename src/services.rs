@@ -197,8 +197,8 @@ impl Services {
         let mut next_world;
 
         loop {
-            (regs, next_world) = match enter_world(&regs, world) {
-                RunResult::Smc { regs } => self.handle_smc(&regs, world),
+            (regs, next_world) = match enter_world(&mut regs, world) {
+                RunResult::Smc => self.handle_smc(regs.values().try_into().unwrap(), world),
                 RunResult::Interrupt => self.handle_interrupt(world),
                 RunResult::SysregTrap { esr } => {
                     self.handle_sysreg_trap(esr, world);

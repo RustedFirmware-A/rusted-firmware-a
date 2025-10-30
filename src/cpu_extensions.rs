@@ -8,6 +8,7 @@ pub mod hcx;
 pub mod pmuv3;
 pub mod ras;
 pub mod sys_reg_trace;
+pub mod tcr2;
 pub mod trbe;
 pub mod trf;
 

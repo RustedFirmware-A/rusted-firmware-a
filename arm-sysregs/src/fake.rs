@@ -6,7 +6,8 @@
 
 use super::{
     ClidrEl1, CsselrEl1, CtrEl0, Esr, HcrEl2, HcrxEl2, IccSre, IdAa64dfr0El1, IdAa64mmfr1El1,
-    IdAa64mmfr2El1, MdcrEl2, MpidrEl1, Pmcr, ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3, Spsr,
+    IdAa64mmfr2El1, IdAa64mmfr3El1, MdcrEl2, MpidrEl1, Pmcr, ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3,
+    Spsr,
 };
 use std::sync::Mutex;
 
@@ -196,6 +197,8 @@ pub struct SystemRegisters {
     pub id_aa64mmfr1_el1: IdAa64mmfr1El1,
     /// Fake value for the ID_AA64MMFR2_EL1 system register.
     pub id_aa64mmfr2_el1: IdAa64mmfr2El1,
+    /// Fake value for the ID_AA64MMFR3_EL1 system register.
+    pub id_aa64mmfr3_el1: IdAa64mmfr3El1,
     /// Fake value for the ISR_EL1 system register.
     pub isr_el1: u64,
     /// Fake value for the MAIR_EL1 system register.
@@ -242,6 +245,10 @@ pub struct SystemRegisters {
     pub tcr_el2: u64,
     /// Fake value for THETCR_EL3 system register.
     pub tcr_el3: u64,
+    /// Fake value for the TCR2_EL1 system register.
+    pub tcr2_el1: u64,
+    /// Fake value for the TCR2_EL2 system register.
+    pub tcr2_el2: u64,
     /// Fake value for THETPIDR_EL0 system register.
     pub tpidr_el0: u64,
     /// Fake value for THETPIDR_EL1 system register.
@@ -320,6 +327,7 @@ impl SystemRegisters {
             id_aa64dfr0_el1: IdAa64dfr0El1::empty(),
             id_aa64mmfr1_el1: IdAa64mmfr1El1::empty(),
             id_aa64mmfr2_el1: IdAa64mmfr2El1::empty(),
+            id_aa64mmfr3_el1: IdAa64mmfr3El1::empty(),
             isr_el1: 0,
             mair_el1: 0,
             mair_el2: 0,
@@ -343,6 +351,8 @@ impl SystemRegisters {
             tcr_el1: 0,
             tcr_el2: 0,
             tcr_el3: 0,
+            tcr2_el1: 0,
+            tcr2_el2: 0,
             tpidr_el0: 0,
             tpidr_el1: 0,
             tpidr_el2: 0,

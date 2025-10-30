@@ -86,6 +86,24 @@ impl IdAa64mmfr2El1 {
 }
 
 bitflags! {
+    /// ID_AA64MMFR3_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64mmfr3El1: u64 {}
+}
+
+impl IdAa64mmfr3El1 {
+    const TCRX_SHIFT: u64 = 0;
+    const TCRX_MASK: u64 = 0b1111;
+    const TCRX_SUPPORTED: u64 = 1;
+
+    /// Indicates presence of FEAT_TCR2.
+    pub fn is_feat_tcr2_present(self) -> bool {
+        (self.bits() >> Self::TCRX_SHIFT) & Self::TCRX_MASK >= Self::TCRX_SUPPORTED
+    }
+}
+
+bitflags! {
     /// MPIDR_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
@@ -781,6 +799,7 @@ impl IdAa64dfr0El1 {
 read_sysreg!(id_aa64dfr0_el1, u64: IdAa64dfr0El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr1_el1, u64: IdAa64mmfr1El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
+read_sysreg!(id_aa64mmfr3_el1, u64: IdAa64mmfr3El1, safe, fake::SYSREGS);
 read_sysreg!(mpidr_el1, u64: MpidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(actlr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(actlr_el2, u64, safe_read, safe_write, fake::SYSREGS);
@@ -866,6 +885,8 @@ write_sysreg! {
     /// translation control register.
     tcr_el3, u64, fake::SYSREGS
 }
+read_write_sysreg!(tcr2_el1: s3_0_c2_c0_3, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(tcr2_el2: s3_4_c2_c0_3, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(tpidr_el0, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(tpidr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(tpidr_el2, u64, safe_read, safe_write, fake::SYSREGS);

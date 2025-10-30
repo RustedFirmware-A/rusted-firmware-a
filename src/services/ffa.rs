@@ -459,7 +459,7 @@ impl Spmd {
         (out_msg, next_world)
     }
 
-    pub fn forward_secure_interrupt(&self) -> (SmcReturn, World) {
+    pub fn forward_secure_interrupt(&self, regs: &mut SmcReturn) -> World {
         let msg = Interface::Interrupt {
             // The endpoint and vCPU ID fields MBZ in this case
             target_info: TargetInfo {
@@ -472,10 +472,10 @@ impl Spmd {
 
         self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::SecureInterrupt);
 
-        let mut out_regs = SmcReturn::from([0u64; 18]);
-        msg.to_regs(self.spmc_version, out_regs.values_mut());
+        let out_regs = regs.mark_all_used();
+        msg.to_regs(self.spmc_version, out_regs);
 
-        (out_regs, World::Secure)
+        World::Secure
     }
 
     /// Notify the SPM that the current core was turned on for the first time or after CPU_OFF.

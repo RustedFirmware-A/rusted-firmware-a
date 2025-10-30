@@ -222,6 +222,11 @@ impl SmcReturn {
         &mut self.values
     }
 
+    /// Marks the instance as empty.
+    pub fn mark_empty(&mut self) {
+        self.used = 0;
+    }
+
     /// Returns true if no values are used.
     pub fn is_empty(&self) -> bool {
         self.used == 0

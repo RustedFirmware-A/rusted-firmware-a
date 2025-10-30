@@ -107,11 +107,12 @@ impl Services {
         }
     }
 
-    fn handle_smc(&self, regs: &[u64; 18], world: World) -> (SmcReturn, World) {
-        let function = FunctionId(regs[0] as u32);
+    fn handle_smc(&self, regs: &mut SmcReturn, world: World) -> World {
+        let function = FunctionId(regs.values()[0] as u32);
 
         if !function.valid() {
-            return (NOT_SUPPORTED.into(), world);
+            *regs = NOT_SUPPORTED.into();
+            return world;
         }
 
         let service: &dyn Service = if self.arch.owns(function) {
@@ -129,40 +130,50 @@ impl Services {
             if self.rmmd.owns(function) {
                 &self.rmmd
             } else {
-                return (NOT_SUPPORTED.into(), world);
+                *regs = NOT_SUPPORTED.into();
+                return world;
             }
 
             #[cfg(not(feature = "rme"))]
-            return (NOT_SUPPORTED.into(), world);
+            {
+                *regs = NOT_SUPPORTED.into();
+                return world;
+            }
         };
+
+        let in_regs: &[u64; 18] = regs.values().try_into().unwrap();
 
         let (out_regs, next_world) = match world {
-            World::NonSecure => service.handle_non_secure_smc(regs),
-            World::Secure => service.handle_secure_smc(regs),
+            World::NonSecure => service.handle_non_secure_smc(in_regs),
+            World::Secure => service.handle_secure_smc(in_regs),
             #[cfg(feature = "rme")]
-            World::Realm => service.handle_realm_smc(regs),
+            World::Realm => service.handle_realm_smc(in_regs),
         };
 
-        (out_regs, next_world)
+        *regs = out_regs;
+
+        next_world
     }
 
-    fn handle_interrupt(&self, world: World) -> (SmcReturn, World) {
+    fn handle_interrupt(&self, regs: &mut SmcReturn, world: World) -> World {
         let interrupt_type = gicv3::get_pending_interrupt_type();
 
         match (interrupt_type, world) {
-            (InterruptType::Secure, World::NonSecure) => self.spmd.forward_secure_interrupt(),
+            (InterruptType::Secure, World::NonSecure) => self.spmd.forward_secure_interrupt(regs),
             // TODO:
             // Group 0 interrupts hitting in SWd should be catched by the SPMC and passed to EL3
             // synchronously, by invoking FFA_EL3_INTR_HANDLE.
             (InterruptType::El3, World::Secure) => todo!(),
             (InterruptType::El3, World::NonSecure) => {
                 gicv3::handle_group0_interrupt();
-                (SmcReturn::EMPTY, world)
+                regs.mark_empty();
+                world
             }
             (InterruptType::Invalid, _) => {
                 // If the interrupt controller reports a spurious interrupt then return to where we
                 // came from.
-                (SmcReturn::EMPTY, world)
+                regs.mark_empty();
+                world
             }
             _ => panic!(
                 "Unsupported interrupt routing. Interrupt type: {interrupt_type:?} world: {world:?}"
@@ -193,21 +204,22 @@ impl Services {
         }
     }
 
-    fn per_world_loop(&self, mut regs: SmcReturn, world: World) -> (SmcReturn, World) {
+    fn per_world_loop(&self, regs: &mut SmcReturn, world: World) -> World {
         let mut next_world;
 
         loop {
-            (regs, next_world) = match enter_world(&mut regs, world) {
-                RunResult::Smc => self.handle_smc(regs.values().try_into().unwrap(), world),
-                RunResult::Interrupt => self.handle_interrupt(world),
+            next_world = match enter_world(regs, world) {
+                RunResult::Smc => self.handle_smc(regs, world),
+                RunResult::Interrupt => self.handle_interrupt(regs, world),
                 RunResult::SysregTrap { esr } => {
                     self.handle_sysreg_trap(esr, world);
-                    (SmcReturn::EMPTY, world)
+                    regs.mark_empty();
+                    world
                 }
             };
 
             if next_world != world {
-                break (regs, next_world);
+                break next_world;
             }
         }
     }
@@ -223,11 +235,12 @@ impl Services {
     /// of the boot process, i.e. after setting up MMU, GIC, etc.
     pub fn run_loop(&self) -> ! {
         let mut current_world = World::Secure;
+        let mut regs = SmcReturn::EMPTY;
 
         info!("Booting Secure World");
         set_initial_world(World::Secure);
         // TODO: implement separate boot loop for Secure World
-        let (_, next_world) = self.per_world_loop(SmcReturn::EMPTY, World::Secure);
+        let next_world = self.per_world_loop(&mut regs, World::Secure);
         assert_eq!(next_world, World::NonSecure);
 
         #[cfg(feature = "rme")]
@@ -236,18 +249,19 @@ impl Services {
             switch_world(current_world, World::Realm);
             current_world = World::Realm;
             // TODO: implement separate boot loop for Realm World
-            let (_, next_world) = self.per_world_loop(SmcReturn::EMPTY, World::Realm);
+            regs.mark_empty();
+            let next_world = self.per_world_loop(&mut regs, World::Realm);
             assert_eq!(next_world, World::NonSecure);
         }
 
-        let mut regs = SmcReturn::EMPTY;
+        regs.mark_empty();
         let mut next_world = World::NonSecure;
         info!("Booting Normal World");
 
         loop {
             switch_world(current_world, next_world);
             current_world = next_world;
-            (regs, next_world) = self.per_world_loop(regs, current_world);
+            next_world = self.per_world_loop(&mut regs, current_world);
             assert_ne!(current_world, next_world);
         }
     }
@@ -276,9 +290,11 @@ mod tests {
         function.set_sve_hint();
         regs[0] = function.0.into();
 
-        let (result, new_world) = services.handle_smc(&regs, World::NonSecure);
+        let mut regs = regs.into();
+
+        let new_world = services.handle_smc(&mut regs, World::NonSecure);
 
         assert_eq!(new_world, World::NonSecure);
-        assert_eq!(result.values(), [SMCCC_VERSION_1_5 as u64]);
+        assert_eq!(regs.values(), [SMCCC_VERSION_1_5 as u64]);
     }
 }

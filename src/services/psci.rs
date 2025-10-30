@@ -872,7 +872,7 @@ impl Psci {
         )
     }
 
-    fn handle_smc_inner(&self, regs: [u64; 4]) -> Result<u64, ErrorCode> {
+    fn handle_smc_inner(&self, regs: &[u64; 4]) -> Result<u64, ErrorCode> {
         const SUCCESS: u64 = 0;
         let function = Function::try_from(regs)?;
 
@@ -992,7 +992,7 @@ impl Service for Psci {
         function.clear_sve_hint();
         in_regs[0] = function.0.into();
 
-        let result = match self.handle_smc_inner(in_regs) {
+        let result = match self.handle_smc_inner(&in_regs) {
             Ok(result) => result.into(),
             Err(return_code) => return_code.into(),
         };

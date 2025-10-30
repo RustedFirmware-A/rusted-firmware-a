@@ -107,9 +107,9 @@ dependencies = [
 
 [[package]]
 name = "arm-psci"
-version = "0.1.3"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccd3fe79149f7216aa4c47e250080cbb9bce9bea908d2a9799ba37c729f5894f"
+checksum = "cb260c93c22f6aa06dd87a2cee5dfe79554c6ae228ec8fd256b31293e3d188ff"
 dependencies = [
  "bitflags",
  "num_enum",

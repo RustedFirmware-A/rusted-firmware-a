@@ -191,6 +191,11 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.3.1 -> 0.4.0"
 notes = "Added support for new FF-A interfaces, minor fixes and Covering the crate with unit tests."
 
+[[audits.arm-ffa]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.4.0 -> 0.4.1"
+
 [[audits.arm-fvp-base-pac]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

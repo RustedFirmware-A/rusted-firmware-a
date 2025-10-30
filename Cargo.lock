@@ -31,9 +31,9 @@ dependencies = [
 
 [[package]]
 name = "arm-ffa"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a71f606700cd505dce43591a1913f8e94246a83674f30bfe815206827f1211b"
+checksum = "441a40ad4752cff1cf8e84130ac4e13eaeca2c37d426a892337fd89c02ddc7f9"
 dependencies = [
  "num_enum",
  "thiserror",

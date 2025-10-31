@@ -14,7 +14,9 @@ use crate::{
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
     naked_asm,
     pagetable::{
-        IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping, map_region,
+        IdMap, MT_DEVICE, MT_MEMORY, disable_mmu_el3,
+        early_pagetable::{EarlyRegion, define_early_mapping},
+        map_region,
     },
     platform::CpuExtension,
     semihosting::{AdpStopped, semihosting_exit},
@@ -54,6 +56,8 @@ const SHARED_RAM: MemoryRegion =
     MemoryRegion::new(SHARED_RAM_BASE, SHARED_RAM_BASE + SHARED_RAM_SIZE);
 const DEVICE0: MemoryRegion = MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE);
 const DEVICE1: MemoryRegion = MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE);
+const BL31_BASE: usize = 0x0e09_0000;
+const BL32_BASE: usize = 0x0e10_0000;
 
 const GICD_BASE: usize = 0x0800_0000;
 const GICR_BASE: usize = 0x080A_0000;
@@ -114,7 +118,16 @@ fn log_buffers() -> [&'static mut [u8]; Qemu::CORE_COUNT] {
         .map(|buffer| &mut buffer[..])
 }
 
-define_early_mapping!([]);
+define_early_mapping!([
+    EarlyRegion {
+        address_range: BL31_BASE..BL32_BASE,
+        attributes: MT_MEMORY
+    },
+    EarlyRegion {
+        address_range: DEVICE1_BASE..(DEVICE1_BASE + DEVICE1_SIZE),
+        attributes: MT_DEVICE
+    }
+]);
 
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0 and x1, and returns a unique index as long as `PLATFORM_CPU_PER_CLUSTER_SHIFT`

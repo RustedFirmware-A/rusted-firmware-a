@@ -6,7 +6,7 @@ use crate::{
     context::World,
     platform::TrngPlatformImpl,
     services::{Service, owns},
-    smccc::{FunctionId, OwningEntityNumber, SUCCESS, SmcReturn},
+    smccc::{FunctionId, OwningEntityNumber, SUCCESS, SetFrom, SmcReturn},
 };
 use spin::mutex::SpinMutex;
 use uuid::Uuid;
@@ -38,9 +38,9 @@ pub enum TrngError {
     NoEntropy = -3,
 }
 
-impl From<TrngError> for SmcReturn {
-    fn from(e: TrngError) -> Self {
-        SmcReturn::from(e as i32)
+impl SetFrom<TrngError> for SmcReturn {
+    fn set_from(&mut self, value: TrngError) {
+        self.set_from(value as i32)
     }
 }
 
@@ -272,17 +272,20 @@ impl Service for Trng {
         TRNG_FN_NUM_MIN..=TRNG_FN_NUM_MAX
     );
 
-    fn handle_non_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
-        (self.handle_smc_common(regs), World::NonSecure)
+    fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
+        self.handle_smc_common(regs);
+        World::NonSecure
     }
 
-    fn handle_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
-        (self.handle_smc_common(regs), World::Secure)
+    fn handle_secure_smc(&self, regs: &mut SmcReturn) -> World {
+        self.handle_smc_common(regs);
+        World::Secure
     }
 
     #[cfg(feature = "rme")]
-    fn handle_realm_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
-        (self.handle_smc_common(regs), World::Realm)
+    fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
+        self.handle_smc_common(regs);
+        World::Realm
     }
 }
 
@@ -294,66 +297,74 @@ impl Trng {
         }
     }
 
-    fn handle_smc_common(&self, regs: &[u64; 18]) -> SmcReturn {
-        let mut function = FunctionId(regs[0] as u32);
+    fn handle_smc_common(&self, regs: &mut SmcReturn) {
+        let in_regs = regs.values();
+        let mut function = FunctionId(in_regs[0] as u32);
         function.clear_sve_hint();
-        let x1 = regs[1];
 
         if TrngPlatformImpl::TRNG_UUID.is_nil() {
-            return TrngError::NotSupported.into();
+            regs.set_from(TrngError::NotSupported);
+            return;
         }
 
         match function.0 {
-            ARM_TRNG_VERSION => TRNG_VERSION.into(),
+            ARM_TRNG_VERSION => regs.set_from(TRNG_VERSION),
             ARM_TRNG_FEATURES => {
-                let feature_id = x1 as u32;
+                let feature_id = in_regs[1] as u32;
                 if is_trng_fid(feature_id) {
-                    SUCCESS.into()
+                    regs.set_from(SUCCESS);
                 } else {
-                    TrngError::NotSupported.into()
-                }
+                    regs.set_from(TrngError::NotSupported)
+                };
             }
-            ARM_TRNG_GET_UUID => TrngPlatformImpl::TRNG_UUID.into(),
-            ARM_TRNG_RND32 => self.trng_rnd32(x1 as usize),
-            ARM_TRNG_RND64 => self.trng_rnd64(x1 as usize),
-            _ => TrngError::NotSupported.into(),
+            ARM_TRNG_GET_UUID => regs.set_from(&TrngPlatformImpl::TRNG_UUID),
+            ARM_TRNG_RND32 => self.trng_rnd32(regs),
+            ARM_TRNG_RND64 => self.trng_rnd64(regs),
+            _ => regs.set_from(TrngError::NotSupported),
         }
     }
 
     /// Generate n bits of entropy for an SMC32 call
-    fn trng_rnd32(&self, nbits: usize) -> SmcReturn {
+    fn trng_rnd32(&self, regs: &mut SmcReturn) {
+        let nbits = regs.values()[1] as usize;
+
         if nbits == 0 || nbits > TRNG_RND32_ENTROPY_MAXBITS {
-            return TrngError::InvalidParams.into();
+            regs.set_from(TrngError::InvalidParams);
+            return;
         }
 
         let mut ent = [0u64; 2];
         if let Err(e) = self.pool.lock().pack_entropy(nbits, &mut ent) {
-            return e.into();
+            regs.set_from(e);
+            return;
         }
 
         // Return entropy in w1-w3 as per SMC32 definition in TRNG spec
-        [
+        regs.set_args4(
             SUCCESS as u64,
             ent[1],
             (ent[0] >> 32) & 0xFFFF_FFFF,
             ent[0] & 0xFFFF_FFFF,
-        ]
-        .into()
+        );
     }
 
     /// Generate n bits of entropy for an SMC64 call
-    fn trng_rnd64(&self, nbits: usize) -> SmcReturn {
+    fn trng_rnd64(&self, regs: &mut SmcReturn) {
+        let nbits = regs.values()[1] as usize;
+
         if nbits == 0 || nbits > TRNG_RND64_ENTROPY_MAXBITS {
-            return TrngError::InvalidParams.into();
+            regs.set_from(TrngError::InvalidParams);
+            return;
         }
 
         let mut ent = [0u64; 3];
         if let Err(e) = self.pool.lock().pack_entropy(nbits, &mut ent) {
-            return e.into();
+            regs.set_from(e);
+            return;
         }
 
         // Return entropy in x1-x3 as per SMC64 definition in TRNG spec
-        [SUCCESS as u64, ent[2], ent[1], ent[0]].into()
+        regs.set_args4(SUCCESS as u64, ent[2], ent[1], ent[0]);
     }
 }
 
@@ -366,6 +377,8 @@ fn is_trng_fid(smc_fid: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::smccc::SetFrom;
+
     use super::*;
 
     #[test]
@@ -467,111 +480,46 @@ mod tests {
     #[test]
     fn trng_version() {
         let trng = Trng::new();
-        let regs = [
-            ARM_TRNG_VERSION as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        assert_eq!(ret, TRNG_VERSION.into());
+        let mut regs = SmcReturn::EMPTY;
+        let mut expected = SmcReturn::EMPTY;
+
+        regs.set_from(ARM_TRNG_VERSION);
+        expected.set_from(TRNG_VERSION);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
     }
 
     #[test]
     fn trng_features() {
         let trng = Trng::new();
+        let mut regs = SmcReturn::EMPTY;
+        let mut expected = SmcReturn::EMPTY;
+
         // Supported feature
-        let regs = [
-            ARM_TRNG_FEATURES as u64,
-            ARM_TRNG_RND32 as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        assert_eq!(ret, SUCCESS.into());
+        regs.set_args2(ARM_TRNG_FEATURES as u64, ARM_TRNG_RND32 as u64);
+        expected.set_from(SUCCESS);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
 
         // Unsupported feature
-        let regs = [
-            ARM_TRNG_FEATURES as u64,
-            0x8400_0000_u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        assert_eq!(ret, TrngError::NotSupported.into());
+        regs.set_args2(ARM_TRNG_FEATURES as u64, 0x8400_0000_u64);
+        expected.set_from(TrngError::NotSupported);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
     }
 
     #[test]
     fn trng_get_uuid() {
         let trng = Trng::new();
-        let regs = [
-            ARM_TRNG_GET_UUID as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
+        let mut regs = SmcReturn::EMPTY;
+
+        regs.set_from(ARM_TRNG_GET_UUID);
+        trng.handle_smc_common(&mut regs);
         let actual_uuid = Uuid::from_u128_le(
-            ret.values()[0] as u128
-                | ((ret.values()[1] as u128) << 32)
-                | ((ret.values()[2] as u128) << 64)
-                | ((ret.values()[3] as u128) << 96),
+            regs.values()[0] as u128
+                | ((regs.values()[1] as u128) << 32)
+                | ((regs.values()[2] as u128) << 64)
+                | ((regs.values()[3] as u128) << 96),
         );
         let expected_uuid = TrngPlatformImpl::TRNG_UUID;
         assert_eq!(actual_uuid, expected_uuid);
@@ -580,218 +528,88 @@ mod tests {
     #[test]
     fn trng_rnd32_invalid_nbits() {
         let trng = Trng::new();
+        let mut regs = SmcReturn::EMPTY;
+        let mut expected = SmcReturn::EMPTY;
+
         // nbits == 0
-        let regs = [
-            ARM_TRNG_RND32 as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        assert_eq!(ret, TrngError::InvalidParams.into());
+        regs.set_args2(ARM_TRNG_RND32 as u64, 0);
+        expected.set_from(TrngError::InvalidParams);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
 
         // nbits > max
-        let regs = [
+
+        regs.set_args2(
             ARM_TRNG_RND32 as u64,
             (TRNG_RND32_ENTROPY_MAXBITS + 1) as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        assert_eq!(ret, TrngError::InvalidParams.into());
+        );
+        expected.set_from(TrngError::InvalidParams);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
     }
 
     #[test]
     fn trng_rnd64_invalid_nbits() {
         let trng = Trng::new();
+        let mut regs = SmcReturn::EMPTY;
+        let mut expected = SmcReturn::EMPTY;
+
         // nbits = 0
-        let regs = [
-            ARM_TRNG_RND64 as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        assert_eq!(ret, TrngError::InvalidParams.into());
+        regs.set_args2(ARM_TRNG_RND64 as u64, 0);
+        expected.set_from(TrngError::InvalidParams);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
 
         // nbits > max
-        let regs = [
+        regs.set_args2(
             ARM_TRNG_RND64 as u64,
             (TRNG_RND64_ENTROPY_MAXBITS + 1) as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        assert_eq!(ret, TrngError::InvalidParams.into());
+        );
+        expected.set_from(TrngError::InvalidParams);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
     }
 
     #[test]
     fn trng_rnd32_get_entropy() {
         let trng = Trng::new();
+        let mut regs = SmcReturn::EMPTY;
+        let mut expected = SmcReturn::EMPTY;
         let nbits = 12;
-        let regs = [
-            ARM_TRNG_RND32 as u64,
-            nbits,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        let expected_entropy = (1u64 << nbits).wrapping_sub(1);
-        let expected: SmcReturn = [SUCCESS as u64, 0, 0, expected_entropy].into();
-        assert_eq!(ret, expected);
 
-        let regs = [
-            ARM_TRNG_RND32 as u64,
-            TRNG_RND32_ENTROPY_MAXBITS as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        let expected: SmcReturn = [
+        regs.set_args2(ARM_TRNG_RND32 as u64, nbits);
+        let expected_entropy = (1u64 << nbits).wrapping_sub(1);
+        expected.set_args4(SUCCESS as u64, 0, 0, expected_entropy);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
+
+        regs.set_args2(ARM_TRNG_RND32 as u64, TRNG_RND32_ENTROPY_MAXBITS as u64);
+        expected.set_args4(
             SUCCESS as u64,
             u32::MAX as u64,
             u32::MAX as u64,
             u32::MAX as u64,
-        ]
-        .into();
-        assert_eq!(ret, expected);
+        );
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
     }
 
     #[test]
     fn trng_rnd64_get_entropy() {
         let trng = Trng::new();
+        let mut regs = SmcReturn::EMPTY;
+        let mut expected = SmcReturn::EMPTY;
         let nbits = 51;
-        let regs = [
-            ARM_TRNG_RND64 as u64,
-            nbits,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        let expected_entropy: u64 = (1u64 << nbits).wrapping_sub(1);
-        let expected: SmcReturn = [SUCCESS as u64, 0, 0, expected_entropy].into();
-        assert_eq!(ret, expected);
 
-        let regs = [
-            ARM_TRNG_RND64 as u64,
-            TRNG_RND64_ENTROPY_MAXBITS as u64,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ];
-        let ret = trng.handle_smc_common(&regs);
-        let expected: SmcReturn = [SUCCESS as u64, u64::MAX, u64::MAX, u64::MAX].into();
-        assert_eq!(ret, expected);
+        regs.set_args2(ARM_TRNG_RND64 as u64, nbits);
+        let expected_entropy: u64 = (1u64 << nbits).wrapping_sub(1);
+        expected.set_args4(SUCCESS as u64, 0, 0, expected_entropy);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
+
+        regs.set_args2(ARM_TRNG_RND64 as u64, TRNG_RND64_ENTROPY_MAXBITS as u64);
+        expected.set_args4(SUCCESS as u64, u64::MAX, u64::MAX, u64::MAX);
+        trng.handle_smc_common(&mut regs);
+        assert_eq!(regs, expected);
     }
 }

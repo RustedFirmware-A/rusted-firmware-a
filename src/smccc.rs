@@ -189,11 +189,28 @@ impl Debug for FunctionId {
 }
 
 /// A value which can be returned from an SMC call by writing to the caller's registers.
-#[derive(Clone, Default, Eq, PartialEq)]
+#[derive(Clone, Default, Eq)]
 pub struct SmcReturn {
     /// The number of elements from `values` that are actually used for this return.
     used: usize,
     values: [u64; Self::MAX_VALUES],
+}
+
+/// Defines a method on `SmcReturn` that sets the specified number of values passed as parameters.
+macro_rules! define_set_args {
+    ($name:ident, $($args:ident),+) => {
+        #[doc = "Sets the specified number of values."]
+        #[allow(unused)]
+        #[inline(always)]
+        pub fn $name(&mut self, $($args: u64),*,) {
+            let mut i = 0;
+            $(
+                self.values[i] = $args;
+                i += 1;
+            )*
+            self.used = i;
+        }
+    };
 }
 
 impl SmcReturn {
@@ -218,8 +235,16 @@ impl SmcReturn {
     /// not clear the contents of the values array for performance reasons. It is the responsibility
     /// of the caller to set all items of the array.
     pub fn mark_all_used(&mut self) -> &mut [u64; Self::MAX_VALUES] {
-        self.used = Self::MAX_VALUES;
-        &mut self.values
+        self.mark_used()
+    }
+
+    /// Marks values as used and returns mutable reference to them.
+    pub fn mark_used<const N: usize>(&mut self) -> &mut [u64; N] {
+        const {
+            assert!(N <= Self::MAX_VALUES);
+        }
+        self.used = N;
+        (&mut self.values[0..N]).try_into().unwrap()
     }
 
     /// Marks the instance as empty.
@@ -227,9 +252,71 @@ impl SmcReturn {
         self.used = 0;
     }
 
+    define_set_args!(set_args2, a0, a1);
+    define_set_args!(set_args3, a0, a1, a2);
+    define_set_args!(set_args4, a0, a1, a2, a4);
+    define_set_args!(set_args5, a0, a1, a2, a3, a4);
+
     /// Returns true if no values are used.
     pub fn is_empty(&self) -> bool {
         self.used == 0
+    }
+}
+
+impl PartialEq for SmcReturn {
+    fn eq(&self, other: &Self) -> bool {
+        self.used == other.used && self.values[..self.used] == other.values[..self.used]
+    }
+}
+
+/// This trait is similar to the standard `From` trait, except it sets the value of the object
+/// in-place after. The main consumer of this trait is the `SmcReturn` type, so copying `SmcReturn`
+/// values can be avoided.
+/// Implementing this trait for a large `T` type (> 8 bytes) is highly discouraged due to
+/// performance reasons.
+pub trait SetFrom<T> {
+    fn set_from(&mut self, value: T);
+}
+
+impl SetFrom<u64> for SmcReturn {
+    fn set_from(&mut self, value: u64) {
+        self.used = 1;
+        self.values[0] = value;
+    }
+}
+
+impl SetFrom<i64> for SmcReturn {
+    fn set_from(&mut self, value: i64) {
+        self.set_from(value as u64)
+    }
+}
+
+impl SetFrom<u32> for SmcReturn {
+    fn set_from(&mut self, value: u32) {
+        self.set_from(u64::from(value))
+    }
+}
+
+impl SetFrom<i32> for SmcReturn {
+    fn set_from(&mut self, value: i32) {
+        self.set_from(value as u64)
+    }
+}
+
+impl SetFrom<&Uuid> for SmcReturn {
+    fn set_from(&mut self, value: &Uuid) {
+        // Acccording to section 5.3 of the SMCCC, UUIDs are returned as a single
+        // 128-bit value using the SMC32 calling convention. This value is mapped to
+        // argument registers x0-x3 on AArch64 (resp. r0-r3 on AArch32). x0 for example
+        // shall hold bytes 0 to 3, with byte 0 in the low-order bits.
+        let bytes = value.as_bytes();
+
+        self.values[0] = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as u64;
+        self.values[1] = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as u64;
+        self.values[2] = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as u64;
+        self.values[3] = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as u64;
+
+        self.used = 4;
     }
 }
 
@@ -247,85 +334,3 @@ impl Debug for SmcReturn {
         Ok(())
     }
 }
-
-impl From<()> for SmcReturn {
-    fn from(_: ()) -> Self {
-        Self::EMPTY
-    }
-}
-
-impl From<u64> for SmcReturn {
-    fn from(value: u64) -> Self {
-        Self {
-            used: 1,
-            values: [value, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        }
-    }
-}
-
-impl From<i64> for SmcReturn {
-    fn from(value: i64) -> Self {
-        Self::from(value as u64)
-    }
-}
-
-impl From<u32> for SmcReturn {
-    fn from(value: u32) -> Self {
-        Self::from(u64::from(value))
-    }
-}
-
-impl From<i32> for SmcReturn {
-    fn from(value: i32) -> Self {
-        Self::from(value as u64)
-    }
-}
-
-/// Acccording to section 5.3 of the SMCCC, UUIDs are returned as a single
-/// 128-bit value using the SMC32 calling convention. This value is mapped to
-/// argument registers x0-x3 on AArch64 (resp. r0-r3 on AArch32). x0 for example
-/// shall hold bytes 0 to 3, with byte 0 in the low-order bits.
-impl From<Uuid> for SmcReturn {
-    fn from(value: Uuid) -> Self {
-        let bytes = value.as_bytes();
-        Self::from([
-            u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as u64,
-            u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as u64,
-            u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as u64,
-            u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as u64,
-        ])
-    }
-}
-
-macro_rules! smc_return_from_array {
-    ($length:literal) => {
-        impl From<[u64; $length]> for SmcReturn {
-            fn from(value: [u64; $length]) -> Self {
-                let mut values = [0; Self::MAX_VALUES];
-                values[..$length].copy_from_slice(&value);
-                Self {
-                    used: $length,
-                    values,
-                }
-            }
-        }
-    };
-}
-
-smc_return_from_array!(2);
-smc_return_from_array!(3);
-smc_return_from_array!(4);
-smc_return_from_array!(5);
-smc_return_from_array!(6);
-smc_return_from_array!(7);
-smc_return_from_array!(8);
-smc_return_from_array!(9);
-smc_return_from_array!(10);
-smc_return_from_array!(11);
-smc_return_from_array!(12);
-smc_return_from_array!(13);
-smc_return_from_array!(14);
-smc_return_from_array!(15);
-smc_return_from_array!(16);
-smc_return_from_array!(17);
-smc_return_from_array!(18);

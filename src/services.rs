@@ -14,7 +14,7 @@ use crate::{
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
     platform::{self, Platform, PlatformImpl, exception_free},
-    smccc::{FunctionId, NOT_SUPPORTED, SmcReturn},
+    smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
 use arm_sysregs::Esr;
 use log::info;
@@ -58,19 +58,22 @@ pub trait Service {
     fn owns(&self, function: FunctionId) -> bool;
 
     /// Handles the given SMC call from Normal World.
-    fn handle_non_secure_smc(&self, _regs: &[u64; 18]) -> (SmcReturn, World) {
-        (NOT_SUPPORTED.into(), World::NonSecure)
+    fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
+        regs.set_from(NOT_SUPPORTED);
+        World::NonSecure
     }
 
     /// Handles the given SMC call from Secure World.
-    fn handle_secure_smc(&self, _regs: &[u64; 18]) -> (SmcReturn, World) {
-        (NOT_SUPPORTED.into(), World::Secure)
+    fn handle_secure_smc(&self, regs: &mut SmcReturn) -> World {
+        regs.set_from(NOT_SUPPORTED);
+        World::Secure
     }
 
     /// Handles the given SMC call from Realm World.
     #[cfg(feature = "rme")]
-    fn handle_realm_smc(&self, _regs: &[u64; 18]) -> (SmcReturn, World) {
-        (NOT_SUPPORTED.into(), World::Realm)
+    fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
+        regs.set_from(NOT_SUPPORTED);
+        World::Realm
     }
 }
 
@@ -111,7 +114,7 @@ impl Services {
         let function = FunctionId(regs.values()[0] as u32);
 
         if !function.valid() {
-            *regs = NOT_SUPPORTED.into();
+            regs.set_from(NOT_SUPPORTED);
             return world;
         }
 
@@ -130,29 +133,23 @@ impl Services {
             if self.rmmd.owns(function) {
                 &self.rmmd
             } else {
-                *regs = NOT_SUPPORTED.into();
+                regs.set_from(NOT_SUPPORTED);
                 return world;
             }
 
             #[cfg(not(feature = "rme"))]
             {
-                *regs = NOT_SUPPORTED.into();
+                regs.set_from(NOT_SUPPORTED);
                 return world;
             }
         };
 
-        let in_regs: &[u64; 18] = regs.values().try_into().unwrap();
-
-        let (out_regs, next_world) = match world {
-            World::NonSecure => service.handle_non_secure_smc(in_regs),
-            World::Secure => service.handle_secure_smc(in_regs),
+        match world {
+            World::NonSecure => service.handle_non_secure_smc(regs),
+            World::Secure => service.handle_secure_smc(regs),
             #[cfg(feature = "rme")]
-            World::Realm => service.handle_realm_smc(in_regs),
-        };
-
-        *regs = out_regs;
-
-        next_world
+            World::Realm => service.handle_realm_smc(regs),
+        }
     }
 
     fn handle_interrupt(&self, regs: &mut SmcReturn, world: World) -> World {
@@ -282,15 +279,14 @@ mod tests {
     #[test]
     fn handle_smc_arch_version() {
         let services = Services::new();
-        let mut regs = [0u64; 18];
 
         let mut function = FunctionId(SMCCC_VERSION);
 
         // Set the SVE hint bit to test if the handler will can treat this correctly.
         function.set_sve_hint();
-        regs[0] = function.0.into();
 
-        let mut regs = regs.into();
+        let mut regs = SmcReturn::EMPTY;
+        regs.set_from(function.0);
 
         let new_world = services.handle_smc(&mut regs, World::NonSecure);
 

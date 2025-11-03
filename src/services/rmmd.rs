@@ -5,7 +5,7 @@
 use crate::{
     context::World,
     services::{Service, owns},
-    smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SmcReturn},
+    smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
 
 const RMM_BOOT_COMPLETE: u32 = 0xC400_01CF;
@@ -47,13 +47,20 @@ pub struct Rmmd;
 impl Service for Rmmd {
     owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x01CF}
 
-    fn handle_realm_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
-        let mut function = FunctionId(regs[0] as u32);
+    fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
+        let in_regs = regs.values();
+        let mut function = FunctionId(in_regs[0] as u32);
         function.clear_sve_hint();
 
         match function.0 {
-            RMM_BOOT_COMPLETE => (rmm_boot_complete(regs[1] as i32), World::NonSecure),
-            _ => (NOT_SUPPORTED.into(), World::Realm),
+            RMM_BOOT_COMPLETE => {
+                rmm_boot_complete(regs);
+                World::NonSecure
+            }
+            _ => {
+                regs.set_from(NOT_SUPPORTED);
+                World::Realm
+            }
         }
     }
 }
@@ -64,6 +71,7 @@ impl Rmmd {
     }
 }
 
-fn rmm_boot_complete(ret: i32) -> SmcReturn {
-    ret.into()
+fn rmm_boot_complete(regs: &mut SmcReturn) {
+    let ret = regs.values()[1] as i32;
+    regs.set_from(ret);
 }

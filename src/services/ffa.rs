@@ -60,15 +60,27 @@ impl Service for Spmd {
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
     );
 
-    fn handle_non_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+    fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
         // TODO: forward SVE hint bit
 
         // TODO: should we use a different version for NWd?
         let version = self.spmc_version;
-        let mut out_regs = SmcReturn::from([0u64; 18]);
 
-        let in_msg = match Interface::from_regs(version, regs) {
-            Ok(msg) => msg,
+        match Interface::from_regs(version, regs.values()) {
+            Ok(msg) => {
+                debug!("Handle FF-A call from NWd {msg:x?}");
+
+                let spmc_state =
+                    exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
+
+                assert_eq!(spmc_state, SpmcState::Runtime);
+
+                let (out_msg, next_world) = self.handle_non_secure_call(&msg);
+
+                out_msg.to_regs(version, regs.mark_all_used());
+
+                next_world
+            }
             Err(error) => {
                 error!("Invalid FF-A call from Normal World {error}");
                 let response = match error {
@@ -78,58 +90,44 @@ impl Service for Spmd {
                     error => Interface::error(error.into()),
                 };
 
-                response.to_regs(version, out_regs.values_mut());
-                return (out_regs, World::NonSecure);
+                response.to_regs(version, regs.mark_all_used());
+                World::NonSecure
             }
-        };
-
-        debug!("Handle FF-A call from NWd {in_msg:x?}");
-
-        let spmc_state =
-            exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
-
-        assert_eq!(spmc_state, SpmcState::Runtime);
-
-        let (out_msg, next_world) = self.handle_non_secure_call(&in_msg);
-
-        out_msg.to_regs(version, out_regs.values_mut());
-
-        (out_regs, next_world)
+        }
     }
 
-    fn handle_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
+    fn handle_secure_smc(&self, regs: &mut SmcReturn) -> World {
         let version = self.spmc_version;
-        let mut out_regs = SmcReturn::from([0u64; 18]);
 
-        let in_msg = match Interface::from_regs(version, regs) {
-            Ok(msg) => msg,
+        match Interface::from_regs(version, regs.values()) {
+            Ok(msg) => {
+                debug!("Handle FF-A call from SWd {msg:x?}");
+
+                let spmc_state =
+                    exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
+
+                let (out_msg, next_world) = match spmc_state {
+                    SpmcState::Off => panic!(),
+                    SpmcState::Boot => self.handle_secure_call_boot(&msg),
+                    SpmcState::Runtime => self.handle_secure_call_runtime(&msg),
+                    SpmcState::SecureInterrupt => self.handle_secure_call_interrupt(&msg),
+                    SpmcState::PsciEventHandling => self.handle_secure_call_psci_event(&msg),
+                };
+
+                if let Some(out_msg) = out_msg {
+                    out_msg.to_regs(version, regs.mark_all_used());
+                } else {
+                    regs.mark_empty();
+                }
+
+                next_world
+            }
             Err(e) => {
                 error!("Invalid FF-A call from Secure World: {e} ");
-                Interface::error(e.into()).to_regs(version, out_regs.values_mut());
-                return (out_regs, World::Secure);
+                Interface::error(e.into()).to_regs(version, regs.mark_all_used());
+                World::Secure
             }
-        };
-
-        debug!("Handle FF-A call from SWd {in_msg:x?}");
-
-        let spmc_state =
-            exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
-
-        let (out_msg, next_world) = match spmc_state {
-            SpmcState::Off => panic!(),
-            SpmcState::Boot => self.handle_secure_call_boot(&in_msg),
-            SpmcState::Runtime => self.handle_secure_call_runtime(&in_msg),
-            SpmcState::SecureInterrupt => self.handle_secure_call_interrupt(&in_msg),
-            SpmcState::PsciEventHandling => self.handle_secure_call_psci_event(&in_msg),
-        };
-
-        if let Some(out_msg) = out_msg {
-            out_msg.to_regs(version, out_regs.values_mut());
-        } else {
-            out_regs = SmcReturn::EMPTY;
         }
-
-        (out_regs, next_world)
     }
 }
 
@@ -497,8 +495,8 @@ impl Spmd {
 
         self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::PsciEventHandling);
 
-        let mut out_regs = SmcReturn::from([0u64; 18]);
-        msg.to_regs(self.spmc_version, out_regs.values_mut());
+        let mut out_regs = SmcReturn::EMPTY;
+        msg.to_regs(self.spmc_version, out_regs.mark_all_used());
 
         out_regs
     }
@@ -512,7 +510,7 @@ impl Spmd {
 impl PsciSpmInterface for Spmd {
     fn forward_psci_request(&self, psci_request: &[u64; 4]) -> u64 {
         let version = self.spmc_version;
-        let mut regs = SmcReturn::from([0u64; 18]);
+        let mut regs = SmcReturn::EMPTY;
 
         let msg = Interface::MsgSendDirectReq {
             src_id: Self::OWN_ID,
@@ -522,7 +520,7 @@ impl PsciSpmInterface for Spmd {
             },
         };
 
-        msg.to_regs(version, regs.values_mut());
+        msg.to_regs(version, regs.mark_all_used());
 
         switch_world(World::NonSecure, World::Secure);
 

@@ -14,7 +14,7 @@ use crate::{
     cpu::cpu_power_down,
     platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     services::{Service, owns},
-    smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SmcReturn},
+    smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SetFrom, SmcReturn},
 };
 use arm_psci::{
     AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
@@ -1025,30 +1025,26 @@ impl Service for Psci {
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
     );
 
-    fn handle_non_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
-        let mut in_regs: [u64; 4] = regs[..4].try_into().unwrap();
+    fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
+        let in_regs: &mut [u64; 4] = (&mut regs.values_mut()[..4]).try_into().unwrap();
         let mut function = SmcFunctionId(in_regs[0] as u32);
         function.clear_sve_hint();
         in_regs[0] = function.0.into();
 
-        let result = match self.handle_smc_inner(&in_regs) {
-            Ok(result) => result.into(),
+        let result: u64 = match self.handle_smc_inner(in_regs) {
+            Ok(result) => result,
             Err(return_code) => return_code.into(),
         };
 
-        (result, World::NonSecure)
+        regs.set_from(result);
+
+        World::NonSecure
     }
 }
 
 impl Debug for Psci {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.power_domain_tree.fmt(f)
-    }
-}
-
-impl From<ErrorCode> for SmcReturn {
-    fn from(value: ErrorCode) -> Self {
-        u64::from(value).into()
     }
 }
 

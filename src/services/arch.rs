@@ -6,8 +6,8 @@ use crate::{
     context::World,
     services::{Service, owns},
     smccc::{
-        FunctionId, INVALID_PARAMETER, NOT_SUPPORTED, OwningEntityNumber, SUCCESS, SmcReturn,
-        SmcccCallType,
+        FunctionId, INVALID_PARAMETER, NOT_SUPPORTED, OwningEntityNumber, SUCCESS, SetFrom,
+        SmcReturn, SmcccCallType,
     },
 };
 
@@ -33,17 +33,20 @@ pub struct Arch;
 impl Service for Arch {
     owns!(OwningEntityNumber::ARM_ARCHITECTURE);
 
-    fn handle_non_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
-        (Self::handle_common_smc(regs), World::NonSecure)
+    fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
+        Self::handle_common_smc(regs);
+        World::NonSecure
     }
 
-    fn handle_secure_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
-        (Self::handle_common_smc(regs), World::Secure)
+    fn handle_secure_smc(&self, regs: &mut SmcReturn) -> World {
+        Self::handle_common_smc(regs);
+        World::Secure
     }
 
     #[cfg(feature = "rme")]
-    fn handle_realm_smc(&self, regs: &[u64; 18]) -> (SmcReturn, World) {
-        (Self::handle_common_smc(regs), World::Realm)
+    fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
+        Self::handle_common_smc(regs);
+        World::Realm
     }
 }
 
@@ -52,21 +55,30 @@ impl Arch {
         Self
     }
 
-    fn handle_common_smc(regs: &[u64; 18]) -> SmcReturn {
-        let mut function = FunctionId(regs[0] as u32);
+    fn handle_common_smc(regs: &mut SmcReturn) {
+        let in_regs = regs.values();
+        let mut function = FunctionId(in_regs[0] as u32);
         function.clear_sve_hint();
 
-        #[allow(clippy::unit_arg)]
         match function.0 {
-            SMCCC_VERSION => version().into(),
-            SMCCC_ARCH_FEATURES => arch_features(regs[1] as u32).into(),
+            SMCCC_VERSION => regs.set_from(version()),
+            SMCCC_ARCH_FEATURES => arch_features(regs),
             SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => {
-                arch_soc_id(regs[1] as u32, function.call_type())
+                arch_soc_id(regs, function.call_type());
             }
-            SMCCC_ARCH_WORKAROUND_1 => arch_workaround_1().into(),
-            SMCCC_ARCH_WORKAROUND_2 => arch_workaround_2(regs[1] as u32).into(),
-            SMCCC_ARCH_WORKAROUND_3 => arch_workaround_3().into(),
-            _ => NOT_SUPPORTED.into(),
+            SMCCC_ARCH_WORKAROUND_1 => {
+                arch_workaround_1();
+                regs.mark_empty();
+            }
+            SMCCC_ARCH_WORKAROUND_2 => {
+                arch_workaround_2(in_regs[1] as u32);
+                regs.mark_empty();
+            }
+            SMCCC_ARCH_WORKAROUND_3 => {
+                arch_workaround_3();
+                regs.mark_empty();
+            }
+            _ => regs.set_from(NOT_SUPPORTED),
         }
     }
 }
@@ -82,8 +94,10 @@ fn version() -> i32 {
     SMCCC_VERSION_1_5
 }
 
-fn arch_features(arch_func_id: u32) -> i32 {
-    match arch_func_id {
+fn arch_features(regs: &mut SmcReturn) {
+    let arch_func_id = regs.values()[1] as u32;
+
+    let result = match arch_func_id {
         SMCCC_VERSION | SMCCC_ARCH_FEATURES | SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => {
             SUCCESS
         }
@@ -92,31 +106,34 @@ fn arch_features(arch_func_id: u32) -> i32 {
         SMCCC_ARCH_WORKAROUND_3 => PlatformImpl::arch_workaround_3_supported() as i32,
         SMCCC_ARCH_WORKAROUND_4 => PlatformImpl::arch_workaround_4_supported() as i32,
         _ => NOT_SUPPORTED,
-    }
+    };
+
+    regs.set_from(result);
 }
 
 /// This SMC is specified in §7.4 of [the Arm SMC Calling
 /// Convention](https://developer.arm.com/documentation/den0028/galp1/?lang=en).
-fn arch_soc_id(soc_id_type: u32, call_type: SmcccCallType) -> SmcReturn {
+fn arch_soc_id(regs: &mut SmcReturn, call_type: SmcccCallType) {
+    let soc_id_type = regs.values()[1] as u32;
+
     // TODO/NOTE: Note that according to the SMCCC spec, section 7.4.6: we "must
     // ensure that SoC version and revision uniquely identify the SoC", and "SoC
     // name must not contain SoC identifying information not captured by <SoC
     // version, SoC revision>."
     match soc_id_type {
-        SMCCC_ARCH_SOC_ID_VERSION => 0.into(), // TODO: Implement this properly.
-        SMCCC_ARCH_SOC_ID_REVISION => 0.into(), // TODO: Implement this properly.
+        SMCCC_ARCH_SOC_ID_VERSION => regs.set_from(0), // TODO: Implement this properly.
+        SMCCC_ARCH_SOC_ID_REVISION => regs.set_from(0), // TODO: Implement this properly.
         SMCCC_ARCH_SOC_ID_NAME if call_type == SmcccCallType::Fast64 => {
-            [
+            regs.set_args5(
                 // TODO: Implement this properly.
                 0u64, // w0
                 u64::from_le_bytes([b'm', b'I', b' ', b':', b'O', b'D', b'O', b'T']),
                 u64::from_le_bytes([b' ', b't', b'n', b'e', b'm', b'e', b'l', b'p']),
                 u64::from_le_bytes([b'o', b'r', b'p', b' ', b's', b'i', b'h', b't']),
                 u64::from_le_bytes([0x00, 0x00, b'.', b'y', b'l', b'r', b'e', b'p']),
-            ]
-            .into()
+            );
         }
-        _ => INVALID_PARAMETER.into(),
+        _ => regs.set_from(INVALID_PARAMETER),
     }
 }
 

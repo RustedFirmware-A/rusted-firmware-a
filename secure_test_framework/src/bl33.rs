@@ -15,6 +15,7 @@ mod framework;
 mod gicv3;
 mod heap;
 mod logger;
+mod pagetable;
 mod platform;
 mod secondary;
 mod tests;
@@ -28,11 +29,11 @@ use crate::{
         protocol::{Request, Response},
         run_normal_world_test, secure_world_test_count, secure_world_tests,
     },
-    platform::{Platform, PlatformImpl},
+    platform::{BL33_IDMAP, Platform, PlatformImpl},
     secondary::secondary_entry,
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, current_el},
 };
-use aarch64_rt::entry;
+use aarch64_rt::{enable_mmu, entry};
 use arm_ffa::Interface;
 use arm_sysregs::MpidrEl1;
 use core::panic::PanicInfo;
@@ -51,6 +52,8 @@ const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
 /// the function and unset the entry.
 static SECONDARY_ENTRIES: [SpinMutex<Option<fn(u64) -> !>>; PlatformImpl::CORE_COUNT] =
     [const { SpinMutex::new(None) }; PlatformImpl::CORE_COUNT];
+
+enable_mmu!(BL33_IDMAP);
 
 entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {

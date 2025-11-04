@@ -3,14 +3,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
-use crate::util::naked_asm;
+use crate::{
+    pagetable::{DEVICE_ATTRIBUTES, MEMORY_ATTRIBUTES},
+    util::naked_asm,
+};
+use aarch64_paging::paging::Attributes;
+use aarch64_rt::InitialPagetable;
 use arm_gic::gicv3::{
     GicV3,
     registers::{Gicd, GicrSgi},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_sysregs::{MpidrEl1, read_mpidr_el1};
-use core::{fmt::Write, ptr::NonNull};
+use core::{arch::global_asm, fmt::Write, ptr::NonNull};
 use spin::{
     Once,
     mutex::{SpinMutex, SpinMutexGuard},
@@ -109,4 +114,65 @@ unsafe impl Platform for Fvp {
             mpidr_unshifted << MpidrEl1::AFFINITY_BITS
         }
     }
+}
+
+// BL32:
+// 0x0600_0000 image
+// 0x1C09_0000 PL011
+// 0x2f00_0000 GIC
+global_asm!(
+    "
+.section \".rodata.BL32_IDMAP\", \"a\", %progbits
+.global BL32_IDMAP
+.align 12
+BL32_IDMAP:
+    .quad {TABLE_ATTRIBUTES} + 0f
+    .fill 511, 8, 0x0
+
+    /* level 2, 2 MiB block mappings */
+0:
+    .fill 48, 8, 0x0
+    .quad {MEMORY_ATTRIBUTES} | 0x06000000
+    .fill 175, 8, 0x0
+    .quad {DEVICE_ATTRIBUTES} | 0x1c000000
+    .fill 151, 8, 0x0
+    .quad {DEVICE_ATTRIBUTES} | 0x2f000000
+    .fill 135, 8, 0x0
+",
+    DEVICE_ATTRIBUTES = const DEVICE_ATTRIBUTES.bits(),
+    MEMORY_ATTRIBUTES = const MEMORY_ATTRIBUTES.bits(),
+    TABLE_ATTRIBUTES = const Attributes::VALID.union(Attributes::TABLE_OR_PAGE).bits(),
+);
+
+// BL33:
+// 0x1C09_0000 PL011
+// 0x2f00_0000 GIC
+// 0x8800_0000 image
+global_asm!(
+    "
+.section \".rodata.BL33_IDMAP\", \"a\", %progbits
+.global BL33_IDMAP
+.align 12
+BL33_IDMAP:
+    .quad {TABLE_ATTRIBUTES} + 0f
+    .fill 1, 8, 0x0
+    .quad {MEMORY_ATTRIBUTES} | 0x80000000
+    .fill 509, 8, 0x80000000
+
+    /* level 2, 2 MiB block mappings */
+0:
+    .fill 224, 8, 0x0
+    .quad {DEVICE_ATTRIBUTES} | 0x1c000000
+    .fill 151, 8, 0x0
+    .quad {DEVICE_ATTRIBUTES} | 0x2f000000
+    .fill 135, 8, 0x0
+",
+    DEVICE_ATTRIBUTES = const DEVICE_ATTRIBUTES.bits(),
+    MEMORY_ATTRIBUTES = const MEMORY_ATTRIBUTES.bits(),
+    TABLE_ATTRIBUTES = const Attributes::VALID.union(Attributes::TABLE_OR_PAGE).bits(),
+);
+
+unsafe extern "C" {
+    pub static BL32_IDMAP: InitialPagetable;
+    pub static BL33_IDMAP: InitialPagetable;
 }

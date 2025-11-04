@@ -14,9 +14,9 @@ dependencies = [
 
 [[package]]
 name = "aarch64-rt"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "683c4295f0608c531130ed6daf301785844c1f71eb126eb56343838968e728c5"
+checksum = "65170faa657d98b3ea67ad2c6d05222ade0224537e8b9927c005f2b0ec8e3c33"
 
 [[package]]
 name = "arm-cci"
@@ -266,6 +266,7 @@ dependencies = [
 name = "rf-a-secure-test-framework"
 version = "0.1.0"
 dependencies = [
+ "aarch64-paging",
  "aarch64-rt",
  "arm-ffa",
  "arm-gic 0.7.1",

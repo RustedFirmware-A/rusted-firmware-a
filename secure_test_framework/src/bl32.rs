@@ -15,6 +15,7 @@ mod framework;
 mod gicv3;
 mod heap;
 mod logger;
+mod pagetable;
 mod platform;
 mod secondary;
 mod tests;
@@ -27,14 +28,14 @@ use crate::{
         protocol::{ParseRequestError, Request, Response},
         run_secure_world_test, run_test_ffa_handler, run_test_helper,
     },
-    platform::{Platform, PlatformImpl},
+    platform::{BL32_IDMAP, Platform, PlatformImpl},
     secondary::secondary_entry,
     util::{
         NORMAL_WORLD_ID, SECURE_WORLD_ID, SPMC_DEFAULT_ID, SPMD_DEFAULT_ID, current_el,
         expect_ffa_success,
     },
 };
-use aarch64_rt::entry;
+use aarch64_rt::{enable_mmu, entry};
 use arm_ffa::{DirectMsgArgs, FfaError, Interface, SuccessArgsIdGet, Version, WarmBootType};
 use arm_psci::ReturnCode;
 use core::{
@@ -53,6 +54,8 @@ const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
 
 /// The index of the currently-running test, or -1 if no test is active.
 static CURRENT_TEST_INDEX: AtomicIsize = AtomicIsize::new(-1);
+
+enable_mmu!(BL32_IDMAP);
 
 /// Returns the index of the currently-running test, or `None` if no test is active.
 fn current_test_index() -> Option<usize> {

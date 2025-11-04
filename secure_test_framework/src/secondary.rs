@@ -36,6 +36,9 @@ pub unsafe extern "C" fn secondary_entry() -> ! {
         "mov x26, x2",
         "mov x27, x3",
 
+        // Enable the MMU and caches.
+        "bl enable_mmu",
+
         // Find the current CPU's linear index.
         "mrs x0, mpidr_el1",
         "bl {core_position}",

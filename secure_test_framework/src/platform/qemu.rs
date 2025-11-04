@@ -3,14 +3,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
-use crate::util::naked_asm;
+use crate::{
+    pagetable::{DEVICE_ATTRIBUTES, MEMORY_ATTRIBUTES},
+    util::naked_asm,
+};
+use aarch64_paging::paging::Attributes;
+use aarch64_rt::InitialPagetable;
 use arm_gic::gicv3::{
     GicV3,
     registers::{Gicd, GicrSgi},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_sysregs::MpidrEl1;
-use core::{fmt::Write, ptr::NonNull};
+use core::{arch::global_asm, fmt::Write, ptr::NonNull};
 use spin::{
     Once,
     mutex::{SpinMutex, SpinMutexGuard},
@@ -84,4 +89,39 @@ unsafe impl Platform for Qemu {
         let aff1 = (core_index / MAX_CPUS_PER_CLUSTER) as u64;
         aff0 | aff1 << MpidrEl1::AFFINITY_BITS
     }
+}
+
+pub static BL33_IDMAP: InitialPagetable = {
+    let mut idmap = [0; 512];
+    idmap[0] = DEVICE_ATTRIBUTES.bits();
+    idmap[1] = MEMORY_ATTRIBUTES.bits() | 0x40000000;
+    InitialPagetable(idmap)
+};
+
+global_asm!(
+    "
+.section \".rodata.BL32_IDMAP\", \"a\", %progbits
+.global BL32_IDMAP
+.align 12
+BL32_IDMAP:
+    .quad {TABLE_ATTRIBUTES} + 0f
+    .fill 511, 8, 0x0
+
+    /* level 2, 2 MiB block mappings */
+0:
+    .fill 64, 8, 0x0
+    .quad {DEVICE_ATTRIBUTES} | 0x08000000
+    .fill 7, 8, 0x0
+    .quad {DEVICE_ATTRIBUTES} | 0x09000000
+    .fill 39, 8, 0x0
+    .quad {MEMORY_ATTRIBUTES} | 0x0e000000
+    .fill 399, 8, 0x0
+",
+    DEVICE_ATTRIBUTES = const DEVICE_ATTRIBUTES.bits(),
+    MEMORY_ATTRIBUTES = const MEMORY_ATTRIBUTES.bits(),
+    TABLE_ATTRIBUTES = const Attributes::VALID.union(Attributes::TABLE_OR_PAGE).bits(),
+);
+
+unsafe extern "C" {
+    pub static BL32_IDMAP: InitialPagetable;
 }

@@ -11,9 +11,11 @@ rust-version = "1.88"
 license = "BSD-3-Clause"
 
 [dependencies]
-aarch64-rt = { version = "0.2.2", default-features = false, features = [
+aarch64-rt = { version = "0.3.0", default-features = false, features = [
   "exceptions",
+  "initial-pagetable",
 ] }
+aarch64-paging = { version = "0.10.0", default-features = false }
 arm-ffa = "0.4.1"
 arm-psci = "0.2.0"
 arm-gic = "0.7.1"

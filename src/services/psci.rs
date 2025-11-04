@@ -100,6 +100,15 @@ pub trait PsciPlatformInterface {
     /// Performs platform-specific operations after a wake-up from standby/retention states.
     fn power_domain_suspend_finish(&self, previous_state: &PsciCompositePowerState);
 
+    /// Allows the platform to perform platform specific validations based on hardware states.
+    /// This function is optional since it is only used in OS-Initiated mode.
+    fn power_domain_validate_suspend(
+        &self,
+        _target_state: &PsciCompositePowerState,
+    ) -> Result<(), ErrorCode> {
+        unimplemented!("OSI mode's suspend state validation is not implemented for the platform")
+    }
+
     /// Callback for platform housekeeping before turning off the CPU, optional.
     fn power_domain_off_early(
         &self,
@@ -218,7 +227,15 @@ pub enum WakeUpReason {
 /// Object for storing platform-specific power state for multiple power levels.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsciCompositePowerState {
+    /// Stores the local power state at each level of the power tree hierarchy.
     pub states: [PlatformPowerState; PsciPlatformImpl::MAX_POWER_LEVEL + 1],
+
+    /// The highest power level at which the current CPU is the last running CPU.
+    /// For example, for a power state that only turns off a CPU (in which case states might look
+    /// something like [PlatformPowerState::OFF, PlatformPowerState::RUN...]), this value will be 0
+    /// (CPU_POWER_LEVEL) since it's possible sibling cores may still be on.
+    /// Optional because this is only used with OS-initiated mode.
+    pub last_at_power_level: Option<usize>,
 }
 
 impl PsciCompositePowerState {
@@ -227,16 +244,32 @@ impl PsciCompositePowerState {
     /// States set to OFF on all levels.
     pub const OFF: Self = Self {
         states: [PlatformPowerState::OFF; PsciPlatformImpl::MAX_POWER_LEVEL + 1],
+        last_at_power_level: None,
     };
 
     /// States set to RUN on all levels.
     pub const RUN: Self = Self {
         states: [PlatformPowerState::RUN; PsciPlatformImpl::MAX_POWER_LEVEL + 1],
+        last_at_power_level: None,
     };
 
     #[allow(unused)]
     pub fn new(states: [PlatformPowerState; PsciPlatformImpl::MAX_POWER_LEVEL + 1]) -> Self {
-        Self { states }
+        Self {
+            states,
+            last_at_power_level: None,
+        }
+    }
+
+    #[allow(unused)]
+    pub const fn new_with_last_power_level(
+        states: [PlatformPowerState; PsciPlatformImpl::MAX_POWER_LEVEL + 1],
+        last_at_power_level: usize,
+    ) -> Self {
+        Self {
+            states,
+            last_at_power_level: Some(last_at_power_level),
+        }
     }
 
     /// Returns the power state of the CPU level.
@@ -280,6 +313,57 @@ impl PsciCompositePowerState {
         }
     }
 
+    /// Applies self's states to the local state of the given CPU and its ancestor nodes up to and
+    /// including highest_affected_level.
+    /// In some sense, this is the opposite of set_local_states_from_nodes.
+    pub fn set_nodes_from_local_states(
+        &self,
+        highest_affected_level: usize,
+        cpu: &mut CpuPowerNode,
+        ancestors: &mut AncestorPowerDomains,
+    ) {
+        cpu.set_local_state(self.cpu_level_state());
+        if highest_affected_level > PsciCompositePowerState::CPU_POWER_LEVEL {
+            for (node, state) in ancestors.iter_mut().into_slice()[..=highest_affected_level - 1]
+                .iter_mut()
+                .zip(
+                    &self.states
+                        [PsciCompositePowerState::CPU_POWER_LEVEL + 1..=highest_affected_level],
+                )
+            {
+                node.set_local_state(*state);
+            }
+        }
+    }
+
+    /// Updates the power related state of the PowerDomainTree based on the state coordinated via
+    /// OSI mode. self should refer be the PsciCompositePowerState parsed directly from the
+    /// PowerState passed into CPU_SUSPEND. highest_affected_level is the highest level where some
+    /// kind of low power operation is happening for this power state. cpu_index is the calling
+    /// core's index. resolved_state is a version of the original state but converted into the
+    /// proper voting format for the requested_states values. See
+    /// create_highest_affected_level_resolved_state.
+    pub fn apply_coordinated_state_to_power_domain_tree(
+        &self,
+        highest_affected_level: usize,
+        cpu: &mut CpuPowerNode,
+        ancestors: &mut AncestorPowerDomains,
+        cpu_index: usize,
+        resolved_state: PsciCompositePowerState,
+    ) {
+        // requested_states are used to coordinate the power mode. Use resolved_state.
+        for (node, requested_state) in ancestors
+            .iter_mut()
+            .zip(&resolved_state.states[PsciCompositePowerState::CPU_POWER_LEVEL + 1..])
+        {
+            node.set_requested_power_state(cpu_index, *requested_state);
+        }
+
+        // We have now determined that it's safe to go to the caller provided state. Set the state
+        // throughout the tree accordingly.
+        self.set_nodes_from_local_states(highest_affected_level, cpu, ancestors);
+    }
+
     /// Requests the power state for all ancestor nodes and sets the minimal local state for each
     /// node. When a CPU node enters a lower power state, its ancestor nodes may also be able to
     /// transition to a lower power state. Each non-CPU power node maintains a list of power states
@@ -311,6 +395,85 @@ impl PsciCompositePowerState {
         }
     }
 
+    /// Creates a copy of self with the states[highest_affected_level..] set to the state indexed by
+    /// highest_affected_level. Used in OSI mode to transform an incoming power state request into
+    /// the calling core's corresponding votes for the power state at each level.
+    fn create_highest_affected_level_resolved_state(
+        &self,
+        highest_affected_level: usize,
+    ) -> PsciCompositePowerState {
+        let mut resolved_state = self.clone();
+        let power_state_at_highest_affected = resolved_state.states[highest_affected_level];
+        for state in &mut resolved_state.states[highest_affected_level..] {
+            *state = power_state_at_highest_affected;
+        }
+        resolved_state
+    }
+
+    /// Looks at descendants of each ancestor and checks whether their requested states are
+    /// compatible with the target state (self). If the target state is not compatible with the
+    /// state of the PowerDomainTree, no state is modified and ErrorCode::Denied or
+    /// ErrorCode::InvalidParameters is returned depending on the nature of the rejection (see PSCI
+    /// spec for exact conditions). Returns Ok otherwise.
+    /// This is the OS-Initiated mode variant of coordinate_state.
+    pub fn validate_state_coordination(
+        &self,
+        cpu_index: usize,
+        highest_affected_level: usize,
+        ancestors: &AncestorPowerDomains,
+    ) -> Result<(), ErrorCode> {
+        let last_at_power_level = self
+            .last_at_power_level
+            .ok_or(ErrorCode::InvalidParameters)?;
+
+        // This check can fail if the OS view of the last core is out of sync with the PSCI view.
+        // See the PSCI spec (DEN0022F.b, section 6.3) for specific examples of where this can
+        // happen.
+        if !PowerDomainTree::is_last_cpu_to_idle_at_power_level(
+            cpu_index,
+            last_at_power_level,
+            ancestors,
+        ) {
+            return Err(ErrorCode::Denied);
+        }
+
+        // No state to coordinate if this is a CPU power node local request.
+        if highest_affected_level == PsciCompositePowerState::CPU_POWER_LEVEL {
+            return Ok(());
+        }
+
+        // For each level in the hierarchy, check each ancestor for descendants that will be
+        // incompatible with the requested state at that level.
+        for (node, requested_state) in ancestors.iter().as_slice()[..=highest_affected_level - 1]
+            .iter()
+            .zip(
+                &self.states[PsciCompositePowerState::CPU_POWER_LEVEL + 1..=highest_affected_level],
+            )
+        {
+            let shallowest_descendant_state =
+                node.get_minimal_allowed_state_without_core(cpu_index);
+            // If the requested state is deeper (remember: deeper -> larger; RUN state is 0) than
+            // any of the other descendants at this level, the state must be rejected. For example,
+            // if the other descendant states are retention, it is not possible to go to off at this
+            // level.
+            if *requested_state > shallowest_descendant_state {
+                // This code is necessary to comply with the PSCI spec. See section 5.4.5 of the
+                // PSCI spec (DEN0022F.b). Paraphrased below.
+                if shallowest_descendant_state == PlatformPowerState::RUN {
+                    // In OSI mode, return Denied if the incompatible state is RUN (as opposed to
+                    // being in a low power state).
+                    return Err(ErrorCode::Denied);
+                } else {
+                    // In OSI mode, return InvalidParameters for inconsistent nodes that are in a
+                    // low power state.
+                    return Err(ErrorCode::InvalidParameters);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Checks that the composite state does not violate any PSCI rules.
     pub fn is_valid_suspend_request(&self, is_power_down_state: bool) -> bool {
         // There should be a non-run level
@@ -321,6 +484,12 @@ impl PsciCompositePowerState {
         // Higher levels must be in less than or equal power state
         if !self.states.is_sorted_by(|a, b| a >= b) {
             return false;
+        }
+
+        if let Some(last_at_power_level) = self.last_at_power_level {
+            if last_at_power_level > PsciPlatformImpl::MAX_POWER_LEVEL {
+                return false;
+            }
         }
 
         if is_power_down_state {
@@ -459,16 +628,48 @@ impl Psci {
         is_power_down_state: bool,
     ) -> Result<(), ErrorCode> {
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
+
+        let level_to_lock_to = if self.is_in_osi_mode() {
+            PsciPlatformImpl::MAX_POWER_LEVEL
+        } else {
+            highest_affected_level
+        };
         let has_pending_interrupt = self.power_domain_tree.with_ancestors_locked_to_max_level(
             &mut cpu,
-            highest_affected_level,
-            |cpu, mut ancestors| {
+            level_to_lock_to,
+            |cpu, mut ancestors| -> Result<bool, ErrorCode> {
                 if self.platform.has_pending_interrupts() {
-                    return true;
+                    return Ok(true);
                 }
 
-                composite_state.coordinate_state(cpu_index, &mut ancestors);
-                cpu.set_local_state(composite_state.cpu_level_state());
+                if self.is_in_osi_mode() {
+                    // The resolved state is the state used to coordinate with sibling core power
+                    // requests at all levels of the tree.
+                    let resolved_state = composite_state
+                        .create_highest_affected_level_resolved_state(highest_affected_level);
+
+                    resolved_state.validate_state_coordination(
+                        cpu_index,
+                        highest_affected_level,
+                        &ancestors,
+                    )?;
+
+                    // The platform still expects the caller-provided parsed state (composite_state)
+                    // to perform its validation.
+                    self.platform
+                        .power_domain_validate_suspend(&composite_state)?;
+
+                    composite_state.apply_coordinated_state_to_power_domain_tree(
+                        highest_affected_level,
+                        cpu,
+                        &mut ancestors,
+                        cpu_index,
+                        resolved_state,
+                    );
+                } else {
+                    composite_state.coordinate_state(cpu_index, &mut ancestors);
+                    cpu.set_local_state(composite_state.cpu_level_state());
+                }
 
                 if is_power_down_state {
                     if let Some(state) = power_state {
@@ -482,9 +683,9 @@ impl Psci {
                 }
 
                 self.platform.power_domain_suspend(&composite_state);
-                false
+                Ok(false)
             },
-        );
+        )?;
         drop(cpu); // Unlock CPU before entering suspend state
 
         if has_pending_interrupt {
@@ -911,6 +1112,14 @@ impl Psci {
         Ok(0)
     }
 
+    /// Returns true if this Psci instance is in OS-initiated mode.
+    fn is_in_osi_mode(&self) -> bool {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::OS_INITIATED_MODE) {
+            return false;
+        }
+        *self.suspend_mode.lock() == SuspendMode::OsInitiated
+    }
+
     fn handle_smc_inner(&self, regs: &[u64; 4]) -> Result<u64, ErrorCode> {
         const SUCCESS: u64 = 0;
         let function = Function::try_from(regs)?;
@@ -1073,6 +1282,7 @@ mod tests {
     use super::*;
     use arm_psci::ArchitecturalResetType;
     use arm_sysregs::fake::SYSREGS;
+    use power_domain_tree::test_helpers::set_cpu_power_state_by_index;
     use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
     const ENTRY_POINT: EntryPoint = EntryPoint::Entry64 {
@@ -1098,6 +1308,88 @@ mod tests {
         aff2: 100,
         aff3: Some(100),
     };
+
+    const LEVEL0_OFF: PsciCompositePowerState = PsciCompositePowerState::new_with_last_power_level(
+        [
+            PlatformPowerState::OFF,
+            PlatformPowerState::RUN,
+            PlatformPowerState::RUN,
+            PlatformPowerState::RUN,
+        ],
+        PsciCompositePowerState::CPU_POWER_LEVEL,
+    );
+
+    const LEVEL0_STBY2: PsciCompositePowerState =
+        PsciCompositePowerState::new_with_last_power_level(
+            [
+                PlatformPowerState::OFF,
+                PlatformPowerState::Standby2,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ],
+            PsciCompositePowerState::CPU_POWER_LEVEL,
+        );
+
+    const LEVEL1_OFF: PsciCompositePowerState = PsciCompositePowerState::new_with_last_power_level(
+        [
+            PlatformPowerState::OFF,
+            PlatformPowerState::OFF,
+            PlatformPowerState::RUN,
+            PlatformPowerState::RUN,
+        ],
+        PsciCompositePowerState::CPU_POWER_LEVEL + 1,
+    );
+
+    const LEVEL1_STBY2: PsciCompositePowerState =
+        PsciCompositePowerState::new_with_last_power_level(
+            [
+                PlatformPowerState::OFF,
+                PlatformPowerState::Standby2,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ],
+            PsciCompositePowerState::CPU_POWER_LEVEL + 1,
+        );
+
+    const LEVEL2_OFF: PsciCompositePowerState = PsciCompositePowerState::new_with_last_power_level(
+        [
+            PlatformPowerState::OFF,
+            PlatformPowerState::OFF,
+            PlatformPowerState::OFF,
+            PlatformPowerState::RUN,
+        ],
+        PsciCompositePowerState::CPU_POWER_LEVEL + 2,
+    );
+
+    const LEVEL3_OFF: PsciCompositePowerState = PsciCompositePowerState::new_with_last_power_level(
+        [
+            PlatformPowerState::OFF,
+            PlatformPowerState::OFF,
+            PlatformPowerState::OFF,
+            PlatformPowerState::RUN,
+        ],
+        PsciCompositePowerState::CPU_POWER_LEVEL + 2,
+    );
+
+    fn apply_coordinated_state_to_power_domain_tree_helper(
+        power_domain_tree: &mut PowerDomainTree,
+        cpu_index: usize,
+        state: PsciCompositePowerState,
+    ) {
+        let highest_affected_level = state.find_highest_non_run_level().unwrap();
+        let mut locked_cpu = power_domain_tree.locked_cpu_node(cpu_index);
+        power_domain_tree.with_ancestors_locked(&mut locked_cpu, |cpu, mut ancestors| {
+            let resolved_state =
+                state.create_highest_affected_level_resolved_state(highest_affected_level);
+            state.apply_coordinated_state_to_power_domain_tree(
+                highest_affected_level,
+                cpu,
+                &mut ancestors,
+                cpu_index,
+                resolved_state,
+            );
+        });
+    }
 
     #[test]
     fn psci_composite_power_state() {
@@ -1154,7 +1446,43 @@ mod tests {
     }
 
     #[test]
-    fn psci_composite_power_state_set_from_nodes() {
+    fn psci_composite_power_state_is_valid_suspend_with_last_at_power_level() {
+        let good_state0 = PsciCompositePowerState::new_with_last_power_level(
+            [
+                PlatformPowerState::OFF,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ],
+            PsciCompositePowerState::CPU_POWER_LEVEL,
+        );
+        assert!(good_state0.is_valid_suspend_request(true));
+
+        let good_state1 = PsciCompositePowerState::new_with_last_power_level(
+            [
+                PlatformPowerState::OFF,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ],
+            PsciPlatformImpl::MAX_POWER_LEVEL,
+        );
+        assert!(good_state1.is_valid_suspend_request(true));
+
+        let bad_state = PsciCompositePowerState::new_with_last_power_level(
+            [
+                PlatformPowerState::OFF,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ],
+            PsciPlatformImpl::MAX_POWER_LEVEL + 1,
+        );
+        assert!(!bad_state.is_valid_suspend_request(true));
+    }
+
+    #[test]
+    fn psci_composite_power_state_set_local_states_from_nodes() {
         let mut composite_state = PsciCompositePowerState::OFF;
         let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
 
@@ -1177,6 +1505,98 @@ mod tests {
     }
 
     #[test]
+    fn psci_composite_power_state_set_nodes_from_local_states() {
+        let run_state = PsciCompositePowerState::RUN;
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        let mut cpu = tree.locked_cpu_node(0);
+        tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+            run_state.set_nodes_from_local_states(
+                PsciPlatformImpl::MAX_POWER_LEVEL,
+                cpu,
+                &mut ancestors,
+            );
+        });
+
+        assert_eq!(cpu.local_state(), PlatformPowerState::RUN);
+        tree.with_ancestors_locked(&mut cpu, |cpu, ancestors| {
+            assert_eq!(cpu.local_state(), PlatformPowerState::RUN);
+            for a in ancestors.iter() {
+                assert_eq!(PlatformPowerState::RUN, a.local_state());
+            }
+        });
+
+        let lvl0_off_state = PsciCompositePowerState::new([
+            PlatformPowerState::OFF,
+            PlatformPowerState::RUN,
+            PlatformPowerState::RUN,
+            PlatformPowerState::RUN,
+        ]);
+        tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+            lvl0_off_state.set_nodes_from_local_states(
+                PsciPlatformImpl::MAX_POWER_LEVEL,
+                cpu,
+                &mut ancestors,
+            );
+        });
+
+        tree.with_ancestors_locked(&mut cpu, |cpu, ancestors| {
+            assert_eq!(PlatformPowerState::OFF, cpu.local_state());
+            for a in ancestors.iter() {
+                assert_eq!(PlatformPowerState::RUN, a.local_state());
+            }
+        });
+
+        // Checks that highest_affected_level actually affects the outcome.
+        let lvl012_off_state = PsciCompositePowerState::new([
+            PlatformPowerState::OFF,
+            PlatformPowerState::OFF,
+            PlatformPowerState::OFF,
+            PlatformPowerState::RUN,
+        ]);
+        tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+            lvl012_off_state.set_nodes_from_local_states(
+                PsciCompositePowerState::CPU_POWER_LEVEL + 1,
+                cpu,
+                &mut ancestors,
+            );
+        });
+
+        tree.with_ancestors_locked(&mut cpu, |cpu, ancestors| {
+            assert_eq!(PlatformPowerState::OFF, cpu.local_state());
+            let ancestors_slice = ancestors.iter().as_slice();
+            assert_eq!(ancestors_slice[0].local_state(), PlatformPowerState::OFF);
+            assert_eq!(ancestors_slice[1].local_state(), PlatformPowerState::RUN);
+            assert_eq!(ancestors_slice[2].local_state(), PlatformPowerState::RUN);
+        });
+
+        // Reset the state.
+        tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+            PsciCompositePowerState::RUN.set_nodes_from_local_states(
+                PsciPlatformImpl::MAX_POWER_LEVEL,
+                cpu,
+                &mut ancestors,
+            );
+        });
+
+        // Check that highest_affected_level works even with CPU_POWER_LEVEL.
+        tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+            lvl0_off_state.set_nodes_from_local_states(
+                PsciCompositePowerState::CPU_POWER_LEVEL,
+                cpu,
+                &mut ancestors,
+            );
+        });
+
+        tree.with_ancestors_locked(&mut cpu, |cpu, ancestors| {
+            assert_eq!(PlatformPowerState::OFF, cpu.local_state());
+            for a in ancestors.iter() {
+                assert_eq!(PlatformPowerState::RUN, a.local_state());
+            }
+        });
+    }
+
+    #[test]
     fn psci_composite_power_state_coordination() {
         let mut composite_state = PsciCompositePowerState::OFF;
         composite_state.states[PsciPlatformImpl::MAX_POWER_LEVEL - 1] = PlatformPowerState::RUN;
@@ -1187,6 +1607,335 @@ mod tests {
         tree.with_ancestors_locked(&mut cpu, |_cpu, mut ancestors| {
             composite_state.coordinate_state(2, &mut ancestors);
         });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_single_lvl0_state_is_valid() {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        let mut cpu0 = tree.locked_cpu_node(0);
+        tree.with_ancestors_locked(&mut cpu0, |_cpu, ancestors| {
+            assert_eq!(
+                LEVEL0_OFF.validate_state_coordination(
+                    0,
+                    LEVEL0_OFF.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Ok(())
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_lvl0_state_with_off_sibling_is_valid()
+    {
+        let mut tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+
+        let mut cpu1 = tree.locked_cpu_node(1);
+        tree.with_ancestors_locked(&mut cpu1, |_cpu, ancestors| {
+            assert_eq!(
+                LEVEL0_OFF.validate_state_coordination(
+                    1,
+                    LEVEL0_OFF.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Ok(())
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_lvl1_off_state_is_valid() {
+        let mut tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_OFF.clone());
+
+        let mut cpu2 = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
+            assert_eq!(
+                LEVEL1_OFF.validate_state_coordination(
+                    2,
+                    LEVEL1_OFF.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Ok(())
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_shallower_lvl1_state_is_valid() {
+        let mut tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_OFF.clone());
+
+        let mut cpu2 = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
+            assert_eq!(
+                LEVEL1_STBY2.validate_state_coordination(
+                    2,
+                    LEVEL1_STBY2.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Ok(())
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_all_off_is_valid() {
+        let mut tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        // Leftmost sub-cluster
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 2, LEVEL1_OFF.clone());
+
+        // Left cluster
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 3, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 4, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 5, LEVEL2_OFF.clone());
+
+        // Right, middle cluster
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 6, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 7, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 8, LEVEL1_OFF.clone());
+
+        // Off to cores in rightmost cluster, use 12 to enter root level off.
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 9, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 10, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 11, LEVEL0_OFF.clone());
+
+        let mut cpu12 = tree.locked_cpu_node(12);
+        tree.with_ancestors_locked(&mut cpu12, |_cpu, ancestors| {
+            assert_eq!(
+                LEVEL3_OFF.validate_state_coordination(
+                    12,
+                    LEVEL3_OFF.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Ok(())
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_denies_if_not_last_at_level() {
+        let mut tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        let mut level0_with_level1_last_at_level = LEVEL0_OFF.clone();
+        level0_with_level1_last_at_level.last_at_power_level =
+            Some(PsciCompositePowerState::CPU_POWER_LEVEL + 1);
+
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+
+        let mut cpu2 = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
+            assert_eq!(
+                level0_with_level1_last_at_level.validate_state_coordination(
+                    2,
+                    LEVEL0_OFF.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Err(ErrorCode::Denied)
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_denies_if_peer_still_running() {
+        let mut tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+
+        let mut cpu2 = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
+            assert_eq!(
+                LEVEL1_OFF.validate_state_coordination(
+                    2,
+                    LEVEL1_OFF.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Err(ErrorCode::Denied)
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_denies_lvl2_even_if_lv1_is_valid() {
+        let mut tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_OFF.clone());
+
+        // A level 2 off command will also turn off level 1. However, we should still deny because
+        // level 2 peers aren't off.
+        let mut cpu2 = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
+            assert_eq!(
+                LEVEL2_OFF.validate_state_coordination(
+                    2,
+                    LEVEL2_OFF.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Err(ErrorCode::Denied)
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_invalid_params_for_non_run_shallower_peer()
+     {
+        let mut tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_STBY2.clone());
+
+        // A level 2 off command will also turn off level 1. However, we should still deny because
+        // level 2 peers aren't off.
+        let mut cpu2 = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
+            assert_eq!(
+                LEVEL1_OFF.validate_state_coordination(
+                    2,
+                    LEVEL1_OFF.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Err(ErrorCode::InvalidParameters)
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_validate_state_coordination_invalid_params_for_state_without_last_at_power_level()
+     {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        for index in 0..PlatformImpl::CORE_COUNT {
+            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+        }
+
+        let mut bad_level0_off = LEVEL0_OFF.clone();
+        bad_level0_off.last_at_power_level = None;
+
+        let mut cpu2 = tree.locked_cpu_node(2);
+        tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
+            assert_eq!(
+                bad_level0_off.validate_state_coordination(
+                    2,
+                    bad_level0_off.find_highest_non_run_level().unwrap(),
+                    &ancestors
+                ),
+                Err(ErrorCode::InvalidParameters)
+            );
+        });
+    }
+
+    #[test]
+    fn psci_composite_power_state_create_highest_affected_level_resolved() {
+        assert_eq!(
+            PsciCompositePowerState::new([
+                PlatformPowerState::OFF,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ])
+            .create_highest_affected_level_resolved_state(0),
+            PsciCompositePowerState::new([
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+            ])
+        );
+
+        assert_eq!(
+            PsciCompositePowerState::new([
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ])
+            .create_highest_affected_level_resolved_state(1),
+            PsciCompositePowerState::new([
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+            ])
+        );
+
+        assert_eq!(
+            PsciCompositePowerState::new([
+                PlatformPowerState::OFF,
+                PlatformPowerState::Standby2,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ])
+            .create_highest_affected_level_resolved_state(1),
+            PsciCompositePowerState::new([
+                PlatformPowerState::OFF,
+                PlatformPowerState::Standby2,
+                PlatformPowerState::Standby2,
+                PlatformPowerState::Standby2,
+            ])
+        );
+
+        assert_eq!(
+            PsciCompositePowerState::new([
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+            ])
+            .create_highest_affected_level_resolved_state(2),
+            PsciCompositePowerState::new([
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+            ])
+        );
     }
 
     /// The function expects the closure to power down the calling CPU. This would normally end in

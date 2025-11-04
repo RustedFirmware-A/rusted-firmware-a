@@ -297,6 +297,9 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
             PowerState::PowerDown(0) => {
                 [TestPowerState::PowerDown; TestPsciPlatformImpl::MAX_POWER_LEVEL + 1]
             }
+            PowerState::PowerDown(1) => {
+                [TestPowerState::PowerDown, TestPowerState::On, TestPowerState::On, TestPowerState::On]
+            }
             _ => return None,
         };
 
@@ -308,6 +311,13 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
     fn power_domain_suspend(&self, _target_state: &PsciCompositePowerState) {}
 
     fn power_domain_suspend_finish(&self, _previous_state: &PsciCompositePowerState) {}
+
+    fn power_domain_validate_suspend(
+        &self,
+        _target_state: &PsciCompositePowerState,
+    ) -> Result<(), ErrorCode> {
+        Ok(())
+    }
 
     fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
         assert_eq!(target_state.cpu_level_state(), TestPowerState::PowerDown);

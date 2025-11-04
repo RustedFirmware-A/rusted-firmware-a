@@ -28,7 +28,8 @@ pub struct NonCpuPowerNode {
     local_state: PlatformPowerState,
     /// Range of descendant CPU indices
     cpu_range: Range<usize>,
-    /// Requested power state of descendant CPU nodes
+    /// Requested Nth level power state (where N is whichever level in the power tree this
+    /// NonCpuPowerNode happens to be in) of descendant CPU nodes
     requested_states: ArrayVec<PlatformPowerState, { PowerDomainTree::CPU_DOMAIN_COUNT }>,
     // OPTIMIZE: The worst case memory usage of requested_states on all NonCpuPowerNode happens
     // when the power domain tree is a complete binary tree. In this case the memory usage is
@@ -63,6 +64,17 @@ impl NonCpuPowerNode {
     pub fn set_requested_power_state(&mut self, cpu_index: usize, state: PlatformPowerState) {
         assert!(self.cpu_range.contains(&cpu_index));
         self.requested_states[cpu_index - self.cpu_range.start] = state;
+    }
+
+    /// Returns the minimum value in requested_states except for the element specified by cpu_index.
+    /// If this NonCpuPowerNode only has a single core for an ancestor, this returns OFF.
+    pub fn get_minimal_allowed_state_without_core(&self, cpu_index: usize) -> PlatformPowerState {
+        let local_cpu_index = cpu_index - self.cpu_range.start;
+        self.requested_states
+            .iter()
+            .enumerate()
+            .filter(|&(i, _)| i != local_cpu_index)
+            .fold(PlatformPowerState::OFF, |acc, (_, &state)| acc.min(state))
     }
 
     /// Set the local power state of the node to the lowest possible level while still meeting the
@@ -349,6 +361,34 @@ impl PowerDomainTree {
             .iter()
             .all(|core| core.lock().affinity_info() == AffinityInfo::On)
     }
+
+    /// Verifies that all other cores at 'end_power_level' have been have been idled and that the
+    /// current CPU is the last running CPU at 'end_power_level'. ancestors must be the locked
+    /// ancestors of CPU referenced by my_index.
+    /// Returns true if cpu specified by 'my_index' is last on cpu at 'end_power_level'. False
+    /// otherwise.
+    pub fn is_last_cpu_to_idle_at_power_level(
+        my_index: usize,
+        end_power_level: usize,
+        ancestors: &AncestorPowerDomains,
+    ) -> bool {
+        if end_power_level == PsciCompositePowerState::CPU_POWER_LEVEL {
+            return true;
+        }
+
+        let end_power_level_node = &ancestors.list[end_power_level - 1];
+        for (index, state) in end_power_level_node.requested_states.iter().enumerate() {
+            if index + end_power_level_node.cpu_range.start == my_index {
+                assert_eq!(*state, PlatformPowerState::RUN);
+                continue;
+            }
+
+            if *state == PlatformPowerState::RUN {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl Debug for PowerDomainTree {
@@ -376,9 +416,51 @@ impl Debug for PowerDomainTree {
 }
 
 #[cfg(test)]
+pub mod test_helpers {
+    use super::*;
+    /// Sets the power state (both the local_state and the CPU requested states) of the CPU given by
+    /// `cpu_index` to `state` for the given PowerDomainTree. This state will be propagated
+    /// throughout the tree; from the CPU nodes all the way to the root non CPU nodes. This
+    /// maintains the invariants for the state of the tree.
+    /// Note: it is possible to have a mix of power states in a single hierarchy as long as
+    /// ancestors are at a shallower power state than descendants. This API does not facilitate this
+    /// capability.
+    pub fn set_cpu_power_state_by_index(
+        tree: &PowerDomainTree,
+        cpu_index: usize,
+        state: PlatformPowerState,
+    ) {
+        let mut cpu = tree.locked_cpu_node(cpu_index);
+        tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+            cpu.set_local_state(state);
+            for node in ancestors.iter_mut() {
+                node.set_requested_power_state(cpu_index, state);
+                node.set_local_state(state);
+            }
+        });
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use super::test_helpers::*;
     use super::*;
     use crate::services::psci::{PlatformPowerStateInterface, PsciPlatformInterface};
+
+    fn is_last_cpu_to_idle_at_power_level_helper(
+        tree: &PowerDomainTree,
+        cpu_index: usize,
+        end_power_level: usize,
+    ) -> bool {
+        let mut cpu = tree.locked_cpu_node(cpu_index);
+        tree.with_ancestors_locked_to_max_level(&mut cpu, end_power_level, |_cpu, ancestors| {
+            PowerDomainTree::is_last_cpu_to_idle_at_power_level(
+                cpu_index,
+                end_power_level,
+                &ancestors,
+            )
+        })
+    }
 
     #[test]
     fn non_cpu_power_node() {
@@ -415,6 +497,31 @@ mod tests {
 
         node.set_local_state(PlatformPowerState::RUN);
         assert_eq!(PlatformPowerState::RUN, node.local_state());
+    }
+
+    #[test]
+    fn non_cpu_power_node_get_minimal_allowed_state_without_core() {
+        let mut node0 = NonCpuPowerNode::new(Some(0));
+        for cpu_index in 0..3 {
+            node0.assign_cpu(cpu_index);
+        }
+        node0.set_requested_power_state(0, PlatformPowerState::RUN);
+        assert_eq!(
+            node0.get_minimal_allowed_state_without_core(0),
+            PlatformPowerState::OFF
+        );
+        node0.set_requested_power_state(1, PlatformPowerState::RUN);
+        assert_eq!(
+            node0.get_minimal_allowed_state_without_core(0),
+            PlatformPowerState::RUN
+        );
+
+        let mut node1 = NonCpuPowerNode::new(Some(1));
+        node1.assign_cpu(3);
+        assert_eq!(
+            node1.get_minimal_allowed_state_without_core(3),
+            PlatformPowerState::OFF
+        );
     }
 
     #[test]
@@ -572,5 +679,174 @@ mod tests {
         }
 
         assert!(!tree.are_all_cpus_on());
+    }
+
+    #[test]
+    fn power_domain_tree_last_cpu_idled_at_power_level_cpu_level_returns_true() {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            0,
+            PsciCompositePowerState::CPU_POWER_LEVEL
+        ));
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            PowerDomainTree::CPU_DOMAIN_COUNT - 1,
+            PsciCompositePowerState::CPU_POWER_LEVEL
+        ));
+    }
+
+    #[test]
+    fn power_domain_tree_last_cpu_idled_at_power_level_one_cpu_on_returns_true() {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+        // All power nodes start in off state.
+
+        // Turn on some random cores outside the subtree we're going to run tests with to
+        // demonstrate that the code only looks at the tree up to end_power_level.
+        set_cpu_power_state_by_index(&tree, 3, PlatformPowerState::RUN);
+        set_cpu_power_state_by_index(&tree, 8, PlatformPowerState::RUN);
+        set_cpu_power_state_by_index(&tree, 11, PlatformPowerState::RUN);
+
+        set_cpu_power_state_by_index(&tree, 0, PlatformPowerState::RUN);
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            0,
+            PsciCompositePowerState::CPU_POWER_LEVEL + 1
+        ));
+        // Make CPU 2 the last one.
+        set_cpu_power_state_by_index(&tree, 0, PlatformPowerState::OFF);
+        set_cpu_power_state_by_index(&tree, 2, PlatformPowerState::RUN);
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            2,
+            PsciCompositePowerState::CPU_POWER_LEVEL + 1
+        ));
+    }
+
+    #[test]
+    fn power_domain_tree_last_cpu_idled_at_power_level_two_cpu_on_returns_true() {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+        // All power nodes start in off state.
+
+        // Turn on CPU 1 to demonstrate that the code only looks at the tree up to end_power_level.
+        set_cpu_power_state_by_index(&tree, 1, PlatformPowerState::RUN);
+
+        set_cpu_power_state_by_index(&tree, 7, PlatformPowerState::RUN);
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            7,
+            PsciCompositePowerState::CPU_POWER_LEVEL + 2
+        ));
+
+        // Make CPU 12 the last one.
+        set_cpu_power_state_by_index(&tree, 7, PlatformPowerState::OFF);
+        set_cpu_power_state_by_index(&tree, 12, PlatformPowerState::RUN);
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            12,
+            PsciCompositePowerState::CPU_POWER_LEVEL + 2
+        ));
+    }
+
+    #[test]
+    fn power_domain_tree_last_cpu_idled_at_root_with_cpu_on_returns_true() {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+        // All power nodes start in off state.
+
+        // Use the root node to turn on CPU 0.
+        set_cpu_power_state_by_index(&tree, 0, PlatformPowerState::RUN);
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            0,
+            PsciPlatformImpl::MAX_POWER_LEVEL
+        ));
+
+        // Make CPU 5 the last one.
+        set_cpu_power_state_by_index(&tree, 0, PlatformPowerState::OFF);
+        set_cpu_power_state_by_index(&tree, 5, PlatformPowerState::RUN);
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            5,
+            PsciPlatformImpl::MAX_POWER_LEVEL
+        ));
+
+        // Make CPU 11 the last one.
+        set_cpu_power_state_by_index(&tree, 5, PlatformPowerState::OFF);
+        set_cpu_power_state_by_index(&tree, 11, PlatformPowerState::RUN);
+        assert!(is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            11,
+            PsciPlatformImpl::MAX_POWER_LEVEL
+        ));
+    }
+
+    #[test]
+    fn power_domain_tree_is_last_cpu_idled_at_power_level_false_for_two_children_on() {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        set_cpu_power_state_by_index(&tree, 0, PlatformPowerState::RUN);
+        set_cpu_power_state_by_index(&tree, 1, PlatformPowerState::RUN);
+        assert!(!is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            0,
+            PsciCompositePowerState::CPU_POWER_LEVEL + 1
+        ));
+    }
+
+    #[test]
+    fn power_domain_tree_is_last_cpu_idled_at_power_level_false_for_two_grandchildren_on() {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        set_cpu_power_state_by_index(&tree, 0, PlatformPowerState::RUN);
+        set_cpu_power_state_by_index(&tree, 1, PlatformPowerState::RUN);
+        assert!(!is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            0,
+            PsciCompositePowerState::CPU_POWER_LEVEL + 2
+        ));
+        set_cpu_power_state_by_index(&tree, 1, PlatformPowerState::OFF);
+        set_cpu_power_state_by_index(&tree, 4, PlatformPowerState::RUN);
+        assert!(!is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            0,
+            PsciCompositePowerState::CPU_POWER_LEVEL + 2
+        ));
+    }
+
+    #[test]
+    fn power_domain_tree_is_last_cpu_idled_at_power_level_false_for_two_great_grandchildren_on() {
+        let tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+
+        set_cpu_power_state_by_index(&tree, 0, PlatformPowerState::RUN);
+        set_cpu_power_state_by_index(&tree, 1, PlatformPowerState::RUN);
+        assert!(!is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            0,
+            PsciPlatformImpl::MAX_POWER_LEVEL
+        ));
+
+        set_cpu_power_state_by_index(&tree, 1, PlatformPowerState::OFF);
+        set_cpu_power_state_by_index(&tree, 4, PlatformPowerState::RUN);
+        assert!(!is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            4,
+            PsciPlatformImpl::MAX_POWER_LEVEL
+        ));
+
+        set_cpu_power_state_by_index(&tree, 4, PlatformPowerState::OFF);
+        set_cpu_power_state_by_index(&tree, 7, PlatformPowerState::RUN);
+        assert!(!is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            7,
+            PsciPlatformImpl::MAX_POWER_LEVEL
+        ));
+
+        set_cpu_power_state_by_index(&tree, 0, PlatformPowerState::OFF);
+        set_cpu_power_state_by_index(&tree, 12, PlatformPowerState::RUN);
+        assert!(!is_last_cpu_to_idle_at_power_level_helper(
+            &tree,
+            12,
+            PsciPlatformImpl::MAX_POWER_LEVEL
+        ));
     }
 }

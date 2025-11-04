@@ -655,7 +655,7 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
             _ => return None,
         };
 
-        Some(PsciCompositePowerState { states })
+        Some(PsciCompositePowerState::new(states))
     }
 
     fn cpu_standby(&self, cpu_state: FvpPowerState) {

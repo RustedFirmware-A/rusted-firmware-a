@@ -124,7 +124,7 @@ extern "C" fn psci_warmboot_entrypoint() -> ! {
 mod asm {
     use super::*;
     use crate::debug::{DEBUG, ENABLE_ASSERTIONS};
-    use arm_sysregs::SctlrEl3;
+    use arm_sysregs::{Dit, SctlrEl3};
     use core::arch::global_asm;
     use pagetable::PAGE_TABLE_ADDR;
 
@@ -197,6 +197,7 @@ mod asm {
         PMCR_EL0_LP_BIT = const PMCR_EL0_LP_BIT,
         DAIF_ABT_BIT = const DAIF_ABT_BIT,
         CPTR_EL3_RESET_VAL = const CPTR_EL3_RESET_VAL,
+        DIT_BIT = const Dit::DIT.bits(),
         TCPAC_BIT = const TCPAC_BIT,
         TTA_BIT = const TTA_BIT,
         TFP_BIT = const TFP_BIT,

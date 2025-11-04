@@ -796,7 +796,7 @@ mod asm {
         exceptions::RunResult,
         smccc::NOT_SUPPORTED,
     };
-    use arm_sysregs::{Pmcr, StackPointer};
+    use arm_sysregs::{Dit, Pmcr, StackPointer};
     use core::{
         arch::global_asm,
         mem::{offset_of, size_of},
@@ -835,6 +835,7 @@ mod asm {
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         DEBUG = const DEBUG as u32,
         ERRATA_SPECULATIVE_AT = const ERRATA_SPECULATIVE_AT as u32,
+        DIT_BIT = const Dit::DIT.bits(),
         SCR_EA_BIT = const ScrEl3::EA.bits(),
         PMCR_EL0_DP_BIT = const Pmcr::DP.bits(),
         MODE_SP_EL0 = const StackPointer::El0 as u8,

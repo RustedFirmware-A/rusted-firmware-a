@@ -556,6 +556,14 @@ bitflags! {
         const EZ = 1 << 8;
     }
 
+    /// DIT (Data Independent Timing) register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
+    #[repr(transparent)]
+    pub struct Dit: u64 {
+        /// Enable data independent timing.
+        const DIT = 1 << 24;
+    }
+
     /// PMCR_EL0 register configures and controls the Performance Monitors counters.
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
     #[repr(transparent)]

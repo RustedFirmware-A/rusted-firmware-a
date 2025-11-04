@@ -18,6 +18,20 @@
 	msr     scr_el3, x18
 	.endm
 
+/*
+ * Set the PSTATE bits not set when the exception was taken as
+ * described in the AArch64.TakeException() pseudocode function
+ * in ARM DDI 0487F.c page J1-7635 to a default value.
+ */
+	.macro set_unset_pstate_bits
+	/*
+	 * Always enable Data Independent Timing (DIT) in EL3.
+	 * NOTE: We assume that FEAT_DIT is present as it is mandatory from Armv8.4.
+	 */
+	mov	x18, #{DIT_BIT}
+	msr	s3_3_c4_c2_5, x18 /* DIT */
+	.endm
+
 /* ------------------------------------------------------------------
  * The following macro is used to save and restore all the general
  * purpose registers.
@@ -74,6 +88,7 @@
 func prepare_el3_entry
 	save_gp_pmcr_pauth_regs
 	enable_serror_at_el3
+	set_unset_pstate_bits
 	ret
 endfunc prepare_el3_entry
 

@@ -191,6 +191,13 @@ func bl31_entrypoint
         msr     cptr_el3, x0
 
         /*
+         * Always enable Data Independent Timing (DIT) in EL3.
+         * NOTE: We assume that FEAT_DIT is present as it is mandatory from Armv8.4.
+         */
+        mov     x0, #{DIT_BIT}
+        msr     s3_3_c4_c2_5, x0 /* DIT */
+
+        /*
          * Invalidate cache for the entire BL31 image. Since there can be memory
          * overlap with previous boot loader stages, without this we can end up
          * re-using dirty cache lines from previous stages.
@@ -407,6 +414,13 @@ func bl31_warm_entrypoint
         orr     x0, x0, #{TTA_BIT}
 1:
         msr     cptr_el3, x0
+
+        /*
+         * Always enable Data Independent Timing (DIT) in EL3.
+         * NOTE: We assume that FEAT_DIT is present as it is mandatory from Armv8.4.
+         */
+        mov     x0, #{DIT_BIT}
+        msr     s3_3_c4_c2_5, x0 /* DIT */
 
 	/* ---------------------------------------------------------------------
 	 * Use SP_EL0 for the C runtime stack.

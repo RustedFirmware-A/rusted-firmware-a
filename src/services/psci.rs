@@ -19,7 +19,7 @@ use crate::{
 use arm_psci::{
     AffinityInfo, Cookie, EntryPoint, ErrorCode, FeatureFlagsCpuSuspend, FeatureFlagsSystemOff2,
     Function, FunctionId, HwState, MemProtectRange, MigrateInfoType, Mpidr, PowerState,
-    PsciFeature, ResetType, ReturnCode, SystemOff2Type, Version,
+    PsciFeature, ResetType, ReturnCode, SuspendMode, SystemOff2Type, Version,
 };
 use arm_sysregs::{MpidrEl1, read_isr_el1};
 use bitflags::bitflags;
@@ -27,6 +27,7 @@ use core::fmt::{self, Debug, Formatter};
 use log::info;
 use percore::Cores;
 use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
+use spin::mutex::SpinMutex;
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0000;
 const FUNCTION_NUMBER_MAX: u16 = 0x001F;
@@ -44,6 +45,7 @@ bitflags! {
         const CPU_DEFAULT_SUSPEND = 1 << 5;
         const NODE_HW_STATE = 1 << 6;
         const SYSTEM_SUSPEND = 1 << 7;
+        const OS_INITIATED_MODE = 1 << 8;
     }
 }
 
@@ -336,6 +338,7 @@ impl PsciCompositePowerState {
 pub struct Psci {
     platform: PsciPlatformImpl,
     power_domain_tree: PowerDomainTree,
+    suspend_mode: SpinMutex<SuspendMode>,
 }
 
 impl Psci {
@@ -363,10 +366,12 @@ impl Psci {
                 }
             });
         }
+        let suspend_mode = SpinMutex::<_>::new(SuspendMode::PlatformCoordinated);
 
         Self {
             platform,
             power_domain_tree,
+            suspend_mode,
         }
     }
 
@@ -743,8 +748,14 @@ impl Psci {
 
                 // CPU suspend features
                 FunctionId::CpuSuspend32 | FunctionId::CpuSuspend64 => {
-                    let flags = FeatureFlagsCpuSuspend::EXTENDED_POWER_STATE;
-                    // TODO: OS-initiated flag
+                    let flags = FeatureFlagsCpuSuspend::EXTENDED_POWER_STATE
+                        | (if PsciPlatformImpl::FEATURES
+                            .contains(PsciPlatformOptionalFeatures::OS_INITIATED_MODE)
+                        {
+                            FeatureFlagsCpuSuspend::OS_INITIATED_MODE
+                        } else {
+                            FeatureFlagsCpuSuspend::empty()
+                        });
                     Ok(u32::from(flags) as u64)
                 }
 
@@ -785,7 +796,9 @@ impl Psci {
                 FunctionId::SystemSuspend32 | FunctionId::SystemSuspend64 => {
                     check_optional_feature(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND)
                 }
-                FunctionId::PsciSetSuspendMode => Err(ErrorCode::NotSupported),
+                FunctionId::PsciSetSuspendMode => {
+                    check_optional_feature(PsciPlatformOptionalFeatures::OS_INITIATED_MODE)
+                }
                 FunctionId::PsciStatResidency32 | FunctionId::PsciStatResidency64 => {
                     Err(ErrorCode::NotSupported)
                 }
@@ -872,6 +885,32 @@ impl Psci {
         )
     }
 
+    fn set_suspend_mode(&self, mode: SuspendMode) -> Result<u64, ErrorCode> {
+        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::OS_INITIATED_MODE) {
+            return Err(ErrorCode::NotSupported);
+        }
+        if *self.suspend_mode.lock() == mode {
+            return Ok(0);
+        }
+        match mode {
+            SuspendMode::PlatformCoordinated => {
+                if !self.power_domain_tree.is_last_cpu(CoresImpl::core_index()) {
+                    return Err(ErrorCode::Denied);
+                }
+            }
+            SuspendMode::OsInitiated => {
+                if !(self.power_domain_tree.are_all_cpus_on()
+                    || self.power_domain_tree.is_last_cpu(CoresImpl::core_index()))
+                {
+                    return Err(ErrorCode::Denied);
+                }
+            }
+        }
+        let mut suspend_mode_guard = self.suspend_mode.lock();
+        *suspend_mode_guard = mode;
+        Ok(0)
+    }
+
     fn handle_smc_inner(&self, regs: &[u64; 4]) -> Result<u64, ErrorCode> {
         const SUCCESS: u64 = 0;
         let function = Function::try_from(regs)?;
@@ -944,7 +983,7 @@ impl Psci {
                 self.system_suspend(entry)?;
                 Ok(SUCCESS)
             }
-            Function::SetSuspendMode { .. } => Err(ErrorCode::NotSupported),
+            Function::SetSuspendMode { mode } => self.set_suspend_mode(mode),
             Function::StatResidency { .. } => Err(ErrorCode::NotSupported),
             Function::StatCount { .. } => Err(ErrorCode::NotSupported),
         }
@@ -1656,6 +1695,7 @@ mod tests {
             FunctionId::MemProtectCheckRange32,
             FunctionId::MemProtectCheckRange64,
             FunctionId::PsciFeatures,
+            FunctionId::PsciSetSuspendMode,
             FunctionId::CpuFreeze,
             FunctionId::CpuDefaultSuspend32,
             FunctionId::CpuDefaultSuspend64,
@@ -1670,7 +1710,6 @@ mod tests {
             FunctionId::Migrate64,
             FunctionId::MigrateInfoUpCpu32,
             FunctionId::MigrateInfoUpCpu64,
-            FunctionId::PsciSetSuspendMode,
             FunctionId::PsciStatResidency32,
             FunctionId::PsciStatResidency64,
             FunctionId::PsciStatCount32,
@@ -1679,11 +1718,11 @@ mod tests {
 
         assert_eq!(Ok(0), psci.handle_features(PsciFeature::SmcccVersion));
         assert_eq!(
-            Ok(0x0000_0002),
+            Ok(0x0000_0003),
             psci.handle_features(PsciFeature::PsciFunction(FunctionId::CpuSuspend32))
         );
         assert_eq!(
-            Ok(0x0000_0002),
+            Ok(0x0000_0003),
             psci.handle_features(PsciFeature::PsciFunction(FunctionId::CpuSuspend64))
         );
         assert_eq!(

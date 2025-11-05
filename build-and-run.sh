@@ -33,6 +33,8 @@ else
     OUT=${CARGO_TARGET_DIR}
 fi
 
+TARGET=aarch64-unknown-none-softfloat
+
 BL1=${TFA}/build/${PLAT}/${BUILDTYPE}/bl1.bin
 BL2=${TFA}/build/${PLAT}/${BUILDTYPE}/bl2.bin
 FIP=${TFA}/build/${PLAT}/${BUILDTYPE}/fip.bin

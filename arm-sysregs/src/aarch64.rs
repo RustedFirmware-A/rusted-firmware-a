@@ -14,6 +14,7 @@ macro_rules! read_sysreg {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
             #[doc = "` system register."]
+            #[inline(always)]
             pub fn [< read_ $sysreg >]() -> $type {
                 let value;
                 // SAFETY: The macro call site's author (i.e. see below) has determined that it is
@@ -35,6 +36,7 @@ macro_rules! read_sysreg {
             #[doc = stringify!($sysreg)]
             #[doc = "` system register."]
             $(#[$attributes])*
+            #[inline(always)]
             pub unsafe fn [< read_ $sysreg >]() -> $type {
                 let value;
                 // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
@@ -54,6 +56,7 @@ macro_rules! read_sysreg {
             #[doc = "Returns the value of the `"]
             #[doc = stringify!($sysreg)]
             #[doc = "` system register."]
+            #[inline(always)]
             pub fn [< read_ $sysreg >]() -> $bitflags_type {
                 let value: $type;
                 // SAFETY: The macro call site's author (i.e. see below) has determined that it is
@@ -75,6 +78,7 @@ macro_rules! read_sysreg {
             #[doc = stringify!($sysreg)]
             #[doc = "` system register."]
             $(#[$attributes])*
+            #[inline(always)]
             pub unsafe fn [< read_ $sysreg >]() -> $bitflags_type {
                 let value: $type;
                 // SAFETY: The caller promises that it is safe to read the given `$sysreg`.
@@ -116,6 +120,7 @@ macro_rules! write_sysreg {
             #[doc = "Writes `value` to the `"]
             #[doc = stringify!($sysreg)]
             #[doc = "` system register."]
+            #[inline(always)]
             pub fn [< write_ $sysreg >](value: $type) {
                 // SAFETY: The macro call site's author (i.e. see below) has determined that it is safe
                 // to write any value to the given `$sysreg.`
@@ -138,6 +143,7 @@ macro_rules! write_sysreg {
             #[doc = stringify!($sysreg)]
             #[doc = "` system register."]
             $(#[$attributes])*
+            #[inline(always)]
             pub unsafe fn [< write_ $sysreg >](value: $type) {
                 // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.
                 unsafe {
@@ -155,6 +161,7 @@ macro_rules! write_sysreg {
             #[doc = "Writes `value` to the `"]
             #[doc = stringify!($sysreg)]
             #[doc = "` system register."]
+            #[inline(always)]
             pub fn [< write_ $sysreg >](value: $bitflags_type) {
                 let value: $type = value.bits();
                 // SAFETY: The macro call site's author (i.e. see below) has determined that it is safe
@@ -178,6 +185,7 @@ macro_rules! write_sysreg {
             #[doc = stringify!($sysreg)]
             #[doc = "` system register."]
             $(#[$attributes])*
+            #[inline(always)]
             pub unsafe fn [< write_ $sysreg >](value: $bitflags_type) {
                 let value: $type = value.bits();
                 // SAFETY: The caller promises that it is safe to write `value` to the given `$sysreg`.

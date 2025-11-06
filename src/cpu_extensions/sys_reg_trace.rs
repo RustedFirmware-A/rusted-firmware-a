@@ -14,6 +14,9 @@ use crate::context::{PerWorldContext, World};
 
 use arm_sysregs::{CptrEl3, read_id_aa64dfr0_el1};
 
+/// FEAT_SYS_REG_TRACE support
+///
+/// Enables Non-secure world trace system register accesses.
 pub struct SysRegTrace;
 
 impl CpuExtension for SysRegTrace {
@@ -22,20 +25,10 @@ impl CpuExtension for SysRegTrace {
     }
 
     fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
-        match world {
-            World::NonSecure => {
-                // NS can access this.
-                ctx.cptr_el3 -= CptrEl3::TTA;
-            }
-            World::Secure => {
-                // Secure world should not access this.
-                ctx.cptr_el3 |= CptrEl3::TTA;
-            }
-            #[cfg(feature = "rme")]
-            World::Realm => {
-                // Realm world should not access this.
-                ctx.cptr_el3 |= CptrEl3::TTA;
-            }
+        if world == World::NonSecure {
+            // Allow non-secure world trace system register accesses.
+            // For other worlds trace system register access is prohibited by default.
+            ctx.cptr_el3 -= CptrEl3::TTA;
         }
     }
 }

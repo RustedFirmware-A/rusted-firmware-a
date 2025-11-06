@@ -543,7 +543,7 @@ bitflags! {
     pub struct CptrEl3: u64 {
         /// Trap EL2 accesses to CPTR_EL2/HCPTR, and EL2/EL1 accesses to CPACR_EL1/CPACR.
         const TCPAC = 1 << 31;
-        /// When FEAT_AMUv1 implemented and, trap accesses from EL2/EL1/EL0 to AMU registers.
+        /// When FEAT_AMUv1 implemented trap accesses from EL2/EL1/EL0 to AMU registers.
         const TAM = 1 << 30;
         /// Trap trace system register accesses.
         const TTA = 1 << 20;

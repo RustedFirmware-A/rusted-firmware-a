@@ -490,12 +490,17 @@ pub struct PerWorldContext {
 }
 
 impl PerWorldContext {
-    /// By default trap accesses to extensions' sysregs. The configuration may be
-    /// overwritten if a platform supports an extension.
-    ///
-    /// TODO: configure the defaults.
+    /// Configure default traps:
+    /// - Do not trap EL2 accesses to CPTR_EL2/HCPTR, and EL2/EL1 accesses to CPACR_EL1/CPACR,
+    /// - Trap lower EL AMU register accesses (will be overwritten if platform supports FEAT_AMU),
+    /// - Trap trace system register accesses (will be overwritten if platform supports
+    ///   FEAT_SYS_REG_TRACE),
+    /// - Trap Advanced SIMD instructions execution, TODO: disable FP trap when FP context switch
+    ///   support is implemented,
+    /// - Trap direct accesses to MPAM System registers that are not UNDEFINED from all ELn lower
+    ///   than EL3 (will be overwritten if platform supports FEAT_MPAM)
     const DEFAULT: Self = Self {
-        cptr_el3: CptrEl3::empty(),
+        cptr_el3: CptrEl3::TAM.union(CptrEl3::TTA).union(CptrEl3::TFP),
         mpam3_el3: Mpam3El3::TRAPLOWER,
         zcr_el3: 0,
     };

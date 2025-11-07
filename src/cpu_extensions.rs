@@ -29,8 +29,6 @@ pub trait CpuExtension {
     fn init(&self) {}
 
     /// Configures the per-world EL3 registers to enable this extension.
-    /// TODO: Switch to const traits when it becomes a stable feature:
-    /// <https://github.com/rust-lang/rust/issues/143874>
     fn configure_per_world(&self, _world: World, _ctx: &mut PerWorldContext) {}
 
     /// Configures the per-cpu EL3 registers related to this extension.

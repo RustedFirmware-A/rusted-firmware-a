@@ -147,6 +147,12 @@ It then uses standard cargo:: directives to make Cargo aware of this new file. T
 filesystem access is confined to the expected OUT_DIR, and it does not execute any external or arbitrary shell commands.
 """
 
+[[audits.aarch64-rt]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-run"
+delta = "0.2.2 -> 0.3.0"
+notes = "build.rs has not changed and it only accesses files in the project directory and in OUT_DIR."
+
 [[audits.arm-cci]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

@@ -152,21 +152,15 @@
 		.endif
 	.endm
 
-/* TODO: Set this to 1. As of Arm v8.5, it is mandatory. */
-.set ENABLE_FEAT_SB, 0
 
 	/*
 	 * Macro for mitigating against speculative execution beyond ERET. Uses the
-	 * speculation barrier instruction introduced by FEAT_SB, if it's enabled.
+	 * speculation barrier instruction, which is mandatory as of Arm v8.5.
 	 */
 	.macro exception_return
 	eret
-.if ENABLE_FEAT_SB
-	sb_barrier_insn
-.else
-	dsb	nsh
-	isb
-.endif
+	/* TODO: switch to -C target-feature=+v9a once it stabilizes so that `sb` is recognized. */
+	msr	s0_3_c3_c0_7, xzr /* sb instruction system register encoding */
 	.endm
 
 	/*

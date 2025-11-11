@@ -5,9 +5,9 @@
 //! Fake implementations of system register getters and setters for unit tests.
 
 use super::{
-    ClidrEl1, CsselrEl1, CtrEl0, Esr, HcrEl2, HcrxEl2, IccSre, IdAa64dfr0El1, IdAa64mmfr1El1,
-    IdAa64mmfr2El1, IdAa64mmfr3El1, IdAa64pfr0El1, MdcrEl2, Mpam3El3, MpamIdrEl1, MpidrEl1, Pmcr,
-    ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3, Spsr,
+    ClidrEl1, CsselrEl1, CtrEl0, Esr, Gcscr, HcrEl2, HcrxEl2, IccSre, IdAa64dfr0El1, IdAa64dfr1El1,
+    IdAa64mmfr1El1, IdAa64mmfr2El1, IdAa64mmfr3El1, IdAa64pfr0El1, IdAa64pfr1El1, MdcrEl2,
+    Mpam3El3, MpamIdrEl1, MpidrEl1, Pmcr, ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3, Spsr,
 };
 use std::sync::Mutex;
 
@@ -171,6 +171,10 @@ pub struct SystemRegisters {
     pub far_el1: u64,
     /// Fake value for the FAR_EL2 system register.
     pub far_el2: u64,
+    /// Fake value for the GCSCR_EL1 system register.
+    pub gcscr_el1: Gcscr,
+    /// Fake value for the GCSCR_EL2 system register.
+    pub gcscr_el2: Gcscr,
     /// Fake value for the HACR_EL2 system register.
     pub hacr_el2: u64,
     /// Fake value for the HCR_EL2 system register.
@@ -193,6 +197,8 @@ pub struct SystemRegisters {
     pub ich_vmcr_el2: u64,
     /// Fake value for the ID_AA64DFR0_EL1 system register.
     pub id_aa64dfr0_el1: IdAa64dfr0El1,
+    /// Fake value for the ID_AA64DFR1_EL1 system register.
+    pub id_aa64dfr1_el1: IdAa64dfr1El1,
     /// Fake value for the ID_AA64MMFR1_EL1 system register.
     pub id_aa64mmfr1_el1: IdAa64mmfr1El1,
     /// Fake value for the ID_AA64MMFR2_EL1 system register.
@@ -201,6 +207,8 @@ pub struct SystemRegisters {
     pub id_aa64mmfr3_el1: IdAa64mmfr3El1,
     /// Fake value for the ID_AA64PFR0_EL1 system register.
     pub id_aa64pfr0_el1: IdAa64pfr0El1,
+    /// Fake value for the ID_AA64PFR1_EL1 system register
+    pub id_aa64pfr1_el1: IdAa64pfr1El1,
     /// Fake value for the ISR_EL1 system register.
     pub isr_el1: u64,
     /// Fake value for the MAIR_EL1 system register.
@@ -342,6 +350,8 @@ impl SystemRegisters {
             esr_el2: Esr::empty(),
             far_el1: 0,
             far_el2: 0,
+            gcscr_el1: Gcscr::empty(),
+            gcscr_el2: Gcscr::empty(),
             hacr_el2: 0,
             hcr_el2: HcrEl2::empty(),
             hcrx_el2: HcrxEl2::empty(),
@@ -353,10 +363,12 @@ impl SystemRegisters {
             ich_hcr_el2: 0,
             ich_vmcr_el2: 0,
             id_aa64dfr0_el1: IdAa64dfr0El1::empty(),
+            id_aa64dfr1_el1: IdAa64dfr1El1::empty(),
             id_aa64mmfr1_el1: IdAa64mmfr1El1::empty(),
             id_aa64mmfr2_el1: IdAa64mmfr2El1::empty(),
             id_aa64mmfr3_el1: IdAa64mmfr3El1::empty(),
             id_aa64pfr0_el1: IdAa64pfr0El1::empty(),
+            id_aa64pfr1_el1: IdAa64pfr1El1::empty(),
             isr_el1: 0,
             mair_el1: 0,
             mair_el2: 0,

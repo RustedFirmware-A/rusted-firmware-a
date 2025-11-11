@@ -8,8 +8,9 @@ use crate::{
     smccc::SmcReturn,
 };
 use arm_sysregs::{
-    Esr, ExceptionLevel, HcrEl2, ScrEl3, SctlrEl1, SctlrEl2, Spsr, StackPointer, read_hcr_el2,
-    read_id_aa64mmfr1_el1, read_sctlr_el1, read_sctlr_el2, read_vbar_el1, read_vbar_el2,
+    Esr, ExceptionLevel, Gcscr, HcrEl2, ScrEl3, SctlrEl1, SctlrEl2, Spsr, StackPointer,
+    read_gcscr_el1, read_gcscr_el2, read_hcr_el2, read_id_aa64dfr1_el1, read_id_aa64mmfr1_el1,
+    read_id_aa64pfr1_el1, read_sctlr_el1, read_sctlr_el2, read_vbar_el1, read_vbar_el2,
     write_elr_el1, write_elr_el2, write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2,
 };
 #[cfg(not(test))]
@@ -126,19 +127,29 @@ fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
     // Mask all exceptions, update DAIF bits
     new_spsr |= Spsr::D | Spsr::A | Spsr::I | Spsr::F;
 
-    // DIT bits are unchanged
-    new_spsr |= old_spsr & Spsr::DIT;
-
-    // NZCV bits are unchanged
-    new_spsr |= old_spsr & Spsr::NZCV;
-
-    // BTYPE bits should be cleared to ensure that when injecting an undefined exception,
+    // BTYPE bits are left cleared to ensure that when injecting an undefined exception,
     // BTI does not trigger when performing an exception return as it will be unexpected.
+
+    // If FEAT_SSBS is implemented, take the value from SCTLR.DSSBS
+    if read_id_aa64pfr1_el1().is_feat_ssbs_present()
+        && ((target_el == ExceptionLevel::El1 && sctlr_el1.contains(SctlrEl1::DSSBS))
+            || (target_el == ExceptionLevel::El2 && sctlr_el2.contains(SctlrEl2::DSSBS)))
+    {
+        new_spsr |= Spsr::SSBS;
+    }
+
+    // If FEAT_NMI is implemented, ALLINT = !(SCTLR.SPINTMASK)
+    if read_id_aa64pfr1_el1().is_feat_nmi_present()
+        && ((target_el == ExceptionLevel::El1 && !sctlr_el1.contains(SctlrEl1::SPINTMASK))
+            || (target_el == ExceptionLevel::El2 && !sctlr_el2.contains(SctlrEl2::SPINTMASK)))
+    {
+        new_spsr |= Spsr::ALLINT;
+    }
 
     // Update PSTATE.PAN bit
     // NOTE: We assume that FEAT_PAN is present as it is mandatory from Armv8.1.
-    new_spsr |= old_spsr & Spsr::PAN;
-    if (target_el == ExceptionLevel::El1 && !sctlr_el1.contains(SctlrEl1::SPAN))
+    if old_spsr.contains(Spsr::PAN)
+        || (target_el == ExceptionLevel::El1 && !sctlr_el1.contains(SctlrEl1::SPAN))
         || (target_el == ExceptionLevel::El2
             && is_tge_enabled()
             && !sctlr_el2.contains(SctlrEl2::SPAN))
@@ -146,7 +157,36 @@ fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
         new_spsr |= Spsr::PAN;
     }
 
-    // TODO: Add support for SSBS, NMI, UAO, MTE2, EBEP, SEBEP and GCS.
+    // DIT bits are unchanged
+    new_spsr |= old_spsr & Spsr::DIT;
+
+    // If FEAT_MTE is implemented, mask tag faults by setting TCO bit
+    if read_id_aa64pfr1_el1().is_feat_mte_present() {
+        new_spsr |= Spsr::TCO;
+    }
+
+    // NZCV bits are unchanged
+    new_spsr |= old_spsr & Spsr::NZCV;
+
+    // If FEAT_EBEP is implemented, set PM bit
+    if read_id_aa64dfr1_el1().is_feat_ebep_present() {
+        new_spsr |= Spsr::PM;
+    }
+
+    // If FEAT_GCS is implemented, update EXLOCK bit
+    if read_id_aa64pfr1_el1().is_feat_gcs_present() {
+        let gcscr = if target_el == ExceptionLevel::El2 {
+            read_gcscr_el2()
+        } else {
+            read_gcscr_el1()
+        };
+        if gcscr.contains(Gcscr::EXLOCKEN) {
+            new_spsr |= Spsr::EXLOCK;
+        }
+    }
+
+    // The IL, SS, UAO, PPEND, PACM and UINJ bits are left cleared as AArch64.TakeException() clears
+    // the corresponding PSTATE bits.
 
     new_spsr
 }

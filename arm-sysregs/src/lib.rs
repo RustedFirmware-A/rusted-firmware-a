@@ -460,6 +460,10 @@ bitflags! {
         const RES1 = (1 << 29) | (1 << 28) | (1 << 23) | (1 << 22) | (1 << 20) | (1 << 11);
         /// Do not set Privileged Access Never, on taking an exception to EL1.
         const SPAN = 1 << 23;
+        /// Default PSTATE.SSBS value on Exception Entry.
+        const DSSBS = 1 << 44;
+        /// SP Interrupt Mask enable.
+        const SPINTMASK = 1 << 62;
     }
 
     /// SCTLR_EL2 system register value.
@@ -468,6 +472,10 @@ bitflags! {
     pub struct SctlrEl2: u64 {
         /// Do not set Privileged Access Never, on taking an exception to EL2.
         const SPAN = 1 << 23;
+        /// Default PSTATE.SSBS value on Exception Entry.
+        const DSSBS = 1 << 44;
+        /// SP Interrupt Mask enable.
+        const SPINTMASK = 1 << 62;
     }
 
     /// SCTLR_EL3 system register value.
@@ -562,6 +570,14 @@ bitflags! {
     pub struct Dit: u64 {
         /// Enable data independent timing.
         const DIT = 1 << 24;
+    }
+
+    /// Guarded Control Stack Control register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
+    #[repr(transparent)]
+    pub struct Gcscr: u64 {
+        /// Exception state lock enable.
+        const EXLOCKEN = 1 << 6;
     }
 
     /// PMCR_EL0 register configures and controls the Performance Monitors counters.
@@ -700,6 +716,11 @@ bitflags! {
         /// Debug exception mask.
         const D = 1 << 9;
 
+        /// Speculative Store Bypass Safe.
+        const SSBS = 1 << 12;
+        /// All IRQ or FIQ interrupts mask.
+        const ALLINT = 1 << 13;
+
         /// Illegal Execution state.
         const IL = 1 << 20;
         /// Software Step.
@@ -708,6 +729,8 @@ bitflags! {
         const PAN = 1 << 22;
         /// Data independent timing.
         const DIT = 1 << 24;
+        /// Tag Check Override.
+        const TCO = 1 << 25;
 
         /// Overflow condition flag.
         const V = 1 << 28;
@@ -717,6 +740,10 @@ bitflags! {
         const Z = 1 << 30;
         /// Negative condition flag.
         const N = 1 << 31;
+        /// Profiling exception mask.
+        const PM = 1 << 32;
+        /// Exception return state lock.
+        const EXLOCK = 1 << 34;
     }
 }
 
@@ -796,10 +823,20 @@ bitflags! {
     #[repr(transparent)]
     pub struct IdAa64dfr0El1: u64 {}
 
+    /// ID_AA64DFR1_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64dfr1El1: u64 {}
+
     /// ID_AA64PFR0_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
     pub struct IdAa64pfr0El1: u64 {}
+
+    /// ID_AA64PFR1_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64pfr1El1: u64 {}
 }
 
 impl IdAa64dfr0El1 {
@@ -843,6 +880,17 @@ impl IdAa64dfr0El1 {
     }
 }
 
+impl IdAa64dfr1El1 {
+    const EBEP_SHIFT: u64 = 48;
+    const EBEP_MASK: u64 = 0b1111;
+    const EBEP_IMPLEMENTED: u64 = 0b1;
+
+    /// Indicates whether FEAT_EBEP is implemented.
+    pub fn is_feat_ebep_present(self) -> bool {
+        (self.bits() >> Self::EBEP_SHIFT) & Self::EBEP_MASK == Self::EBEP_IMPLEMENTED
+    }
+}
+
 impl IdAa64pfr0El1 {
     const MPAM_SHIFT: u64 = 40;
     const MPAM_MASK: u64 = 0b1111;
@@ -854,11 +902,51 @@ impl IdAa64pfr0El1 {
     }
 }
 
+impl IdAa64pfr1El1 {
+    const SSBS_SHIFT: u64 = 4;
+    const SSBS_MASK: u64 = 0b1111;
+    const SSBS_IMPLEMENTED: u64 = 0b1;
+
+    const MTE_SHIFT: u64 = 8;
+    const MTE_MASK: u64 = 0b1111;
+    const MTE_IMPLEMENTED: u64 = 0b1;
+
+    const NMI_SHIFT: u64 = 36;
+    const NMI_MASK: u64 = 0b1111;
+    const NMI_IMPLEMENTED: u64 = 0b1;
+
+    const GCS_SHIFT: u64 = 44;
+    const GCS_MASK: u64 = 0b1111;
+    const GCS_IMPLEMENTED: u64 = 0b1;
+
+    /// Indicates whether FEAT_SSBS is implemented.
+    pub fn is_feat_ssbs_present(self) -> bool {
+        (self.bits() >> Self::SSBS_SHIFT) & Self::SSBS_MASK >= Self::SSBS_IMPLEMENTED
+    }
+
+    /// Indicates whether FEAT_MTE is implemented.
+    pub fn is_feat_mte_present(self) -> bool {
+        (self.bits() >> Self::MTE_SHIFT) & Self::MTE_MASK >= Self::MTE_IMPLEMENTED
+    }
+
+    /// Indicates whether FEAT_NMI is implemented.
+    pub fn is_feat_nmi_present(self) -> bool {
+        (self.bits() >> Self::NMI_SHIFT) & Self::NMI_MASK == Self::NMI_IMPLEMENTED
+    }
+
+    /// Indicates whether FEAT_GCS is implemented.
+    pub fn is_feat_gcs_present(self) -> bool {
+        (self.bits() >> Self::GCS_SHIFT) & Self::GCS_MASK == Self::GCS_IMPLEMENTED
+    }
+}
+
 read_sysreg!(id_aa64dfr0_el1, u64: IdAa64dfr0El1, safe, fake::SYSREGS);
+read_sysreg!(id_aa64dfr1_el1, u64: IdAa64dfr1El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr1_el1, u64: IdAa64mmfr1El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr3_el1, u64: IdAa64mmfr3El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64pfr0_el1, u64: IdAa64pfr0El1, safe, fake::SYSREGS);
+read_sysreg!(id_aa64pfr1_el1, u64: IdAa64pfr1El1, safe, fake::SYSREGS);
 read_write_sysreg!(mpam2_el2: s3_4_c10_c5_0, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(mpam3_el3: s3_6_c10_c5_0, u64: Mpam3El3, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(mpamhcr_el2: s3_4_c10_c4_0, u64, safe_read, safe_write, fake::SYSREGS);
@@ -899,6 +987,8 @@ read_write_sysreg!(esr_el1, u64: Esr, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(esr_el2, u64: Esr, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(far_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(far_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(gcscr_el1: s3_0_c2_c5_0, u64: Gcscr, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(gcscr_el2: s3_4_c2_c5_0, u64: Gcscr, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hacr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hcr_el2, u64: HcrEl2, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hcrx_el2: s3_4_c1_c2_2, u64: HcrxEl2, safe_read, safe_write, fake::SYSREGS);

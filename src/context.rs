@@ -4,7 +4,9 @@
 
 use crate::{
     aarch64::isb,
-    cpu_extensions::{CpuExtension, mpam::Mpam, pmuv3, trf::TraceFiltering},
+    cpu_extensions::{
+        CpuExtension, initialise_el3_sysregs, mpam::Mpam, pmuv3, trf::TraceFiltering,
+    },
     gicv3,
     platform::{Platform, PlatformImpl, exception_free},
     smccc::SmcReturn,
@@ -648,6 +650,9 @@ pub fn initialise_contexts(
     secure_entry_point: &EntryPointInfo,
     #[cfg(feature = "rme")] realm_entry_point: &EntryPointInfo,
 ) {
+    initialise_el3_sysregs();
+    initialise_per_world_contexts();
+
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
         initialise_nonsecure(&mut cpu_state[World::NonSecure], non_secure_entry_point);

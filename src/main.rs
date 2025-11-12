@@ -30,10 +30,7 @@ mod smccc;
 mod stacks;
 
 use crate::{
-    context::{
-        CoresImpl, initialise_contexts, initialise_per_world_contexts, update_contexts_suspend,
-    },
-    cpu_extensions::initialise_el3_sysregs,
+    context::{CoresImpl, initialise_contexts, update_contexts_suspend},
     platform::{Platform, PlatformImpl},
     services::{Services, psci::WakeUpReason},
 };
@@ -60,8 +57,6 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
     #[cfg(feature = "rme")]
     let realm_entry_point = PlatformImpl::realm_entry_point();
 
-    initialise_el3_sysregs();
-    initialise_per_world_contexts();
     initialise_contexts(
         &non_secure_entry_point,
         &secure_entry_point,

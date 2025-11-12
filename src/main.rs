@@ -131,13 +131,6 @@ mod asm {
     const MDCR_SPD32_MDCR_SPD32_DISABLE: u64 = 0x2 << 14;
     const MDCR_NSTB_MDCR_NSTB_EL1: u64 = 0x3 << 24;
 
-    const PMCR_EL0_RESET_VAL: u32 = 0;
-    const PMCR_EL0_D_BIT: u32 = 1 << 3;
-    const PMCR_EL0_X_BIT: u32 = 1 << 4;
-    const PMCR_EL0_DP_BIT: u32 = 1 << 5;
-    const PMCR_EL0_LC_BIT: u32 = 1 << 6;
-    const PMCR_EL0_LP_BIT: u32 = 1 << 7;
-
     const DAIF_ABT_BIT: u32 = 1 << 2;
 
     const CPTR_EL3_RESET_VAL: u32 =
@@ -172,12 +165,6 @@ mod asm {
         MDCR_NSTB_MDCR_NSTB_EL1 = const MDCR_NSTB_MDCR_NSTB_EL1,
         ID_AA64DFR0_TRACEVER_SHIFT = const 4,
         ID_AA64DFR0_TRACEVER_LENGTH = const 4,
-        PMCR_EL0_RESET_VAL = const PMCR_EL0_RESET_VAL,
-        PMCR_EL0_D_BIT = const PMCR_EL0_D_BIT,
-        PMCR_EL0_X_BIT = const PMCR_EL0_X_BIT,
-        PMCR_EL0_DP_BIT = const PMCR_EL0_DP_BIT,
-        PMCR_EL0_LC_BIT = const PMCR_EL0_LC_BIT,
-        PMCR_EL0_LP_BIT = const PMCR_EL0_LP_BIT,
         DAIF_ABT_BIT = const DAIF_ABT_BIT,
         CPTR_EL3_RESET_VAL = const CPTR_EL3_RESET_VAL,
         DIT_BIT = const Dit::DIT.bits(),

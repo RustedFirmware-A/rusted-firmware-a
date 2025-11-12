@@ -133,15 +133,6 @@ mod asm {
 
     const DAIF_ABT_BIT: u32 = 1 << 2;
 
-    const CPTR_EL3_RESET_VAL: u32 =
-        (TCPAC_BIT | TAM_BIT | TTA_BIT | TFP_BIT) & !(CPTR_EZ_BIT | ESM_BIT);
-    const CPTR_EZ_BIT: u32 = 1 << 8;
-    const TFP_BIT: u32 = 1 << 10;
-    const ESM_BIT: u32 = 1 << 12;
-    const TTA_BIT: u32 = 1 << 20;
-    const TAM_BIT: u32 = 1 << 30;
-    const TCPAC_BIT: u32 = 1 << 31;
-
     global_asm!(
         include_str!("asm_macros_common.S"),
         include_str!("misc_helpers.S"),
@@ -163,14 +154,8 @@ mod asm {
         MDCR_NSTBE_BIT = const MDCR_NSTBE_BIT,
         MDCR_SPD32_MDCR_SPD32_DISABLE = const MDCR_SPD32_MDCR_SPD32_DISABLE,
         MDCR_NSTB_MDCR_NSTB_EL1 = const MDCR_NSTB_MDCR_NSTB_EL1,
-        ID_AA64DFR0_TRACEVER_SHIFT = const 4,
-        ID_AA64DFR0_TRACEVER_LENGTH = const 4,
         DAIF_ABT_BIT = const DAIF_ABT_BIT,
-        CPTR_EL3_RESET_VAL = const CPTR_EL3_RESET_VAL,
         DIT_BIT = const Dit::DIT.bits(),
-        TCPAC_BIT = const TCPAC_BIT,
-        TTA_BIT = const TTA_BIT,
-        TFP_BIT = const TFP_BIT,
         plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
         PAGE_TABLE_ADDR = sym PAGE_TABLE_ADDR,
     );

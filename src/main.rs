@@ -129,7 +129,6 @@ mod asm {
     const MDCR_TDOSA_BIT: u64 = 1 << 10;
     const MDCR_SDD_BIT: u64 = 1 << 16;
     const MDCR_SPME_BIT: u64 = 1 << 17;
-    const MDCR_TTRF_BIT: u64 = 1 << 19;
     const MDCR_SCCD_BIT: u64 = 1 << 23;
     const MDCR_NSTBE_BIT: u64 = 1 << 26;
     const MDCR_MCCD_BIT: u64 = 1 << 34;
@@ -174,14 +173,11 @@ mod asm {
         MDCR_TDOSA_BIT = const MDCR_TDOSA_BIT,
         MDCR_SDD_BIT = const MDCR_SDD_BIT,
         MDCR_SPME_BIT = const MDCR_SPME_BIT,
-        MDCR_TTRF_BIT = const MDCR_TTRF_BIT,
         MDCR_SCCD_BIT = const MDCR_SCCD_BIT,
         MDCR_NSTBE_BIT = const MDCR_NSTBE_BIT,
         MDCR_MCCD_BIT = const MDCR_MCCD_BIT,
         MDCR_SPD32_MDCR_SPD32_DISABLE = const MDCR_SPD32_MDCR_SPD32_DISABLE,
         MDCR_NSTB_MDCR_NSTB_EL1 = const MDCR_NSTB_MDCR_NSTB_EL1,
-        ID_AA64DFR0_TRACEFILT_SHIFT = const 40,
-        ID_AA64DFR0_TRACEFILT_LENGTH = const 4,
         ID_AA64DFR0_TRACEVER_SHIFT = const 4,
         ID_AA64DFR0_TRACEVER_LENGTH = const 4,
         PMCR_EL0_RESET_VAL = const PMCR_EL0_RESET_VAL,

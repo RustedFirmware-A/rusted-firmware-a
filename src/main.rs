@@ -124,14 +124,10 @@ mod asm {
     use pagetable::PAGE_TABLE_ADDR;
 
     const MDCR_MTPME_BIT: u64 = 1 << 28;
-    const MDCR_TPM_BIT: u64 = 1 << 6;
     const MDCR_TDA_BIT: u64 = 1 << 9;
     const MDCR_TDOSA_BIT: u64 = 1 << 10;
     const MDCR_SDD_BIT: u64 = 1 << 16;
-    const MDCR_SPME_BIT: u64 = 1 << 17;
-    const MDCR_SCCD_BIT: u64 = 1 << 23;
     const MDCR_NSTBE_BIT: u64 = 1 << 26;
-    const MDCR_MCCD_BIT: u64 = 1 << 34;
     const MDCR_SPD32_MDCR_SPD32_DISABLE: u64 = 0x2 << 14;
     const MDCR_NSTB_MDCR_NSTB_EL1: u64 = 0x3 << 24;
 
@@ -168,14 +164,10 @@ mod asm {
         SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
         SCTLR_I_BIT = const SctlrEl3::I.bits(),
         MDCR_EL3_RESET_VAL = const MDCR_MTPME_BIT,
-        MDCR_TPM_BIT = const MDCR_TPM_BIT,
         MDCR_TDA_BIT = const MDCR_TDA_BIT,
         MDCR_TDOSA_BIT = const MDCR_TDOSA_BIT,
         MDCR_SDD_BIT = const MDCR_SDD_BIT,
-        MDCR_SPME_BIT = const MDCR_SPME_BIT,
-        MDCR_SCCD_BIT = const MDCR_SCCD_BIT,
         MDCR_NSTBE_BIT = const MDCR_NSTBE_BIT,
-        MDCR_MCCD_BIT = const MDCR_MCCD_BIT,
         MDCR_SPD32_MDCR_SPD32_DISABLE = const MDCR_SPD32_MDCR_SPD32_DISABLE,
         MDCR_NSTB_MDCR_NSTB_EL1 = const MDCR_NSTB_MDCR_NSTB_EL1,
         ID_AA64DFR0_TRACEVER_SHIFT = const 4,

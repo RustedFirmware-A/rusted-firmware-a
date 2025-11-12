@@ -76,25 +76,6 @@ func bl31_entrypoint
          *  debug registers, other than those registers that are controlled by
          *  MDCR_EL3.TDOSA.
          *
-         * MDCR_EL3.TPM: Set to zero so that EL0, EL1, and EL2 System register
-         *  accesses to all Performance Monitors registers do not trap to EL3.
-         *
-         * MDCR_EL3.SCCD: Set to one so that cycle counting by PMCCNTR_EL0 is
-         *  prohibited in Secure state. This bit is RES0 in versions of the
-         *  architecture with FEAT_PMUv3p5 not implemented, setting it to 1
-         *  doesn't have any effect on them.
-         *
-         * MDCR_EL3.MCCD: Set to one so that cycle counting by PMCCNTR_EL0 is
-         *  prohibited in EL3. This bit is RES0 in versions of the
-         *  architecture with FEAT_PMUv3p7 not implemented, setting it to 1
-         *  doesn't have any effect on them.
-         *
-         * MDCR_EL3.SPME: Set to zero so that event counting by the programmable
-         *  counters PMEVCNTR<n>_EL0 is prohibited in Secure state. If ARMv8.2
-         *  Debug is not implemented this bit does not have any effect on the
-         *  counters unless there is support for the implementation defined
-         *  authentication interface ExternalSecureNoninvasiveDebugEnabled().
-         *
          * MDCR_EL3.NSTB, MDCR_EL3.NSTBE: Set to zero so that Trace Buffer
          *  owning security state is Secure state. If FEAT_TRBE is implemented,
          *  accesses to Trace Buffer control registers at EL2 and EL1 in any
@@ -102,7 +83,7 @@ func bl31_entrypoint
          *  If FEAT_TRBE is not implemented, these bits are RES0.
          * ---------------------------------------------------------------------
          */
-        mov_imm x0, (({MDCR_EL3_RESET_VAL} | {MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE} | {MDCR_SCCD_BIT} | {MDCR_MCCD_BIT}) & ~({MDCR_SPME_BIT} | {MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_TPM_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
+        mov_imm x0, (({MDCR_EL3_RESET_VAL} | {MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE}) & ~({MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
         msr     mdcr_el3, x0
 
         /* ---------------------------------------------------------------------
@@ -317,25 +298,6 @@ func bl31_warm_entrypoint
          *  debug registers, other than those registers that are controlled by
          *  MDCR_EL3.TDOSA.
          *
-         * MDCR_EL3.TPM: Set to zero so that EL0, EL1, and EL2 System register
-         *  accesses to all Performance Monitors registers do not trap to EL3.
-         *
-         * MDCR_EL3.SCCD: Set to one so that cycle counting by PMCCNTR_EL0 is
-         *  prohibited in Secure state. This bit is RES0 in versions of the
-         *  architecture with FEAT_PMUv3p5 not implemented, setting it to 1
-         *  doesn't have any effect on them.
-         *
-         * MDCR_EL3.MCCD: Set to one so that cycle counting by PMCCNTR_EL0 is
-         *  prohibited in EL3. This bit is RES0 in versions of the
-         *  architecture with FEAT_PMUv3p7 not implemented, setting it to 1
-         *  doesn't have any effect on them.
-         *
-         * MDCR_EL3.SPME: Set to zero so that event counting by the programmable
-         *  counters PMEVCNTR<n>_EL0 is prohibited in Secure state. If ARMv8.2
-         *  Debug is not implemented this bit does not have any effect on the
-         *  counters unless there is support for the implementation defined
-         *  authentication interface ExternalSecureNoninvasiveDebugEnabled().
-         *
          * MDCR_EL3.NSTB, MDCR_EL3.NSTBE: Set to zero so that Trace Buffer
          *  owning security state is Secure state. If FEAT_TRBE is implemented,
          *  accesses to Trace Buffer control registers at EL2 and EL1 in any
@@ -343,7 +305,7 @@ func bl31_warm_entrypoint
          *  If FEAT_TRBE is not implemented, these bits are RES0.
          * ---------------------------------------------------------------------
          */
-        mov_imm x0, (({MDCR_EL3_RESET_VAL} | {MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE} | {MDCR_SCCD_BIT} | {MDCR_MCCD_BIT}) & ~({MDCR_SPME_BIT} | {MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_TPM_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
+        mov_imm x0, (({MDCR_EL3_RESET_VAL} | {MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE}) & ~({MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
         msr     mdcr_el3, x0
 
 	/* ---------------------------------------------------------------------

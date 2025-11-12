@@ -734,8 +734,16 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     //
     // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
     // against ERRATA_V2_3099206.
-    context.el3_state.scr_el3 =
-        ScrEl3::RES1 | ScrEl3::HCE | ScrEl3::SIF | ScrEl3::RW | ScrEl3::APK | ScrEl3::API;
+    //
+    // SCR_EL3.ECVEn: Enable Enhanced Counter Virtualization (ECV) CNTPOFF_EL2 register. FEAT_ECV
+    // is mandatory since ARMv8.6.
+    context.el3_state.scr_el3 = ScrEl3::RES1
+        | ScrEl3::HCE
+        | ScrEl3::SIF
+        | ScrEl3::RW
+        | ScrEl3::APK
+        | ScrEl3::API
+        | ScrEl3::ECVEN;
     #[cfg(feature = "sel2")]
     {
         context.el3_state.scr_el3 |= ScrEl3::EEL2;

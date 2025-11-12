@@ -614,6 +614,9 @@ bitflags! {
         const TPM = 1 << 6;
         /// Do not trap various PMUv3p9 related system register accesses to EL3.
         const ENPM2 = 1 << 7;
+        /// Set to one to disable AArch64 Secure self-hosted debug. Debug exceptions, other than
+        /// Breakpoint Instruction exceptions, are disabled from all ELs in Secure state.
+        const SDD = 1 << 16;
         /// Secure Performance Monitors Enable. Controls event counting in Secure state and EL3.
         const SPME = 1 << 17;
         /// Secure Trace enable. Enables tracing in Secure state.
@@ -674,6 +677,11 @@ impl MpamIdrEl1 {
     pub fn vpmr_max(self) -> u64 {
         (self.bits() >> Self::VPMR_MAX_SHIFT) & Self::VPMR_MAX_MASK
     }
+}
+
+impl MdcrEl3 {
+    /// Set to 0b10 to disable AArch32 Secure self-hosted privileged debug from S-EL1.
+    pub const SPD32: Self = Self::from_bits_retain(0b10 << 14);
 }
 
 /// An AArch64 exception level.

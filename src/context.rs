@@ -702,6 +702,30 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
         context.el1_sysregs.sctlr_el1 = SctlrEl1::RES1;
     }
 
+    // Initialise MDCR_EL3, setting all fields rather than relying on hw.
+    // Some fields are architecturally UNKNOWN on reset.
+    //
+    // MDCR_EL3.SDD: Set to one to disable AArch64 Secure self-hosted debug.
+    //  Debug exceptions, other than Breakpoint Instruction exceptions, are
+    //  disabled from all ELs in Secure state.
+    //
+    // MDCR_EL3.SPD32: Set to 0b10 to disable AArch32 Secure self-hosted
+    //  privileged debug from S-EL1.
+    //
+    // MDCR_EL3.TDOSA: Set to zero so that EL2 and EL2 System register
+    //  access to the powerdown debug registers do not trap to EL3.
+    //
+    // MDCR_EL3.TDA: Set to zero to allow EL0, EL1 and EL2 access to the
+    //  debug registers, other than those registers that are controlled by
+    //  MDCR_EL3.TDOSA.
+    //
+    // MDCR_EL3.NSTB, MDCR_EL3.NSTBE: Set to zero so that Trace Buffer
+    //  owning security state is Secure state. If FEAT_TRBE is implemented,
+    //  accesses to Trace Buffer control registers at EL2 and EL1 in any
+    //  security state generates trap exceptions to EL3.
+    //  If FEAT_TRBE is not implemented, these bits are RES0.
+    context.el3_state.mdcr_el3 = MdcrEl3::SDD | MdcrEl3::SPD32;
+
     if TraceFiltering.is_present() {
         // Trap Trace Filter controls by default.
         // This bit will be overwritten if the platform supports TRF.

@@ -123,13 +123,6 @@ mod asm {
     use core::arch::global_asm;
     use pagetable::PAGE_TABLE_ADDR;
 
-    const MDCR_TDA_BIT: u64 = 1 << 9;
-    const MDCR_TDOSA_BIT: u64 = 1 << 10;
-    const MDCR_SDD_BIT: u64 = 1 << 16;
-    const MDCR_NSTBE_BIT: u64 = 1 << 26;
-    const MDCR_SPD32_MDCR_SPD32_DISABLE: u64 = 0x2 << 14;
-    const MDCR_NSTB_MDCR_NSTB_EL1: u64 = 0x3 << 24;
-
     const DAIF_ABT_BIT: u32 = 1 << 2;
 
     global_asm!(
@@ -146,12 +139,6 @@ mod asm {
         SCTLR_A_BIT = const SctlrEl3::A.bits(),
         SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
         SCTLR_I_BIT = const SctlrEl3::I.bits(),
-        MDCR_TDA_BIT = const MDCR_TDA_BIT,
-        MDCR_TDOSA_BIT = const MDCR_TDOSA_BIT,
-        MDCR_SDD_BIT = const MDCR_SDD_BIT,
-        MDCR_NSTBE_BIT = const MDCR_NSTBE_BIT,
-        MDCR_SPD32_MDCR_SPD32_DISABLE = const MDCR_SPD32_MDCR_SPD32_DISABLE,
-        MDCR_NSTB_MDCR_NSTB_EL1 = const MDCR_NSTB_MDCR_NSTB_EL1,
         DAIF_ABT_BIT = const DAIF_ABT_BIT,
         DIT_BIT = const Dit::DIT.bits(),
         plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,

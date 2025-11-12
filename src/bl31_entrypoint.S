@@ -59,34 +59,6 @@ func bl31_entrypoint
         bl init_cpu_data_ptr
 
         /* ---------------------------------------------------------------------
-         * Initialise MDCR_EL3, setting all fields rather than relying on hw.
-         * Some fields are architecturally UNKNOWN on reset.
-         *
-         * MDCR_EL3.SDD: Set to one to disable AArch64 Secure self-hosted debug.
-         *  Debug exceptions, other than Breakpoint Instruction exceptions, are
-         *  disabled from all ELs in Secure state.
-         *
-         * MDCR_EL3.SPD32: Set to 0b10 to disable AArch32 Secure self-hosted
-         *  privileged debug from S-EL1.
-         *
-         * MDCR_EL3.TDOSA: Set to zero so that EL2 and EL2 System register
-         *  access to the powerdown debug registers do not trap to EL3.
-         *
-         * MDCR_EL3.TDA: Set to zero to allow EL0, EL1 and EL2 access to the
-         *  debug registers, other than those registers that are controlled by
-         *  MDCR_EL3.TDOSA.
-         *
-         * MDCR_EL3.NSTB, MDCR_EL3.NSTBE: Set to zero so that Trace Buffer
-         *  owning security state is Secure state. If FEAT_TRBE is implemented,
-         *  accesses to Trace Buffer control registers at EL2 and EL1 in any
-         *  security state generates trap exceptions to EL3.
-         *  If FEAT_TRBE is not implemented, these bits are RES0.
-         * ---------------------------------------------------------------------
-         */
-        mov_imm x0, (({MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE}) & ~({MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
-        msr     mdcr_el3, x0
-
-        /* ---------------------------------------------------------------------
          * Enable External Aborts and SError Interrupts now that the exception
          * vectors have been setup.
          * ---------------------------------------------------------------------
@@ -214,34 +186,6 @@ func bl31_warm_entrypoint
 
         /* Initialise TPIDR_EL3 to point to the current CPU's CpuData instance. */
         bl init_cpu_data_ptr
-
-        /* ---------------------------------------------------------------------
-         * Initialise MDCR_EL3, setting all fields rather than relying on hw.
-         * Some fields are architecturally UNKNOWN on reset.
-         *
-         * MDCR_EL3.SDD: Set to one to disable AArch64 Secure self-hosted debug.
-         *  Debug exceptions, other than Breakpoint Instruction exceptions, are
-         *  disabled from all ELs in Secure state.
-         *
-         * MDCR_EL3.SPD32: Set to 0b10 to disable AArch32 Secure self-hosted
-         *  privileged debug from S-EL1.
-         *
-         * MDCR_EL3.TDOSA: Set to zero so that EL2 and EL2 System register
-         *  access to the powerdown debug registers do not trap to EL3.
-         *
-         * MDCR_EL3.TDA: Set to zero to allow EL0, EL1 and EL2 access to the
-         *  debug registers, other than those registers that are controlled by
-         *  MDCR_EL3.TDOSA.
-         *
-         * MDCR_EL3.NSTB, MDCR_EL3.NSTBE: Set to zero so that Trace Buffer
-         *  owning security state is Secure state. If FEAT_TRBE is implemented,
-         *  accesses to Trace Buffer control registers at EL2 and EL1 in any
-         *  security state generates trap exceptions to EL3.
-         *  If FEAT_TRBE is not implemented, these bits are RES0.
-         * ---------------------------------------------------------------------
-         */
-        mov_imm x0, (({MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE}) & ~({MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
-        msr     mdcr_el3, x0
 
 	/* ---------------------------------------------------------------------
 	 * Enable External Aborts and SError Interrupts now that the exception

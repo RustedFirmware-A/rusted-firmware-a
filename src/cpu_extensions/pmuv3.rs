@@ -26,7 +26,7 @@ impl CpuExtension for MultiThreadedPmu {
     }
 
     fn configure_per_cpu(&self, _world: World, ctx: &mut CpuContext) {
-        ctx.el3_state.mdcr_el3 -= MdcrEl3::MTPME;
+        ctx.el3_state.mdcr_el3 |= MdcrEl3::MTPME;
     }
 }
 

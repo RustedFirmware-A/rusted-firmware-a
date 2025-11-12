@@ -83,7 +83,7 @@ func bl31_entrypoint
          *  If FEAT_TRBE is not implemented, these bits are RES0.
          * ---------------------------------------------------------------------
          */
-        mov_imm x0, (({MDCR_EL3_RESET_VAL} | {MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE}) & ~({MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
+        mov_imm x0, (({MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE}) & ~({MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
         msr     mdcr_el3, x0
 
         /* ---------------------------------------------------------------------
@@ -240,7 +240,7 @@ func bl31_warm_entrypoint
          *  If FEAT_TRBE is not implemented, these bits are RES0.
          * ---------------------------------------------------------------------
          */
-        mov_imm x0, (({MDCR_EL3_RESET_VAL} | {MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE}) & ~({MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
+        mov_imm x0, (({MDCR_SDD_BIT} | {MDCR_SPD32_MDCR_SPD32_DISABLE}) & ~({MDCR_TDOSA_BIT} | {MDCR_TDA_BIT} | {MDCR_NSTB_MDCR_NSTB_EL1} | {MDCR_NSTBE_BIT}))
         msr     mdcr_el3, x0
 
 	/* ---------------------------------------------------------------------

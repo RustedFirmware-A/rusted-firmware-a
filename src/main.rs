@@ -123,7 +123,6 @@ mod asm {
     use core::arch::global_asm;
     use pagetable::PAGE_TABLE_ADDR;
 
-    const MDCR_MTPME_BIT: u64 = 1 << 28;
     const MDCR_TDA_BIT: u64 = 1 << 9;
     const MDCR_TDOSA_BIT: u64 = 1 << 10;
     const MDCR_SDD_BIT: u64 = 1 << 16;
@@ -147,7 +146,6 @@ mod asm {
         SCTLR_A_BIT = const SctlrEl3::A.bits(),
         SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
         SCTLR_I_BIT = const SctlrEl3::I.bits(),
-        MDCR_EL3_RESET_VAL = const MDCR_MTPME_BIT,
         MDCR_TDA_BIT = const MDCR_TDA_BIT,
         MDCR_TDOSA_BIT = const MDCR_TDOSA_BIT,
         MDCR_SDD_BIT = const MDCR_SDD_BIT,

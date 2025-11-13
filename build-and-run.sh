@@ -153,6 +153,8 @@ case "$PLAT" in
             -C bp.vis.disable_visualisation=1 \
             -C bp.pl011_uart0.unbuffered_output=1 \
             -C bp.pl011_uart0.out_file=- \
+            -C bp.pl011_uart1.unbuffered_output=1 \
+            -C bp.pl011_uart1.out_file=- \
             -C bp.terminal_0.start_telnet=0 \
             -C bp.terminal_1.start_telnet=0 \
             -C bp.terminal_2.start_telnet=0 \
@@ -181,6 +183,8 @@ case "$PLAT" in
             -C bp.vis.disable_visualisation=1 \
             -C bp.pl011_uart0.unbuffered_output=1 \
             -C bp.pl011_uart0.out_file=- \
+            -C bp.pl011_uart1.unbuffered_output=1 \
+            -C bp.pl011_uart1.out_file=- \
             -C bp.terminal_0.start_telnet=0 \
             -C bp.terminal_1.start_telnet=0 \
             -C bp.terminal_2.start_telnet=0 \

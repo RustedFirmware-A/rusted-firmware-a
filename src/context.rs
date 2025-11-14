@@ -92,6 +92,7 @@ unsafe impl Cores for CoresImpl {
 #[repr(C)]
 pub struct CpuContext {
     pub gpregs: GpRegs,
+    pauth_regs: PAuthRegs,
     pub el3_state: El3State,
     #[cfg(feature = "sel2")]
     pub el2_sysregs: El2Sysregs,
@@ -102,6 +103,7 @@ pub struct CpuContext {
 impl CpuContext {
     const EMPTY: Self = Self {
         gpregs: GpRegs::EMPTY,
+        pauth_regs: PAuthRegs::EMPTY,
         el3_state: El3State::EMPTY,
         #[cfg(feature = "sel2")]
         el2_sysregs: El2Sysregs::EMPTY,
@@ -158,6 +160,39 @@ impl GpRegs {
             self.registers[i] = *value;
         }
     }
+}
+
+/// FEAT_PAuth key registers.
+/// FEAT_PAuth is mandatory from Armv8.3, so it is assumed to be both present and used by lower ELs
+/// in multiple worlds.
+#[derive(Clone, Debug)]
+#[repr(C, align(16))]
+struct PAuthRegs {
+    apiakey_lo: u64,
+    apiakey_hi: u64,
+    apibkey_lo: u64,
+    apibkey_hi: u64,
+    apdakey_lo: u64,
+    apdakey_hi: u64,
+    apdbkey_lo: u64,
+    apdbkey_hi: u64,
+    apgakey_lo: u64,
+    apgakey_hi: u64,
+}
+
+impl PAuthRegs {
+    const EMPTY: Self = Self {
+        apiakey_lo: 0,
+        apiakey_hi: 0,
+        apibkey_lo: 0,
+        apibkey_hi: 0,
+        apdakey_lo: 0,
+        apdakey_hi: 0,
+        apdbkey_lo: 0,
+        apdbkey_hi: 0,
+        apgakey_lo: 0,
+        apgakey_hi: 0,
+    };
 }
 
 /// Miscellaneous registers used by EL3 firmware to maintain its state across exception entries and
@@ -686,11 +721,18 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     // SCR_EL3.EA: Set to zero so that External aborts and SError exceptions are
     // not taken to EL3.
     //
+    // SCR_EL3.APK: Set to one so that PAuth key register accesses are not
+    // trapped to EL3.
+    //
+    // SCR_EL3.API: Set to one so that execution of PAuth instructions are not
+    // trapped to EL3.
+    //
     // SCR_EL3.EEL2: Set to one if S-EL2 is present and enabled.
     //
     // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
     // against ERRATA_V2_3099206.
-    context.el3_state.scr_el3 = ScrEl3::RES1 | ScrEl3::HCE | ScrEl3::SIF | ScrEl3::RW;
+    context.el3_state.scr_el3 =
+        ScrEl3::RES1 | ScrEl3::HCE | ScrEl3::SIF | ScrEl3::RW | ScrEl3::APK | ScrEl3::API;
     #[cfg(feature = "sel2")]
     {
         context.el3_state.scr_el3 |= ScrEl3::EEL2;
@@ -901,6 +943,12 @@ mod asm {
         CTX_GPREG_X29 = const 29 * size_of::<u64>(),
         CTX_GPREG_LR = const 30 * size_of::<u64>(),
         CTX_GPREG_SP_EL0 = const 31 * size_of::<u64>(),
+        CTX_PAUTH_REGS_OFFSET = const offset_of!(CpuContext, pauth_regs),
+        CTX_APIAKEY_LO = const offset_of!(PAuthRegs, apiakey_lo),
+        CTX_APIBKEY_LO = const offset_of!(PAuthRegs, apibkey_lo),
+        CTX_APDAKEY_LO = const offset_of!(PAuthRegs, apdakey_lo),
+        CTX_APDBKEY_LO = const offset_of!(PAuthRegs, apdbkey_lo),
+        CTX_APGAKEY_LO = const offset_of!(PAuthRegs, apgakey_lo),
         ISR_A_SHIFT = const 8,
         SMC_UNK = const NOT_SUPPORTED,
         RUN_RESULT_SMC = const RunResult::SMC,

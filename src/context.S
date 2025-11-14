@@ -33,8 +33,8 @@
 	.endm
 
 /* ------------------------------------------------------------------
- * The following macro is used to save and restore all the general
- * purpose registers.
+ * The following macro is used to save all the general purpose and
+ * FEAT_PAuth registers.
  * It also checks if the Secure Cycle Counter (PMCCNTR_EL0)
  * is disabled in EL3/Secure (ARMv8.5-PMU), wherein PMCCNTR_EL0
  * needs not to be saved/restored during world switch.
@@ -72,6 +72,24 @@
 	orr	x18, x18, #{PMCR_EL0_DP_BIT}
 	msr	pmcr_el0, x18
 	isb
+
+	/* Save the FEAT_PAuth keys as they are not banked by exception level */
+	mrs	x20, s3_0_c2_c1_0 /* apiakeylo_el1 */
+	mrs	x21, s3_0_c2_c1_1 /* apiakeyhi_el1 */
+	mrs	x22, s3_0_c2_c1_2 /* apibkeylo_el1 */
+	mrs	x23, s3_0_c2_c1_3 /* apibkeyhi_el1 */
+	mrs	x24, s3_0_c2_c2_0 /* apdakeylo_el1 */
+	mrs	x25, s3_0_c2_c2_1 /* apdakeyhi_el1 */
+	mrs	x26, s3_0_c2_c2_2 /* apdbkeylo_el1 */
+	mrs	x27, s3_0_c2_c2_3 /* apdbkeyhi_el1 */
+	mrs	x28, s3_0_c2_c3_0 /* apgakeylo_el1 */
+	mrs	x29, s3_0_c2_c3_1 /* apgakeyhi_el1 */
+
+	stp	x20, x21, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APIAKEY_LO}] /* APIAKey = x21:x20 */
+	stp	x22, x23, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APIBKEY_LO}] /* APIBKey = x23:x22 */
+	stp	x24, x25, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APDAKEY_LO}] /* APDAKey = x25:x24 */
+	stp	x26, x27, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APDBKEY_LO}] /* APDBKey = x27:x26 */
+	stp	x28, x29, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APGAKEY_LO}] /* APGAKey = x29:x28 */
 	.endm
 	/* save_gp_pmcr_pauth_regs */
 
@@ -93,12 +111,30 @@ func prepare_el3_entry
 endfunc prepare_el3_entry
 
 /* ------------------------------------------------------------------
- * This function restores all general purpose registers except x30
- * from the CPU context.
+ * This function restores all general purpose and FEAT_PAuth
+ * registers except x30 from the CPU context.
  * x30 register must be explicitly restored by the caller.
  * ------------------------------------------------------------------
  */
 func restore_gp_pmcr_pauth_regs
+	/* Restore the FEAT_PAuth keys */
+	ldp	x0, x1, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APIAKEY_LO}] /* x1:x0 = APIAKey */
+	ldp	x2, x3, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APIBKEY_LO}] /* x3:x2 = APIBKey */
+	ldp	x4, x5, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APDAKEY_LO}] /* x5:x4 = APDAKey */
+	ldp	x6, x7, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APDBKEY_LO}] /* x7:x6 = APDBKey */
+	ldp	x8, x9, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APGAKEY_LO}] /* x9:x8 = APGAKey */
+
+	msr	s3_0_c2_c1_0, x0 /* apiakeylo_el1 */
+	msr	s3_0_c2_c1_1, x1 /* apiakeyhi_el1 */
+	msr	s3_0_c2_c1_2, x2 /* apibkeylo_el1 */
+	msr	s3_0_c2_c1_3, x3 /* apibkeyhi_el1 */
+	msr	s3_0_c2_c2_0, x4 /* apdakeylo_el1 */
+	msr	s3_0_c2_c2_1, x5 /* apdakeyhi_el1 */
+	msr	s3_0_c2_c2_2, x6 /* apdbkeylo_el1 */
+	msr	s3_0_c2_c2_3, x7 /* apdbkeyhi_el1 */
+	msr	s3_0_c2_c3_0, x8 /* apgakeylo_el1 */
+	msr	s3_0_c2_c3_1, x9 /* apgakeyhi_el1 */
+
 	/* PMUv3 is presumed to be always present */
 	ldr	x0, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_PMCR_EL0}]
 	msr	pmcr_el0, x0

@@ -5,6 +5,10 @@
 pub mod timer;
 
 use arm_ffa::{Interface, SuccessArgs};
+use arm_sysregs::{
+    SctlrEl1, SctlrEl2, read_sctlr_el1, read_sctlr_el2, write_apiakeyhi_el1, write_apiakeylo_el1,
+    write_sctlr_el1, write_sctlr_el2,
+};
 use core::{arch::asm, fmt::Display};
 use log::error;
 
@@ -32,6 +36,22 @@ pub fn current_el() -> u8 {
         );
     }
     (current_el >> 2) as u8
+}
+
+/// Enables PAuth at the current exception level using the provided key.
+#[cfg(pauth)]
+pub fn enable_pauth(key: u128) {
+    write_apiakeylo_el1(key as u64);
+    write_apiakeyhi_el1((key >> 64) as u64);
+    if current_el() == 2 {
+        write_sctlr_el2(read_sctlr_el2() | SctlrEl2::ENIA);
+    } else {
+        write_sctlr_el1(read_sctlr_el1() | SctlrEl1::ENIA);
+    }
+    // SAFETY: The `isb` instruction does not violate safe Rust guarantees.
+    unsafe {
+        asm!("isb", options(nostack));
+    }
 }
 
 /// If the result contains an error then prints it along with the given message, and returns an

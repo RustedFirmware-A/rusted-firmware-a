@@ -21,6 +21,8 @@ mod secondary;
 mod tests;
 mod util;
 
+#[cfg(pauth)]
+use crate::util::enable_pauth;
 use crate::{
     exceptions::set_exception_vector,
     ffa::{call, direct_response, msg_wait, secondary_ep_register},
@@ -64,6 +66,10 @@ fn current_test_index() -> Option<usize> {
 
 entry!(bl32_main, 4);
 fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
+    // Enable PAuth with a dummy key.
+    #[cfg(pauth)]
+    enable_pauth(0xCAFEF00D_CAFEF00D_CAFEF00D_CAFEF00D);
+
     let log_sink = PlatformImpl::make_log_sink();
     logger::init(log_sink).unwrap();
 

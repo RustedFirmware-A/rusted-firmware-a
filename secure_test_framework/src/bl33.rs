@@ -21,6 +21,8 @@ mod secondary;
 mod tests;
 mod util;
 
+#[cfg(pauth)]
+use crate::util::enable_pauth;
 use crate::{
     exceptions::set_exception_vector,
     ffa::direct_request,
@@ -57,6 +59,10 @@ enable_mmu!(BL33_IDMAP);
 
 entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
+    // Enable PAuth with a dummy key.
+    #[cfg(pauth)]
+    enable_pauth(0xC0DED00D_C0DED00D_C0DED00D_C0DED00D);
+
     let log_sink = PlatformImpl::make_log_sink();
     logger::init(log_sink).unwrap();
 

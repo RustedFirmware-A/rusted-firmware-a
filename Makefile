@@ -54,11 +54,26 @@ TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\"
 # optimizations. Requires a nightly Cargo.
 BUILD_STD ?= 0
 
-# Whether to enable BTI support in EL3. Flagged out only because it requires a nightly compiler.
+# Whether to enable PAuth and/or BTI support in EL3. Flagged out only because it requires a nightly
+# compiler.
+PAUTH_EL3 ?= 0
 BTI_EL3 ?= 0
+
+ifeq ($(PAUTH_EL3), 1)
+	BP_OPTIONS += pac-ret
+	TARGET_RUSTFLAGS += --cfg pauth
+endif
 ifeq ($(BTI_EL3), 1)
+	BP_OPTIONS += bti
+	TARGET_RUSTFLAGS += --cfg bti
+endif
+ifneq ($(BP_OPTIONS),)
 	BUILD_STD = 1
-	TARGET_RUSTFLAGS += -Zbranch-protection=bti --cfg bti
+
+	empty :=
+	space := $(empty) #space
+	comma := ,
+	TARGET_RUSTFLAGS += -Zbranch-protection=$(subst $(space),$(comma),$(BP_OPTIONS))
 endif
 
 ifeq ($(BUILD_STD), 1)

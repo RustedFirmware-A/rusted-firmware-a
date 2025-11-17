@@ -686,6 +686,8 @@ bitflags! {
         const RES1 = (1 << 29) | (1 << 28) | (1 << 23) | (1 << 22) | (1 << 20) | (1 << 11);
         /// Do not set Privileged Access Never, on taking an exception to EL1.
         const SPAN = 1 << 23;
+        /// Enable pointer authentication using APIAKey_EL1.
+        const ENIA = 1 << 31;
         /// Default PSTATE.SSBS value on Exception Entry.
         const DSSBS = 1 << 44;
         /// SP Interrupt Mask enable.
@@ -700,6 +702,8 @@ bitflags! {
     pub struct SctlrEl2: u64 {
         /// Do not set Privileged Access Never, on taking an exception to EL2.
         const SPAN = 1 << 23;
+        /// Enable pointer authentication using APIAKey_EL1.
+        const ENIA = 1 << 31;
         /// Default PSTATE.SSBS value on Exception Entry.
         const DSSBS = 1 << 44;
         /// SP Interrupt Mask enable.
@@ -873,6 +877,8 @@ read_write_sysreg!(afsr1_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(afsr1_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(amair_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(amair_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(apiakeylo_el1: s3_0_c2_c1_0, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(apiakeyhi_el1: s3_0_c2_c1_1, u64, safe_read, safe_write, fake::SYSREGS);
 read_sysreg!(ccsidr_el1, u64, safe, fake::SYSREGS);
 read_sysreg!(clidr_el1, u64: ClidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(cntfrq_el0, u64, safe_read, safe_write, fake::SYSREGS);

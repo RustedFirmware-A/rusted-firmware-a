@@ -135,6 +135,10 @@ pub struct SystemRegisters {
     pub amair_el1: u64,
     /// Fake value for the AMAIR_EL2 system register.
     pub amair_el2: u64,
+    /// Fake value for the APIAKEYLO_EL1 system register.
+    pub apiakeylo_el1: u64,
+    /// Fake value for the APIAKEYHI_EL1 system register.
+    pub apiakeyhi_el1: u64,
     /// Fake value for the CCSIDR_EL1 system register.
     pub ccsidr_el1: u64,
     /// Fake value for the CLIDR_EL1 system register.
@@ -332,6 +336,8 @@ impl SystemRegisters {
             afsr1_el2: 0,
             amair_el1: 0,
             amair_el2: 0,
+            apiakeylo_el1: 0,
+            apiakeyhi_el1: 0,
             ccsidr_el1: 0,
             clidr_el1: ClidrEl1::empty(),
             cntfrq_el0: 0,

@@ -667,6 +667,9 @@ pub fn initialise_per_world_contexts() {
     PER_WORLD_CONTEXT.call_once(|| {
         let mut per_world = PerWorld([PerWorldContext::DEFAULT; CPU_DATA_CONTEXT_NUM]);
 
+        // NS world can always access FP registers.
+        per_world[World::NonSecure].cptr_el3 -= CptrEl3::TFP;
+
         for ext in PlatformImpl::CPU_EXTENSIONS {
             if ext.is_present() {
                 ext.configure_per_world(World::NonSecure, &mut per_world[World::NonSecure]);

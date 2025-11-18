@@ -10,6 +10,7 @@ use crate::{
     aarch64::{dsb_ish, dsb_sy, wfi},
     context::{CoresImpl, EntryPointInfo},
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
+    cpu_extensions::simd::Simd,
     debug::DEBUG,
     gicv3::{Gic, GicConfig, InterruptConfig},
     logger::{self, LockedWriter},
@@ -194,7 +195,7 @@ unsafe impl Platform for Fvp {
         ],
     };
 
-    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[];
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&Simd];
 
     fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         let peripherals = Peripherals::take().unwrap();

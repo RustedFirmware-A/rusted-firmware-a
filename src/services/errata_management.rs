@@ -4,7 +4,7 @@
 
 use crate::{
     context::{World, cpu_state},
-    platform::exception_free,
+    platform::{ERRATA_LIST, exception_free},
     services::{Service, owns},
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
@@ -25,12 +25,20 @@ const VERSION_1_0: i32 = 0x0001_0000;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i32)]
 enum Status {
+    /// The erratum is fully mitigated at EL3.
     HigherElMitigation = 3,
+    /// The erratum has been fixed in hardware.
     NotAffected = 2,
+    /// The calling EL is responsible for mitigating the erratum.
     Affected = 1,
     Success = 0,
     NotSupported = -1,
     InvalidParameters = -2,
+    /// The erratum either:
+    ///   * Isn't known by this build of RF-A.
+    ///   * Isn't mitigated at EL3, and can't be mitigated by the calling EL.
+    ///   * Is split responsibility and the top half of the workaround isn't implemented by this
+    ///     build of RF-A.
     UnknownErratum = -3,
 }
 
@@ -102,12 +110,26 @@ fn cpu_erratum_features(regs: &[u64]) -> Status {
 
     trace!("Checking erratum {cpu_erratum_id} for {effective_originator:?}");
 
+    for erratum in ERRATA_LIST {
+        if erratum.id == cpu_erratum_id {
+            return if (erratum.check)() {
+                Status::HigherElMitigation
+            } else {
+                Status::NotAffected
+            };
+        }
+    }
+
     Status::UnknownErratum
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        errata_framework::Erratum,
+        platform::test::{TestMitigatedErratum, TestUnneededErratum},
+    };
     use arm_sysregs::Spsr;
 
     #[test]
@@ -232,5 +254,35 @@ mod tests {
             World::NonSecure
         );
         assert_eq!(regs.values(), [0xffff_ffff_ffff_fffd]);
+    }
+
+    #[test]
+    fn em_cpu_erratum_features_mitigated() {
+        let mut regs = SmcReturn::EMPTY;
+        regs.mark_all_used()[0..3].copy_from_slice(&[
+            EM_CPU_ERRATUM_FEATURES.into(),
+            TestMitigatedErratum::ID.into(),
+            0,
+        ]);
+        assert_eq!(
+            ErrataManagement.handle_non_secure_smc(&mut regs),
+            World::NonSecure
+        );
+        assert_eq!(regs.values(), [3])
+    }
+
+    #[test]
+    fn em_cpu_erratum_features_not_needed() {
+        let mut regs = SmcReturn::EMPTY;
+        regs.mark_all_used()[0..3].copy_from_slice(&[
+            EM_CPU_ERRATUM_FEATURES.into(),
+            TestUnneededErratum::ID.into(),
+            0,
+        ]);
+        assert_eq!(
+            ErrataManagement.handle_non_secure_smc(&mut regs),
+            World::NonSecure
+        );
+        assert_eq!(regs.values(), [2]);
     }
 }

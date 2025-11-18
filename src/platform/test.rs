@@ -9,7 +9,7 @@ use crate::{
     cpu::{Cpu, define_cpu_ops},
     cpu_extensions::CpuExtension,
     dram::const_zeroed,
-    errata_framework::define_errata_list,
+    errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
     gicv3::{Gic, GicConfig},
     logger::{self, LogSink},
     pagetable::{
@@ -51,7 +51,7 @@ const CORES_PER_CLUSTER: usize = 3;
 const CORES_PER_CLUSTER_LAST: usize = 4;
 
 define_early_mapping!([]);
-define_errata_list!();
+define_errata_list!(TestMitigatedErratum, TestUnneededErratum);
 
 static FAKE_GIC: SpinMutex<FakeGic> = SpinMutex::new(const_zeroed());
 
@@ -502,6 +502,38 @@ unsafe impl Cpu for TestCpu {
 }
 
 define_cpu_ops!(TestCpu);
+
+pub struct TestMitigatedErratum;
+
+// SAFETY: This erratum is only used in unit tests, so the usual requirements on `check` and
+// `workaround` don't apply as they aren't called from assembly.
+unsafe impl Erratum for TestMitigatedErratum {
+    const ID: ErratumId = 7;
+    const CVE: Cve = 1234;
+    const APPLY_ON: ErratumType = ErratumType::Reset;
+
+    extern "C" fn check() -> bool {
+        true
+    }
+
+    extern "C" fn workaround() {}
+}
+
+pub struct TestUnneededErratum;
+
+// SAFETY: This erratum is only used in unit tests, so the usual requirements on `check` and
+// `workaround` don't apply as they aren't called from assembly.
+unsafe impl Erratum for TestUnneededErratum {
+    const ID: ErratumId = 8;
+    const CVE: Cve = 4321;
+    const APPLY_ON: ErratumType = ErratumType::Reset;
+
+    extern "C" fn check() -> bool {
+        false
+    }
+
+    extern "C" fn workaround() {}
+}
 
 #[cfg(test)]
 mod tests {

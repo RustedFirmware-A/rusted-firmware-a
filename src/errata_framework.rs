@@ -64,6 +64,7 @@ pub unsafe trait Erratum {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(C)]
 pub struct ErratumEntry {
+    pub id: ErratumId,
     pub apply_on: ErratumType,
     pub check: extern "C" fn() -> bool,
     pub workaround: extern "C" fn(),
@@ -74,6 +75,7 @@ impl ErratumEntry {
     #[allow(unused)]
     pub const fn from_erratum<T: Erratum>() -> Self {
         Self {
+            id: T::ID,
             apply_on: T::APPLY_ON,
             check: T::check,
             workaround: T::workaround,

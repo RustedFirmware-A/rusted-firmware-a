@@ -25,7 +25,7 @@ macro_rules! select_platform {
     };
     (test, $mod:ident::$plat_impl:ident) => {
         #[cfg(test)]
-        mod $mod;
+        pub mod $mod;
 
         #[cfg(test)]
         pub use $mod::{

@@ -6,7 +6,7 @@
 
 use super::{
     ClidrEl1, CsselrEl1, CtrEl0, Esr, Gcscr, HcrEl2, HcrxEl2, IccSre, IdAa64dfr0El1, IdAa64dfr1El1,
-    IdAa64mmfr1El1, IdAa64mmfr2El1, IdAa64mmfr3El1, IdAa64pfr0El1, IdAa64pfr1El1, MdcrEl2,
+    IdAa64mmfr1El1, IdAa64mmfr2El1, IdAa64mmfr3El1, IdAa64pfr0El1, IdAa64pfr1El1, MdcrEl2, MidrEl1,
     Mpam3El3, MpamIdrEl1, MpidrEl1, Pmcr, ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3, Spsr,
 };
 use std::sync::Mutex;
@@ -224,7 +224,7 @@ pub struct SystemRegisters {
     /// Fake value for the MDSCR_EL1 system register.
     pub mdscr_el1: u64,
     /// Fake value for the MIDR_EL1 system register.
-    pub midr_el1: u64,
+    pub midr_el1: MidrEl1,
     /// Fake value for the MPAM2_EL2 system register.
     pub mpam2_el2: u64,
     /// Fake value for the MPAM3_EL3 system register.
@@ -376,7 +376,7 @@ impl SystemRegisters {
             mdccint_el1: 0,
             mdcr_el2: MdcrEl2::empty(),
             mdscr_el1: 0,
-            midr_el1: 0,
+            midr_el1: MidrEl1::empty(),
             mpam2_el2: 0,
             mpam3_el3: Mpam3El3::empty(),
             mpamhcr_el2: 0,

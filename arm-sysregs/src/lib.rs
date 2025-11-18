@@ -833,6 +833,38 @@ impl Spsr {
     }
 }
 
+bitflags! {
+    /// MIDR_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct MidrEl1: u64 {}
+}
+
+impl MidrEl1 {
+    /// Mask for the Revision field.
+    pub const REVISION_MASK: u64 = 0xf << Self::REVISION_SHIFT;
+    /// Position of the lowest bit in the Revision field.
+    pub const REVISION_SHIFT: u32 = 0;
+
+    /// Mask for the Variant field.
+    pub const VARIANT_MASK: u64 = 0xf << Self::VARIANT_SHIFT;
+    /// Position of the lowest bit in the Variant field.
+    pub const VARIANT_SHIFT: u32 = 20;
+
+    /// Returns a new MidrEl1.
+    pub const fn new(bits: u64) -> Self {
+        Self::from_bits_retain(bits)
+    }
+    /// Returns the value of the Revision field.
+    pub fn revision(self) -> u8 {
+        ((self.bits() & Self::REVISION_MASK) >> Self::REVISION_SHIFT) as u8
+    }
+    /// Returns the value of the Variant field.
+    pub fn variant(self) -> u8 {
+        ((self.bits() & Self::VARIANT_MASK) >> Self::VARIANT_SHIFT) as u8
+    }
+}
+
 read_write_sysreg!(actlr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(actlr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(afsr0_el1, u64, safe_read, safe_write, fake::SYSREGS);
@@ -897,7 +929,7 @@ write_sysreg! {
 read_write_sysreg!(mdccint_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(mdcr_el2, u64: MdcrEl2, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(mdscr_el1, u64, safe_read, safe_write, fake::SYSREGS);
-read_sysreg!(midr_el1, u64, safe, fake::SYSREGS);
+read_sysreg!(midr_el1, u64: MidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(mpam2_el2: s3_4_c10_c5_0, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(mpam3_el3: s3_6_c10_c5_0, u64: Mpam3El3, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(mpamhcr_el2: s3_4_c10_c4_0, u64, safe_read, safe_write, fake::SYSREGS);

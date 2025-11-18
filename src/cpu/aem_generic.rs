@@ -8,8 +8,8 @@ use crate::{
     naked_asm,
 };
 use arm_sysregs::{
-    CacheLevel, CacheType, CsselrEl1, read_ccsidr_el1, read_clidr_el1, read_id_aa64mmfr2_el1,
-    write_csselr_el1,
+    CacheLevel, CacheType, CsselrEl1, MidrEl1, read_ccsidr_el1, read_clidr_el1,
+    read_id_aa64mmfr2_el1, write_csselr_el1,
 };
 use core::{arch::asm, ops::RangeInclusive};
 
@@ -118,7 +118,7 @@ unsafe fn flush_cache_levels(levels: RangeInclusive<u8>) {
 /// SAFETY: `reset_handler` and `dump_registers` are implemented as naked functions and don't touch
 /// any registers.
 unsafe impl Cpu for AemGeneric {
-    const MIDR: u64 = 0x410f_d0f0;
+    const MIDR: MidrEl1 = MidrEl1::from_bits_retain(0x410f_d0f0);
 
     #[unsafe(naked)]
     extern "C" fn reset_handler() {

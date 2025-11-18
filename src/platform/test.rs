@@ -25,7 +25,7 @@ use crate::{
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::IntId;
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
-use arm_sysregs::{MpidrEl1, Spsr};
+use arm_sysregs::{MidrEl1, MpidrEl1, Spsr};
 use core::fmt;
 use percore::ExceptionFree;
 use std::io::{Write, stdout};
@@ -394,7 +394,7 @@ struct TestCpu;
 /// doing anything. For unit tests it is allowed for them not to be naked functions, because they
 /// are never called from assembly code.
 unsafe impl Cpu for TestCpu {
-    const MIDR: u64 = 0;
+    const MIDR: MidrEl1 = MidrEl1::empty();
 
     extern "C" fn reset_handler() {}
 

@@ -4,13 +4,14 @@
 
 use super::Cpu;
 use crate::naked_asm;
+use arm_sysregs::MidrEl1;
 
 pub struct QemuMax;
 
 /// SAFETY: `reset_handler` and `dump_registers` are implemented as naked functions and don't touch
 /// any registers.
 unsafe impl Cpu for QemuMax {
-    const MIDR: u64 = 0x000f_0510;
+    const MIDR: MidrEl1 = MidrEl1::from_bits_retain(0x000f_0510);
 
     #[unsafe(naked)]
     extern "C" fn reset_handler() {

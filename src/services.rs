@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 pub mod arch;
+mod errata_management;
 pub mod ffa;
 pub mod psci;
 #[cfg(feature = "rme")]
@@ -14,6 +15,7 @@ use crate::{
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
     platform::{self, Platform, PlatformImpl, exception_free},
+    services::errata_management::ErrataManagement,
     smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
 use arm_sysregs::Esr;
@@ -88,6 +90,7 @@ pub struct Services {
     #[cfg(feature = "rme")]
     pub rmmd: rmmd::Rmmd,
     pub trng: trng::Trng,
+    pub errata_management: ErrataManagement,
 }
 
 impl Services {
@@ -107,6 +110,7 @@ impl Services {
             #[cfg(feature = "rme")]
             rmmd: rmmd::Rmmd::new(),
             trng: trng::Trng::new(),
+            errata_management: ErrataManagement::new(),
         }
     }
 
@@ -126,6 +130,8 @@ impl Services {
             &self.platform
         } else if self.spmd.owns(function) {
             &self.spmd
+        } else if self.errata_management.owns(function) {
+            &self.errata_management
         } else if self.trng.owns(function) {
             &self.trng
         } else {

@@ -248,6 +248,10 @@ impl IdAa64dfr0El1 {
     const TRACE_VER_MASK: u64 = 0b1111;
     const SYS_REG_TRACE_SUPPORTED: u64 = 1;
 
+    const PMS_VER_SHIFT: u64 = 32;
+    const PMS_VER_MASK: u64 = 0b1111;
+    const SPE_SUPPORTED: u64 = 1;
+
     const TRACE_FILT_SHIFT: u64 = 40;
     const TRACE_FILT_MASK: u64 = 0b1111;
     const TRF_SUPPORTED: u64 = 1;
@@ -265,6 +269,11 @@ impl IdAa64dfr0El1 {
     pub fn is_feat_sys_reg_trace_present(self) -> bool {
         (self.bits() >> Self::TRACE_VER_SHIFT) & Self::TRACE_VER_MASK
             == Self::SYS_REG_TRACE_SUPPORTED
+    }
+
+    /// Indicates whether Armv8.1 Statistical Profiling Extension is implemented.
+    pub fn is_feat_spe_present(self) -> bool {
+        (self.bits() >> Self::PMS_VER_SHIFT) & Self::PMS_VER_MASK >= Self::SPE_SUPPORTED
     }
 
     /// Indicates whether Armv8.4 Self-hosted Trace Extension is implemented.
@@ -411,6 +420,10 @@ bitflags! {
         const TPM = 1 << 6;
         /// Do not trap various PMUv3p9 related system register accesses to EL3.
         const ENPM2 = 1 << 7;
+        /// Non-secure Profiling Buffer Extended. Together with MDCR_EL3.NSPB, controls the
+        /// Profiling Buffer owning Security state and accesses to Statistical Profiling and
+        /// Profiling Buffer System registers from EL2 and EL1.
+        const NSPBE = 1 << 11;
         /// Set to one to disable AArch64 Secure self-hosted debug. Debug exceptions, other than
         /// Breakpoint Instruction exceptions, are disabled from all ELs in Secure state.
         const SDD = 1 << 16;
@@ -439,12 +452,21 @@ bitflags! {
         /// Monitor Performance Monitors Extended control. In conjunction with MDCR_EL3.SPME,
         /// controls when event counters are enabled at EL3 and in other Secure Exception levels.
         const MPMX = 1 << 35;
+        /// Trap accesses to PMSNEVFR_EL1. Controls access to Statistical Profiling PMSNEVFR_EL1
+        /// System register from EL2 and EL1.
+        const ENPMSN = 1 << 36;
+        /// Enable access to SPE registers. When disabled, accesses to SPE registers generate a trap
+        /// to EL3.
+        const ENPMS3 = 1 << 42;
     }
 }
 
 impl MdcrEl3 {
     /// Set to 0b10 to disable AArch32 Secure self-hosted privileged debug from S-EL1.
     pub const SPD32: Self = Self::from_bits_retain(0b10 << 14);
+    /// Non-secure state owns the Profiling Buffer. Profiling is disabled in Secure and Realm
+    /// states.
+    pub const NSPB_NS: Self = Self::from_bits_retain(0b11 << 12);
 }
 
 bitflags! {

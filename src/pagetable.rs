@@ -61,7 +61,7 @@ const TCR: u64 = (0b101 << 16) // 48 bit physical address size (256 TiB).
 
 const TOP_LEVEL_BLOCK_SIZE: usize = 0x4000_0000; // 1GB block size at level 0
 const TOP_LEVEL_DESCRIPTOR_COUNT: usize = 512; // 512 descriptors in the level 0 table.
-const GRANULE_SIZE: usize = 4096; // Using 4k pages.
+pub const GRANULE_SIZE: usize = 4096; // Using 4k pages.
 
 // Attribute values corresponding to the above MAIR indices.
 const IWTRWA_OWTRWA_NTR: Attributes = Attributes::ATTRIBUTE_INDEX_0;

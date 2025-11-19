@@ -345,9 +345,18 @@ bitflags! {
 }
 
 impl IdAa64pfr0El1 {
+    const SVE_SHIFT: u64 = 32;
+    const SVE_MASK: u64 = 0b1111;
+    const SVE_SUPPORTED: u64 = 1;
+
     const MPAM_SHIFT: u64 = 40;
     const MPAM_MASK: u64 = 0b1111;
     const MPAM_SUPPORTED: u64 = 1;
+
+    /// Indicates whether SVE is implemented.
+    pub fn is_feat_sve_present(self) -> bool {
+        (self.bits() >> Self::SVE_SHIFT) & Self::SVE_MASK == Self::SVE_SUPPORTED
+    }
 
     /// Indicates whether MPAM Extension is implemented.
     pub fn is_feat_mpam_present(self) -> bool {
@@ -916,6 +925,7 @@ read_write_sysreg!(contextidr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(contextidr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(cpacr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(cptr_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(cptr_el3, u64: CptrEl3, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(csselr_el1, u64: CsselrEl1, safe_read, safe_write, fake::SYSREGS);
 read_sysreg!(ctr_el0, u64: CtrEl0, safe, fake::SYSREGS);
 read_write_sysreg!(disr_el1: s3_0_c12_c1_1, u64, safe_read, safe_write, fake::SYSREGS);
@@ -1037,6 +1047,7 @@ read_write_sysreg!(vpidr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vsesr_el2: s3_4_c5_c2_3, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vtcr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(vttbr_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(zcr_el3: s3_6_c1_c2_0, u64, safe_read, safe_write, fake::SYSREGS);
 
 #[cfg(test)]
 mod tests {

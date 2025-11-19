@@ -5,9 +5,10 @@
 //! Fake implementations of system register getters and setters for unit tests.
 
 use super::{
-    ClidrEl1, CsselrEl1, CtrEl0, Esr, Gcscr, HcrEl2, HcrxEl2, IccSre, IdAa64dfr0El1, IdAa64dfr1El1,
-    IdAa64mmfr1El1, IdAa64mmfr2El1, IdAa64mmfr3El1, IdAa64pfr0El1, IdAa64pfr1El1, MdcrEl2, MidrEl1,
-    Mpam3El3, MpamIdrEl1, MpidrEl1, Pmcr, ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3, Spsr,
+    ClidrEl1, CptrEl3, CsselrEl1, CtrEl0, Esr, Gcscr, HcrEl2, HcrxEl2, IccSre, IdAa64dfr0El1,
+    IdAa64dfr1El1, IdAa64mmfr1El1, IdAa64mmfr2El1, IdAa64mmfr3El1, IdAa64pfr0El1, IdAa64pfr1El1,
+    MdcrEl2, MidrEl1, Mpam3El3, MpamIdrEl1, MpidrEl1, Pmcr, ScrEl3, SctlrEl1, SctlrEl2, SctlrEl3,
+    Spsr,
 };
 use std::sync::Mutex;
 
@@ -157,6 +158,8 @@ pub struct SystemRegisters {
     pub cpacr_el1: u64,
     /// Fake value for the CPTR_EL2 system register.
     pub cptr_el2: u64,
+    /// Fake value for the CPTR_EL3 system register.
+    pub cptr_el3: CptrEl3,
     /// Fake value for the CSSELR_EL1 system register.
     pub csselr_el1: CsselrEl1,
     /// Fake value for the CTR_EL0 system register.
@@ -333,6 +336,8 @@ pub struct SystemRegisters {
     pub vtcr_el2: u64,
     /// Fake value for THEVTTBR_EL2 system register.
     pub vttbr_el2: u64,
+    /// Fake value for ZCR_EL3 system register.
+    pub zcr_el3: u64,
 }
 
 impl SystemRegisters {
@@ -357,6 +362,7 @@ impl SystemRegisters {
             contextidr_el2: 0,
             cpacr_el1: 0,
             cptr_el2: 0,
+            cptr_el3: CptrEl3::empty(),
             csselr_el1: CsselrEl1::empty(),
             ctr_el0: CtrEl0::empty(),
             disr_el1: 0,
@@ -445,6 +451,7 @@ impl SystemRegisters {
             vsesr_el2: 0,
             vtcr_el2: 0,
             vttbr_el2: 0,
+            zcr_el3: 0,
         }
     }
 

@@ -6,6 +6,7 @@
 
 pub mod hcx;
 pub mod mpam;
+pub mod mte2;
 pub mod pmuv3;
 pub mod ras;
 pub mod spe;

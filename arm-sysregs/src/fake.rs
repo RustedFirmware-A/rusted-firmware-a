@@ -175,6 +175,8 @@ pub struct SystemRegisters {
     pub far_el1: u64,
     /// Fake value for the FAR_EL2 system register.
     pub far_el2: u64,
+    /// Fake value for the GCR_EL1 system register.
+    pub gcr_el1: u64,
     /// Fake value for the GCSCR_EL1 system register.
     pub gcscr_el1: Gcscr,
     /// Fake value for the GCSCR_EL2 system register.
@@ -261,6 +263,8 @@ pub struct SystemRegisters {
     pub par_el1: u64,
     /// Fake value for PMCR_EL0 system register.
     pub pmcr_el0: Pmcr,
+    /// Fake value for the RGSR_EL1 system register.
+    pub rgsr_el1: u64,
     /// Fake value for THESCR_EL3 system register.
     pub scr_el3: ScrEl3,
     /// Fake value for THESCTLR_EL1 system register.
@@ -289,6 +293,12 @@ pub struct SystemRegisters {
     pub tcr2_el1: u64,
     /// Fake value for the TCR2_EL2 system register.
     pub tcr2_el2: u64,
+    /// Fake value for the TFSR_EL1 system register.
+    pub tfsr_el1: u64,
+    /// Fake value for the TFSR_EL2 system register.
+    pub tfsr_el2: u64,
+    /// Fake value for the TFSRE0_EL1 system register.
+    pub tfsre0_el1: u64,
     /// Fake value for THETPIDR_EL0 system register.
     pub tpidr_el0: u64,
     /// Fake value for THETPIDR_EL1 system register.
@@ -356,6 +366,7 @@ impl SystemRegisters {
             esr_el2: Esr::empty(),
             far_el1: 0,
             far_el2: 0,
+            gcr_el1: 0,
             gcscr_el1: Gcscr::empty(),
             gcscr_el2: Gcscr::empty(),
             hacr_el2: 0,
@@ -399,6 +410,7 @@ impl SystemRegisters {
             mpidr_el1: MpidrEl1::empty(),
             par_el1: 0,
             pmcr_el0: Pmcr::empty(),
+            rgsr_el1: 0,
             scr_el3: ScrEl3::empty(),
             sctlr_el1: SctlrEl1::empty(),
             sctlr_el2: SctlrEl2::empty(),
@@ -413,6 +425,9 @@ impl SystemRegisters {
             tcr_el3: 0,
             tcr2_el1: 0,
             tcr2_el2: 0,
+            tfsr_el1: 0,
+            tfsr_el2: 0,
+            tfsre0_el1: 0,
             tpidr_el0: 0,
             tpidr_el1: 0,
             tpidr_el2: 0,

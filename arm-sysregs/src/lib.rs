@@ -370,7 +370,8 @@ impl IdAa64pfr1El1 {
 
     const MTE_SHIFT: u64 = 8;
     const MTE_MASK: u64 = 0b1111;
-    const MTE_IMPLEMENTED: u64 = 0b1;
+    const MTE_IMPLEMENTED: u64 = 0b0001;
+    const MTE2_IMPLEMENTED: u64 = 0b0010;
 
     const NMI_SHIFT: u64 = 36;
     const NMI_MASK: u64 = 0b1111;
@@ -388,6 +389,11 @@ impl IdAa64pfr1El1 {
     /// Indicates whether FEAT_MTE is implemented.
     pub fn is_feat_mte_present(self) -> bool {
         (self.bits() >> Self::MTE_SHIFT) & Self::MTE_MASK >= Self::MTE_IMPLEMENTED
+    }
+
+    /// Indicates whether FEAT_MTE2 is implemented.
+    pub fn is_feat_mte2_present(self) -> bool {
+        (self.bits() >> Self::MTE_SHIFT) & Self::MTE_MASK >= Self::MTE2_IMPLEMENTED
     }
 
     /// Indicates whether FEAT_NMI is implemented.
@@ -919,6 +925,7 @@ read_write_sysreg!(esr_el1, u64: Esr, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(esr_el2, u64: Esr, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(far_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(far_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(gcr_el1: s3_0_c1_c0_6, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(gcscr_el1: s3_0_c2_c5_0, u64: Gcscr, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(gcscr_el2: s3_4_c2_c5_0, u64: Gcscr, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hacr_el2, u64, safe_read, safe_write, fake::SYSREGS);
@@ -974,6 +981,7 @@ read_write_sysreg!(mpamvpmv_el2: s3_4_c10_c4_1, u64, safe_read, safe_write, fake
 read_sysreg!(mpidr_el1, u64: MpidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(par_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(pmcr_el0, u64: Pmcr, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(rgsr_el1: s3_0_c1_c0_5, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(scr_el3, u64: ScrEl3, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(sctlr_el1, u64: SctlrEl1, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(sctlr_el2, u64: SctlrEl2, safe_read, safe_write, fake::SYSREGS);
@@ -1002,6 +1010,9 @@ write_sysreg! {
 }
 read_write_sysreg!(tcr2_el1: s3_0_c2_c0_3, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(tcr2_el2: s3_4_c2_c0_3, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(tfsr_el1: s3_0_c5_c6_0, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(tfsr_el2: s3_4_c5_c6_0, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(tfsre0_el1: s3_0_c5_c6_1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(tpidr_el0, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(tpidr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(tpidr_el2, u64, safe_read, safe_write, fake::SYSREGS);

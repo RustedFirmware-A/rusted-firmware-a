@@ -7,7 +7,7 @@ mod power_domain_tree;
 #[cfg(not(test))]
 use crate::services::Services;
 #[cfg(test)]
-use crate::services::ffa::TestSpm;
+use crate::services::ffa::spmd::TestSpm;
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},

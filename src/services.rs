@@ -10,12 +10,16 @@ pub mod psci;
 pub mod rmmd;
 pub mod trng;
 
+#[cfg(feature = "rme")]
+use crate::services::rmmd::Rmmd;
 use crate::{
     context::{World, cpu_state, set_initial_world, switch_world},
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
-    platform::{self, Platform, PlatformImpl, exception_free},
-    services::errata_management::ErrataManagement,
+    platform::{Platform, PlatformImpl, PlatformServiceImpl, exception_free},
+    services::{
+        arch::Arch, errata_management::ErrataManagement, ffa::spmd::Spmd, psci::Psci, trng::Trng,
+    },
     smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
 use arm_sysregs::Esr;
@@ -83,13 +87,13 @@ static SERVICES: Lazy<Services> = Lazy::new(Services::new);
 
 /// Contains an instance of all of the currently implemented services.
 pub struct Services {
-    pub arch: arch::Arch,
-    pub psci: psci::Psci,
-    pub platform: platform::PlatformServiceImpl,
-    pub spmd: ffa::Spmd,
+    pub arch: Arch,
+    pub psci: Psci,
+    pub platform: PlatformServiceImpl,
+    pub spmd: Spmd,
     #[cfg(feature = "rme")]
-    pub rmmd: rmmd::Rmmd,
-    pub trng: trng::Trng,
+    pub rmmd: Rmmd,
+    pub trng: Trng,
     pub errata_management: ErrataManagement,
 }
 
@@ -103,13 +107,13 @@ impl Services {
 
     fn new() -> Self {
         Self {
-            arch: arch::Arch::new(),
-            psci: psci::Psci::new(PlatformImpl::psci_platform().unwrap()),
+            arch: Arch::new(),
+            psci: Psci::new(PlatformImpl::psci_platform().unwrap()),
             platform: PlatformImpl::create_service(),
-            spmd: ffa::Spmd::new(),
+            spmd: Spmd::new(),
             #[cfg(feature = "rme")]
-            rmmd: rmmd::Rmmd::new(),
-            trng: trng::Trng::new(),
+            rmmd: Rmmd::new(),
+            trng: Trng::new(),
             errata_management: ErrataManagement::new(),
         }
     }

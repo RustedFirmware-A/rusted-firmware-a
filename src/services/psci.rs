@@ -225,6 +225,8 @@ pub enum WakeUpReason {
 }
 
 /// Object for storing platform-specific power state for multiple power levels.
+/// See PSCI spec (DEN0022F.b) section 4.2.1 for more information on local vs composite power
+/// states.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsciCompositePowerState {
     /// Stores the local power state at each level of the power tree hierarchy.
@@ -1290,18 +1292,26 @@ mod tests {
         context_id: 0xfedc_ba98_7654_3210,
     };
 
-    const CPU0_MPIDR: Mpidr = Mpidr {
-        aff0: 0,
-        aff1: 0,
-        aff2: 0,
-        aff3: Some(0),
-    };
-    const CPU1_MPIDR: Mpidr = Mpidr {
-        aff0: 1,
-        aff1: 0,
-        aff2: 0,
-        aff3: Some(0),
-    };
+    const CPU_MPIDRS: [Mpidr; PlatformImpl::CORE_COUNT] = [
+        Mpidr::from_aff3210(0, 0, 0, 0),
+        Mpidr::from_aff3210(0, 0, 0, 1),
+        Mpidr::from_aff3210(0, 0, 0, 2),
+        Mpidr::from_aff3210(0, 0, 1, 0),
+        Mpidr::from_aff3210(0, 0, 1, 1),
+        Mpidr::from_aff3210(0, 0, 1, 2),
+        Mpidr::from_aff3210(0, 1, 0, 0),
+        Mpidr::from_aff3210(0, 1, 0, 1),
+        Mpidr::from_aff3210(0, 1, 0, 2),
+        Mpidr::from_aff3210(0, 1, 1, 0),
+        Mpidr::from_aff3210(0, 1, 1, 1),
+        Mpidr::from_aff3210(0, 1, 1, 2),
+        Mpidr::from_aff3210(0, 1, 1, 3),
+    ];
+
+    const fn mpidr_from_cpu_index(cpu_index: usize) -> Mpidr {
+        CPU_MPIDRS[cpu_index]
+    }
+
     const INVALID_MPIDR: Mpidr = Mpidr {
         aff0: 100,
         aff1: 100,
@@ -1389,6 +1399,24 @@ mod tests {
                 resolved_state,
             );
         });
+    }
+
+    /// Creates a new Psci instance then turns on and boots all of the cores it manages.
+    fn setup_osi_all_cores_on_test() -> Psci {
+        let psci = Psci::new(PsciPlatformImpl::new());
+        assert_eq!(psci.set_suspend_mode(SuspendMode::OsInitiated), Ok(0));
+
+        for mpidr in &CPU_MPIDRS[1..] {
+            assert_eq!(psci.cpu_on(*mpidr, ENTRY_POINT), Ok(()));
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr((*mpidr).into());
+            let _ = psci.handle_cpu_boot();
+        }
+
+        for cpu_index in 1..PlatformImpl::CORE_COUNT {
+            check_ancestor_state(&psci, cpu_index, &PsciCompositePowerState::RUN.states);
+        }
+
+        psci
     }
 
     #[test]
@@ -1992,7 +2020,7 @@ mod tests {
         );
 
         expect_cpu_power_down_wfi(|| {
-            let _ = psci.cpu_suspend(PowerState::PowerDown(0), ENTRY_POINT);
+            let _ = psci.cpu_suspend(PowerState::PowerDown(0x3333), ENTRY_POINT);
         });
 
         let wakeup_reason = psci.handle_cpu_boot();
@@ -2008,20 +2036,22 @@ mod tests {
             psci.cpu_on(INVALID_MPIDR, ENTRY_POINT)
         );
 
-        assert_eq!(Ok(()), psci.cpu_on(CPU1_MPIDR, ENTRY_POINT));
+        assert_eq!(Ok(()), psci.cpu_on(mpidr_from_cpu_index(1), ENTRY_POINT));
         assert_eq!(
             Err(ErrorCode::OnPending),
-            psci.cpu_on(CPU1_MPIDR, ENTRY_POINT)
+            psci.cpu_on(mpidr_from_cpu_index(1), ENTRY_POINT)
         );
 
-        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU1_MPIDR.into());
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(1).into());
         let wakeup_reason = psci.handle_cpu_boot();
         assert_eq!(wakeup_reason, WakeUpReason::CpuOn(ENTRY_POINT));
 
-        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU0_MPIDR.into());
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(0).into());
         assert_eq!(
             Err(ErrorCode::AlreadyOn),
-            psci.cpu_on(CPU1_MPIDR, ENTRY_POINT)
+            psci.cpu_on(mpidr_from_cpu_index(1), ENTRY_POINT)
         );
 
         SYSREGS.lock().unwrap().reset();
@@ -2031,9 +2061,10 @@ mod tests {
     fn psci_cpu_off() {
         let psci = Psci::new(PsciPlatformImpl::new());
 
-        assert_eq!(Ok(()), psci.cpu_on(CPU1_MPIDR, ENTRY_POINT));
+        assert_eq!(Ok(()), psci.cpu_on(mpidr_from_cpu_index(1), ENTRY_POINT));
 
-        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU1_MPIDR.into());
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(1).into());
         psci.handle_cpu_boot();
 
         expect_cpu_power_down_wfi(|| {
@@ -2057,26 +2088,39 @@ mod tests {
 
         assert_eq!(
             Err(ErrorCode::InvalidParameters),
-            psci.affinity_info(CPU1_MPIDR, PsciPlatformImpl::MAX_POWER_LEVEL as u32)
+            psci.affinity_info(
+                mpidr_from_cpu_index(1),
+                PsciPlatformImpl::MAX_POWER_LEVEL as u32
+            )
         );
 
         assert_eq!(
             Ok(AffinityInfo::Off),
-            psci.affinity_info(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
+            psci.affinity_info(
+                mpidr_from_cpu_index(1),
+                PsciCompositePowerState::CPU_POWER_LEVEL as u32
+            )
         );
 
-        assert_eq!(Ok(()), psci.cpu_on(CPU1_MPIDR, ENTRY_POINT));
+        assert_eq!(Ok(()), psci.cpu_on(mpidr_from_cpu_index(1), ENTRY_POINT));
 
         assert_eq!(
             Ok(AffinityInfo::OnPending),
-            psci.affinity_info(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
+            psci.affinity_info(
+                mpidr_from_cpu_index(1),
+                PsciCompositePowerState::CPU_POWER_LEVEL as u32
+            )
         );
 
-        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU1_MPIDR.into());
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(1).into());
         let _entry_point = psci.handle_cpu_boot();
         assert_eq!(
             Ok(AffinityInfo::On),
-            psci.affinity_info(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
+            psci.affinity_info(
+                mpidr_from_cpu_index(1),
+                PsciCompositePowerState::CPU_POWER_LEVEL as u32
+            )
         );
 
         SYSREGS.lock().unwrap().reset();
@@ -2178,7 +2222,7 @@ mod tests {
             let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
             SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(mpidr.into());
             expect_cpu_power_down_wfi(|| {
-                let _ = psci.cpu_suspend(PowerState::PowerDown(0), ENTRY_POINT);
+                let _ = psci.cpu_suspend(PowerState::PowerDown(0x3333), ENTRY_POINT);
             });
         }
 
@@ -2200,7 +2244,7 @@ mod tests {
             let mpidr = Mpidr::from_aff3210(0, cpu.0, cpu.1, cpu.2);
             SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(mpidr.into());
             expect_cpu_power_down_wfi(|| {
-                let _ = psci.cpu_suspend(PowerState::PowerDown(0), ENTRY_POINT);
+                let _ = psci.cpu_suspend(PowerState::PowerDown(0x3333), ENTRY_POINT);
             });
         }
 
@@ -2218,7 +2262,8 @@ mod tests {
         }
 
         // Wake up CPU 0
-        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU0_MPIDR.into());
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(0).into());
         let wakeup_reason = psci.handle_cpu_boot();
         assert_eq!(wakeup_reason, WakeUpReason::SuspendFinished(ENTRY_POINT));
 
@@ -2361,6 +2406,273 @@ mod tests {
                 ],
             );
         }
+
+        SYSREGS.lock().unwrap().reset();
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_single_core_mixed_with_offline_cores() {
+        let psci = Psci::new(PsciPlatformImpl::new());
+        assert_eq!(psci.set_suspend_mode(SuspendMode::OsInitiated), Ok(0));
+
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        check_ancestor_state(
+            &psci,
+            0,
+            &[
+                PlatformPowerState::OFF,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+                PlatformPowerState::RUN,
+            ],
+        );
+
+        let wakeup_reason = psci.handle_cpu_boot();
+        assert_eq!(wakeup_reason, WakeUpReason::SuspendFinished(ENTRY_POINT));
+
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x333), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        check_ancestor_state(
+            &psci,
+            0,
+            &[
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::RUN,
+            ],
+        );
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_only_cores_off() {
+        let psci = setup_osi_all_cores_on_test();
+
+        for mpidr in &CPU_MPIDRS[3..=5] {
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr((*mpidr).into());
+            expect_cpu_power_down_wfi(|| {
+                assert_eq!(
+                    psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                    Ok(())
+                );
+            });
+        }
+
+        for cpu_index in 3..=5 {
+            check_ancestor_state(
+                &psci,
+                cpu_index,
+                &[
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::RUN,
+                    PlatformPowerState::RUN,
+                    PlatformPowerState::RUN,
+                ],
+            );
+        }
+
+        SYSREGS.lock().unwrap().reset();
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_standby_at_lvl1() {
+        let psci = setup_osi_all_cores_on_test();
+
+        for mpidr in &CPU_MPIDRS[..=1] {
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr((*mpidr).into());
+            expect_cpu_power_down_wfi(|| {
+                assert_eq!(
+                    psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                    Ok(())
+                );
+            });
+        }
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(2).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x23), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        for cpu_index in 0..=2 {
+            check_ancestor_state(
+                &psci,
+                cpu_index,
+                &[
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::Standby2,
+                    PlatformPowerState::RUN,
+                    PlatformPowerState::RUN,
+                ],
+            );
+        }
+
+        SYSREGS.lock().unwrap().reset();
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_deeper_states() {
+        let psci = setup_osi_all_cores_on_test();
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(6).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(7).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(8).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x33), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        for cpu_index in 6..=8 {
+            check_ancestor_state(
+                &psci,
+                cpu_index,
+                &[
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::RUN,
+                    PlatformPowerState::RUN,
+                ],
+            );
+        }
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(9).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(10).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(11).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(12).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x333), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        for cpu_index in 6..=12 {
+            check_ancestor_state(
+                &psci,
+                cpu_index,
+                &[
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::RUN,
+                ],
+            );
+        }
+
+        SYSREGS.lock().unwrap().reset();
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_invalid_request_denied_due_to_running_siblings() {
+        let psci = setup_osi_all_cores_on_test();
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(0).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(1).into());
+        assert_eq!(
+            psci.cpu_suspend(PowerState::PowerDown(0x33), ENTRY_POINT),
+            Err(ErrorCode::Denied)
+        );
+
+        SYSREGS.lock().unwrap().reset();
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_invalid_request_invalid_params_due_to_stby_siblings() {
+        let psci = setup_osi_all_cores_on_test();
+
+        for cpu_index in &[0, 1, 3, 4] {
+            SYSREGS.lock().unwrap().mpidr_el1 =
+                MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(*cpu_index).into());
+            expect_cpu_power_down_wfi(|| {
+                assert_eq!(
+                    psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                    Ok(())
+                );
+            });
+        }
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(2).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x23), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(5).into());
+        assert_eq!(
+            psci.cpu_suspend(PowerState::PowerDown(0x333), ENTRY_POINT),
+            Err(ErrorCode::InvalidParameters)
+        );
 
         SYSREGS.lock().unwrap().reset();
     }
@@ -2525,12 +2837,18 @@ mod tests {
 
         assert_eq!(
             Err(ErrorCode::InvalidParameters),
-            psci.node_hw_state(CPU1_MPIDR, PsciPlatformImpl::MAX_POWER_LEVEL as u32 + 1)
+            psci.node_hw_state(
+                mpidr_from_cpu_index(1),
+                PsciPlatformImpl::MAX_POWER_LEVEL as u32 + 1
+            )
         );
 
         assert_eq!(
             Ok(HwState::Off),
-            psci.node_hw_state(CPU1_MPIDR, PsciCompositePowerState::CPU_POWER_LEVEL as u32)
+            psci.node_hw_state(
+                mpidr_from_cpu_index(1),
+                PsciCompositePowerState::CPU_POWER_LEVEL as u32
+            )
         );
     }
 
@@ -2543,7 +2861,7 @@ mod tests {
         });
         psci.handle_cpu_boot();
 
-        assert_eq!(Ok(()), psci.cpu_on(CPU1_MPIDR, ENTRY_POINT));
+        assert_eq!(Ok(()), psci.cpu_on(mpidr_from_cpu_index(1), ENTRY_POINT));
         // Not last CPU
         assert_eq!(Err(ErrorCode::Denied), psci.system_suspend(ENTRY_POINT));
     }

@@ -294,16 +294,42 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
                 TestPowerState::Standby0,
                 TestPowerState::On,
             ],
-            PowerState::PowerDown(0) => {
-                [TestPowerState::PowerDown; TestPsciPlatformImpl::MAX_POWER_LEVEL + 1]
-            }
-            PowerState::PowerDown(1) => {
-                [TestPowerState::PowerDown, TestPowerState::On, TestPowerState::On, TestPowerState::On]
-            }
+            PowerState::PowerDown(0x3) => [
+                TestPowerState::PowerDown,
+                TestPowerState::On,
+                TestPowerState::On,
+                TestPowerState::On
+            ],
+            PowerState::PowerDown(0x23) => [
+                TestPowerState::PowerDown,
+                TestPowerState::Standby2,
+                TestPowerState::On,
+                TestPowerState::On
+            ],
+            PowerState::PowerDown(0x33) => [
+                TestPowerState::PowerDown,
+                TestPowerState::PowerDown,
+                TestPowerState::On,
+                TestPowerState::On
+            ],
+            PowerState::PowerDown(0x333) => [
+                TestPowerState::PowerDown,
+                TestPowerState::PowerDown,
+                TestPowerState::PowerDown,
+                TestPowerState::On
+            ],
+
+            PowerState::PowerDown(0x3333) =>
+                [TestPowerState::PowerDown; TestPsciPlatformImpl::MAX_POWER_LEVEL + 1],
+
             _ => return None,
         };
-
-        Some(PsciCompositePowerState::new(states))
+        Some(PsciCompositePowerState::new_with_last_power_level(
+            states,
+            PsciCompositePowerState::new(states)
+                .find_highest_non_run_level()
+                .unwrap(),
+        ))
     }
 
     fn cpu_standby(&self, _cpu_state: TestPowerState) {}

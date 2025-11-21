@@ -1381,6 +1381,14 @@ mod tests {
         PsciCompositePowerState::CPU_POWER_LEVEL + 2,
     );
 
+    struct SysregsResetter;
+
+    impl Drop for SysregsResetter {
+        fn drop(&mut self) {
+            SYSREGS.lock().unwrap().reset();
+        }
+    }
+
     fn apply_coordinated_state_to_power_domain_tree_helper(
         power_domain_tree: &mut PowerDomainTree,
         cpu_index: usize,
@@ -2030,6 +2038,7 @@ mod tests {
     #[test]
     fn psci_cpu_on() {
         let psci = Psci::new(PsciPlatformImpl::new());
+        let _reset_sysregs = SysregsResetter;
 
         assert_eq!(
             Err(ErrorCode::InvalidParameters),
@@ -2053,13 +2062,12 @@ mod tests {
             Err(ErrorCode::AlreadyOn),
             psci.cpu_on(mpidr_from_cpu_index(1), ENTRY_POINT)
         );
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
     fn psci_cpu_off() {
         let psci = Psci::new(PsciPlatformImpl::new());
+        let _reset_sysregs = SysregsResetter;
 
         assert_eq!(Ok(()), psci.cpu_on(mpidr_from_cpu_index(1), ENTRY_POINT));
 
@@ -2070,13 +2078,12 @@ mod tests {
         expect_cpu_power_down_wfi(|| {
             let _ = psci.cpu_off();
         });
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
     fn psci_affinity_info() {
         let psci = Psci::new(PsciPlatformImpl::new());
+        let _reset_sysregs = SysregsResetter;
 
         assert_eq!(
             Err(ErrorCode::InvalidParameters),
@@ -2122,8 +2129,6 @@ mod tests {
                 PsciCompositePowerState::CPU_POWER_LEVEL as u32
             )
         );
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     fn check_ancestor_state(psci: &Psci, cpu_index: usize, expected_states: &[PlatformPowerState]) {
@@ -2163,6 +2168,7 @@ mod tests {
         ];
 
         let psci = Psci::new(PsciPlatformImpl::new());
+        let _reset_sysregs = SysregsResetter;
 
         assert_eq!(
             Ok(AffinityInfo::On),
@@ -2406,8 +2412,6 @@ mod tests {
                 ],
             );
         }
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
@@ -2458,6 +2462,7 @@ mod tests {
     #[test]
     fn psci_cpu_suspend_osi_only_cores_off() {
         let psci = setup_osi_all_cores_on_test();
+        let _reset_sysregs = SysregsResetter;
 
         for mpidr in &CPU_MPIDRS[3..=5] {
             SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr((*mpidr).into());
@@ -2481,13 +2486,12 @@ mod tests {
                 ],
             );
         }
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
     fn psci_cpu_suspend_osi_standby_at_lvl1() {
         let psci = setup_osi_all_cores_on_test();
+        let _reset_sysregs = SysregsResetter;
 
         for mpidr in &CPU_MPIDRS[..=1] {
             SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr((*mpidr).into());
@@ -2520,13 +2524,12 @@ mod tests {
                 ],
             );
         }
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
     fn psci_cpu_suspend_osi_deeper_states() {
         let psci = setup_osi_all_cores_on_test();
+        let _reset_sysregs = SysregsResetter;
 
         SYSREGS.lock().unwrap().mpidr_el1 =
             MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(6).into());
@@ -2616,13 +2619,12 @@ mod tests {
                 ],
             );
         }
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
     fn psci_cpu_suspend_osi_invalid_request_denied_due_to_running_siblings() {
         let psci = setup_osi_all_cores_on_test();
+        let _reset_sysregs = SysregsResetter;
 
         SYSREGS.lock().unwrap().mpidr_el1 =
             MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(0).into());
@@ -2639,13 +2641,12 @@ mod tests {
             psci.cpu_suspend(PowerState::PowerDown(0x33), ENTRY_POINT),
             Err(ErrorCode::Denied)
         );
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]
     fn psci_cpu_suspend_osi_invalid_request_invalid_params_due_to_stby_siblings() {
         let psci = setup_osi_all_cores_on_test();
+        let _reset_sysregs = SysregsResetter;
 
         for cpu_index in &[0, 1, 3, 4] {
             SYSREGS.lock().unwrap().mpidr_el1 =
@@ -2673,8 +2674,6 @@ mod tests {
             psci.cpu_suspend(PowerState::PowerDown(0x333), ENTRY_POINT),
             Err(ErrorCode::InvalidParameters)
         );
-
-        SYSREGS.lock().unwrap().reset();
     }
 
     #[test]

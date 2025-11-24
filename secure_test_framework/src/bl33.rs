@@ -192,6 +192,7 @@ struct TestResultCounts {
 
 extern "C" fn secondary_main(arg: u64) -> ! {
     set_exception_vector();
+    gicv3::init_core();
 
     let core_index = PlatformImpl::core_index();
     debug!("BL33 secondary core {core_index} starting with arg {arg}.");

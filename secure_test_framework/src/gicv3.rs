@@ -99,19 +99,24 @@ pub fn init(secure: bool) {
     GIC.call_once(|| SpinMutex::new(unsafe { PlatformImpl::create_gic() }));
     SECURE.call_once(|| secure);
 
-    if current_el() == 2 {
-        enable_irq_trapping_to_el2();
-        GicCpuInterface::enable_system_register_el2(true, true);
-    } else {
-        GicCpuInterface::enable_system_register_el1(true);
-    }
-
     let mut gic = GIC.get().unwrap().lock();
 
     if secure {
         gic.distributor().enable_group1_secure(true);
     } else {
         gic.distributor().enable_group1_non_secure(true);
+    }
+
+    init_core();
+}
+
+/// Enables IRQ handling for the current core.
+pub fn init_core() {
+    if current_el() == 2 {
+        enable_irq_trapping_to_el2();
+        GicCpuInterface::enable_system_register_el2(true, true);
+    } else {
+        GicCpuInterface::enable_system_register_el1(true);
     }
 
     GicCpuInterface::enable_group1(true);

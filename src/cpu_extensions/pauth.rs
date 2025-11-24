@@ -18,16 +18,35 @@ use crate::{
     platform::{Platform, PlatformImpl, exception_free},
 };
 use arm_sysregs::{
-    Sctlr2El3, SctlrEl3, is_feat_pauth_lr_present, read_sctlr_el3, read_sctlr2_el3,
-    write_apiakeyhi_el1, write_apiakeylo_el1, write_sctlr_el3, write_sctlr2_el3,
+    ApiakeyhiEl1, ApiakeyloEl1, Sctlr2El3, SctlrEl3, read_id_aa64isar1_el1, read_id_aa64isar2_el1,
+    read_sctlr_el3, read_sctlr2_el3, write_apiakeyhi_el1, write_apiakeylo_el1, write_sctlr_el3,
+    write_sctlr2_el3,
 };
+
+const PAUTH_LR_IMPLEMENTED: u8 = 0b110;
+
+/// Indicates whether FEAT_PAuth_LR is implemented.
+fn is_feat_pauth_lr_present() -> bool {
+    let id_aa64isar1_el1 = read_id_aa64isar1_el1();
+    // FEAT_PAuth_LR support is indicated by up to 3 fields, where if one or more of these is 0b0110
+    // then the feature is present.
+    //   1) id_aa64isr1_el1.api
+    //   2) id_aa64isr1_el1.apa
+    //   3) id_aa64isr2_el1.apa3
+    id_aa64isar1_el1.apa() == PAUTH_LR_IMPLEMENTED
+        || id_aa64isar1_el1.api() == PAUTH_LR_IMPLEMENTED
+        || read_id_aa64isar2_el1().apa3() == PAUTH_LR_IMPLEMENTED
+}
 
 /// Setup the PAuth registers and the CPU data with the PAuth key.
 fn set_apkey() {
     let key = PlatformImpl::init_apkey();
 
-    write_apiakeylo_el1(key as u64);
-    write_apiakeyhi_el1((key >> 64) as u64);
+    // SAFETY: We haven't yet enabled PAuth, so it is safe to set the key.
+    unsafe {
+        write_apiakeylo_el1(ApiakeyloEl1::from_bits_retain(key as u64));
+        write_apiakeyhi_el1(ApiakeyhiEl1::from_bits_retain((key >> 64) as u64));
+    }
 
     exception_free(|token| cpu_data_set_apkey(token, key));
 }
@@ -53,7 +72,7 @@ pub unsafe fn init() {
     if is_feat_pauth_lr_present() {
         // SAFETY: Enabling PAuth_LR is safe here for the same reasons as PAuth.
         unsafe {
-            write_sctlr2_el3(read_sctlr2_el3() | Sctlr2El3::EnPACM);
+            write_sctlr2_el3(read_sctlr2_el3() | Sctlr2El3::ENPACM);
         }
     }
 

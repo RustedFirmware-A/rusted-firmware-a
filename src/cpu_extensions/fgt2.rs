@@ -4,7 +4,9 @@
 
 use core::cell::RefCell;
 
-use arm_sysregs::{ScrEl3, read_id_aa64mmfr0_el1};
+use arm_sysregs::{
+    Hdfgrtr2El2, Hdfgwtr2El2, Hfgitr2El2, Hfgrtr2El2, Hfgwtr2El2, ScrEl3, read_id_aa64mmfr0_el1,
+};
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use arm_sysregs::{
     read_hdfgrtr2_el2, read_hdfgwtr2_el2, read_hfgitr2_el2, read_hfgrtr2_el2, read_hfgwtr2_el2,
@@ -24,20 +26,20 @@ use crate::platform::exception_free;
 
 #[allow(dead_code)]
 struct Fgt2CpuContext {
-    hfgitr2_el2: u64,
-    hfgrtr2_el2: u64,
-    hfgwtr2_el2: u64,
-    hdfgrtr2_el2: u64,
-    hdfgwtr2_el2: u64,
+    hfgitr2_el2: Hfgitr2El2,
+    hfgrtr2_el2: Hfgrtr2El2,
+    hfgwtr2_el2: Hfgwtr2El2,
+    hdfgrtr2_el2: Hdfgrtr2El2,
+    hdfgwtr2_el2: Hdfgwtr2El2,
 }
 
 impl Fgt2CpuContext {
     const EMPTY: Self = Self {
-        hfgitr2_el2: 0,
-        hfgrtr2_el2: 0,
-        hfgwtr2_el2: 0,
-        hdfgrtr2_el2: 0,
-        hdfgwtr2_el2: 0,
+        hfgitr2_el2: Hfgitr2El2::empty(),
+        hfgrtr2_el2: Hfgrtr2El2::empty(),
+        hfgwtr2_el2: Hfgwtr2El2::empty(),
+        hdfgrtr2_el2: Hdfgrtr2El2::empty(),
+        hdfgwtr2_el2: Hdfgwtr2El2::empty(),
     };
 }
 
@@ -92,11 +94,14 @@ impl CpuExtension for Fgt2 {
                 let ctx = FGT2_CTX.get().borrow_mut(token);
                 let ctx = &ctx[world];
 
-                write_hfgitr2_el2(ctx.hfgitr2_el2);
-                write_hfgrtr2_el2(ctx.hfgrtr2_el2);
-                write_hfgwtr2_el2(ctx.hfgwtr2_el2);
-                write_hdfgrtr2_el2(ctx.hdfgrtr2_el2);
-                write_hdfgwtr2_el2(ctx.hdfgwtr2_el2);
+                // SAFETY: We're restoring the values previously saved, so they must be valid.
+                unsafe {
+                    write_hfgitr2_el2(ctx.hfgitr2_el2);
+                    write_hfgrtr2_el2(ctx.hfgrtr2_el2);
+                    write_hfgwtr2_el2(ctx.hfgwtr2_el2);
+                    write_hdfgrtr2_el2(ctx.hdfgrtr2_el2);
+                    write_hdfgwtr2_el2(ctx.hdfgwtr2_el2);
+                }
             })
         }
     }

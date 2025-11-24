@@ -8,7 +8,7 @@ use crate::{
     context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, World},
     platform::{Platform, PlatformImpl, exception_free},
 };
-use arm_sysregs::{read_tfsr_el2, write_tfsr_el2};
+use arm_sysregs::{TfsrEl2, read_tfsr_el2, write_tfsr_el2};
 use core::cell::RefCell;
 use percore::{ExceptionLock, PerCore};
 
@@ -21,11 +21,13 @@ static MTE2_CTX: PerCoreState<PerWorld<Mte2CpuContext>> = PerCore::new(
 );
 
 struct Mte2CpuContext {
-    tfsr_el2: u64,
+    tfsr_el2: TfsrEl2,
 }
 
 impl Mte2CpuContext {
-    const EMPTY: Self = Self { tfsr_el2: 0 };
+    const EMPTY: Self = Self {
+        tfsr_el2: TfsrEl2::empty(),
+    };
 }
 
 pub fn save_context(world: World) {

@@ -59,7 +59,7 @@ pub struct CpuOps {
 
 impl CpuOps {
     /// Only use Implementer and PartNum fields.
-    const MIDR_MASK: MidrEl1 = MidrEl1::new(0xff00_fff0);
+    const MIDR_MASK: MidrEl1 = MidrEl1::from_bits_retain(0xff00_fff0);
 
     /// Check if the instance has an MIDR with matching Implementer and PartNum fields.
     fn has_matching_midr(&self, midr: MidrEl1) -> bool {

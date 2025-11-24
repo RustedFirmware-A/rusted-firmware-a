@@ -1,7 +1,7 @@
 # RF-A architecture overview
 
 RF-A is implemented as a Rust binary crate in a workspace. As well as RF-A itself the workspace
-contains STF (the Secure Testing Framework) and the `arm-sysregs` crate mentioned below.
+contains STF (the Secure Testing Framework).
 
 ## Modules
 

@@ -8,16 +8,18 @@ use crate::{
     context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, World},
     platform::{Platform, PlatformImpl, exception_free},
 };
-use arm_sysregs::{read_disr_el1, write_disr_el1};
+use arm_sysregs::{DisrEl1, read_disr_el1, write_disr_el1};
 use core::cell::RefCell;
 use percore::{ExceptionLock, PerCore};
 
 struct RasCpuContext {
-    disr_el1: u64,
+    disr_el1: DisrEl1,
 }
 
 impl RasCpuContext {
-    const EMPTY: Self = Self { disr_el1: 0 };
+    const EMPTY: Self = Self {
+        disr_el1: DisrEl1::empty(),
+    };
 }
 
 static RAS_CTX: PerCoreState<PerWorld<RasCpuContext>> = PerCore::new(

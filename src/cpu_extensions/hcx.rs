@@ -26,7 +26,10 @@ impl CpuExtension for Hcx {
         // unexpected behavior in lower ELs that have not been updated since the introduction of
         // this feature if not properly initialized, especially when it comes to those bits that
         // enable/disable traps.
-        write_hcrx_el2(HcrxEl2::empty());
+        // SAFETY: 0 is a valid value.
+        unsafe {
+            write_hcrx_el2(HcrxEl2::empty());
+        }
     }
 
     fn configure_per_world(&self, _world: World, context: &mut PerWorldContext) {

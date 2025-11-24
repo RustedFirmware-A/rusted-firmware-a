@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "3"
-members = ["secure_test_framework", "arm-sysregs"]
+members = ["secure_test_framework"]
 
 [package]
 name = "rf-a-bl31"
@@ -37,7 +37,7 @@ arm-fvp-base-pac = { version = "0.1.4", default-features = false }
 arm-gic = "0.7.1"
 arm-pl011-uart = { version = "0.4.0", default-features = false }
 arm-psci = "0.2.0"
-arm-sysregs = { version = "0.1.0", path = "arm-sysregs" }
+arm-sysregs = { version = "0.2.1", features = ["el3"] }
 arrayvec = { version = "0.7.6", default-features = false }
 bitflags = "2.10.0"
 log = "0.4.29"
@@ -54,7 +54,7 @@ zerocopy = { version = "0.8.27", features = ["derive"] }
 
 [dev-dependencies]
 arm-gic = { version = "0.7.1", features = ["fakes"] }
-arm-sysregs = { version = "0.1.0", features = ["fakes"], path = "arm-sysregs" }
+arm-sysregs = { version = "0.2.1", features = ["fakes"] }
 
 [features]
 default = ["sel2"]

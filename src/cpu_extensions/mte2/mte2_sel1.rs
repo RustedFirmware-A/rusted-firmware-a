@@ -9,8 +9,8 @@ use crate::{
     platform::{Platform, PlatformImpl, exception_free},
 };
 use arm_sysregs::{
-    read_gcr_el1, read_rgsr_el1, read_tfsr_el1, read_tfsre0_el1, write_gcr_el1, write_rgsr_el1,
-    write_tfsr_el1, write_tfsre0_el1,
+    GcrEl1, RgsrEl1, TfsrEl1, Tfsre0El1, read_gcr_el1, read_rgsr_el1, read_tfsr_el1,
+    read_tfsre0_el1, write_gcr_el1, write_rgsr_el1, write_tfsr_el1, write_tfsre0_el1,
 };
 use core::cell::RefCell;
 use percore::{ExceptionLock, PerCore};
@@ -24,18 +24,18 @@ static MTE2_CTX: PerCoreState<PerWorld<Mte2CpuContext>> = PerCore::new(
 );
 
 struct Mte2CpuContext {
-    tfsre0_el1: u64,
-    tfsr_el1: u64,
-    rgsr_el1: u64,
-    gcr_el1: u64,
+    tfsre0_el1: Tfsre0El1,
+    tfsr_el1: TfsrEl1,
+    rgsr_el1: RgsrEl1,
+    gcr_el1: GcrEl1,
 }
 
 impl Mte2CpuContext {
     const EMPTY: Self = Self {
-        tfsre0_el1: 0,
-        tfsr_el1: 0,
-        rgsr_el1: 0,
-        gcr_el1: 0,
+        tfsre0_el1: Tfsre0El1::empty(),
+        tfsr_el1: TfsrEl1::empty(),
+        rgsr_el1: RgsrEl1::empty(),
+        gcr_el1: GcrEl1::empty(),
     };
 }
 
@@ -52,9 +52,12 @@ pub fn save_context(world: World) {
 pub fn restore_context(world: World) {
     exception_free(|token| {
         let ctx = MTE2_CTX.get().borrow_mut(token);
-        write_tfsre0_el1(ctx[world].tfsre0_el1);
-        write_tfsr_el1(ctx[world].tfsr_el1);
-        write_rgsr_el1(ctx[world].rgsr_el1);
-        write_gcr_el1(ctx[world].gcr_el1);
+        // SAFETY: We're restoring the values previously saved, so they must be valid.
+        unsafe {
+            write_tfsre0_el1(ctx[world].tfsre0_el1);
+            write_tfsr_el1(ctx[world].tfsr_el1);
+            write_rgsr_el1(ctx[world].rgsr_el1);
+            write_gcr_el1(ctx[world].gcr_el1);
+        }
     })
 }

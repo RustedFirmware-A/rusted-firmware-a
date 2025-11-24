@@ -325,6 +325,24 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.1 -> 0.1.2"
 notes = "No substantial changes, only a lint fix."
 
+[[audits.arm-sysregs]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.1.0"
+notes = """
+The arm-sysregs crate on crates.io is largely the same as the version we previously had in the RF-A
+repository. It has been reviewed by the RF-A maintainers in both repositories.
+"""
+
+[[audits.arm-sysregs]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.1.0 -> 0.2.1"
+notes = """
+Lots of new registers added, which is mostly generated code equivalent to what was already there.
+AArch32 support is similar to existing AArch64 support.
+"""
+
 [[audits.arm-tzc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

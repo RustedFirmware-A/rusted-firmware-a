@@ -22,7 +22,7 @@ use crate::{
     },
     smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
-use arm_sysregs::Esr;
+use arm_sysregs::EsrEl3;
 use log::info;
 use spin::Lazy;
 
@@ -188,14 +188,14 @@ impl Services {
         }
     }
 
-    fn handle_sysreg_trap(&self, esr: Esr, world: World) {
+    fn handle_sysreg_trap(&self, esr: EsrEl3, world: World) {
         // Default behaviour is to repeat the same instruction, unless the trap handler requests
         // stepping to the next one.
         #[allow(unused)]
         let mut step_to_next_instr = false;
 
         #[allow(clippy::match_single_binding)]
-        match esr & Esr::ISS_SYSREG_OPCODE_MASK {
+        match esr & EsrEl3::ISS_SYSREG_OPCODE_MASK {
             // TODO: add trap handlers, should set step_to_next_instr as necessary
             _ => {
                 inject_undef64(world);

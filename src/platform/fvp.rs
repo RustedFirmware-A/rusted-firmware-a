@@ -57,7 +57,7 @@ use arm_pl011_uart::{Uart, UniqueMmioPointer};
 use arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState};
 #[cfg(feature = "pauth")]
 use arm_sysregs::read_cntpct_el0;
-use arm_sysregs::{IccSre, MpidrEl1, read_mpidr_el1, write_cntfrq_el0};
+use arm_sysregs::{CntfrqEl0, IccSreEl3, MpidrEl1, read_mpidr_el1, write_cntfrq_el0};
 #[cfg(feature = "pauth")]
 use core::arch::asm;
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
@@ -287,7 +287,7 @@ unsafe impl Platform for Fvp {
     fn init_apkey() -> u128 {
         let return_addr: u64;
         let frame_addr: u64;
-        let cntpct = read_cntpct_el0();
+        let cntpct = read_cntpct_el0().physicalcount();
 
         // SAFETY: We are just reading general purpose registers.
         unsafe {
@@ -494,7 +494,7 @@ unsafe impl Platform for Fvp {
             include_str!("../arm_macros_purge.S"),
             include_str!("../asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,
-            ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
+            ICC_SRE_SRE_BIT = const IccSreEl3::SRE.bits(),
             GICD_ISPENDR = const offset_of!(Gicd, ispendr),
             V2M_SYSREGS_BASE = const V2M_SYSREGS_BASE,
             V2M_SYS_ID = const V2M_SYS_ID,
@@ -603,7 +603,7 @@ impl FvpPsciPlatformImpl<'_> {
         self.power_controller.lock().disable_wakeup_requests(mpidr);
 
         let frequency = self.timer_control.lock().base_frequency();
-        write_cntfrq_el0(frequency.into());
+        write_cntfrq_el0(CntfrqEl0::from_bits_retain(frequency.into()));
     }
 
     // Enable and initialize the system level generic timer
@@ -620,7 +620,7 @@ impl FvpPsciPlatformImpl<'_> {
         timer_ctl.set_non_secure_access(Self::NS_TIMER_INDEX, true);
         timer_ctl.set_frequency(frequency);
 
-        write_cntfrq_el0(frequency.into());
+        write_cntfrq_el0(CntfrqEl0::from_bits_retain(frequency.into()));
     }
 
     fn save_system_power_domain() {

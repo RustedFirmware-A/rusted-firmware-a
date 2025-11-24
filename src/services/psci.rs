@@ -188,7 +188,7 @@ pub trait PsciPlatformInterface {
 
     /// Checks if the CPU has pending interrupts
     fn has_pending_interrupts(&self) -> bool {
-        read_isr_el1() != 0
+        !read_isr_el1().is_empty()
     }
 }
 

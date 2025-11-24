@@ -8,16 +8,17 @@
 mod simd_sel1;
 
 use super::CpuExtension;
-
 use crate::{
     aarch64::isb,
     context::{PerWorldContext, World},
 };
-
 use arm_sysregs::{
-    CptrEl3, IdAa64smfr0El1, ScrEl3, SmcrEl3, read_cptr_el3, read_id_aa64pfr0_el1,
+    CptrEl3, IdAa64smfr0El1, ScrEl3, SmcrEl3, ZcrEl3, read_cptr_el3, read_id_aa64pfr0_el1,
     read_id_aa64pfr1_el1, read_id_aa64smfr0_el1, write_cptr_el3, write_smcr_el3, write_zcr_el3,
 };
+
+const FP_NOT_SUPPORTED: u8 = 0xf;
+const ADVSIMD_NOT_SUPPORTED: u8 = 0xf;
 
 /// Enables FP/SIMD register access for all worlds.
 ///
@@ -42,8 +43,9 @@ impl Simd {
 
 impl CpuExtension for Simd {
     fn is_present(&self) -> bool {
-        read_id_aa64pfr0_el1().is_feat_fp_present()
-            && read_id_aa64pfr0_el1().is_feat_advsimd_present()
+        let id_aa64pfr0_el1 = read_id_aa64pfr0_el1();
+        id_aa64pfr0_el1.fp() != FP_NOT_SUPPORTED
+            && id_aa64pfr0_el1.advsimd() != ADVSIMD_NOT_SUPPORTED
     }
 
     fn configure_per_world(&self, _world: World, ctx: &mut PerWorldContext) {
@@ -108,15 +110,24 @@ impl CpuExtension for Sve {
     fn init(&self) {
         // Temporarily allow SVE register access, to configure the maximum SVE vector length.
         let cptr_el3 = read_cptr_el3();
-        write_cptr_el3(cptr_el3 | CptrEl3::EZ);
+        // SAFETY: We only allowed SVE instructions.
+        unsafe {
+            write_cptr_el3(cptr_el3 | CptrEl3::EZ);
+        }
         isb();
 
         // ZCR_EL3[3:0]:
         // Requests an Effective Non-streaming SVE vector length at EL3 of (LEN+1)*128 bits.
-        write_zcr_el3(self.vector_length / 128 - 1);
+        // SAFETY: We don't use any SVE instructions, so this doesn't affect us.
+        unsafe {
+            write_zcr_el3(ZcrEl3::from_bits_retain(self.vector_length / 128 - 1));
+        }
 
         // Restore CPTR_EL3.
-        write_cptr_el3(cptr_el3);
+        // SAFETY: We're restoring the value previously saved, so it must be valid.
+        unsafe {
+            write_cptr_el3(cptr_el3);
+        }
     }
 
     fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
@@ -185,7 +196,10 @@ impl CpuExtension for Sme {
     fn init(&self) {
         // Temporarily allow SME register access, to configure the maximum SSVE vector length.
         let cptr_el3 = read_cptr_el3();
-        write_cptr_el3(cptr_el3 | CptrEl3::ESM);
+        // SAFETY: We only allowed SME instructions.
+        unsafe {
+            write_cptr_el3(cptr_el3 | CptrEl3::ESM);
+        }
         isb();
 
         // Configure maximum SSVE vector length.
@@ -201,10 +215,16 @@ impl CpuExtension for Sme {
         }
 
         // Configure SMCR_EL3 for all worlds.
-        write_smcr_el3(smcr_el3);
+        // SAFETY: We don't use any SME instructions, so this doesn't affect us.
+        unsafe {
+            write_smcr_el3(smcr_el3);
+        }
 
         // Restore CPTR_EL3.
-        write_cptr_el3(cptr_el3);
+        // SAFETY: We're restoring the value previously saved, so it must be valid.
+        unsafe {
+            write_cptr_el3(cptr_el3);
+        }
     }
 
     fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {

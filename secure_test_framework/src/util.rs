@@ -39,16 +39,24 @@ pub fn current_el() -> u8 {
 #[cfg(feature = "pauth")]
 pub fn enable_pauth(key: u128) {
     use arm_sysregs::{
-        SctlrEl1, SctlrEl2, read_sctlr_el1, read_sctlr_el2, write_apiakeyhi_el1,
-        write_apiakeylo_el1, write_sctlr_el1, write_sctlr_el2,
+        ApiakeyhiEl1, ApiakeyloEl1, SctlrEl1, SctlrEl2, read_sctlr_el1, read_sctlr_el2,
+        write_apiakeyhi_el1, write_apiakeylo_el1, write_sctlr_el1, write_sctlr_el2,
     };
 
-    write_apiakeylo_el1(key as u64);
-    write_apiakeyhi_el1((key >> 64) as u64);
+    unsafe {
+        write_apiakeylo_el1(ApiakeyloEl1::from_bits_retain(key as u64));
+        write_apiakeyhi_el1(ApiakeyhiEl1::from_bits_retain((key >> 64) as u64));
+    }
     if current_el() == 2 {
-        write_sctlr_el2(read_sctlr_el2() | SctlrEl2::ENIA);
+        // SAFETY: We have set the PAuth key, so it is safe to enable PAuth.
+        unsafe {
+            write_sctlr_el2(read_sctlr_el2() | SctlrEl2::ENIA);
+        }
     } else {
-        write_sctlr_el1(read_sctlr_el1() | SctlrEl1::ENIA);
+        // SAFETY: We have set the PAuth key, so it is safe to enable PAuth.
+        unsafe {
+            write_sctlr_el1(read_sctlr_el1() | SctlrEl1::ENIA);
+        }
     }
     // SAFETY: The `isb` instruction does not violate safe Rust guarantees.
     unsafe {

@@ -38,6 +38,9 @@ pub fn save_context(world: World) {
 
 pub fn restore_context(world: World) {
     exception_free(|token| {
-        write_hcrx_el2(HCX_CTX.get().borrow_mut(token)[world].hcrx_el2);
+        // SAFETY: We're restoring the value previously saved, so it must be valid.
+        unsafe {
+            write_hcrx_el2(HCX_CTX.get().borrow_mut(token)[world].hcrx_el2);
+        }
     })
 }

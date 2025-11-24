@@ -7,7 +7,7 @@
 //! PMU configuration is not optional so we do not implement `CpuExtension`
 //! for basic PMU configuration, only for MTPMU which is non-obligatory.
 
-use arm_sysregs::{MdcrEl3, Pmcr, read_id_aa64dfr0_el1, read_pmcr_el0, write_pmcr_el0};
+use arm_sysregs::{MdcrEl3, PmcrEl0, read_id_aa64dfr0_el1, read_pmcr_el0, write_pmcr_el0};
 
 use crate::{
     context::{CpuContext, World},
@@ -48,8 +48,8 @@ pub fn init() {
     //
     // PMCR_EL0.E: Set to zero to disable cycle and event counters.
     let mut pmcr_el0 = read_pmcr_el0();
-    pmcr_el0 |= Pmcr::DP | Pmcr::C | Pmcr::P;
-    pmcr_el0 -= Pmcr::X | Pmcr::E;
+    pmcr_el0 |= PmcrEl0::DP | PmcrEl0::C | PmcrEl0::P;
+    pmcr_el0 -= PmcrEl0::X | PmcrEl0::E;
     write_pmcr_el0(pmcr_el0);
 }
 

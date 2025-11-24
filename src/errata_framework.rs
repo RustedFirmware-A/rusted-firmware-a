@@ -148,6 +148,10 @@ macro_rules! implement_erratum_check {
             const MIDR__: arm_sysregs::MidrEl1 = $midr;
             const APPLY_FROM__: $crate::errata_framework::RevisionVariant = $apply_from;
             const FIXED_IN__: $crate::errata_framework::RevisionVariant = $fixed_in;
+            /// The length of the variant field in bits.
+            const VARIANT_LEN: u32 = arm_sysregs::MidrEl1::VARIANT_MASK.count_ones();
+            /// The length of the revision field in bits.
+            const REVISION_LEN: u32 = arm_sysregs::MidrEl1::REVISION_MASK.count_ones();
 
             $crate::naked_asm!(
                 include_str!("../asm_macros_common.S"),
@@ -192,14 +196,14 @@ macro_rules! implement_erratum_check {
 
                 include_str!("../asm_macros_common_purge.S"),
                 DEBUG = const $crate::debug::DEBUG as i32, // Required by asm_macros_common.S
-                apply_from = const ((APPLY_FROM__.revision << arm_sysregs::MidrEl1::VARIANT_LEN) | APPLY_FROM__.variant) as u32,
-                fixed_in = const ((FIXED_IN__.revision << arm_sysregs::MidrEl1::VARIANT_LEN) | FIXED_IN__.variant) as u32,
-                midr_revision_len = const arm_sysregs::MidrEl1::REVISION_LEN as u32,
+                apply_from = const (((APPLY_FROM__.revision as u32) << VARIANT_LEN) | APPLY_FROM__.variant as u32),
+                fixed_in = const (((FIXED_IN__.revision as u32) << VARIANT_LEN) | FIXED_IN__.variant as u32),
+                midr_revision_len = const REVISION_LEN as u32,
                 midr_variant_shift = const arm_sysregs::MidrEl1::VARIANT_SHIFT as u32,
-                midr_variant_len = const arm_sysregs::MidrEl1::VARIANT_LEN as u32,
+                midr_variant_len = const VARIANT_LEN,
                 midr_val = const MIDR__.bits(),
                 midr_mask = const arm_sysregs::MidrEl1::IMPLEMENTER_MASK << arm_sysregs::MidrEl1::IMPLEMENTER_SHIFT
-                    | arm_sysregs::MidrEl1::PART_NUM_MASK << arm_sysregs::MidrEl1::PART_NUM_SHIFT,
+                    | arm_sysregs::MidrEl1::PARTNUM_MASK << arm_sysregs::MidrEl1::PARTNUM_SHIFT,
             )
         }
     };

@@ -8,10 +8,11 @@ use crate::{
     smccc::SmcReturn,
 };
 use arm_sysregs::{
-    Esr, ExceptionLevel, Gcscr, HcrEl2, ScrEl3, SctlrEl1, SctlrEl2, Spsr, StackPointer,
-    read_gcscr_el1, read_gcscr_el2, read_hcr_el2, read_id_aa64dfr1_el1, read_id_aa64mmfr1_el1,
-    read_id_aa64pfr1_el1, read_sctlr_el1, read_sctlr_el2, read_vbar_el1, read_vbar_el2,
-    write_elr_el1, write_elr_el2, write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2,
+    ElrEl1, ElrEl2, EsrEl1, EsrEl2, EsrEl3, ExceptionLevel, GcscrEl1, GcscrEl2, HcrEl2, ScrEl3,
+    SctlrEl1, SctlrEl2, SpsrEl1, SpsrEl2, SpsrEl3, StackPointer, read_gcscr_el1, read_gcscr_el2,
+    read_hcr_el2, read_id_aa64dfr1_el1, read_id_aa64mmfr1_el1, read_id_aa64pfr1_el1,
+    read_sctlr_el1, read_sctlr_el2, read_vbar_el1, read_vbar_el2, write_elr_el1, write_elr_el2,
+    write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2,
 };
 #[cfg(not(test))]
 use core::arch::asm;
@@ -36,7 +37,7 @@ pub fn inject_undef64(world: World) {
         let old_spsr = el3_state.spsr_el3;
         let to_el = target_el(old_spsr.exception_level(), world_context(world).scr_el3);
 
-        if old_spsr & Spsr::M_EXECUTION_STATE != Spsr::empty() {
+        if old_spsr.contains(SpsrEl3::M_4) {
             panic!("Trying to inject undefined exception to lower EL in AArch32 mode")
         }
 
@@ -45,16 +46,24 @@ pub fn inject_undef64(world: World) {
         // EL system registers in this path.
         match to_el {
             ExceptionLevel::El1 => {
-                vbar = read_vbar_el1();
-                write_elr_el1(elr_el3);
-                write_esr_el1(Esr::IL);
-                write_spsr_el1(old_spsr);
+                vbar = read_vbar_el1().bits() as usize;
+                // SAFETY: These registers only affect the lower EL, and the values we've
+                // constructed should be valid.
+                unsafe {
+                    write_elr_el1(ElrEl1::from_bits_retain(elr_el3 as u64));
+                    write_esr_el1(EsrEl1::IL);
+                    write_spsr_el1(SpsrEl1::from_bits_retain(old_spsr.bits()));
+                }
             }
             ExceptionLevel::El2 => {
-                vbar = read_vbar_el2();
-                write_elr_el2(elr_el3);
-                write_esr_el2(Esr::IL);
-                write_spsr_el2(old_spsr);
+                vbar = read_vbar_el2().bits() as usize;
+                // SAFETY: These registers only affect the lower EL, and the values we've
+                // constructed should be valid.
+                unsafe {
+                    write_elr_el2(ElrEl2::from_bits_retain(elr_el3 as u64));
+                    write_esr_el2(EsrEl2::IL);
+                    write_spsr_el2(SpsrEl2::from_bits_retain(old_spsr.bits()));
+                }
             }
             ExceptionLevel::El3 => panic!("Trying to inject undefined exception at EL3"),
             ExceptionLevel::El0 => unreachable!(),
@@ -78,7 +87,7 @@ fn target_el(from_el: ExceptionLevel, scr: ScrEl3) -> ExceptionLevel {
 }
 
 /// Calculates the exception vector which should be run at the lower EL.
-fn find_exception_vector(spsr_el3: Spsr, vbar: usize, target_el: ExceptionLevel) -> usize {
+fn find_exception_vector(spsr_el3: SpsrEl3, vbar: usize, target_el: ExceptionLevel) -> usize {
     let outgoing_el = spsr_el3.exception_level();
     if outgoing_el == target_el {
         if spsr_el3.stack_pointer() == StackPointer::ElX {
@@ -112,20 +121,20 @@ fn is_secure_trap_without_sel2(scr: ScrEl3) -> bool {
 ///
 /// NOTE: This piece of code must be reviewed every release to ensure that we keep up with new ARCH
 /// features which introduces a new SPSR bit.
-fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
-    let mut new_spsr = Spsr::empty();
+fn create_spsr(old_spsr: SpsrEl3, target_el: ExceptionLevel) -> SpsrEl3 {
+    let mut new_spsr = SpsrEl3::empty();
     let sctlr_el1 = read_sctlr_el1();
     let sctlr_el2 = read_sctlr_el2();
 
     // Set M bits for target EL in AArch64 mode.
     if target_el == ExceptionLevel::El2 {
-        new_spsr |= Spsr::M_AARCH64_EL2H;
+        new_spsr |= SpsrEl3::M_AARCH64_EL2H;
     } else {
-        new_spsr |= Spsr::M_AARCH64_EL1H;
+        new_spsr |= SpsrEl3::M_AARCH64_EL1H;
     }
 
     // Mask all exceptions, update DAIF bits
-    new_spsr |= Spsr::D | Spsr::A | Spsr::I | Spsr::F;
+    new_spsr |= SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F;
 
     // BTYPE bits are left cleared to ensure that when injecting an undefined exception,
     // BTI does not trigger when performing an exception return as it will be unexpected.
@@ -135,7 +144,7 @@ fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
         && ((target_el == ExceptionLevel::El1 && sctlr_el1.contains(SctlrEl1::DSSBS))
             || (target_el == ExceptionLevel::El2 && sctlr_el2.contains(SctlrEl2::DSSBS)))
     {
-        new_spsr |= Spsr::SSBS;
+        new_spsr |= SpsrEl3::SSBS;
     }
 
     // If FEAT_NMI is implemented, ALLINT = !(SCTLR.SPINTMASK)
@@ -143,45 +152,45 @@ fn create_spsr(old_spsr: Spsr, target_el: ExceptionLevel) -> Spsr {
         && ((target_el == ExceptionLevel::El1 && !sctlr_el1.contains(SctlrEl1::SPINTMASK))
             || (target_el == ExceptionLevel::El2 && !sctlr_el2.contains(SctlrEl2::SPINTMASK)))
     {
-        new_spsr |= Spsr::ALLINT;
+        new_spsr |= SpsrEl3::ALLINT;
     }
 
     // Update PSTATE.PAN bit
     // NOTE: We assume that FEAT_PAN is present as it is mandatory from Armv8.1.
-    if old_spsr.contains(Spsr::PAN)
+    if old_spsr.contains(SpsrEl3::PAN)
         || (target_el == ExceptionLevel::El1 && !sctlr_el1.contains(SctlrEl1::SPAN))
         || (target_el == ExceptionLevel::El2
             && is_tge_enabled()
             && !sctlr_el2.contains(SctlrEl2::SPAN))
     {
-        new_spsr |= Spsr::PAN;
+        new_spsr |= SpsrEl3::PAN;
     }
 
     // DIT bits are unchanged
-    new_spsr |= old_spsr & Spsr::DIT;
+    new_spsr |= old_spsr & SpsrEl3::DIT;
 
     // If FEAT_MTE is implemented, mask tag faults by setting TCO bit
     if read_id_aa64pfr1_el1().is_feat_mte_present() {
-        new_spsr |= Spsr::TCO;
+        new_spsr |= SpsrEl3::TCO;
     }
 
     // NZCV bits are unchanged
-    new_spsr |= old_spsr & Spsr::NZCV;
+    new_spsr |= old_spsr & SpsrEl3::NZCV;
 
     // If FEAT_EBEP is implemented, set PM bit
     if read_id_aa64dfr1_el1().is_feat_ebep_present() {
-        new_spsr |= Spsr::PM;
+        new_spsr |= SpsrEl3::PM;
     }
 
     // If FEAT_GCS is implemented, update EXLOCK bit
     if read_id_aa64pfr1_el1().is_feat_gcs_present() {
-        let gcscr = if target_el == ExceptionLevel::El2 {
-            read_gcscr_el2()
+        let gcscr_exlocken = if target_el == ExceptionLevel::El2 {
+            read_gcscr_el2().contains(GcscrEl2::EXLOCKEN)
         } else {
-            read_gcscr_el1()
+            read_gcscr_el1().contains(GcscrEl1::EXLOCKEN)
         };
-        if gcscr.contains(Gcscr::EXLOCKEN) {
-            new_spsr |= Spsr::EXLOCK;
+        if gcscr_exlocken {
+            new_spsr |= SpsrEl3::EXLOCK;
         }
     }
 
@@ -199,7 +208,7 @@ pub enum RunResult {
     /// An IRQ or FIQ routed to EL3 has been triggered while running in a lower EL.
     Interrupt,
     /// A lower EL tried to access a system register that was trapped to EL3.
-    SysregTrap { esr: Esr },
+    SysregTrap { esr: EsrEl3 },
 }
 
 impl RunResult {
@@ -285,7 +294,7 @@ pub fn enter_world(regs: &mut SmcReturn, world: World) -> RunResult {
         RunResult::SMC => RunResult::Smc,
         RunResult::INTERRUPT => RunResult::Interrupt,
         RunResult::SYSREG_TRAP => RunResult::SysregTrap {
-            esr: Esr::from_bits_retain(esr),
+            esr: EsrEl3::from_bits_retain(esr),
         },
         r => panic!("unhandled enter world result: {r}"),
     };
@@ -307,10 +316,10 @@ mod tests {
             format!(
                 "{:?}",
                 RunResult::SysregTrap {
-                    esr: Esr::from_bits_retain(0x12345)
+                    esr: EsrEl3::from_bits_retain(0x12345)
                 }
             ),
-            "SysregTrap { esr: Esr(0x12345) }"
+            "SysregTrap { esr: EsrEl3(0x12345) }"
         );
     }
 }

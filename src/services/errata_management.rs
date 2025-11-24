@@ -130,7 +130,7 @@ mod tests {
         errata_framework::Erratum,
         platform::test::{TestMitigatedErratum, TestUnneededErratum},
     };
-    use arm_sysregs::Spsr;
+    use arm_sysregs::SpsrEl3;
 
     #[test]
     fn em_version_non_secure() {
@@ -205,7 +205,7 @@ mod tests {
     fn em_cpu_erratum_features_invalid_forward_flag_nsel1() {
         // Make it look like the non-secure world was in EL1.
         exception_free(|token| {
-            cpu_state(token)[World::NonSecure].el3_state.spsr_el3 = Spsr::M_AARCH64_EL1H
+            cpu_state(token)[World::NonSecure].el3_state.spsr_el3 = SpsrEl3::M_AARCH64_EL1H
         });
 
         let mut regs = SmcReturn::EMPTY;
@@ -218,7 +218,7 @@ mod tests {
 
         // Reset the CPU state ready for the next test.
         exception_free(|token| {
-            cpu_state(token)[World::NonSecure].el3_state.spsr_el3 = Spsr::empty();
+            cpu_state(token)[World::NonSecure].el3_state.spsr_el3 = SpsrEl3::empty();
         });
     }
 
@@ -227,7 +227,7 @@ mod tests {
     fn em_cpu_erratum_features_valid_forward_flag_nsel2() {
         // Make it look like the non-secure world was in EL2.
         exception_free(|token| {
-            cpu_state(token)[World::NonSecure].el3_state.spsr_el3 = Spsr::M_AARCH64_EL2H
+            cpu_state(token)[World::NonSecure].el3_state.spsr_el3 = SpsrEl3::M_AARCH64_EL2H
         });
 
         let mut regs = SmcReturn::EMPTY;
@@ -240,7 +240,7 @@ mod tests {
 
         // Reset the CPU state ready for the next test.
         exception_free(|token| {
-            cpu_state(token)[World::NonSecure].el3_state.spsr_el3 = Spsr::empty();
+            cpu_state(token)[World::NonSecure].el3_state.spsr_el3 = SpsrEl3::empty();
         });
     }
 

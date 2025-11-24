@@ -40,17 +40,17 @@ fn read_cache_size(level: CacheLevel) -> CacheSize {
 
     let (num_sets, associativity) = if read_id_aa64mmfr2_el1().has_64_bit_ccsidr_el1() {
         (
-            ((ccsidr >> 32) & 0x00ff_ffff) as u32,
-            ((ccsidr >> 3) & 0x001f_ffff) as u32,
+            ((ccsidr.bits() >> 32) & 0x00ff_ffff) as u32,
+            ((ccsidr.bits() >> 3) & 0x001f_ffff) as u32,
         )
     } else {
         (
-            ((ccsidr >> 13) & 0x0000_7fff) as u32,
-            ((ccsidr >> 3) & 0x0000_03ff) as u32,
+            ((ccsidr.bits() >> 13) & 0x0000_7fff) as u32,
+            ((ccsidr.bits() >> 3) & 0x0000_03ff) as u32,
         )
     };
 
-    let line_size_log = (ccsidr & 0b111) as u32;
+    let line_size_log = ccsidr.linesize().into();
 
     CacheSize {
         num_sets,
@@ -75,7 +75,7 @@ unsafe fn flush_cache_levels(levels: RangeInclusive<u8>) {
         let level = CacheLevel::new(level_num);
 
         // Check if the cache level is implemented.
-        match clidr_el1.ctype(level) {
+        match clidr_el1.cache_type(level) {
             CacheType::NoCache | CacheType::InstructionOnly => continue,
             _ => {}
         };
@@ -138,7 +138,7 @@ unsafe impl Cpu for AemGeneric {
         unsafe {
             flush_cache_levels(1..=1);
 
-            if read_clidr_el1().ctype(CacheLevel::new(3)) != CacheType::NoCache {
+            if read_clidr_el1().cache_type(CacheLevel::new(3)) != CacheType::NoCache {
                 flush_cache_levels(2..=2);
             }
         }

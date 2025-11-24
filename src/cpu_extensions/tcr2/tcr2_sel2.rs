@@ -8,16 +8,18 @@ use crate::{
     context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, World},
     platform::{Platform, PlatformImpl, exception_free},
 };
-use arm_sysregs::{read_tcr2_el2, write_tcr2_el2};
+use arm_sysregs::{Tcr2El2, read_tcr2_el2, write_tcr2_el2};
 use core::cell::RefCell;
 use percore::{ExceptionLock, PerCore};
 
 struct Tcr2CpuContext {
-    tcr2_el2: u64,
+    tcr2_el2: Tcr2El2,
 }
 
 impl Tcr2CpuContext {
-    const EMPTY: Self = Self { tcr2_el2: 0 };
+    const EMPTY: Self = Self {
+        tcr2_el2: Tcr2El2::empty(),
+    };
 }
 
 static TCR2_CTX: PerCoreState<PerWorld<Tcr2CpuContext>> = PerCore::new(
@@ -38,6 +40,9 @@ pub fn save_context(world: World) {
 pub fn restore_context(world: World) {
     exception_free(|token| {
         let ctx = TCR2_CTX.get().borrow_mut(token);
-        write_tcr2_el2(ctx[world].tcr2_el2);
+        // SAFETY: We're restoring the value previously saved, so it must be valid.
+        unsafe {
+            write_tcr2_el2(ctx[world].tcr2_el2);
+        }
     })
 }

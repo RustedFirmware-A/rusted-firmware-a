@@ -42,7 +42,7 @@ use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 #[cfg(feature = "pauth")]
 use arm_sysregs::read_cntpct_el0;
-use arm_sysregs::{IccSre, MpidrEl1};
+use arm_sysregs::{IccSreEl3, MpidrEl1};
 #[cfg(feature = "pauth")]
 use core::arch::asm;
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
@@ -190,7 +190,7 @@ unsafe impl Platform for Qemu {
     fn init_apkey() -> u128 {
         let return_addr: u64;
         let frame_addr: u64;
-        let cntpct = read_cntpct_el0();
+        let cntpct = read_cntpct_el0().physicalcount();
 
         // SAFETY: We are just reading general purpose registers.
         unsafe {
@@ -345,7 +345,7 @@ unsafe impl Platform for Qemu {
             include_str!("../arm_macros_purge.S"),
             include_str!("../asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,
-            ICC_SRE_SRE_BIT = const IccSre::SRE.bits(),
+            ICC_SRE_SRE_BIT = const IccSreEl3::SRE.bits(),
             GICD_BASE = const GICD_BASE,
             GICD_ISPENDR = const offset_of!(Gicd, ispendr),
         );

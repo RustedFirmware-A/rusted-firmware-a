@@ -8,19 +8,21 @@ use crate::{
     context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, World},
     platform::{Platform, PlatformImpl, exception_free},
 };
-use arm_sysregs::{read_vdisr_el2, read_vsesr_el2, write_vdisr_el2, write_vsesr_el2};
+use arm_sysregs::{
+    VdisrEl2, VsesrEl2, read_vdisr_el2, read_vsesr_el2, write_vdisr_el2, write_vsesr_el2,
+};
 use core::cell::RefCell;
 use percore::{ExceptionLock, PerCore};
 
 struct RasCpuContext {
-    vdisr_el2: u64,
-    vsesr_el2: u64,
+    vdisr_el2: VdisrEl2,
+    vsesr_el2: VsesrEl2,
 }
 
 impl RasCpuContext {
     const EMPTY: Self = Self {
-        vdisr_el2: 0,
-        vsesr_el2: 0,
+        vdisr_el2: VdisrEl2::empty(),
+        vsesr_el2: VsesrEl2::empty(),
     };
 }
 

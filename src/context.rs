@@ -13,37 +13,41 @@ use crate::{
     smccc::SmcReturn,
 };
 use arm_psci::EntryPoint;
+#[cfg(feature = "sel2")]
 use arm_sysregs::{
-    CptrEl3, Esr, MdcrEl3, Mpam3El3, ScrEl3, Spsr, read_mpidr_el1, write_cptr_el3, write_mpam3_el3,
-    write_scr_el3,
+    CnthctlEl2, CntvoffEl2, ContextidrEl2, CptrEl2, ElrEl2, EsrEl2, FarEl2, HcrEl2, HpfarEl2,
+    IccSreEl2, IchHcrEl2, IchVmcrEl2, MairEl2, MdcrEl2, SctlrEl2, SpEl2, SpsrEl2, TcrEl2, TpidrEl2,
+    Ttbr0El2, Ttbr1El2, VbarEl2, VmpidrEl2, VpidrEl2, VtcrEl2, VttbrEl2, read_actlr_el2,
+    read_afsr0_el2, read_afsr1_el2, read_amair_el2, read_cnthctl_el2, read_cntvoff_el2,
+    read_contextidr_el2, read_cptr_el2, read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2,
+    read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
+    read_ich_vmcr_el2, read_id_aa64mmfr1_el1, read_mair_el2, read_mdcr_el2, read_sctlr_el2,
+    read_sp_el2, read_spsr_el2, read_tcr_el2, read_tpidr_el2, read_ttbr0_el2, read_ttbr1_el2,
+    read_vbar_el2, read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2, read_vttbr_el2, write_actlr_el2,
+    write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2, write_cntvoff_el2,
+    write_contextidr_el2, write_cptr_el2, write_elr_el2, write_esr_el2, write_far_el2,
+    write_hacr_el2, write_hcr_el2, write_hpfar_el2, write_hstr_el2, write_icc_sre_el2,
+    write_ich_hcr_el2, write_ich_vmcr_el2, write_mair_el2, write_mdcr_el2, write_sctlr_el2,
+    write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_ttbr1_el2,
+    write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
 };
 #[cfg(not(feature = "sel2"))]
 use arm_sysregs::{
-    CsselrEl1, SctlrEl1, read_actlr_el1, read_afsr0_el1, read_afsr1_el1, read_amair_el1,
-    read_contextidr_el1, read_cpacr_el1, read_csselr_el1, read_elr_el1, read_esr_el1, read_far_el1,
-    read_mair_el1, read_mdccint_el1, read_mdscr_el1, read_par_el1, read_sctlr_el1, read_sp_el1,
-    read_spsr_el1, read_tcr_el1, read_tpidr_el0, read_tpidr_el1, read_tpidrro_el0, read_ttbr0_el1,
-    read_ttbr1_el1, read_vbar_el1, write_actlr_el1, write_afsr0_el1, write_afsr1_el1,
-    write_amair_el1, write_contextidr_el1, write_cpacr_el1, write_csselr_el1, write_elr_el1,
-    write_esr_el1, write_far_el1, write_mair_el1, write_mdccint_el1, write_mdscr_el1,
-    write_par_el1, write_sctlr_el1, write_sp_el1, write_spsr_el1, write_tcr_el1, write_tpidr_el0,
-    write_tpidr_el1, write_tpidrro_el0, write_ttbr0_el1, write_ttbr1_el1, write_vbar_el1,
+    ContextidrEl1, CpacrEl1, CsselrEl1, ElrEl1, EsrEl1, FarEl1, MairEl1, MdccintEl1, MdscrEl1,
+    ParEl1, SctlrEl1, SpEl1, SpsrEl1, TcrEl1, TpidrEl0, TpidrEl1, TpidrroEl0, Ttbr0El1, Ttbr1El1,
+    VbarEl1, read_actlr_el1, read_afsr0_el1, read_afsr1_el1, read_amair_el1, read_contextidr_el1,
+    read_cpacr_el1, read_csselr_el1, read_elr_el1, read_esr_el1, read_far_el1, read_mair_el1,
+    read_mdccint_el1, read_mdscr_el1, read_par_el1, read_sctlr_el1, read_sp_el1, read_spsr_el1,
+    read_tcr_el1, read_tpidr_el0, read_tpidr_el1, read_tpidrro_el0, read_ttbr0_el1, read_ttbr1_el1,
+    read_vbar_el1, write_actlr_el1, write_afsr0_el1, write_afsr1_el1, write_amair_el1,
+    write_contextidr_el1, write_cpacr_el1, write_csselr_el1, write_elr_el1, write_esr_el1,
+    write_far_el1, write_mair_el1, write_mdccint_el1, write_mdscr_el1, write_par_el1,
+    write_sctlr_el1, write_sp_el1, write_spsr_el1, write_tcr_el1, write_tpidr_el0, write_tpidr_el1,
+    write_tpidrro_el0, write_ttbr0_el1, write_ttbr1_el1, write_vbar_el1,
 };
-#[cfg(feature = "sel2")]
 use arm_sysregs::{
-    HcrEl2, IccSre, MdcrEl2, SctlrEl2, read_actlr_el2, read_afsr0_el2, read_afsr1_el2,
-    read_amair_el2, read_cnthctl_el2, read_cntvoff_el2, read_contextidr_el2, read_cptr_el2,
-    read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2, read_hcr_el2, read_hpfar_el2,
-    read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2, read_ich_vmcr_el2, read_id_aa64mmfr1_el1,
-    read_mair_el2, read_mdcr_el2, read_sctlr_el2, read_sp_el2, read_spsr_el2, read_tcr_el2,
-    read_tpidr_el2, read_ttbr0_el2, read_ttbr1_el2, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2,
-    read_vtcr_el2, read_vttbr_el2, write_actlr_el2, write_afsr0_el2, write_afsr1_el2,
-    write_amair_el2, write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el2, write_cptr_el2,
-    write_elr_el2, write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2, write_hpfar_el2,
-    write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_ich_vmcr_el2, write_mair_el2,
-    write_mdcr_el2, write_sctlr_el2, write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2,
-    write_ttbr0_el2, write_ttbr1_el2, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2,
-    write_vtcr_el2, write_vttbr_el2,
+    CptrEl3, EsrEl3, MdcrEl3, Mpam3El3, ScrEl3, SpsrEl3, read_mpidr_el1, write_cptr_el3,
+    write_mpam3_el3, write_scr_el3,
 };
 use core::{
     cell::{RefCell, RefMut},
@@ -199,12 +203,12 @@ impl PAuthRegs {
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
 pub struct El3State {
-    esr_el3: Esr,
+    esr_el3: EsrEl3,
     // The runtime_sp and runtime_lr fields must be adjacent, because assembly code uses ldp/stp
     // instructions to load/store these together.
     runtime_sp: u64,
     runtime_lr: u64,
-    pub spsr_el3: Spsr,
+    pub spsr_el3: SpsrEl3,
     pub elr_el3: usize,
     pmcr_el0: u64,
     saved_elr_el3: u64,
@@ -214,10 +218,10 @@ pub struct El3State {
 
 impl El3State {
     const EMPTY: Self = Self {
-        esr_el3: Esr::empty(),
+        esr_el3: EsrEl3::empty(),
         runtime_sp: 0,
         runtime_lr: 0,
-        spsr_el3: Spsr::empty(),
+        spsr_el3: SpsrEl3::empty(),
         elr_el3: 0,
         pmcr_el0: 0,
         saved_elr_el3: 0,
@@ -231,59 +235,59 @@ impl El3State {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg(not(feature = "sel2"))]
 struct El1Sysregs {
-    spsr_el1: Spsr,
-    elr_el1: usize,
+    spsr_el1: SpsrEl1,
+    elr_el1: ElrEl1,
     sctlr_el1: SctlrEl1,
-    tcr_el1: u64,
-    cpacr_el1: u64,
+    tcr_el1: TcrEl1,
+    cpacr_el1: CpacrEl1,
     csselr_el1: CsselrEl1,
-    sp_el1: u64,
-    esr_el1: Esr,
-    ttbr0_el1: u64,
-    ttbr1_el1: u64,
-    mair_el1: u64,
+    sp_el1: SpEl1,
+    esr_el1: EsrEl1,
+    ttbr0_el1: Ttbr0El1,
+    ttbr1_el1: Ttbr1El1,
+    mair_el1: MairEl1,
     amair_el1: u64,
     actlr_el1: u64,
-    tpidr_el1: u64,
-    tpidr_el0: u64,
-    tpidrro_el0: u64,
-    par_el1: u64,
-    far_el1: u64,
+    tpidr_el1: TpidrEl1,
+    tpidr_el0: TpidrEl0,
+    tpidrro_el0: TpidrroEl0,
+    par_el1: ParEl1,
+    far_el1: FarEl1,
     afsr0_el1: u64,
     afsr1_el1: u64,
-    contextidr_el1: u64,
-    vbar_el1: usize,
-    mdccint_el1: u64,
-    mdscr_el1: u64,
+    contextidr_el1: ContextidrEl1,
+    vbar_el1: VbarEl1,
+    mdccint_el1: MdccintEl1,
+    mdscr_el1: MdscrEl1,
 }
 
 #[cfg(not(feature = "sel2"))]
 impl El1Sysregs {
     const EMPTY: Self = Self {
-        spsr_el1: Spsr::empty(),
-        elr_el1: 0,
+        spsr_el1: SpsrEl1::empty(),
+        elr_el1: ElrEl1::empty(),
         sctlr_el1: SctlrEl1::empty(),
-        tcr_el1: 0,
-        cpacr_el1: 0,
+        tcr_el1: TcrEl1::empty(),
+        cpacr_el1: CpacrEl1::empty(),
         csselr_el1: CsselrEl1::empty(),
-        sp_el1: 0,
-        esr_el1: Esr::empty(),
-        ttbr0_el1: 0,
-        ttbr1_el1: 0,
-        mair_el1: 0,
+        sp_el1: SpEl1::empty(),
+        esr_el1: EsrEl1::empty(),
+        ttbr0_el1: Ttbr0El1::empty(),
+        ttbr1_el1: Ttbr1El1::empty(),
+        mair_el1: MairEl1::empty(),
         amair_el1: 0,
         actlr_el1: 0,
-        tpidr_el1: 0,
-        tpidr_el0: 0,
-        tpidrro_el0: 0,
-        par_el1: 0,
-        far_el1: 0,
+        tpidr_el1: TpidrEl1::empty(),
+        tpidr_el0: TpidrEl0::empty(),
+        tpidrro_el0: TpidrroEl0::empty(),
+        par_el1: ParEl1::empty(),
+        far_el1: FarEl1::empty(),
         afsr0_el1: 0,
         afsr1_el1: 0,
-        contextidr_el1: 0,
-        vbar_el1: 0,
-        mdccint_el1: 0,
-        mdscr_el1: 0,
+        contextidr_el1: ContextidrEl1::empty(),
+        vbar_el1: VbarEl1::empty(),
+        mdccint_el1: MdccintEl1::empty(),
+        mdscr_el1: MdscrEl1::empty(),
     };
 
     /// Reads the current values from the system registers to save them.
@@ -316,30 +320,33 @@ impl El1Sysregs {
 
     /// Writes the saved register values to the system registers.
     fn restore(&self) {
-        write_spsr_el1(self.spsr_el1);
-        write_elr_el1(self.elr_el1);
-        write_sctlr_el1(self.sctlr_el1);
-        write_tcr_el1(self.tcr_el1);
-        write_cpacr_el1(self.cpacr_el1);
-        write_csselr_el1(self.csselr_el1);
-        write_sp_el1(self.sp_el1);
-        write_esr_el1(self.esr_el1);
-        write_ttbr0_el1(self.ttbr0_el1);
-        write_ttbr1_el1(self.ttbr1_el1);
-        write_mair_el1(self.mair_el1);
-        write_amair_el1(self.amair_el1);
-        write_actlr_el1(self.actlr_el1);
-        write_tpidr_el1(self.tpidr_el1);
-        write_tpidr_el0(self.tpidr_el0);
-        write_tpidrro_el0(self.tpidrro_el0);
-        write_par_el1(self.par_el1);
-        write_far_el1(self.far_el1);
-        write_afsr0_el1(self.afsr0_el1);
-        write_afsr1_el1(self.afsr1_el1);
-        write_contextidr_el1(self.contextidr_el1);
-        write_vbar_el1(self.vbar_el1);
-        write_mdccint_el1(self.mdccint_el1);
-        write_mdscr_el1(self.mdscr_el1);
+        // SAFETY: We're restoring the values previously saved, so they must be valid.
+        unsafe {
+            write_spsr_el1(self.spsr_el1);
+            write_elr_el1(self.elr_el1);
+            write_sctlr_el1(self.sctlr_el1);
+            write_tcr_el1(self.tcr_el1);
+            write_cpacr_el1(self.cpacr_el1);
+            write_csselr_el1(self.csselr_el1);
+            write_sp_el1(self.sp_el1);
+            write_esr_el1(self.esr_el1);
+            write_ttbr0_el1(self.ttbr0_el1);
+            write_ttbr1_el1(self.ttbr1_el1);
+            write_mair_el1(self.mair_el1);
+            write_amair_el1(self.amair_el1);
+            write_actlr_el1(self.actlr_el1);
+            write_tpidr_el1(self.tpidr_el1);
+            write_tpidr_el0(self.tpidr_el0);
+            write_tpidrro_el0(self.tpidrro_el0);
+            write_par_el1(self.par_el1);
+            write_far_el1(self.far_el1);
+            write_afsr0_el1(self.afsr0_el1);
+            write_afsr1_el1(self.afsr1_el1);
+            write_contextidr_el1(self.contextidr_el1);
+            write_vbar_el1(self.vbar_el1);
+            write_mdccint_el1(self.mdccint_el1);
+            write_mdscr_el1(self.mdscr_el1);
+        }
     }
 }
 
@@ -352,34 +359,34 @@ pub struct El2Sysregs {
     afsr0_el2: u64,
     afsr1_el2: u64,
     amair_el2: u64,
-    cnthctl_el2: u64,
-    cntvoff_el2: u64,
-    contextidr_el2: u64,
-    cptr_el2: u64,
-    elr_el2: usize,
-    esr_el2: Esr,
-    far_el2: u64,
+    cnthctl_el2: CnthctlEl2,
+    cntvoff_el2: CntvoffEl2,
+    contextidr_el2: ContextidrEl2,
+    cptr_el2: CptrEl2,
+    elr_el2: ElrEl2,
+    esr_el2: EsrEl2,
+    far_el2: FarEl2,
     hacr_el2: u64,
     hcr_el2: HcrEl2,
-    hpfar_el2: u64,
+    hpfar_el2: HpfarEl2,
     hstr_el2: u64,
-    icc_sre_el2: IccSre,
-    ich_hcr_el2: u64,
-    ich_vmcr_el2: u64,
-    mair_el2: u64,
+    icc_sre_el2: IccSreEl2,
+    ich_hcr_el2: IchHcrEl2,
+    ich_vmcr_el2: IchVmcrEl2,
+    mair_el2: MairEl2,
     pub mdcr_el2: MdcrEl2,
     sctlr_el2: SctlrEl2,
-    spsr_el2: Spsr,
-    sp_el2: u64,
-    tcr_el2: u64,
-    tpidr_el2: u64,
-    ttbr0_el2: u64,
-    ttbr1_el2: u64,
-    vbar_el2: usize,
-    vmpidr_el2: u64,
-    vpidr_el2: u64,
-    vtcr_el2: u64,
-    vttbr_el2: u64,
+    spsr_el2: SpsrEl2,
+    sp_el2: SpEl2,
+    tcr_el2: TcrEl2,
+    tpidr_el2: TpidrEl2,
+    ttbr0_el2: Ttbr0El2,
+    ttbr1_el2: Ttbr1El2,
+    vbar_el2: VbarEl2,
+    vmpidr_el2: VmpidrEl2,
+    vpidr_el2: VpidrEl2,
+    vtcr_el2: VtcrEl2,
+    vttbr_el2: VttbrEl2,
 }
 
 #[cfg(feature = "sel2")]
@@ -389,35 +396,35 @@ impl El2Sysregs {
         afsr0_el2: 0,
         afsr1_el2: 0,
         amair_el2: 0,
-        cnthctl_el2: 0,
-        cntvoff_el2: 0,
-        contextidr_el2: 0,
-        cptr_el2: 0,
-        elr_el2: 0,
-        esr_el2: Esr::empty(),
-        far_el2: 0,
+        cnthctl_el2: CnthctlEl2::empty(),
+        cntvoff_el2: CntvoffEl2::empty(),
+        contextidr_el2: ContextidrEl2::empty(),
+        cptr_el2: CptrEl2::empty(),
+        elr_el2: ElrEl2::empty(),
+        esr_el2: EsrEl2::empty(),
+        far_el2: FarEl2::empty(),
         hacr_el2: 0,
         hcr_el2: HcrEl2::empty(),
-        hpfar_el2: 0,
+        hpfar_el2: HpfarEl2::empty(),
         hstr_el2: 0,
-        icc_sre_el2: IccSre::empty(),
-        ich_hcr_el2: 0,
-        ich_vmcr_el2: 0,
-        mair_el2: 0,
+        icc_sre_el2: IccSreEl2::empty(),
+        ich_hcr_el2: IchHcrEl2::empty(),
+        ich_vmcr_el2: IchVmcrEl2::empty(),
+        mair_el2: MairEl2::empty(),
         // MDCR_EL2 is initialized dynamically by PMU setup code.
         mdcr_el2: MdcrEl2::empty(),
         sctlr_el2: SctlrEl2::empty(),
-        spsr_el2: Spsr::empty(),
-        sp_el2: 0,
-        tcr_el2: 0,
-        tpidr_el2: 0,
-        ttbr0_el2: 0,
-        ttbr1_el2: 0,
-        vbar_el2: 0,
-        vmpidr_el2: 0,
-        vpidr_el2: 0,
-        vtcr_el2: 0,
-        vttbr_el2: 0,
+        spsr_el2: SpsrEl2::empty(),
+        sp_el2: SpEl2::empty(),
+        tcr_el2: TcrEl2::empty(),
+        tpidr_el2: TpidrEl2::empty(),
+        ttbr0_el2: Ttbr0El2::empty(),
+        ttbr1_el2: Ttbr1El2::empty(),
+        vbar_el2: VbarEl2::empty(),
+        vmpidr_el2: VmpidrEl2::empty(),
+        vpidr_el2: VpidrEl2::empty(),
+        vtcr_el2: VtcrEl2::empty(),
+        vttbr_el2: VttbrEl2::empty(),
     };
 
     /// Reads the current values from the system registers to save them.
@@ -460,36 +467,39 @@ impl El2Sysregs {
 
     /// Writes the saved register values to the system registers.
     fn restore(&self) {
-        write_actlr_el2(self.actlr_el2);
-        write_afsr0_el2(self.afsr0_el2);
-        write_afsr1_el2(self.afsr1_el2);
-        write_amair_el2(self.amair_el2);
-        write_cnthctl_el2(self.cnthctl_el2);
-        write_cntvoff_el2(self.cntvoff_el2);
-        write_cptr_el2(self.cptr_el2);
-        write_elr_el2(self.elr_el2);
-        write_esr_el2(self.esr_el2);
-        write_far_el2(self.far_el2);
-        write_hacr_el2(self.hacr_el2);
-        write_hcr_el2(self.hcr_el2);
-        write_hpfar_el2(self.hpfar_el2);
-        write_hstr_el2(self.hstr_el2);
-        write_icc_sre_el2(self.icc_sre_el2);
-        write_ich_hcr_el2(self.ich_hcr_el2);
-        write_ich_vmcr_el2(self.ich_vmcr_el2);
-        write_mair_el2(self.mair_el2);
-        write_mdcr_el2(self.mdcr_el2);
-        write_sctlr_el2(self.sctlr_el2);
-        write_spsr_el2(self.spsr_el2);
-        write_sp_el2(self.sp_el2);
-        write_tcr_el2(self.tcr_el2);
-        write_tpidr_el2(self.tpidr_el2);
-        write_ttbr0_el2(self.ttbr0_el2);
-        write_vbar_el2(self.vbar_el2);
-        write_vmpidr_el2(self.vmpidr_el2);
-        write_vpidr_el2(self.vpidr_el2);
-        write_vtcr_el2(self.vtcr_el2);
-        write_vttbr_el2(self.vttbr_el2);
+        // SAFETY: We're restoring the values previously saved, so they must be valid.
+        unsafe {
+            write_actlr_el2(self.actlr_el2);
+            write_afsr0_el2(self.afsr0_el2);
+            write_afsr1_el2(self.afsr1_el2);
+            write_amair_el2(self.amair_el2);
+            write_cnthctl_el2(self.cnthctl_el2);
+            write_cntvoff_el2(self.cntvoff_el2);
+            write_cptr_el2(self.cptr_el2);
+            write_elr_el2(self.elr_el2);
+            write_esr_el2(self.esr_el2);
+            write_far_el2(self.far_el2);
+            write_hacr_el2(self.hacr_el2);
+            write_hcr_el2(self.hcr_el2);
+            write_hpfar_el2(self.hpfar_el2);
+            write_hstr_el2(self.hstr_el2);
+            write_icc_sre_el2(self.icc_sre_el2);
+            write_ich_hcr_el2(self.ich_hcr_el2);
+            write_ich_vmcr_el2(self.ich_vmcr_el2);
+            write_mair_el2(self.mair_el2);
+            write_mdcr_el2(self.mdcr_el2);
+            write_sctlr_el2(self.sctlr_el2);
+            write_spsr_el2(self.spsr_el2);
+            write_sp_el2(self.sp_el2);
+            write_tcr_el2(self.tcr_el2);
+            write_tpidr_el2(self.tpidr_el2);
+            write_ttbr0_el2(self.ttbr0_el2);
+            write_vbar_el2(self.vbar_el2);
+            write_vmpidr_el2(self.vmpidr_el2);
+            write_vpidr_el2(self.vpidr_el2);
+            write_vtcr_el2(self.vtcr_el2);
+            write_vttbr_el2(self.vttbr_el2);
+        }
 
         if read_id_aa64mmfr1_el1().is_feat_vhe_present() {
             self.restore_vhe();
@@ -503,12 +513,15 @@ impl El2Sysregs {
 
     fn restore_vhe(&self) {
         write_contextidr_el2(self.contextidr_el2);
-        write_ttbr1_el2(self.ttbr1_el2);
+        // SAFETY: We're restoring the value previously saved, so it must be valid.
+        unsafe {
+            write_ttbr1_el2(self.ttbr1_el2);
+        }
     }
 }
 
 /// Registers whose values can be shared across CPUs.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 #[repr(C)]
 pub struct PerWorldContext {
     pub cptr_el3: CptrEl3,
@@ -520,14 +533,30 @@ pub struct PerWorldContext {
     pub scr_el3: ScrEl3,
 }
 
+impl Default for PerWorldContext {
+    fn default() -> Self {
+        Self {
+            cptr_el3: CptrEl3::empty(),
+            mpam3_el3: Mpam3El3::empty(),
+            scr_el3: ScrEl3::empty(),
+        }
+    }
+}
+
 impl PerWorldContext {
     /// Restores world-specific EL3 system register configuration.
     fn restore_el3_sysregs(&self) {
         if Mpam.is_present() {
-            write_mpam3_el3(self.mpam3_el3);
+            // SAFETY: The value initialised above or from the CPU extension should be valid.
+            unsafe {
+                write_mpam3_el3(self.mpam3_el3);
+            }
         }
 
-        write_cptr_el3(self.cptr_el3);
+        // SAFETY: The value initialised above or from CPU extensions should be valid.
+        unsafe {
+            write_cptr_el3(self.cptr_el3);
+        }
         isb();
     }
 
@@ -715,7 +744,11 @@ pub fn set_initial_world(world: World) {
 
         // This must be initialised before the EL2 system registers are written to, to avoid an
         // exception.
-        write_scr_el3(world_context(world).scr_el3);
+        // SAFETY: This only affects lower ELs, and the value we've selected should be consistent
+        // with how we handle traps.
+        unsafe {
+            write_scr_el3(world_context(world).scr_el3);
+        }
         isb();
 
         restore_world(world, context);
@@ -793,16 +826,23 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     context.el3_state.elr_el3 = entry_point.pc;
     context.gpregs.registers[..entry_point.args.len()].copy_from_slice(&entry_point.args);
 
-    context.el3_state.spsr_el3 = Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H;
+    context.el3_state.spsr_el3 =
+        SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H;
 
     #[cfg(feature = "sel2")]
     {
         // TODO: Initialise the rest of the context.el2_sysregs too.
-        context.el2_sysregs.icc_sre_el2 = IccSre::DIB | IccSre::DFB | IccSre::EN | IccSre::SRE;
+        context.el2_sysregs.icc_sre_el2 =
+            IccSreEl2::DIB | IccSreEl2::DFB | IccSreEl2::ENABLE | IccSreEl2::SRE;
     }
     #[cfg(not(feature = "sel2"))]
     {
-        context.el1_sysregs.sctlr_el1 = SctlrEl1::RES1;
+        context.el1_sysregs.sctlr_el1 = SctlrEl1::LSMAOE
+            | SctlrEl1::NTLSMD
+            | SctlrEl1::SPAN
+            | SctlrEl1::EIS
+            | SctlrEl1::TSCXT
+            | SctlrEl1::EOS;
     }
 
     // Initialise MDCR_EL3, setting all fields rather than relying on hw.
@@ -856,7 +896,8 @@ fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 
     #[cfg(not(feature = "sel2"))]
     {
-        context.el3_state.spsr_el3 = Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL1H;
+        context.el3_state.spsr_el3 =
+            SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL1H;
     }
 
     // Configure CPU extensions for the secure world.
@@ -929,7 +970,7 @@ mod asm {
         platform::plat_my_core_pos,
         smccc::NOT_SUPPORTED,
     };
-    use arm_sysregs::{Dit, Pmcr, StackPointer};
+    use arm_sysregs::{Dit, PmcrEl0, StackPointer};
     use core::{
         arch::global_asm,
         mem::{offset_of, size_of},
@@ -970,7 +1011,7 @@ mod asm {
         ERRATA_SPECULATIVE_AT = const ERRATA_SPECULATIVE_AT as u32,
         DIT_BIT = const Dit::DIT.bits(),
         SCR_EA_BIT = const ScrEl3::EA.bits(),
-        PMCR_EL0_DP_BIT = const Pmcr::DP.bits(),
+        PMCR_EL0_DP_BIT = const PmcrEl0::DP.bits(),
         MODE_SP_EL0 = const StackPointer::El0 as u8,
         MODE_SP_ELX = const StackPointer::ElX as u8,
         SCR_NSE_SHIFT = const 62,

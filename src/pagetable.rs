@@ -18,7 +18,7 @@ use aarch64_paging::{
     mair::{Mair, MairAttribute, NormalMemory},
     paging::{Constraints, MemoryRegion, PageTable, Translation, TranslationRegime, VaRange},
 };
-use arm_sysregs::{SctlrEl3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
+use arm_sysregs::{SctlrEl3, Ttbr0El3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
 use core::{
     fmt::{self, Debug, Formatter},
     ptr::NonNull,
@@ -191,7 +191,7 @@ pub fn init_runtime_mapping() {
         // Safety: The MMU is already enabled with the correct configuration parameters MAIR, TCR.
         // `idmap` provides a valid address to the runtime page tables.
         unsafe {
-            write_ttbr0_el3(idmap.root_address().0);
+            write_ttbr0_el3(Ttbr0El3::from_bits_retain(idmap.root_address().0 as u64));
         }
 
         // Make sure that any entry from the early page table is invalidated. If WXN is not cached,

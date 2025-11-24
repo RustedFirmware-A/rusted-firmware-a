@@ -48,7 +48,7 @@ pub unsafe extern "C" fn secondary_entry() -> ! {
         // grow down so the offset cancels out.
         "adrp x30, {SECONDARY_STACKS}",
         "add x30, x30, :lo12:{SECONDARY_STACKS}",
-        "add x30, x30, x0, lsr #{SECONDARY_STACK_SHIFT}",
+        "add x30, x30, x0, lsl #{SECONDARY_STACK_SHIFT}",
         "mov sp, x30",
 
         // Restore registers x0-x3.

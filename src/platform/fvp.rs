@@ -625,7 +625,8 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
     const MAX_POWER_LEVEL: usize = 2;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::NODE_HW_STATE
-        .union(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND);
+        .union(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND)
+        .union(PsciPlatformOptionalFeatures::OS_INITIATED_MODE);
 
     type PlatformPowerState = FvpPowerState;
 
@@ -653,28 +654,47 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
     /// Based on 6.5 Recommended StateID Encoding
     fn try_parse_power_state(power_state: PowerState) -> Option<PsciCompositePowerState> {
         const POWER_LEVEL_STATE_MASK: u32 = 0x0000_0fff;
+        const ARM_LOCAL_PSTATE_WIDTH: u32 = 4;
+        const ARM_LOCAL_PSTATE_MASK: u32 = (1 << ARM_LOCAL_PSTATE_WIDTH) - 1;
+        // last_at_power_level is encoded in the bits immediately following the state ID bits
+        // for each power level.
+        let last_at_pwr_lvl_shift: u32 =
+            ARM_LOCAL_PSTATE_WIDTH * (Self::MAX_POWER_LEVEL as u32 + 1);
 
-        let states = match power_state {
-            PowerState::StandbyOrRetention(0x01) => [
+        if let PowerState::StandbyOrRetention(0x01) = power_state {
+            return Some(PsciCompositePowerState::new([
                 FvpPowerState::Retention,
                 FvpPowerState::Run,
                 FvpPowerState::Run,
-            ],
-            PowerState::PowerDown(power_downstate) => {
-                match power_downstate & POWER_LEVEL_STATE_MASK {
-                    0x002 => [FvpPowerState::Off, FvpPowerState::Run, FvpPowerState::Run],
-                    0x022 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
-                    // Ensure that the system power domain level is never suspended via PSCI
-                    // CPU_SUSPEND API. System suspend is only supported via PSCI SYSTEM_SUSPEND
-                    // API.
-                    0x222 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
-                    _ => return None,
-                }
-            }
+            ]));
+        }
+
+        let value = match power_state {
+            PowerState::PowerDown(v) => v,
             _ => return None,
         };
 
-        Some(PsciCompositePowerState::new(states))
+        let states = match value & POWER_LEVEL_STATE_MASK {
+            0x002 => [FvpPowerState::Off, FvpPowerState::Run, FvpPowerState::Run],
+            0x022 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
+            // Ensure that the system power domain level is never suspended via PSCI
+            // CPU_SUSPEND API. System suspend is only supported via PSCI SYSTEM_SUSPEND
+            // API.
+            0x222 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
+            _ => return None,
+        };
+
+        let last_at_power_level =
+            ((value >> last_at_pwr_lvl_shift) & ARM_LOCAL_PSTATE_MASK) as usize;
+
+        if last_at_power_level > Self::MAX_POWER_LEVEL {
+            return None;
+        }
+
+        Some(PsciCompositePowerState::new_with_last_power_level(
+            states,
+            last_at_power_level,
+        ))
     }
 
     fn cpu_standby(&self, cpu_state: FvpPowerState) {
@@ -812,6 +832,13 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
         let entrypoint = entry.entry_point_address() as usize;
 
         MemoryMap::DRAM0.contains(&entrypoint) || MemoryMap::DRAM1.contains(&entrypoint)
+    }
+
+    fn power_domain_validate_suspend(
+        &self,
+        _target_state: &PsciCompositePowerState,
+    ) -> Result<(), ErrorCode> {
+        Ok(())
     }
 }
 

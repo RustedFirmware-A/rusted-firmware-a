@@ -26,7 +26,7 @@ use smccc::{
     psci::{self, AffinityState, LowestAffinityLevel},
 };
 
-fn is_osi_supported() -> Result<bool, ()> {
+pub fn is_osi_supported() -> Result<bool, ()> {
     let suspend_features = log_error(
         "PSCI_FEATURES SMC call with CPU_SUSPEND_64 argument failed",
         psci::psci_features::<Smc>(psci::PSCI_CPU_SUSPEND_64),

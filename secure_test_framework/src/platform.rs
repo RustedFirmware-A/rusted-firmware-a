@@ -60,6 +60,70 @@ pub unsafe trait Platform {
     /// This is not quite the inverse function of `core_position`, as it doesn't include the MT and
     /// U bits which `core_position` may expect.
     fn psci_mpidr_for_core(core_index: usize) -> u64;
+
+    /// Returns the topology description for OSI tests.
+    ///
+    /// The returned slice should contain the core count for each cluster.
+    fn osi_test_topology() -> &'static [usize] {
+        unimplemented!("OSI topology not implemented for this platform")
+    }
+
+    /// Constructs a platform-specific power state value for OSI tests.
+    ///
+    /// This combines the `state_id` (representing the type of state, e.g., power down or standby)
+    /// and the `last_level` (the highest power level that will lose power) into a composite
+    /// value expected by the `CPU_SUSPEND` SMC.
+    fn make_osi_power_state(_state_id: u32, _last_level: u32) -> u32 {
+        unimplemented!("OSI power state construction not implemented")
+    }
+
+    /// Returns a list of invalid power states to test against.
+    ///
+    /// These states are used to verify that the implementation correctly rejects invalid
+    /// parameters in OSI mode.
+    fn osi_invalid_power_states() -> &'static [u32] {
+        &[]
+    }
+
+    /// Returns the State ID for a core power down state (Affinity Level 0).
+    fn osi_state_id_core_power_down() -> u32 {
+        unimplemented!("OSI state ID not implemented")
+    }
+
+    /// Returns the State ID for a cluster power down state (Affinity Level 1).
+    fn osi_state_id_cluster_power_down() -> u32 {
+        unimplemented!("OSI state ID not implemented")
+    }
+
+    /// Returns the State ID for a system power down state (Affinity Level 2+).
+    fn osi_state_id_system_power_down() -> u32 {
+        unimplemented!("OSI state ID not implemented")
+    }
+
+    /// Returns the State ID for a core standby/retention state.
+    fn osi_state_id_core_standby() -> u32 {
+        unimplemented!("OSI state ID not implemented")
+    }
+
+    /// Returns the duration in timer ticks for which the test should suspend the CPU.
+    ///
+    /// This value is used to program the wake-up timer.
+    fn osi_suspend_duration_ticks() -> u32 {
+        200_000
+    }
+
+    /// Returns the delay in microseconds to wait before a secondary core enters suspend.
+    ///
+    /// This delay is used in tests to ensure that the primary core has time to update
+    /// coordination status or to stagger the suspend requests of multiple cores.
+    fn osi_suspend_entry_delay_us() -> u64 {
+        5_000
+    }
+
+    /// Returns true if the given core should be woken up for OSI tests.
+    fn osi_should_wake_core(_core_index: usize) -> bool {
+        true
+    }
 }
 
 // SAFETY: `Platform::core_position` is guaranteed to return a unique value for any valid MPIDR

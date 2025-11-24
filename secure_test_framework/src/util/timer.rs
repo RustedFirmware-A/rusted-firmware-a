@@ -44,7 +44,6 @@ pub trait Timer {
 pub struct NonSecureTimer;
 
 impl NonSecureTimer {
-    #[allow(dead_code)]
     pub fn delay_us(us: u64) {
         let freq = read_cntfrq_el0().clockfreq();
         if freq == 0 {

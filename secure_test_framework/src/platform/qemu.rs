@@ -14,6 +14,7 @@ use arm_gic::gicv3::{
     registers::{Gicd, GicrSgi},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
+use arm_psci::PowerState;
 use arm_sysregs::MpidrEl1;
 use core::{arch::global_asm, fmt::Write, ptr::NonNull};
 use spin::{
@@ -35,6 +36,14 @@ const MAX_CPUS_PER_CLUSTER: usize = 1 << PLATFORM_CPU_PER_CLUSTER_SHIFT;
 static UART: Once<SpinMutex<Uart>> = Once::new();
 
 pub struct Qemu;
+
+impl Qemu {
+    const LAST_AT_POWER_LEVEL_SHIFT: u32 = 12;
+    const STATE_ID_CORE_POWER_DOWN: u32 = 0x002;
+    const STATE_ID_CLUSTER_POWER_DOWN: u32 = 0x022;
+    const STATE_ID_SYSTEM_POWER_DOWN: u32 = 0x222;
+    const STATE_ID_CORE_STANDBY: u32 = 0x01;
+}
 
 // SAFETY: `core_position` is indeed a naked function, doesn't access any memory, only clobbers x0
 // and x1, and returns a unique core index as long as PLATFORM_CPU_PER_CLUSTER_SHIFT is correct.
@@ -88,6 +97,47 @@ unsafe impl Platform for Qemu {
         let aff0 = (core_index % MAX_CPUS_PER_CLUSTER) as u64;
         let aff1 = (core_index / MAX_CPUS_PER_CLUSTER) as u64;
         aff0 | aff1 << MpidrEl1::AFFINITY_BITS
+    }
+
+    fn osi_test_topology() -> &'static [usize] {
+        &[MAX_CPUS_PER_CLUSTER; CLUSTER_COUNT]
+    }
+
+    fn make_osi_power_state(state_id: u32, last_level: u32) -> u32 {
+        if state_id == Self::STATE_ID_CORE_STANDBY {
+            u32::from(PowerState::StandbyOrRetention(state_id))
+        } else {
+            u32::from(PowerState::PowerDown(
+                (last_level << Self::LAST_AT_POWER_LEVEL_SHIFT) | state_id,
+            ))
+        }
+    }
+
+    fn osi_invalid_power_states() -> &'static [u32] {
+        static INVALID_STATES: Once<[u32; 1]> = Once::new();
+
+        INVALID_STATES.call_once(|| {
+            [
+                // `last_level` higher than MAX_POWER_LEVEL (2).
+                Self::make_osi_power_state(Self::STATE_ID_CORE_POWER_DOWN, 3),
+            ]
+        })
+    }
+
+    fn osi_state_id_core_power_down() -> u32 {
+        Self::STATE_ID_CORE_POWER_DOWN
+    }
+
+    fn osi_state_id_cluster_power_down() -> u32 {
+        Self::STATE_ID_CLUSTER_POWER_DOWN
+    }
+
+    fn osi_state_id_system_power_down() -> u32 {
+        Self::STATE_ID_SYSTEM_POWER_DOWN
+    }
+
+    fn osi_state_id_core_standby() -> u32 {
+        Self::STATE_ID_CORE_STANDBY
     }
 }
 

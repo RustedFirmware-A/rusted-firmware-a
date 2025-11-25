@@ -9,6 +9,7 @@ use crate::{
     cpu::{Cpu, define_cpu_ops},
     cpu_extensions::CpuExtension,
     dram::const_zeroed,
+    errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig},
     logger::{self, LogSink},
     pagetable::{
@@ -50,6 +51,7 @@ const CORES_PER_CLUSTER: usize = 3;
 const CORES_PER_CLUSTER_LAST: usize = 4;
 
 define_early_mapping!([]);
+define_errata_list!();
 
 static FAKE_GIC: SpinMutex<FakeGic> = SpinMutex::new(const_zeroed());
 

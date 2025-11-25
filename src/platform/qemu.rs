@@ -10,6 +10,7 @@ use crate::{
     cpu_extensions::simd::Simd,
     debug::DEBUG,
     dram::zeroed_mut,
+    errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
     naked_asm,
@@ -105,6 +106,7 @@ zeroed_mut! {
 }
 
 define_cpu_ops!(QemuMax);
+define_errata_list!();
 
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;

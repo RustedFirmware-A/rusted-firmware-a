@@ -9,7 +9,8 @@ macro_rules! select_platform {
 
         #[cfg(platform = $condition)]
         pub use $mod::$sub::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, $plat_impl as PlatformImpl,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
+            $plat_impl as PlatformImpl,
         };
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
@@ -18,7 +19,8 @@ macro_rules! select_platform {
 
         #[cfg(platform = $condition)]
         pub use $mod::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, $plat_impl as PlatformImpl,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
+            $plat_impl as PlatformImpl,
         };
     };
     (test, $mod:ident::$plat_impl:ident) => {
@@ -27,7 +29,8 @@ macro_rules! select_platform {
 
         #[cfg(test)]
         pub use $mod::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, $plat_impl as PlatformImpl,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
+            $plat_impl as PlatformImpl,
         };
     };
 }

@@ -169,11 +169,9 @@ unsafe impl Platform for Qemu {
     }
 
     unsafe fn create_gic() -> Gic<'static> {
-        // Safety: `BASE_GICD_BASE` is a unique pointer to the Qemu's GICD register block.
-        let gicd = unsafe {
-            UniqueMmioPointer::new(NonNull::new(GICD_BASE_ADDRESS as *mut Gicd).unwrap())
-        };
-        let gicr_base = NonNull::new(GICR_BASE_ADDRESS as *mut GicrSgi).unwrap();
+        // Safety: `GICD_BASE_ADDRESS` is a unique pointer to the Qemu's GICD register block.
+        let gicd = unsafe { UniqueMmioPointer::new(NonNull::new(GICD_BASE_ADDRESS).unwrap()) };
+        let gicr_base = NonNull::new(GICR_BASE_ADDRESS).unwrap();
 
         // Safety: `gicr_base` points to a continuously mapped GIC redistributor memory area until
         // the last redistributor block. There are no other references to this address range.

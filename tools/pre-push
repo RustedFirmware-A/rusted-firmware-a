@@ -46,6 +46,7 @@ for platform in "${all_platforms[@]}"; do
         done
     done
     must make PLAT="$platform" clippy
+    must make PLAT="$platform" cargo-doc
 done
 
 must cargo vet

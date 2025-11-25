@@ -104,7 +104,7 @@ clippy-test:
 	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --features "$(FEATURES)"
 
 cargo-doc:
-	RUSTDOCFLAGS="-D warnings --cfg platform=\"${PLAT}\"" RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo doc --target $(TARGET) --no-deps  \
+	RUSTDOCFLAGS="-D warnings --cfg platform=\"${PLAT}\"" $(TARGET_CARGO) doc --target $(TARGET) --no-deps  \
 	--features "$(FEATURES)"
 
 clippy:

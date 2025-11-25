@@ -282,8 +282,7 @@ pub(crate) use define_early_mapping;
 #[cfg(all(target_arch = "aarch64", not(test)))]
 /// Builds the early page tables from `EARLY_PAGE_TABLE_RANGES`.
 #[unsafe(naked)]
-#[unsafe(no_mangle)]
-extern "C" fn init_early_page_tables() {
+pub extern "C" fn init_early_page_tables() {
     use crate::naked_asm;
     use core::mem::offset_of;
 

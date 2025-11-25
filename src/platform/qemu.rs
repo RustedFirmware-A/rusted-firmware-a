@@ -18,7 +18,7 @@ use crate::{
         early_pagetable::{EarlyRegion, define_early_mapping},
         map_region,
     },
-    platform::CpuExtension,
+    platform::{CpuExtension, plat_my_core_pos},
     semihosting::{AdpStopped, semihosting_exit},
     services::{
         arch::WorkaroundSupport,
@@ -442,7 +442,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 #[unsafe(naked)]
 unsafe extern "C" fn plat_secondary_cold_boot_setup() -> ! {
     naked_asm!(
-        "bl  plat_my_core_pos",
+        "bl  {plat_my_core_pos}",
         "lsl x0, x0, #{HOLD_ENTRY_SHIFT}",
         "ldr x2, ={HOLD_BASE}",
     "0:",
@@ -457,10 +457,11 @@ unsafe extern "C" fn plat_secondary_cold_boot_setup() -> ! {
     "1:",
         "wfe",
         "b   0b",
-    TRUSTED_MAILBOX_BASE = const SHARED_RAM_BASE,
-    HOLD_BASE = const HOLD_BASE,
-    HOLD_ENTRY_SHIFT = const HOLD_ENTRY_SHIFT,
-    HOLD_STATE_WAIT = const HOLD_STATE_WAIT,
+        TRUSTED_MAILBOX_BASE = const SHARED_RAM_BASE,
+        HOLD_BASE = const HOLD_BASE,
+        HOLD_ENTRY_SHIFT = const HOLD_ENTRY_SHIFT,
+        HOLD_STATE_WAIT = const HOLD_STATE_WAIT,
+        plat_my_core_pos = sym plat_my_core_pos,
     );
 }
 

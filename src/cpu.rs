@@ -167,7 +167,6 @@ extern "C" fn get_cpu_ops() -> *const CpuOps {
 
 #[cfg(not(test))]
 #[unsafe(naked)]
-#[unsafe(no_mangle)]
 pub extern "C" fn cpu_reset_handler() {
     crate::naked_asm!(
         "mov	x4, x30

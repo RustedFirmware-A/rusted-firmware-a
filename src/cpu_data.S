@@ -21,7 +21,7 @@
  */
 func init_cpu_data_ptr
 	mov	x10, x30
-	bl	plat_my_core_pos
+	bl	{plat_my_core_pos}
 	bl	_cpu_data_by_index
 	msr	tpidr_el3, x0
 	ret	x10

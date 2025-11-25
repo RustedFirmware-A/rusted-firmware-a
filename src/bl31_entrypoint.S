@@ -27,7 +27,7 @@ func bl31_entrypoint
         msr     vbar_el3, x0
         isb
 
-        bl      cpu_reset_handler
+        bl      {cpu_reset_handler}
 
         /* ---------------------------------------------------------------------
          * SCTLR_EL3 has already been initialised - read current value before
@@ -129,20 +129,20 @@ func bl31_entrypoint
         sub     x1, x1, x0
         bl      zeromem
 
-        bl init_early_page_tables
+        bl {init_early_page_tables}
 
         /* Enable MMU using early page tables. This maps BL31 as RWX, thus WXN is cleared. */
         ldr x0, =early_page_table_start
         mov_imm x1, ({SCTLR_M_BIT} | {SCTLR_C_BIT})
         mov x2, {SCTLR_WXN_BIT}
-        bl enable_mmu
+        bl {enable_mmu}
 
         mov     x0, x20
         mov     x1, x21
         mov     x2, x22
         mov     x3, x23
 
-        b       bl31_main
+        b       {bl31_main}
 endfunc bl31_entrypoint
 
 	/* --------------------------------------------------------------------
@@ -156,7 +156,7 @@ func bl31_warm_entrypoint
         msr     vbar_el3, x0
         isb
 
-        bl      cpu_reset_handler
+        bl      {cpu_reset_handler}
 
         /* ---------------------------------------------------------------------
          * SCTLR_EL3 has already been initialised - read current value before
@@ -219,9 +219,9 @@ func bl31_warm_entrypoint
         ldr x0, [x0]
         mov_imm x1, ({SCTLR_M_BIT} | {SCTLR_C_BIT} | {SCTLR_WXN_BIT})
         mov x2, xzr
-        bl enable_mmu
+        bl {enable_mmu}
 
         // TODO: gpt_enable for RME to set up sysregs?
 
-        b  psci_warmboot_entrypoint
+        b  {psci_warmboot_entrypoint}
 endfunc bl31_warm_entrypoint

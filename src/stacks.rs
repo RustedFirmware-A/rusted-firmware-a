@@ -16,7 +16,7 @@ const _: () = assert!(
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
-    use crate::{debug::DEBUG, pagetable::GRANULE_SIZE};
+    use crate::{debug::DEBUG, pagetable::GRANULE_SIZE, platform::plat_my_core_pos};
     use core::arch::global_asm;
 
     global_asm!(
@@ -36,7 +36,7 @@ mod asm {
         ".global	plat_get_my_stack",
             "func plat_get_my_stack",
             "mov	x10, x30",
-            "bl	plat_my_core_pos",
+            "bl	{plat_my_core_pos}",
             "adrp	x2, (platform_normal_stacks + {STACK_SIZE})",
             "add	x2, x2, :lo12:(platform_normal_stacks + {STACK_SIZE})",
             "mov x1, #{STACK_SIZE}",
@@ -85,5 +85,6 @@ mod asm {
         PLATFORM_CORE_COUNT = const PlatformImpl::CORE_COUNT,
         CACHE_WRITEBACK_GRANULE = const PlatformImpl::CACHE_WRITEBACK_GRANULE,
         GRANULE_SIZE = const GRANULE_SIZE,
+        plat_my_core_pos = sym plat_my_core_pos,
     );
 }

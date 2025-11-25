@@ -50,6 +50,8 @@ use crate::{
 use arm_gic::IntId;
 use arm_sysregs::MpidrEl1;
 #[cfg(not(test))]
+pub use asm::plat_my_core_pos;
+#[cfg(not(test))]
 pub use percore::exception_free;
 #[cfg(test)]
 pub use test::exception_free;
@@ -260,8 +262,7 @@ mod asm {
     ///
     /// Clobbers x0-x5.
     #[unsafe(naked)]
-    #[unsafe(no_mangle)]
-    extern "C" fn plat_my_core_pos() -> usize {
+    pub extern "C" fn plat_my_core_pos() -> usize {
         naked_asm!(
             "mrs	x0, mpidr_el1",
             "b	{core_position}",

@@ -36,7 +36,7 @@ use crate::{
 use log::{debug, info};
 use percore::Cores;
 
-#[unsafe(no_mangle)]
+#[cfg_attr(test, allow(unused))]
 extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
     pagetable::init_runtime_mapping();
 
@@ -66,7 +66,7 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
     Services::get().run_loop();
 }
 
-#[unsafe(no_mangle)]
+#[cfg_attr(test, allow(unused))]
 extern "C" fn psci_warmboot_entrypoint() -> ! {
     debug!("Warmboot on core #{}", CoresImpl::core_index());
 
@@ -117,10 +117,13 @@ extern "C" fn psci_warmboot_entrypoint() -> ! {
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
-    use crate::debug::{DEBUG, ENABLE_ASSERTIONS};
+    use crate::{
+        cpu::cpu_reset_handler,
+        debug::{DEBUG, ENABLE_ASSERTIONS},
+        pagetable::{PAGE_TABLE_ADDR, early_pagetable::init_early_page_tables, enable_mmu},
+    };
     use arm_sysregs::{Dit, SctlrEl3};
     use core::arch::global_asm;
-    use pagetable::PAGE_TABLE_ADDR;
 
     const DAIF_ABT_BIT: u32 = 1 << 2;
 
@@ -142,6 +145,11 @@ mod asm {
         DIT_BIT = const Dit::DIT.bits(),
         plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
         PAGE_TABLE_ADDR = sym PAGE_TABLE_ADDR,
+        cpu_reset_handler = sym cpu_reset_handler,
+        init_early_page_tables = sym init_early_page_tables,
+        enable_mmu = sym enable_mmu,
+        bl31_main = sym bl31_main,
+        psci_warmboot_entrypoint = sym psci_warmboot_entrypoint,
     );
 
     /// This macro wraps a naked_asm block with `bti`, or any other universal

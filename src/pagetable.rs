@@ -220,7 +220,6 @@ pub fn init_runtime_mapping() {
 /// `SCTLR_EL3 = (SCTLR_EL3 | sctlr_set) & !sctlr_clear`.
 #[cfg(all(target_arch = "aarch64", not(test)))]
 #[unsafe(naked)]
-#[unsafe(no_mangle)]
 pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
     crate::naked_asm!(
         "tlbi	alle3

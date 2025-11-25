@@ -876,6 +876,7 @@ mod asm {
     use crate::{
         debug::{DEBUG, ENABLE_ASSERTIONS},
         exceptions::RunResult,
+        platform::plat_my_core_pos,
         smccc::NOT_SUPPORTED,
     };
     use arm_sysregs::{Dit, Pmcr, StackPointer};
@@ -961,5 +962,6 @@ mod asm {
         RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
         RUN_RESULT_INTERRUPT = const RunResult::INTERRUPT,
         CPU_DATA_SIZE = const size_of::<CpuData>(),
+        plat_my_core_pos = sym plat_my_core_pos,
     );
 }

@@ -9,6 +9,7 @@ use zerocopy::FromZeros;
 /// Creates a zeroed instance of the given type.
 ///
 /// This is equivalent to `FromZeroes::new_zeroed()` but const.
+#[allow(unused)]
 pub const fn const_zeroed<T: FromZeros>() -> T {
     // SAFETY: T implements `FromZeros` so it must be safe to initialise with zeros.
     unsafe { core::mem::zeroed() }
@@ -51,6 +52,7 @@ macro_rules! zeroed_mut {
         });
     };
 }
+#[allow(unused)]
 pub(crate) use zeroed_mut;
 
 /// Declares a static lazily-initialised `$t` which may reside in zero-initialised memory.
@@ -91,6 +93,7 @@ macro_rules! lazy_indirect {
         });
     };
 }
+#[allow(unused)]
 pub(crate) use lazy_indirect;
 
 #[cfg(test)]

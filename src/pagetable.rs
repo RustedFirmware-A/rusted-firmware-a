@@ -51,11 +51,13 @@ const MAIR_IWTRWA_OWTRWA_NTR: MairAttribute = MairAttribute::normal(
 const MAIR_NON_CACHEABLE: MairAttribute =
     MairAttribute::normal(NormalMemory::NonCacheable, NormalMemory::NonCacheable);
 
+#[cfg_attr(test, allow(unused))]
 const MAIR: Mair = Mair::EMPTY
     .with_attribute(MAIR_DEVICE_INDEX, MAIR_DEVICE)
     .with_attribute(MAIR_IWTRWA_OWTRWA_NTR_INDEX, MAIR_IWTRWA_OWTRWA_NTR)
     .with_attribute(MAIR_NON_CACHEABLE_INDEX, MAIR_NON_CACHEABLE);
 
+#[cfg_attr(test, allow(unused))]
 const TCR: u64 = (0b101 << 16) // 48 bit physical address size (256 TiB).
         | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
 
@@ -216,11 +218,11 @@ pub fn init_runtime_mapping() {
 ///
 /// Sets `MAIR_EL3`, `TCR_EL3` and `TTBR0_EL3` then sets
 /// `SCTLR_EL3 = (SCTLR_EL3 | sctlr_set) & !sctlr_clear`.
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(test)))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
-    core::arch::naked_asm!(
+    crate::naked_asm!(
         "tlbi	alle3
 
         ldr	x3, ={mair}
@@ -303,6 +305,7 @@ pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attribut
 /// # Safety
 ///
 /// Caller must guarantee that it is safe to disable the MMU at the time of calling this function.
+#[allow(unused)]
 pub unsafe fn disable_mmu_el3() {
     let mut sctlr_el3 = read_sctlr_el3();
     sctlr_el3.remove(SctlrEl3::C | SctlrEl3::M);

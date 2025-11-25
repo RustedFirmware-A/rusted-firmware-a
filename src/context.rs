@@ -903,11 +903,6 @@ mod asm {
     #[cfg(feature = "sel2")]
     const _: () = assert!(!ERRATA_SPECULATIVE_AT);
 
-    const MIDR_IMPL_MASK: u32 = 0xff;
-    const MIDR_IMPL_SHIFT: u8 = 0x18;
-    const MIDR_PN_MASK: u32 = 0xfff;
-    const MIDR_PN_SHIFT: u8 = 0x4;
-
     global_asm!(
         include_str!("asm_macros_common.S"),
         include_str!("context.S"),

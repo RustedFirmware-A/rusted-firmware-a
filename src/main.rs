@@ -26,7 +26,6 @@ mod platform;
 mod semihosting;
 mod services;
 mod smccc;
-#[cfg(not(test))]
 mod stacks;
 
 use crate::{

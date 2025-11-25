@@ -64,11 +64,6 @@ pub struct GicConfig {
 }
 
 impl GicConfig {
-    /// Get iterator for all interrupts.
-    fn all(&self) -> impl Iterator<Item = &InterruptConfigEntry> {
-        self.interrupts_config.iter()
-    }
-
     /// Get iterator for shared interrupts.
     fn shared(&self) -> impl Iterator<Item = &InterruptConfigEntry> {
         self.interrupts_config.iter().filter(|int| int.0.is_spi())
@@ -205,6 +200,7 @@ impl<'a> Gic<'a> {
     }
 
     /// Saves the distributor context.
+    #[allow(unused)]
     pub fn distributor_save<const IREG_COUNT: usize, const IREG_E_COUNT: usize>(
         &self,
         context: &mut GicDistributorContext<IREG_COUNT, IREG_E_COUNT>,
@@ -213,6 +209,7 @@ impl<'a> Gic<'a> {
     }
 
     /// Restores the distributor context.
+    #[allow(unused)]
     pub fn distributor_restore<const IREG_COUNT: usize, const IREG_E_COUNT: usize>(
         &self,
         context: &GicDistributorContext<IREG_COUNT, IREG_E_COUNT>,
@@ -245,11 +242,13 @@ impl<'a> Gic<'a> {
     }
 
     /// Turns off the local core's redistributor.
+    #[allow(unused)]
     pub fn redistributor_off(&self) {
         self.redistributors.local_redistributor().lock().power_off();
     }
 
     /// Saves the context of the local core's redistributor.
+    #[allow(unused)]
     pub fn redistributor_save<const IREG_COUNT: usize>(
         &self,
         context: &mut GicRedistributorContext<IREG_COUNT>,
@@ -262,6 +261,7 @@ impl<'a> Gic<'a> {
     }
 
     /// Restores the context of the local core's redistributor.
+    #[allow(unused)]
     pub fn redistributor_restore<const IREG_COUNT: usize>(
         &self,
         context: &GicRedistributorContext<IREG_COUNT>,
@@ -297,6 +297,7 @@ impl<'a> Gic<'a> {
     }
 
     /// Disables the GIC CPU interface.
+    #[allow(unused)]
     pub fn cpu_interface_disable(&self) {
         GicCpuInterface::enable_group0(false);
         GicCpuInterface::enable_group1_secure(false);
@@ -376,4 +377,30 @@ pub fn handle_group0_interrupt() {
 
     GicCpuInterface::end_interrupt(int_id, InterruptGroup::Group0);
     debug!("Group 0 interrupt {int_id:?} EOI");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_save_restore_off() {
+        GIC.call_once(|| {
+            // SAFETY: The `GIC.call_once` ensures this isn't called multiple times.
+            unsafe { PlatformImpl::create_gic() }
+        });
+
+        let gic = Gic::get();
+        let mut distributor_context = GicDistributorContext::<
+            { GicDistributorContext::ireg_count(988) },
+            { GicDistributorContext::ireg_e_count(1024) },
+        >::new();
+        gic.distributor_save(&mut distributor_context);
+        gic.distributor_restore(&distributor_context);
+        let mut redistributor_context =
+            GicRedistributorContext::<{ GicRedistributorContext::ireg_count(96) }>::new();
+        gic.redistributor_save(&mut redistributor_context);
+        gic.redistributor_restore(&redistributor_context);
+        gic.redistributor_off();
+    }
 }

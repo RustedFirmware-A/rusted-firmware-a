@@ -284,7 +284,10 @@ pub(crate) use define_early_mapping;
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 extern "C" fn init_early_page_tables() {
-    core::arch::naked_asm!(
+    use crate::naked_asm;
+    use core::mem::offset_of;
+
+    naked_asm!(
         "/* x0 = RANGES start */
         ldr	x0, ={ranges}
 
@@ -348,10 +351,10 @@ extern "C" fn init_early_page_tables() {
 
         ret",
         ranges = sym EARLY_PAGE_TABLE_RANGES,
-        ranges_size = const core::mem::size_of::<DescriptorRange>(),
+        ranges_size = const size_of::<DescriptorRange>(),
         ranges_count = const EARLY_PAGE_TABLE_RANGES.len(),
-        index_step_count_offset = const core::mem::offset_of!(DescriptorRange, index),
-        value_offset = const core::mem::offset_of!(DescriptorRange, value),
+        index_step_count_offset = const offset_of!(DescriptorRange, index),
+        value_offset = const offset_of!(DescriptorRange, value),
         count_mask = const (GRANULE_SIZE - 1),
     );
 }
@@ -359,6 +362,11 @@ extern "C" fn init_early_page_tables() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_platform_early_mapping() {
+        assert_eq!(EARLY_PAGE_TABLE_RANGES, []);
+    }
 
     #[test]
     fn map_empty() {

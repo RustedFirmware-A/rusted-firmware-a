@@ -68,6 +68,7 @@ pub struct Sve {
 }
 
 impl Sve {
+    #[allow(unused)]
     pub const fn new(vector_length: u64) -> Self {
         assert!(
             vector_length % 128 == 0 && vector_length >= 128 && vector_length <= 2048,

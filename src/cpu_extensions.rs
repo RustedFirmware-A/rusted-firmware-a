@@ -4,6 +4,7 @@
 
 //! A framework for managing ARM architectural CPU extensions using a trait-based approach.
 
+pub mod fgt2;
 pub mod hcx;
 pub mod mpam;
 pub mod mte2;

@@ -321,6 +321,31 @@ bitflags! {
 }
 
 bitflags! {
+    /// ID_AA64MMFR1_EL0 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64mmfr0El1: u64 {}
+}
+
+impl IdAa64mmfr0El1 {
+    const FGT_SHIFT: u64 = 56;
+    const FGT_MASK: u64 = 0b1111;
+    const FGT_SUPPORTED: u64 = 0b0001;
+    const FGT2_SUPPORTED: u64 = 0b0001;
+
+    /// Indicates whether Fine Grain Traps Extension is implemented.
+    pub fn is_feat_fgt_present(self) -> bool {
+        let val = (self.bits() >> Self::FGT_SHIFT) & Self::FGT_MASK;
+        val == Self::FGT_SUPPORTED || val == Self::FGT2_SUPPORTED
+    }
+
+    /// Indicates whether Fine Grain Traps 2 Extension is implemented.
+    pub fn is_feat_fgt2_present(self) -> bool {
+        (self.bits() >> Self::FGT_SHIFT) & Self::FGT_MASK == Self::FGT2_SUPPORTED
+    }
+}
+
+bitflags! {
     /// ID_AA64MMFR2_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
@@ -941,6 +966,11 @@ read_write_sysreg!(gcscr_el2: s3_4_c2_c5_0, u64: Gcscr, safe_read, safe_write, f
 read_write_sysreg!(hacr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hcr_el2, u64: HcrEl2, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hcrx_el2: s3_4_c1_c2_2, u64: HcrxEl2, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(hdfgrtr2_el2: s3_4_c3_c1_0, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(hdfgwtr2_el2: s3_4_c3_c1_1, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(hfgitr2_el2: s3_4_c3_c1_7, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(hfgrtr2_el2: s3_4_c3_c1_2, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(hfgwtr_el2: s3_4_c1_c1_5, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hpfar_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hstr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(icc_sre_el1, u64: IccSre, safe_read, safe_write, fake::SYSREGS);
@@ -956,6 +986,7 @@ read_write_sysreg!(ich_hcr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(ich_vmcr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_sysreg!(id_aa64dfr0_el1, u64: IdAa64dfr0El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64dfr1_el1, u64: IdAa64dfr1El1, safe, fake::SYSREGS);
+read_sysreg!(id_aa64mmfr0_el1, u64: IdAa64mmfr0El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr1_el1, u64: IdAa64mmfr1El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr3_el1, u64: IdAa64mmfr3El1, safe, fake::SYSREGS);

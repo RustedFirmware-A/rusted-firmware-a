@@ -48,7 +48,7 @@ endif
 TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS += --target $(TARGET)
 
-TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\"
+TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\" -D warnings
 
 # Whether to build core + friends. Primarily needed for special sanitizers or
 # optimizations. Requires a nightly Cargo.
@@ -101,7 +101,7 @@ $(BL33): build-stf
 	$(OBJCOPY) $(OUT)/$(TARGET)/release/bl33 -O binary $@
 
 clippy-test:
-	$(CARGO) clippy --tests --features "$(FEATURES)"
+	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --features "$(FEATURES)"
 
 cargo-doc:
 	RUSTDOCFLAGS="-D warnings --cfg platform=\"${PLAT}\"" RUSTFLAGS="--cfg platform=\"${PLAT}\"" cargo doc --target $(TARGET) --no-deps  \

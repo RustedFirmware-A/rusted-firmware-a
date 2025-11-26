@@ -2,17 +2,12 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#[cfg(all(target_arch = "aarch64", not(test)))]
-use crate::naked_asm;
-use crate::platform::ERRATA_LIST;
-use arm_sysregs::MidrEl1;
-use core::mem::{offset_of, size_of};
-
 /// A unique identifier for an erratum.
-pub type ErratumID = u32;
+pub type ErratumId = u32;
 
 /// The CVE number associated with an erratum, or 0 if none.
-pub type CVE = u32;
+#[allow(unused)]
+pub type Cve = u32;
 
 /// Represents a CPU revision and variant.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
@@ -23,11 +18,13 @@ pub struct RevisionVariant {
 
 impl RevisionVariant {
     /// Creates a new RevisionVariant.
+    #[allow(unused)]
     pub const fn new(revision: u8, variant: u8) -> Self {
         Self { revision, variant }
     }
 
     /// A sentinel value for errata that are not yet fixed.
+    #[allow(unused)]
     pub const NOT_FIXED: Self = Self::new(u8::MAX, u8::MAX);
 }
 
@@ -39,6 +36,7 @@ pub enum ErratumType {
     Reset,
     /// Apply the workaround at runtime by calling the function directly in the Platform
     /// implementation.
+    #[allow(unused)]
     Runtime,
 }
 
@@ -50,9 +48,10 @@ pub enum ErratumType {
 ///
 /// Check and workaround function implementations should be naked functions that don't require a
 /// stack and don't access memory. Check function may clobber x0-x4, workaround may clobber x0-x7.
+#[allow(unused)]
 pub unsafe trait Erratum {
-    const ID: ErratumID;
-    const CVE: CVE;
+    const ID: ErratumId;
+    const CVE: Cve;
     const APPLY_ON: ErratumType;
 
     /// Returns true if the erratum is to be applied.
@@ -72,6 +71,7 @@ pub struct ErratumEntry {
 
 impl ErratumEntry {
     /// Creates an ErratumEntry struct from an implementation of the Erratum trait.
+    #[allow(unused)]
     pub const fn from_erratum<T: Erratum>() -> Self {
         Self {
             apply_on: T::APPLY_ON,
@@ -133,13 +133,15 @@ pub(crate) use define_errata_list;
 ///     // ...
 /// }
 /// ```
+#[allow(unused_macros)]
 macro_rules! implement_erratum_check {
     ($midr:expr, $apply_from:expr, $fixed_in:expr) => {
         {
             const MIDR: arm_sysregs::MidrEl1 = $midr;
             const APPLY_FROM: $crate::errata_framework::RevisionVariant = $apply_from;
             const FIXED_IN: $crate::errata_framework::RevisionVariant = $fixed_in;
-            naked_asm!(
+
+            $crate::naked_asm!(
                 include_str!("../asm_macros_common.S"),
                 // Read MIDR_EL1
                 "mrs x1, midr_el1",
@@ -193,6 +195,7 @@ macro_rules! implement_erratum_check {
         }
     };
 }
+#[allow(unused)]
 pub(crate) use implement_erratum_check;
 
 /// This function iterates over the ERRATA_LIST, calling the check function on each Reset erratum
@@ -201,6 +204,9 @@ pub(crate) use implement_erratum_check;
 #[cfg(all(target_arch = "aarch64", not(test)))]
 #[unsafe(naked)]
 pub extern "C" fn apply_reset_errata() {
+    use crate::{naked_asm, platform::ERRATA_LIST};
+    use core::mem::offset_of;
+
     naked_asm!(
         // Save LR
         "mov x8, x30",

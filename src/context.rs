@@ -612,6 +612,18 @@ pub fn world_context(world: World) -> *mut CpuContext {
     unsafe { &raw mut (*CPU_STATE.get().as_ptr()).0[world.index()] }
 }
 
+/// Restores the context for the given world.
+fn restore_world(world: World, context: &CpuContext) {
+    for ext in PlatformImpl::CPU_EXTENSIONS {
+        ext.restore_context(world);
+    }
+
+    context.restore_lower_el_sysregs();
+
+    let world_context = &PER_WORLD_CONTEXT.get().unwrap()[world];
+    world_context.restore_el3_sysregs();
+}
+
 /// Saves lower EL system registers from the current world, restores lower EL and some per-world
 /// EL3 system registers of the given world.
 pub fn switch_world(old_world: World, new_world: World) {
@@ -623,17 +635,11 @@ pub fn switch_world(old_world: World, new_world: World) {
             ext.save_context(old_world);
         }
 
-        for ext in PlatformImpl::CPU_EXTENSIONS {
-            ext.restore_context(new_world);
-        }
-        cpu_state[new_world].restore_lower_el_sysregs();
-
-        let new_world_context = &PER_WORLD_CONTEXT.get().unwrap()[new_world];
-        new_world_context.restore_el3_sysregs();
+        restore_world(new_world, &cpu_state[new_world]);
     });
 }
 
-/// Restores lower EL system registers of the given world.
+/// Restores lower EL and some per-world EL3 system registers of the given world.
 ///
 /// This doesn't save the current state of the lower EL system registers, so should only be used for
 /// initial boot where we don't care about their state.
@@ -647,11 +653,7 @@ pub fn set_initial_world(world: World) {
         write_scr_el3(context.el3_state.scr_el3);
         isb();
 
-        for ext in PlatformImpl::CPU_EXTENSIONS {
-            ext.restore_context(world);
-        }
-
-        context.restore_lower_el_sysregs();
+        restore_world(world, context);
     });
 }
 

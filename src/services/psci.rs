@@ -431,11 +431,7 @@ impl PsciCompositePowerState {
         // This check can fail if the OS view of the last core is out of sync with the PSCI view.
         // See the PSCI spec (DEN0022F.b, section 6.3) for specific examples of where this can
         // happen.
-        if !PowerDomainTree::is_last_cpu_to_idle_at_power_level(
-            cpu_index,
-            last_at_power_level,
-            ancestors,
-        ) {
+        if !ancestors.is_last_cpu_to_idle_at_power_level(cpu_index, last_at_power_level) {
             return Err(ErrorCode::Denied);
         }
 

@@ -66,6 +66,23 @@ impl NonCpuPowerNode {
         self.requested_states[cpu_index - self.cpu_range.start] = state;
     }
 
+    /// Checks if all the cores are non-running state except the one idenfied by `cpu_index`.
+    pub fn is_last_cpu_to_idle(&self, cpu_index: usize) -> bool {
+        let local_cpu_index = cpu_index - self.cpu_range.start;
+        self.requested_states
+            .iter()
+            .enumerate()
+            .filter(|&(i, state)| {
+                if i == local_cpu_index {
+                    assert_eq!(*state, PlatformPowerState::RUN);
+                    false
+                } else {
+                    true
+                }
+            })
+            .all(|(_index, state)| *state != PlatformPowerState::RUN)
+    }
+
     /// Returns the minimum value in requested_states except for the element specified by cpu_index.
     /// If this NonCpuPowerNode only has a single core for an ancestor, this returns OFF.
     pub fn get_minimal_allowed_state_without_core(&self, cpu_index: usize) -> PlatformPowerState {
@@ -212,6 +229,22 @@ impl<'a> AncestorPowerDomains<'a> {
     /// Create mutable iterator starting from the lowest level.
     pub fn iter_mut(&mut self) -> IterMut<'_, SpinMutexGuard<'a, NonCpuPowerNode>> {
         self.list.iter_mut()
+    }
+
+    /// Verifies that all other cores at 'end_power_level' have been have been idled and that the
+    /// current CPU is the last running CPU at 'end_power_level'.
+    /// Returns true if cpu specified by 'my_index' is last on cpu at 'end_power_level'. False
+    /// otherwise.
+    pub fn is_last_cpu_to_idle_at_power_level(
+        &self,
+        cpu_index: usize,
+        end_power_level: usize,
+    ) -> bool {
+        if end_power_level == PsciCompositePowerState::CPU_POWER_LEVEL {
+            return true;
+        }
+
+        self.list[end_power_level - 1].is_last_cpu_to_idle(cpu_index)
     }
 }
 
@@ -361,34 +394,6 @@ impl PowerDomainTree {
             .iter()
             .all(|core| core.lock().affinity_info() == AffinityInfo::On)
     }
-
-    /// Verifies that all other cores at 'end_power_level' have been have been idled and that the
-    /// current CPU is the last running CPU at 'end_power_level'. ancestors must be the locked
-    /// ancestors of CPU referenced by my_index.
-    /// Returns true if cpu specified by 'my_index' is last on cpu at 'end_power_level'. False
-    /// otherwise.
-    pub fn is_last_cpu_to_idle_at_power_level(
-        my_index: usize,
-        end_power_level: usize,
-        ancestors: &AncestorPowerDomains,
-    ) -> bool {
-        if end_power_level == PsciCompositePowerState::CPU_POWER_LEVEL {
-            return true;
-        }
-
-        let end_power_level_node = &ancestors.list[end_power_level - 1];
-        for (index, state) in end_power_level_node.requested_states.iter().enumerate() {
-            if index + end_power_level_node.cpu_range.start == my_index {
-                assert_eq!(*state, PlatformPowerState::RUN);
-                continue;
-            }
-
-            if *state == PlatformPowerState::RUN {
-                return false;
-            }
-        }
-        true
-    }
 }
 
 impl Debug for PowerDomainTree {
@@ -454,11 +459,7 @@ mod tests {
     ) -> bool {
         let mut cpu = tree.locked_cpu_node(cpu_index);
         tree.with_ancestors_locked_to_max_level(&mut cpu, end_power_level, |_cpu, ancestors| {
-            PowerDomainTree::is_last_cpu_to_idle_at_power_level(
-                cpu_index,
-                end_power_level,
-                &ancestors,
-            )
+            ancestors.is_last_cpu_to_idle_at_power_level(cpu_index, end_power_level)
         })
     }
 

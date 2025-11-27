@@ -532,8 +532,8 @@ impl PerWorldContext {
     /// - Trap lower EL AMU register accesses (will be overwritten if platform supports FEAT_AMU),
     /// - Trap trace system register accesses (will be overwritten if platform supports
     ///   FEAT_SYS_REG_TRACE),
-    /// - Trap Advanced SIMD instructions execution, TODO: disable FP trap when FP context switch
-    ///   support is implemented,
+    /// - Trap Advanced SIMD instructions execution, (will be overwritten if platform supports
+    ///   FEAT_SIMD)
     /// - Trap direct accesses to MPAM System registers that are not UNDEFINED from all ELn lower
     ///   than EL3 (will be overwritten if platform supports FEAT_MPAM)
     const DEFAULT: Self = Self {

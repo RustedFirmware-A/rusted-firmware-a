@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! SIMD and SVE support.
+//! SIMD, SVE and SME support.
 
 #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
 mod simd_sel1;
@@ -11,10 +11,13 @@ use super::CpuExtension;
 
 use crate::{
     aarch64::isb,
-    context::{PerWorldContext, World},
+    context::{CpuContext, PerWorldContext, World},
 };
 
-use arm_sysregs::{CptrEl3, read_cptr_el3, read_id_aa64pfr0_el1, write_cptr_el3, write_zcr_el3};
+use arm_sysregs::{
+    CptrEl3, IdAa64smfr0El1, ScrEl3, SmcrEl3, read_cptr_el3, read_id_aa64pfr0_el1,
+    read_id_aa64pfr1_el1, read_id_aa64smfr0_el1, write_cptr_el3, write_smcr_el3, write_zcr_el3,
+};
 
 /// Enables FP/SIMD register access for all worlds.
 ///
@@ -101,6 +104,70 @@ impl CpuExtension for Sve {
         if world == World::NonSecure {
             // Allow NS world SVE register access.
             ctx.cptr_el3 |= CptrEl3::EZ;
+        }
+    }
+}
+
+/// FEAT_SME support.
+///
+/// Enables NS world SME register access and configures the maximum Streaming SVE (SSVE) vector
+/// length.
+pub struct Sme {
+    /// Limits the Effective Streaming SVE vector length to `vector_length` bits.
+    vector_length: u64,
+}
+
+impl Sme {
+    #[allow(unused)]
+    pub const fn new(vector_length: u64) -> Self {
+        assert!(
+            vector_length % 128 == 0 && vector_length >= 128 && vector_length <= 2048,
+            "Invalid SSVE vector length"
+        );
+        Self { vector_length }
+    }
+}
+
+impl CpuExtension for Sme {
+    fn is_present(&self) -> bool {
+        read_id_aa64pfr1_el1().is_feat_sme_present()
+    }
+
+    fn init(&self) {
+        // Temporarily allow SME register access, to configure the maximum SSVE vector length.
+        let cptr_el3 = read_cptr_el3();
+        write_cptr_el3(cptr_el3 | CptrEl3::ESM);
+        isb();
+
+        // Configure maximum SSVE vector length.
+        let mut smcr_el3 = SmcrEl3::from_ssve_vector_len(self.vector_length);
+
+        if read_id_aa64smfr0_el1().contains(IdAa64smfr0El1::FA64) {
+            smcr_el3 |= SmcrEl3::FA64;
+        }
+
+        // Enable access to ZT0 registers if SME2 is present.
+        if read_id_aa64pfr1_el1().is_feat_sme2_present() {
+            smcr_el3 |= SmcrEl3::EZT0;
+        }
+
+        // Configure SMCR_EL3 for all worlds.
+        write_smcr_el3(smcr_el3);
+
+        // Restore CPTR_EL3.
+        write_cptr_el3(cptr_el3);
+    }
+
+    fn configure_per_cpu(&self, world: World, context: &mut CpuContext) {
+        if world == World::NonSecure {
+            context.el3_state.scr_el3 |= ScrEl3::ENTP2;
+        }
+    }
+
+    fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
+        if world == World::NonSecure {
+            // Allow NS world SME register access.
+            ctx.cptr_el3 |= CptrEl3::ESM;
         }
     }
 }

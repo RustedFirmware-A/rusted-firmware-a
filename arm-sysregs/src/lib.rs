@@ -407,6 +407,11 @@ impl IdAa64pfr1El1 {
     const MTE_IMPLEMENTED: u64 = 0b0001;
     const MTE2_IMPLEMENTED: u64 = 0b0010;
 
+    const SME_SHIFT: u64 = 24;
+    const SME_MASK: u64 = 0b1111;
+    const SME_IMPLEMENTED: u64 = 0b0001;
+    const SME2_IMPLEMENTED: u64 = 0b0010;
+
     const NMI_SHIFT: u64 = 36;
     const NMI_MASK: u64 = 0b1111;
     const NMI_IMPLEMENTED: u64 = 0b1;
@@ -430,6 +435,16 @@ impl IdAa64pfr1El1 {
         (self.bits() >> Self::MTE_SHIFT) & Self::MTE_MASK >= Self::MTE2_IMPLEMENTED
     }
 
+    /// Indicates whether FEAT_SME is implemented.
+    pub fn is_feat_sme_present(self) -> bool {
+        (self.bits() >> Self::SME_SHIFT) & Self::SME_MASK >= Self::SME_IMPLEMENTED
+    }
+
+    /// Indicates whether FEAT_SME2 is implemented.
+    pub fn is_feat_sme2_present(self) -> bool {
+        (self.bits() >> Self::SME_SHIFT) & Self::SME_MASK >= Self::SME2_IMPLEMENTED
+    }
+
     /// Indicates whether FEAT_NMI is implemented.
     pub fn is_feat_nmi_present(self) -> bool {
         (self.bits() >> Self::NMI_SHIFT) & Self::NMI_MASK == Self::NMI_IMPLEMENTED
@@ -438,6 +453,17 @@ impl IdAa64pfr1El1 {
     /// Indicates whether FEAT_GCS is implemented.
     pub fn is_feat_gcs_present(self) -> bool {
         (self.bits() >> Self::GCS_SHIFT) & Self::GCS_MASK == Self::GCS_IMPLEMENTED
+    }
+}
+
+bitflags! {
+    /// ID_AA64SMFR0_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64smfr0El1: u64 {
+        /// Indicates support for execution of the full AArch64 Advanced SIMD and SVE instruction
+        /// sets when the PE is in Streaming SVE mode.
+        const FA64 = 1 << 63;
     }
 }
 
@@ -865,6 +891,27 @@ bitflags! {
 }
 
 bitflags! {
+    /// SMCR_EL3 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct SmcrEl3: u64 {
+        /// Do not trap ZT0 register accesses to EL3.
+        const EZT0 = 1 << 30;
+        /// All implemented A64 instructions are treated as legal in Streaming SVE mode at EL3.
+        const FA64 = 1 << 31;
+    }
+}
+
+impl SmcrEl3 {
+    const SSVE_LEN_MASK: u64 = 0b1111;
+
+    /// Build SMCR_EL3 register value from given SSVE vector length.
+    pub fn from_ssve_vector_len(vector_length: u64) -> Self {
+        Self::from_bits_retain(((vector_length - 1) / 128) & Self::SSVE_LEN_MASK)
+    }
+}
+
+bitflags! {
     /// SPSR_ELn system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
@@ -1022,6 +1069,7 @@ read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr3_el1, u64: IdAa64mmfr3El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64pfr0_el1, u64: IdAa64pfr0El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64pfr1_el1, u64: IdAa64pfr1El1, safe, fake::SYSREGS);
+read_sysreg!(id_aa64smfr0_el1: s3_0_c0_c4_5, u64: IdAa64smfr0El1, safe, fake::SYSREGS);
 read_sysreg!(isr_el1, u64, safe, fake::SYSREGS);
 read_write_sysreg!(mair_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(mair_el2, u64, safe_read, safe_write, fake::SYSREGS);
@@ -1066,6 +1114,7 @@ read_write_sysreg! {
     /// requirements.
     sctlr_el3, u64: SctlrEl3, safe_read, fake::SYSREGS
 }
+read_write_sysreg!(smcr_el3: s3_6_c1_c2_6, u64: SmcrEl3, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(sp_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(sp_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(spsr_el1, u64: Spsr, safe_read, safe_write, fake::SYSREGS);

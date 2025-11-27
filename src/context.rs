@@ -793,7 +793,10 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.
 fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
-    context.el3_state.scr_el3 |= ScrEl3::NS;
+
+    // SCR_EL3.FGTEN: Do not trap FGT register accesses to EL3. FEAT_FGT is mandatory since
+    // ARMv8.6.
+    context.el3_state.scr_el3 |= ScrEl3::NS | ScrEl3::FGTEN;
 
     gicv3::set_routing_model(&mut context.el3_state.scr_el3, World::NonSecure);
 

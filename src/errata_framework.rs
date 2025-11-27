@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+#[cfg(all(target_arch = "aarch64", not(test)))]
+pub mod dsu;
+
 /// A unique identifier for an erratum.
 pub type ErratumId = u32;
 

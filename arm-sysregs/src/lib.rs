@@ -544,28 +544,28 @@ bitflags! {
 
 impl MidrEl1 {
     /// Mask for the Revision field.
-    pub const REVISION_MASK: u64 = 0xf << Self::REVISION_SHIFT;
+    const REVISION_MASK: u64 = 0xf;
     /// Position of the lowest bit in the Revision field.
     pub const REVISION_SHIFT: u32 = 0;
     /// Length of the Revision field.
     pub const REVISION_LEN: u32 = 4;
 
     /// Mask for the Variant field.
-    pub const VARIANT_MASK: u64 = 0xf << Self::VARIANT_SHIFT;
+    const VARIANT_MASK: u64 = 0xf;
     /// Position of the lowest bit in the Variant field.
     pub const VARIANT_SHIFT: u32 = 20;
     /// Length of the Variant field.
     pub const VARIANT_LEN: u32 = 4;
 
     /// Mask for the Implementer field.
-    pub const IMPLEMENTER_MASK: u64 = 0xff << Self::IMPLEMENTER_SHIFT;
+    const IMPLEMENTER_MASK: u64 = 0xff;
     /// Position of the lowest bit in the Implementer field.
     pub const IMPLEMENTER_SHIFT: u32 = 24;
     /// Length of the Implementer field.
     pub const IMPLEMENTER_LEN: u32 = 8;
 
     /// Mask for the PartNum field.
-    pub const PART_NUM_MASK: u64 = 0xfff << Self::PART_NUM_SHIFT;
+    const PART_NUM_MASK: u64 = 0xfff;
     /// Position of the lowest bit in the PartNum field.
     pub const PART_NUM_SHIFT: u32 = 4;
     /// Length of the PartNum field.
@@ -578,22 +578,22 @@ impl MidrEl1 {
 
     /// Returns the value of the Revision field.
     pub fn revision(self) -> u8 {
-        ((self.bits() & Self::REVISION_MASK) >> Self::REVISION_SHIFT) as u8
+        ((self.bits() >> Self::REVISION_SHIFT) & Self::REVISION_MASK) as u8
     }
 
     /// Returns the value of the Variant field.
     pub fn variant(self) -> u8 {
-        ((self.bits() & Self::VARIANT_MASK) >> Self::VARIANT_SHIFT) as u8
+        ((self.bits() >> Self::VARIANT_SHIFT) & Self::VARIANT_MASK) as u8
     }
 
     /// Returns the value of the Implementer field.
     pub fn implementer(self) -> u8 {
-        ((self.bits() & Self::IMPLEMENTER_MASK) >> Self::IMPLEMENTER_SHIFT) as u8
+        ((self.bits() >> Self::IMPLEMENTER_SHIFT) & Self::IMPLEMENTER_MASK) as u8
     }
 
     /// Returns the value of the PartNum field.
     pub fn part_num(self) -> u16 {
-        ((self.bits() & Self::PART_NUM_MASK) >> Self::PART_NUM_SHIFT) as u16
+        ((self.bits() >> Self::PART_NUM_SHIFT) & Self::PART_NUM_MASK) as u16
     }
 }
 
@@ -649,13 +649,13 @@ bitflags! {
 
 impl MpidrEl1 {
     /// Mask for the Aff0 field.
-    pub const AFF0_MASK: u64 = 0xff << Self::AFF0_SHIFT;
+    pub const AFF0_MASK: u64 = 0xff;
     /// Mask for the Aff1 field.
-    pub const AFF1_MASK: u64 = 0xff << Self::AFF1_SHIFT;
+    pub const AFF1_MASK: u64 = 0xff;
     /// Mask for the Aff2 field.
-    pub const AFF2_MASK: u64 = 0xff << Self::AFF2_SHIFT;
+    pub const AFF2_MASK: u64 = 0xff;
     /// Mask for the Aff3 field.
-    pub const AFF3_MASK: u64 = 0xff << Self::AFF3_SHIFT;
+    pub const AFF3_MASK: u64 = 0xff;
     /// Size in bits of the affinity fields.
     pub const AFFINITY_BITS: usize = 8;
     /// Position of the lowest bit in the Aff0 field.

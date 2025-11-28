@@ -260,8 +260,8 @@ unsafe impl Platform for Qemu {
             "and	x0, x0, #{MPIDR_CLUSTER_MASK}",
             "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
             "ret",
-            MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK,
-            MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK,
+            MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK << MpidrEl1::AFF0_SHIFT,
+            MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK << MpidrEl1::AFF1_SHIFT,
             MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
             PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
         );

@@ -6,6 +6,7 @@ use super::Cpu;
 use crate::naked_asm;
 use arm_sysregs::MidrEl1;
 
+#[allow(unused)]
 pub struct QemuMax;
 
 /// SAFETY: `reset_handler` and `dump_registers` are implemented as naked functions and don't touch

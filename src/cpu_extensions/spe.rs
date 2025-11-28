@@ -16,6 +16,7 @@ use arm_sysregs::{MdcrEl3, read_id_aa64dfr0_el1};
 /// FEAT_SPE provides a non-invasive method of sampling software and hardware using randomized
 /// sampling of either architectural instructions, as defined by the instruction set architecture,
 /// or by microarchitectural operations.
+#[allow(unused)]
 pub struct StatisticalProfiling;
 
 impl CpuExtension for StatisticalProfiling {

@@ -13,6 +13,7 @@ use arm_sysregs::{
 };
 use core::{arch::asm, ops::RangeInclusive};
 
+#[allow(unused)]
 pub struct AemGeneric;
 
 /// The cache size descriptor.
@@ -90,7 +91,6 @@ unsafe fn flush_cache_levels(levels: RangeInclusive<u8>) {
 
         dsb_sy();
 
-        #[allow(unused)]
         for way in (0..=ways_aligned).step_by(way_step) {
             let value = (u64::from(level) << 1) | way;
 
@@ -131,6 +131,7 @@ unsafe impl Cpu for AemGeneric {
     }
 
     /// Flushes level 1 and also flushes level 2 cache if level 3 cache is present.
+    #[allow(unused)]
     fn power_down_level0() {
         // Safety: The exclusive memory accesses are predictable with AEM FVP's cache
         // implementation.

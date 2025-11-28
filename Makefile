@@ -19,6 +19,7 @@ OBJCOPY ?= rust-objcopy
 
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
+STF_FEATURES ?=
 
 .PHONY: all cargo-doc clean clippy clippy-test build build-stf list_platforms list_features
 
@@ -61,7 +62,7 @@ BTI_EL3 ?= 0
 
 ifeq ($(PAUTH_EL3), 1)
 	BP_OPTIONS += pac-ret
-	TARGET_RUSTFLAGS += --cfg pauth
+	STF_FEATURES += pauth
 endif
 ifeq ($(BTI_EL3), 1)
 	BP_OPTIONS += bti
@@ -83,6 +84,7 @@ else
 	CARGO ?= cargo
 endif
 
+STF_CARGO_FLAGS += --features "$(STF_FEATURES)"
 TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh" $(CARGO)
 STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" $(CARGO)
 

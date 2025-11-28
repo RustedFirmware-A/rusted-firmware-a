@@ -17,6 +17,7 @@ use arm_sysregs::{CptrEl3, read_id_aa64dfr0_el1};
 /// FEAT_SYS_REG_TRACE support
 ///
 /// Enables Non-secure world trace system register accesses.
+#[allow(unused)]
 pub struct SysRegTrace;
 
 impl CpuExtension for SysRegTrace {

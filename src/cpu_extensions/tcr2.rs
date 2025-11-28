@@ -28,6 +28,7 @@ impl CpuExtension for Tcr2 {
         context.el3_state.scr_el3 |= ScrEl3::TCR2EN;
     }
 
+    #[allow(unused)]
     fn save_context(&self, world: World) {
         if self.is_present() {
             #[cfg(feature = "sel2")]

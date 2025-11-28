@@ -61,6 +61,7 @@ impl CpuExtension for Fgt2 {
         context.el3_state.scr_el3 |= ScrEl3::FGTEN2
     }
 
+    #[allow(unused)]
     fn save_context(&self, world: World) {
         if self.is_present() {
             exception_free(|token| {

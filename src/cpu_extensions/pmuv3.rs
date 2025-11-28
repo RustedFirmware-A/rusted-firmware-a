@@ -18,6 +18,7 @@ use crate::{
 ///
 /// Enables use of the PMEVTYPER\<n\>_EL0.MT bits to count events from any PE
 /// with the same affinity at level 1 and above as this PE.
+#[allow(unused)]
 pub struct MultiThreadedPmu;
 
 impl CpuExtension for MultiThreadedPmu {

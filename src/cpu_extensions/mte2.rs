@@ -36,6 +36,7 @@ impl CpuExtension for MemoryTagging {
         }
     }
 
+    #[allow(unused)]
     fn save_context(&self, world: World) {
         if self.is_present() {
             #[cfg(feature = "sel2")]

@@ -24,38 +24,42 @@ pub static SECURE_WORLD_TESTS: [SecureWorldTest];
 
 static NORMAL_WORLD_TESTS_SORTED: Lazy<Box<[&'static NormalWorldTest]>> = Lazy::new(|| {
     let mut tests = NORMAL_WORLD_TESTS.iter().collect::<Box<[_]>>();
-    tests.sort();
+    tests.sort_by_key(|test| test.name);
     tests
 });
 
 static SECURE_WORLD_TESTS_SORTED: Lazy<Box<[&'static SecureWorldTest]>> = Lazy::new(|| {
     let mut tests = SECURE_WORLD_TESTS.iter().collect::<Box<[_]>>();
-    tests.sort();
+    tests.sort_by_key(|test| test.name);
     tests
 });
 
 /// Returns an iterator over all normal world tests, sorted by name, along with their indices.
+#[allow(unused)]
 pub fn normal_world_tests() -> impl Iterator<Item = (usize, &'static NormalWorldTest)> {
     NORMAL_WORLD_TESTS_SORTED.iter().copied().enumerate()
 }
 
 /// Returns an iterator over all secure world tests, sorted by name, along with their indices.
+#[allow(unused)]
 pub fn secure_world_tests() -> impl Iterator<Item = (usize, &'static SecureWorldTest)> {
     SECURE_WORLD_TESTS_SORTED.iter().copied().enumerate()
 }
 
 /// Returns the number of normal world tests.
+#[allow(unused)]
 pub fn normal_world_test_count() -> usize {
     NORMAL_WORLD_TESTS.len()
 }
 
 /// Returns the number of secure world tests.
+#[allow(unused)]
 pub fn secure_world_test_count() -> usize {
     SECURE_WORLD_TESTS.len()
 }
 
 /// A single normal-world test.
-#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug)]
 pub struct NormalWorldTest {
     pub name: &'static str,
     pub functions: TestFunctions,
@@ -75,7 +79,7 @@ impl NormalWorldTest {
     }
 }
 
-#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug)]
 pub enum TestFunctions {
     NormalWorldOnly {
         function: fn() -> Result<(), ()>,
@@ -87,7 +91,7 @@ pub enum TestFunctions {
 }
 
 /// A single secure-world test.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug)]
 pub struct SecureWorldTest {
     pub name: &'static str,
     pub function: fn() -> Result<(), ()>,

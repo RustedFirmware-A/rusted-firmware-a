@@ -21,7 +21,7 @@ mod secondary;
 mod tests;
 mod util;
 
-#[cfg(pauth)]
+#[cfg(feature = "pauth")]
 use crate::util::enable_pauth;
 use crate::{
     exceptions::set_exception_vector,
@@ -67,7 +67,7 @@ fn current_test_index() -> Option<usize> {
 entry!(bl32_main, 4);
 fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     // Enable PAuth with a dummy key.
-    #[cfg(pauth)]
+    #[cfg(feature = "pauth")]
     enable_pauth(0xCAFEF00D_CAFEF00D_CAFEF00D_CAFEF00D);
 
     let log_sink = PlatformImpl::make_log_sink();
@@ -99,7 +99,7 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     expect_ffa_success(
         // SAFETY: secondary_entry is a valid secondary entry point that will set up the stack for
         // Rust code to run.
-        unsafe { secondary_ep_register(secondary_entry as u64) }
+        unsafe { secondary_ep_register(secondary_entry as *const () as u64) }
             .expect("FFA_SECONDARY_EP_REGISTER failed"),
     )
     .unwrap();

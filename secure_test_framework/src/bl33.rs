@@ -21,7 +21,7 @@ mod secondary;
 mod tests;
 mod util;
 
-#[cfg(pauth)]
+#[cfg(feature = "pauth")]
 use crate::util::enable_pauth;
 use crate::{
     exceptions::set_exception_vector,
@@ -60,7 +60,7 @@ enable_mmu!(BL33_IDMAP);
 entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     // Enable PAuth with a dummy key.
-    #[cfg(pauth)]
+    #[cfg(feature = "pauth")]
     enable_pauth(0xC0DED00D_C0DED00D_C0DED00D_C0DED00D);
 
     let log_sink = PlatformImpl::make_log_sink();
@@ -188,7 +188,7 @@ pub fn start_secondary(psci_mpidr: u64, entry: fn(u64) -> !, arg: u64) -> Result
     {
         error!("Secondary entry point was already set");
     }
-    psci::cpu_on::<Smc>(psci_mpidr, secondary_entry as _, arg)
+    psci::cpu_on::<Smc>(psci_mpidr, secondary_entry as *const () as _, arg)
 }
 
 /// Sends a direct request to the secure world and returns the response.

@@ -34,6 +34,7 @@ impl CpuExtension for Hcx {
     }
 
     #[cfg(feature = "sel2")]
+    #[allow(unused)]
     fn save_context(&self, world: World) {
         if self.is_present() {
             hcx_sel2::save_context(world);

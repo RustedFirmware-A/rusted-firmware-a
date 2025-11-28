@@ -61,7 +61,7 @@ pub unsafe trait Erratum {
 }
 
 /// A C-compatible struct of function pointers for an erratum.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ErratumEntry {
     pub id: ErratumId,

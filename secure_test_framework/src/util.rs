@@ -5,10 +5,6 @@
 pub mod timer;
 
 use arm_ffa::{Interface, SuccessArgs};
-use arm_sysregs::{
-    SctlrEl1, SctlrEl2, read_sctlr_el1, read_sctlr_el2, write_apiakeyhi_el1, write_apiakeylo_el1,
-    write_sctlr_el1, write_sctlr_el2,
-};
 use core::{arch::asm, fmt::Display};
 use log::error;
 
@@ -22,6 +18,7 @@ pub const SECURE_WORLD_ID: u16 = 0x8001;
 pub const SPMC_DEFAULT_ID: u16 = 0x8000;
 
 /// Default ID for the SPMD
+#[allow(unused)]
 pub const SPMD_DEFAULT_ID: u16 = 0xffff;
 
 /// Returns the current exception level at which we are running.
@@ -39,8 +36,13 @@ pub fn current_el() -> u8 {
 }
 
 /// Enables PAuth at the current exception level using the provided key.
-#[cfg(pauth)]
+#[cfg(feature = "pauth")]
 pub fn enable_pauth(key: u128) {
+    use arm_sysregs::{
+        SctlrEl1, SctlrEl2, read_sctlr_el1, read_sctlr_el2, write_apiakeyhi_el1,
+        write_apiakeylo_el1, write_sctlr_el1, write_sctlr_el2,
+    };
+
     write_apiakeylo_el1(key as u64);
     write_apiakeyhi_el1((key >> 64) as u64);
     if current_el() == 2 {

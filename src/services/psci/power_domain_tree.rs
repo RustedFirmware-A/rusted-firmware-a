@@ -319,7 +319,7 @@ impl PowerDomainTree {
     }
 
     /// Return a lock-guarded CPU node by its index.
-    pub fn locked_cpu_node(&self, cpu_index: usize) -> SpinMutexGuard<CpuPowerNode> {
+    pub fn locked_cpu_node(&self, cpu_index: usize) -> SpinMutexGuard<'_, CpuPowerNode> {
         self.cpu_power_nodes[cpu_index].lock()
     }
 

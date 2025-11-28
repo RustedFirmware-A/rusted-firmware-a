@@ -38,6 +38,9 @@ spin = { version = "0.10.0", default-features = false, features = [
 smccc = "0.2.2"
 thiserror = { version = "2.0.17", default-features = false }
 
+[features]
+pauth = []
+
 [[bin]]
 name = "bl32"
 path = "src/bl32.rs"

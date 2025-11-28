@@ -5,7 +5,6 @@
 //! The protocol used for the BL32 and BL33 parts of STF to communicate over FF-A direct messages.
 
 use arm_ffa::DirectMsgArgs;
-use log::error;
 use thiserror::Error;
 
 /// Value sent by a direct message to run a secure test.

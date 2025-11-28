@@ -72,6 +72,7 @@ impl CpuExtension for TraceBufferNonSecure {
         read_id_aa64dfr0_el1().is_feat_trbe_present()
     }
 
+    #[allow(unused)]
     fn configure_per_cpu(&self, world: World, ctx: &mut CpuContext) {
         if world == World::NonSecure {
             // TODO: CORTEX_A510, CORTEX_A520, CORTEX_X4 may need to disable TRBE

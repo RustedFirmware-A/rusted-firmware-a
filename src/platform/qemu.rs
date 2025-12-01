@@ -151,10 +151,10 @@ unsafe impl Platform for Qemu {
 
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&Simd];
 
-    fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
+    fn init_with_early_mapping(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
-        // accesses that address range. The address remains valid after turning on the MMU
-        // because of the identity mapping of the `DEVICE1` region.
+        // accesses that address range. The address is valid both with the early mapping and the
+        // main one, as it's within the `DEVICE1` region that is identity mapped in both cases.
         let uart_pointer =
             unsafe { UniqueMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
         logger::init(HybridLogger::new(

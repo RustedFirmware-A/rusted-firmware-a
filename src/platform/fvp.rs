@@ -216,7 +216,7 @@ unsafe impl Platform for Fvp {
         &TraceFiltering,
     ];
 
-    fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
+    fn init() {
         let peripherals = Peripherals::take().unwrap();
 
         let uart_pointer = map_peripheral(peripherals.uart0);

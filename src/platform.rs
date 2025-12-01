@@ -120,13 +120,21 @@ pub unsafe trait Platform {
     /// Service that handles platform-specific SMC calls.
     type PlatformServiceImpl: Service;
 
-    /// Initialises the logger and anything else the platform needs. This will be called before the
-    /// MMU is enabled.
+    /// Performs early platform-specific initialisation. This will be called while the early
+    /// pagetable mapping defined by `define_early_mapping!` is active, so anything only mapped by
+    /// `map_extra_regions` will not be available.
     ///
-    /// Any logs sent before this is called will be ignored.
+    /// This may initialise the logger, if the UART or other resources it uses are included in the
+    /// regions listed in `define_early_mapping!`.
     ///
     /// arg0-arg3 are the first four function arguments passed to bl31_main.
-    fn init(arg0: u64, arg1: u64, arg2: u64, arg3: u64);
+    fn init_with_early_mapping(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {}
+
+    /// Performs platform-specific initialisation. This will be called with the main pagetable
+    /// enabled, so regions mapped by `map_extra_regions` will be available.
+    ///
+    /// This may initialise the logger, if `init_with_early_mapping` didn't already do so.
+    fn init() {}
 
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.

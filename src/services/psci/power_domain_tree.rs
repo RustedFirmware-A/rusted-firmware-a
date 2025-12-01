@@ -187,7 +187,7 @@ impl<'a> AncestorPowerDomains<'a> {
     ) -> Self {
         let mut list = ArrayVec::new();
         let mut parent = Some(index);
-        let mut level = PsciCompositePowerState::CPU_POWER_LEVEL;
+        let mut level = PsciCompositePowerState::CPU_POWER_LEVEL + 1;
 
         while let Some(index) = parent {
             assert!(level <= PsciPlatformImpl::MAX_POWER_LEVEL);
@@ -626,10 +626,9 @@ mod tests {
 
         let mut cpu = tree.locked_cpu_node(4);
         tree.with_ancestors_locked_to_max_level(&mut cpu, 1, |_cpu, ancestors| {
-            assert_eq!(2, ancestors.iter().len());
+            assert_eq!(1, ancestors.iter().len());
             let mut iter = ancestors.iter();
             assert_eq!(Some(1), iter.next().unwrap().parent);
-            assert_eq!(Some(0), iter.next().unwrap().parent);
         });
 
         let mut cpu = tree.locked_cpu_node(12);

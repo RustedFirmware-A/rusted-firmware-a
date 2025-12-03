@@ -41,6 +41,8 @@ TARGET=aarch64-unknown-none-softfloat
 
 BL1=${TFA}/build/${PLAT}/${BUILDTYPE}/bl1.bin
 BL2=${TFA}/build/${PLAT}/${BUILDTYPE}/bl2.bin
+BL32="${BL32:-${OUT}/bl32.bin}"
+BL33="${BL33:-${OUT}/bl33.bin}"
 FIP=${TFA}/build/${PLAT}/${BUILDTYPE}/fip.bin
 
 CURRDIR=$(readlink -f "$(dirname "$0")")
@@ -124,14 +126,23 @@ case "$PLAT" in
         -C bp.secureflashloader.fname=${BL1} \
         -C bp.flashloader0.fname=${FIP}"
 
+    if [ -z ${SP_LAYOUT_FILE} ]; then
+        SPMD_SPM_AT_SEL2=${SPMD_SPM_AT_SEL2:-0}
+    else
+        SPMD_SPM_AT_SEL2=1
+    fi
+
     # Note: By default, TF-A considers that the Base FVP platform has 256 kB of Trusted SRAM.
     # Actually it can simulate up to 512 kB of Trusted SRAM, which is the configuration we use for RF-A
     # (because a debug build of RF-A is too big to fit in 256 kB). The `FVP_TRUSTED_SRAM_SIZE=512` TF-A
     # build flag is required to stop TF-A from complaining that RF-A does not fit.
     if [[ "${RME:-}" == 1 ]]; then
         make PLAT=fvp FEATURES=sel2,rme ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} BTI_EL3=${BTI_EL3} all
-        make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 BL31="${OUT}/bl31.bin" \
-            BL32="${OUT}/bl32.bin" BL33="${OUT}/bl33.bin" all fip
+        make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 \
+            BL31=${OUT}/bl31.bin \
+            BL32=${BL32} \
+            BL33=${BL33} \
+            all fip
         FVP_Base_RevC-2xAEMvA \
             -C bp.secure_memory=0 \
             -Q 1000 \
@@ -181,14 +192,13 @@ case "$PLAT" in
             ${FVP_COMMON_ARGS}
 
     else
-        # Note: In the command below, the user may notice that we use `SPMD_SPM_AT_SEL2=0` even though the
-        # project is enabling S-EL2 using the default `sel2` feature. The `rusted-firmware-a` project's
-        # build system requires an SP layout file for building with `SPMD_SPM_AT_SEL2=1`. We currently
-        # use the temporary workaround of building with `SPMD_SPM_AT_SEL2=0` to avoid using this sp
-        # layout file.
         make PLAT=fvp ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} BTI_EL3=${BTI_EL3} all
-        make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=0 \
-            BL31="${OUT}/bl31.bin" BL32="${OUT}/bl32.bin" BL33="${OUT}/bl33.bin" CTX_INCLUDE_AARCH32_REGS=0 all fip
+        make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=${SPMD_SPM_AT_SEL2} CTX_INCLUDE_AARCH32_REGS=0 \
+            BL31=${OUT}/bl31.bin \
+            BL32=${BL32} \
+            BL33=${BL33} \
+            SP_LAYOUT_FILE=${SP_LAYOUT_FILE} \
+            all fip
         FVP_Base_RevC-2xAEMvA \
             -C cluster0.has_arm_v9-0=1 \
             -C cluster1.has_arm_v9-0=1 \

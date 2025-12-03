@@ -10,7 +10,11 @@ use crate::{
     aarch64::{dsb_ish, dsb_sy, wfi},
     context::{CoresImpl, EntryPointInfo},
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
-    cpu_extensions::simd::Simd,
+    cpu_extensions::{
+        fgt2::Fgt2, hcx::Hcx, mpam::Mpam, mte2::MemoryTagging, pmuv3::MultiThreadedPmu, ras::Ras,
+        simd::Simd, spe::StatisticalProfiling, sys_reg_trace::SysRegTrace, tcr2::Tcr2,
+        trbe::TraceBufferNonSecure, trf::TraceFiltering,
+    },
     debug::DEBUG,
     errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig, InterruptConfig},
@@ -197,7 +201,20 @@ unsafe impl Platform for Fvp {
         ],
     };
 
-    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&Simd];
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[
+        &Fgt2,
+        &Hcx,
+        &MemoryTagging,
+        &Mpam,
+        &MultiThreadedPmu,
+        &Ras,
+        &Simd,
+        &StatisticalProfiling,
+        &SysRegTrace,
+        &Tcr2,
+        &TraceBufferNonSecure,
+        &TraceFiltering,
+    ];
 
     fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         let peripherals = Peripherals::take().unwrap();

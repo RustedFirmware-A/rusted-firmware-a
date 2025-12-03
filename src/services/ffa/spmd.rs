@@ -17,7 +17,7 @@ use core::{
     cell::RefCell,
     sync::atomic::{AtomicUsize, Ordering::Relaxed},
 };
-use log::{debug, error, warn};
+use log::{debug, error, trace, warn};
 use percore::{ExceptionLock, PerCore};
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0060;
@@ -68,7 +68,7 @@ impl Service for Spmd {
 
         match &mut Interface::from_regs(version, regs.values()) {
             Ok(msg) => {
-                debug!("Handle FF-A call from NWd {msg:x?}");
+                trace!("Handle FF-A call from NWd {msg:x?}");
 
                 let spmc_state =
                     exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
@@ -101,7 +101,7 @@ impl Service for Spmd {
 
         match &mut Interface::from_regs(version, regs.values()) {
             Ok(msg) => {
-                debug!("Handle FF-A call from SWd {msg:x?}");
+                trace!("Handle FF-A call from SWd {msg:x?}");
 
                 let spmc_state =
                     exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);

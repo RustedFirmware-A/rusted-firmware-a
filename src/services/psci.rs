@@ -1247,7 +1247,7 @@ impl Psci {
             }
             Ok(ReturnCode::Error(error_code)) => {
                 // The SPM cannot prevent the PSCI state change, so we only log the error.
-                log::error!("SPMD return {error_code:?} on PSCI event {function:?}")
+                log::warn!("SPMD return {error_code:?} on PSCI event {function:?}")
             }
             Err(error) => log::error!("Failed to parse PSCI event response: {error:?}"),
         }

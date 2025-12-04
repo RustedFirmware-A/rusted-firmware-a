@@ -343,7 +343,7 @@ impl PsciCompositePowerState {
     /// PowerState passed into CPU_SUSPEND. highest_affected_level is the highest level where some
     /// kind of low power operation is happening for this power state. cpu_index is the calling
     /// core's index. resolved_state is a version of the original state but converted into the
-    /// proper voting format for the requested_states values. See
+    /// proper voting format for the suspend_states values. See
     /// create_highest_affected_level_resolved_state.
     pub fn apply_coordinated_state_to_power_domain_tree(
         &self,
@@ -353,12 +353,12 @@ impl PsciCompositePowerState {
         cpu_index: usize,
         resolved_state: PsciCompositePowerState,
     ) {
-        // requested_states are used to coordinate the power mode. Use resolved_state.
+        // suspend_states are used to coordinate the power mode. Use resolved_state.
         for (node, requested_state) in ancestors
             .iter_mut()
             .zip(&resolved_state.states[PsciCompositePowerState::CPU_POWER_LEVEL + 1..])
         {
-            node.set_requested_power_state(cpu_index, *requested_state);
+            node.set_suspend_state(cpu_index, *requested_state);
         }
 
         // We have now determined that it's safe to go to the caller provided state. Set the state
@@ -449,7 +449,7 @@ impl PsciCompositePowerState {
             )
         {
             let shallowest_descendant_state =
-                node.get_minimal_allowed_state_without_core(cpu_index);
+                node.get_osi_minimal_allowed_state_without_core(cpu_index);
             // If the requested state is deeper (remember: deeper -> larger; RUN state is 0) than
             // any of the other descendants at this level, the state must be rejected. For example,
             // if the other descendant states are retention, it is not possible to go to off at this
@@ -819,6 +819,7 @@ impl Psci {
 
                 for node in ancestors.iter_mut() {
                     node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
+                    node.clear_suspend_state(cpu_index);
                     node.set_local_state(PlatformPowerState::RUN);
                 }
             });
@@ -2506,6 +2507,64 @@ mod tests {
                 &[
                     PlatformPowerState::OFF,
                     PlatformPowerState::Standby2,
+                    PlatformPowerState::RUN,
+                    PlatformPowerState::RUN,
+                ],
+            );
+        }
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_power_down_at_lvl1_mixed_with_cpu_off() {
+        let psci = setup_osi_all_cores_on_test();
+        let _reset_sysregs = SysregsResetter;
+
+        for mpidr in &CPU_MPIDRS[..=1] {
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr((*mpidr).into());
+            expect_cpu_power_down_wfi(|| {
+                assert_eq!(
+                    psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                    Ok(())
+                );
+            });
+        }
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(2).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(
+                psci.cpu_suspend(PowerState::PowerDown(0x33), ENTRY_POINT),
+                Ok(())
+            );
+        });
+
+        for cpu_index in 0..=2 {
+            check_ancestor_state(
+                &psci,
+                cpu_index,
+                &[
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::RUN,
+                    PlatformPowerState::RUN,
+                ],
+            );
+        }
+
+        // Wake up core
+        SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr(CPU_MPIDRS[0].into());
+        let _ = psci.handle_cpu_boot();
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(psci.cpu_off(), Ok(()));
+        });
+
+        for cpu_index in 0..=2 {
+            check_ancestor_state(
+                &psci,
+                cpu_index,
+                &[
+                    PlatformPowerState::OFF,
+                    PlatformPowerState::RUN,
                     PlatformPowerState::RUN,
                     PlatformPowerState::RUN,
                 ],

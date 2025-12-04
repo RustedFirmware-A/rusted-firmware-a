@@ -29,8 +29,16 @@ pub struct NonCpuPowerNode {
     /// Range of descendant CPU indices
     cpu_range: Range<usize>,
     /// Requested Nth level power state (where N is whichever level in the power tree this
-    /// NonCpuPowerNode happens to be in) of descendant CPU nodes
+    /// NonCpuPowerNode happens to be in) of descendant CPU nodes. This field participates in the
+    /// platform-coordinated state logic. If the OS initiated mode is active, it is still being used
+    /// when coordinating on CPU_OFF calls.
     requested_states: ArrayVec<PlatformPowerState, { PowerDomainTree::CPU_DOMAIN_COUNT }>,
+    /// Requested Nth level OS initiated suspend power state. This value is only set when a
+    /// CPU_SUSPEND request was issued on the core in OS initiated mode. Using this field prevents
+    /// a CPU_OFF call turning off higher power domains when the rest of the cores are in suspend.
+    /// Please look at section 5.5.2 of the PSCI specification for information on how to correctly
+    /// handle mixed CPU_OFF and CPU_SUSPEND calls.
+    suspend_states: ArrayVec<Option<PlatformPowerState>, { PowerDomainTree::CPU_DOMAIN_COUNT }>,
     // OPTIMIZE: The worst case memory usage of requested_states on all NonCpuPowerNode happens
     // when the power domain tree is a complete binary tree. In this case the memory usage is
     // n^2 + n where n is CPU_DOMAIN_COUNT. The optimal case would be n * log2(n) if using Vec of
@@ -45,6 +53,7 @@ impl NonCpuPowerNode {
             local_state: PlatformPowerState::OFF,
             cpu_range: 0..0,
             requested_states: ArrayVec::new(),
+            suspend_states: ArrayVec::new(),
         }
     }
 
@@ -58,6 +67,7 @@ impl NonCpuPowerNode {
         }
 
         self.requested_states.push(PlatformPowerState::OFF);
+        self.suspend_states.push(None);
     }
 
     /// Store the requested power state of a descendant CPU node.
@@ -66,32 +76,41 @@ impl NonCpuPowerNode {
         self.requested_states[cpu_index - self.cpu_range.start] = state;
     }
 
-    /// Checks if all the cores are non-running state except the one idenfied by `cpu_index`.
-    pub fn is_last_cpu_to_idle(&self, cpu_index: usize) -> bool {
-        let local_cpu_index = cpu_index - self.cpu_range.start;
-        self.requested_states
-            .iter()
-            .enumerate()
-            .filter(|&(i, state)| {
-                if i == local_cpu_index {
-                    assert_eq!(*state, PlatformPowerState::RUN);
-                    false
-                } else {
-                    true
-                }
-            })
-            .all(|(_index, state)| *state != PlatformPowerState::RUN)
+    /// Sets the requested suspend state of a descendant CPU node.
+    pub fn set_suspend_state(&mut self, cpu_index: usize, state: PlatformPowerState) {
+        assert!(self.cpu_range.contains(&cpu_index));
+        self.suspend_states[cpu_index - self.cpu_range.start] = Some(state);
     }
 
-    /// Returns the minimum value in requested_states except for the element specified by cpu_index.
-    /// If this NonCpuPowerNode only has a single core for an ancestor, this returns OFF.
-    pub fn get_minimal_allowed_state_without_core(&self, cpu_index: usize) -> PlatformPowerState {
-        let local_cpu_index = cpu_index - self.cpu_range.start;
-        self.requested_states
-            .iter()
-            .enumerate()
-            .filter(|&(i, _)| i != local_cpu_index)
-            .fold(PlatformPowerState::OFF, |acc, (_, &state)| acc.min(state))
+    /// Clears the requested suspend state of a descendant CPU node.
+    pub fn clear_suspend_state(&mut self, cpu_index: usize) {
+        assert!(self.cpu_range.contains(&cpu_index));
+        self.suspend_states[cpu_index - self.cpu_range.start] = None;
+    }
+
+    /// Checks if all the cores are non-running state except the one idenfied by `cpu_index`.
+    pub fn is_last_cpu_to_idle(&self, cpu_index: usize) -> bool {
+        self.get_osi_minimal_allowed_state_without_core(cpu_index) != PlatformPowerState::RUN
+    }
+
+    /// Returns the minimum allowed power state for the node, excluding the requests from a given
+    /// CPU. The function iterates over the two sets of requested states originating from CPU_OFF
+    /// and OS-initiated CPU_SUSPEND requests. It returns the minimum value in requested_states,
+    /// ignoring the element at cpu_index. If this NonCpuPowerNode has only a single core as an
+    /// ancestor, it returns OFF.
+    pub fn get_osi_minimal_allowed_state_without_core(
+        &self,
+        cpu_index: usize,
+    ) -> PlatformPowerState {
+        self.states(cpu_index)
+            .fold(PlatformPowerState::OFF, |acc, (state, suspend_state)| {
+                if *state != PlatformPowerState::RUN {
+                    assert!(suspend_state.is_none());
+                    acc.min(*state)
+                } else {
+                    acc.min(suspend_state.unwrap_or(PlatformPowerState::RUN))
+                }
+            })
     }
 
     /// Set the local power state of the node to the lowest possible level while still meeting the
@@ -111,6 +130,24 @@ impl NonCpuPowerNode {
     /// Set local power state of the node.
     pub fn set_local_state(&mut self, local_state: PlatformPowerState) {
         self.local_state = local_state;
+    }
+
+    /// Returns iterator to pairs of requested and suspend states, skipping the specified CPU index.
+    fn states(
+        &self,
+        skip_cpu_index: usize,
+    ) -> impl Iterator<Item = (&PlatformPowerState, &Option<PlatformPowerState>)> {
+        let skip = skip_cpu_index - self.cpu_range.start;
+
+        self.requested_states
+            .iter()
+            .zip(&self.suspend_states)
+            .enumerate()
+            .filter_map(
+                move |(index, state)| {
+                    if index != skip { Some(state) } else { None }
+                },
+            )
     }
 }
 
@@ -457,6 +494,7 @@ mod tests {
         assert_eq!(PlatformPowerState::OFF, node.local_state);
         assert!(node.cpu_range.is_empty());
         assert!(node.requested_states.is_empty());
+        assert!(node.suspend_states.is_empty());
 
         node.assign_cpu(2);
         assert_eq!(2..3, node.cpu_range);
@@ -485,29 +523,65 @@ mod tests {
 
         node.set_local_state(PlatformPowerState::RUN);
         assert_eq!(PlatformPowerState::RUN, node.local_state());
+
+        let mut suspend_states = ArrayVec::new();
+        suspend_states.push(None);
+        suspend_states.push(None);
+        assert_eq!(suspend_states, node.suspend_states);
     }
 
     #[test]
-    fn non_cpu_power_node_get_minimal_allowed_state_without_core() {
+    fn non_cpu_power_node_is_last_cpu_to_idle() {
+        let mut node = NonCpuPowerNode::new(Some(0));
+        for cpu_index in 0..3 {
+            node.assign_cpu(cpu_index);
+        }
+
+        node.set_requested_power_state(0, PlatformPowerState::RUN);
+        assert!(node.is_last_cpu_to_idle(0));
+
+        node.set_requested_power_state(1, PlatformPowerState::RUN);
+        node.set_requested_power_state(2, PlatformPowerState::RUN);
+        assert!(!node.is_last_cpu_to_idle(0));
+
+        node.set_suspend_state(1, PlatformPowerState::OFF);
+        node.set_suspend_state(2, PlatformPowerState::OFF);
+        assert!(node.is_last_cpu_to_idle(0));
+    }
+
+    #[test]
+    fn non_cpu_power_node_get_osi_minimal_allowed_state_without_core() {
         let mut node0 = NonCpuPowerNode::new(Some(0));
         for cpu_index in 0..3 {
             node0.assign_cpu(cpu_index);
         }
         node0.set_requested_power_state(0, PlatformPowerState::RUN);
         assert_eq!(
-            node0.get_minimal_allowed_state_without_core(0),
+            node0.get_osi_minimal_allowed_state_without_core(0),
             PlatformPowerState::OFF
         );
         node0.set_requested_power_state(1, PlatformPowerState::RUN);
         assert_eq!(
-            node0.get_minimal_allowed_state_without_core(0),
+            node0.get_osi_minimal_allowed_state_without_core(0),
+            PlatformPowerState::RUN
+        );
+
+        node0.set_suspend_state(1, PlatformPowerState::OFF);
+        assert_eq!(
+            node0.get_osi_minimal_allowed_state_without_core(0),
+            PlatformPowerState::OFF
+        );
+
+        node0.clear_suspend_state(1);
+        assert_eq!(
+            node0.get_osi_minimal_allowed_state_without_core(0),
             PlatformPowerState::RUN
         );
 
         let mut node1 = NonCpuPowerNode::new(Some(1));
         node1.assign_cpu(3);
         assert_eq!(
-            node1.get_minimal_allowed_state_without_core(3),
+            node1.get_osi_minimal_allowed_state_without_core(3),
             PlatformPowerState::OFF
         );
     }

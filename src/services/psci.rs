@@ -706,7 +706,6 @@ impl Psci {
                     composite_state.set_local_states_from_nodes(cpu, &ancestors);
 
                     self.platform.power_domain_suspend_finish(&composite_state);
-                    cpu.clear_highest_affected_level();
                     cpu.set_local_state(PlatformPowerState::RUN);
 
                     for node in ancestors.iter_mut() {
@@ -794,14 +793,8 @@ impl Psci {
             panic!("Unexpected affinity info state");
         }
 
-        let target_power_level = cpu
-            .highest_affected_level()
-            .unwrap_or(PsciPlatformImpl::MAX_POWER_LEVEL);
-
-        self.power_domain_tree.with_ancestors_locked_to_max_level(
-            &mut cpu,
-            target_power_level,
-            |cpu, mut ancestors| {
+        self.power_domain_tree
+            .with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
                 composite_state.set_local_states_from_nodes(cpu, &ancestors);
 
                 if affinity_info == AffinityInfo::OnPending {
@@ -818,7 +811,6 @@ impl Psci {
                     );
 
                     self.platform.power_domain_suspend_finish(&composite_state);
-                    cpu.clear_highest_affected_level();
 
                     wake_from_suspend = true;
                 }
@@ -829,8 +821,7 @@ impl Psci {
                     node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
                     node.set_local_state(PlatformPowerState::RUN);
                 }
-            },
-        );
+            });
 
         let entry_point = cpu.pop_entry_point();
         drop(cpu); // Unlock before possible panic

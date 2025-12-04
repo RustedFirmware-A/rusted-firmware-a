@@ -121,8 +121,6 @@ pub struct CpuPowerNode {
     parent: usize,
     /// Current affinity info of the CPU
     affinity_info: AffinityInfo,
-    /// Highest power level which if affected while in suspend state
-    highest_affected_level: Option<usize>,
     /// Local power state of the CPU node
     local_state: PlatformPowerState,
     /// Non-secure entry point of the CPU on waking up
@@ -134,7 +132,6 @@ impl CpuPowerNode {
         Self {
             parent,
             affinity_info: AffinityInfo::Off,
-            highest_affected_level: None,
             local_state: PlatformPowerState::OFF,
             entry_point: None,
         }
@@ -148,22 +145,6 @@ impl CpuPowerNode {
     /// Set affinity info of the CPU.
     pub fn set_affinity_info(&mut self, affinity_info: AffinityInfo) {
         self.affinity_info = affinity_info;
-    }
-
-    /// Get highest affected power level for suspend coordination.
-    pub fn highest_affected_level(&self) -> Option<usize> {
-        self.highest_affected_level
-    }
-
-    /// Set highest affected power level.
-    #[allow(unused)]
-    pub fn set_highest_affected_level(&mut self, highest_affected_level: usize) {
-        self.highest_affected_level = Some(highest_affected_level);
-    }
-
-    /// Clears highest affected power level.
-    pub fn clear_highest_affected_level(&mut self) {
-        self.highest_affected_level = None;
     }
 
     /// Get local state of the CPU.
@@ -539,17 +520,11 @@ mod tests {
         let mut node = CpuPowerNode::new(3);
         assert_eq!(3, node.parent);
         assert_eq!(AffinityInfo::Off, node.affinity_info());
-        assert_eq!(None, node.highest_affected_level());
         assert_eq!(PlatformPowerState::OFF, node.local_state());
         assert_eq!(None, node.pop_entry_point());
 
         node.set_affinity_info(AffinityInfo::On);
         assert_eq!(AffinityInfo::On, node.affinity_info());
-
-        node.set_highest_affected_level(4);
-        assert_eq!(Some(4), node.highest_affected_level());
-        node.clear_highest_affected_level();
-        assert_eq!(None, node.highest_affected_level());
 
         node.set_local_state(PlatformPowerState::RUN);
         assert_eq!(PlatformPowerState::RUN, node.local_state());

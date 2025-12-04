@@ -382,17 +382,23 @@ impl Debug for PowerDomainTree {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "digraph {{")?;
         for (index, ncpu) in self.non_cpu_power_nodes.iter().enumerate() {
-            let nc = ncpu.lock();
-            writeln!(f, "NC{index} [label=\"{nc:#?}\"]")?;
-            if let Some(parent) = nc.parent {
-                writeln!(f, "NC{parent} -> NC{index}")?;
+            if let Some(nc) = ncpu.try_lock() {
+                writeln!(f, "NC{index} [label=\"{nc:#?}\"]")?;
+                if let Some(parent) = nc.parent {
+                    writeln!(f, "NC{parent} -> NC{index}")?;
+                }
+            } else {
+                writeln!(f, "C{index} [label=\"NonCpuPowerNode is locked\"]")?;
             }
         }
 
         for (index, cpu) in self.cpu_power_nodes.iter().enumerate() {
-            let c = cpu.lock();
-            writeln!(f, "C{index} [label=\"{c:#?}\"]")?;
-            writeln!(f, "NC{} -> C{}", c.parent, index)?;
+            if let Some(c) = cpu.try_lock() {
+                writeln!(f, "C{index} [label=\"{c:#?}\"]")?;
+                writeln!(f, "NC{} -> C{}", c.parent, index)?;
+            } else {
+                writeln!(f, "C{index} [label=\"CpuPowerNode is locked\"]")?;
+            }
         }
 
         writeln!(f, "}}")?;

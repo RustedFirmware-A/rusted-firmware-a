@@ -13,7 +13,8 @@ use crate::{
 };
 use arm_psci::EntryPoint;
 use arm_sysregs::{
-    CptrEl3, Esr, MdcrEl3, Mpam3El3, ScrEl3, Spsr, read_mpidr_el1, write_mpam3_el3, write_scr_el3,
+    CptrEl3, Esr, MdcrEl3, Mpam3El3, ScrEl3, Spsr, read_mpidr_el1, write_cptr_el3, write_mpam3_el3,
+    write_scr_el3, write_zcr_el3,
 };
 #[cfg(not(feature = "sel2"))]
 use arm_sysregs::{
@@ -542,9 +543,17 @@ impl PerWorldContext {
 
     /// Restores world-specific EL3 system register configuration.
     fn restore_el3_sysregs(&self) {
-        // TODO: move the entire per_world_context restoration here from `el3_exit`.
         if Mpam.is_present() {
             write_mpam3_el3(self.mpam3_el3);
+        }
+
+        write_cptr_el3(self.cptr_el3);
+        isb();
+
+        // Restore SVE setup only if SVE is enabled.
+        if self.cptr_el3.contains(CptrEl3::EZ) {
+            write_zcr_el3(self.zcr_el3);
+            isb();
         }
     }
 }
@@ -612,14 +621,16 @@ pub fn world_context(world: World) -> *mut CpuContext {
 
 /// Restores the context for the given world.
 fn restore_world(world: World, context: &CpuContext) {
+    let world_context = &PER_WORLD_CONTEXT.get().unwrap()[world];
+
+    // Restore EL3 sysregs first, e.g. to allow SVE register access before restoring SVE context.
+    world_context.restore_el3_sysregs();
+
     for ext in PlatformImpl::CPU_EXTENSIONS {
         ext.restore_context(world);
     }
 
     context.restore_lower_el_sysregs();
-
-    let world_context = &PER_WORLD_CONTEXT.get().unwrap()[world];
-    world_context.restore_el3_sysregs();
 }
 
 /// Saves lower EL system registers from the current world, restores lower EL and some per-world
@@ -921,7 +932,6 @@ mod asm {
         PMCR_EL0_DP_BIT = const Pmcr::DP.bits(),
         MODE_SP_EL0 = const StackPointer::El0 as u8,
         MODE_SP_ELX = const StackPointer::ElX as u8,
-        CPTR_EZ_BIT = const CptrEl3::EZ.bits(),
         SCR_NSE_SHIFT = const 62,
         CTX_NESTED_EA_FLAG = const offset_of!(El3State, nested_ea_flag),
         CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),
@@ -933,7 +943,6 @@ mod asm {
         CTX_SPSR_EL3 = const offset_of!(El3State, spsr_el3),
         CTX_MDCR_EL3 = const offset_of!(El3State, mdcr_el3),
         CTX_RUNTIME_SP_LR = const offset_of!(El3State, runtime_sp),
-        CTX_CPTR_EL3 = const offset_of!(PerWorldContext, cptr_el3),
         CTX_SAVED_ELR_EL3 = const offset_of!(El3State, saved_elr_el3),
         CTX_GPREG_X0 = const 0,
         CTX_GPREG_X2 = const 2 * size_of::<u64>(),

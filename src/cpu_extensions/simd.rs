@@ -23,7 +23,22 @@ use arm_sysregs::{
 ///
 /// If `sel2` is enabled, S-EL2 is responsible for FP/SIMD context management.
 /// Otherwise, the context management is performed in EL3.
-pub struct Simd;
+pub struct Simd {
+    /// This extension will save / restore NS FP registers only if this flag is set and `sel2` is
+    /// disabled.
+    /// This flag is used to not duplicate context management when SVE extension is enabled,
+    /// as FP registers overlap with SVE state.
+    #[allow(dead_code)]
+    manage_ns_context: bool,
+}
+
+impl Simd {
+    /// `manage_ns_context` should be true iff the Sve extension is not enabled for the platform.
+    #[allow(unused)]
+    pub const fn new(manage_ns_context: bool) -> Self {
+        Self { manage_ns_context }
+    }
+}
 
 impl CpuExtension for Simd {
     fn is_present(&self) -> bool {
@@ -40,10 +55,12 @@ impl CpuExtension for Simd {
     fn save_context(&self, world: World) {
         use crate::platform::exception_free;
 
-        exception_free(|token| {
-            let ctx = &mut simd_sel1::SIMD_CTX.get().borrow_mut(token)[world];
+        if world == World::NonSecure && !self.manage_ns_context {
+            return;
+        }
 
-            ctx.save();
+        exception_free(|token| {
+            simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].save();
         })
     }
 
@@ -51,10 +68,12 @@ impl CpuExtension for Simd {
     fn restore_context(&self, world: World) {
         use crate::platform::exception_free;
 
-        exception_free(|token| {
-            let ctx = &simd_sel1::SIMD_CTX.get().borrow_mut(token)[world];
+        if world == World::NonSecure && !self.manage_ns_context {
+            return;
+        }
 
-            ctx.restore();
+        exception_free(|token| {
+            simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].restore();
         })
     }
 }
@@ -104,6 +123,36 @@ impl CpuExtension for Sve {
         if world == World::NonSecure {
             // Allow NS world SVE register access.
             ctx.cptr_el3 |= CptrEl3::EZ;
+        }
+    }
+
+    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+    fn save_context(&self, world: World) {
+        use crate::platform::exception_free;
+
+        if world == World::NonSecure {
+            exception_free(|token| {
+                if self.is_present() {
+                    simd_sel1::NS_SVE_CTX.get().borrow_mut(token).save();
+                } else {
+                    simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].save();
+                }
+            })
+        }
+    }
+
+    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+    fn restore_context(&self, world: World) {
+        use crate::platform::exception_free;
+
+        if world == World::NonSecure {
+            exception_free(|token| {
+                if self.is_present() {
+                    simd_sel1::NS_SVE_CTX.get().borrow_mut(token).restore();
+                } else {
+                    simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].restore();
+                }
+            })
         }
     }
 }

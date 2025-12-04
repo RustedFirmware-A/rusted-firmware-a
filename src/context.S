@@ -225,24 +225,6 @@ func el3_exit
 	mov	sp, x0
 	stp	x17, x30, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_RUNTIME_SP_LR}]
 
-	/* ----------------------------------------------------------
-	 * Restore CPTR_EL3.
-	 * ZCR is only restored if SVE is supported and enabled.
-	 * Synchronization is required before zcr_el3 is addressed.
-	 * ----------------------------------------------------------
-	 */
-
-	/* The address of the PerWorldContext is stored in x1 */
-	ldp	x19, x20, [x1, #{CTX_CPTR_EL3}]
-	msr	cptr_el3, x19
-
-	ands	x19, x19, #{CPTR_EZ_BIT}
-	beq	sve_not_enabled
-
-	isb
-	msr	S3_6_C1_C2_0, x20 /* zcr_el3 */
-sve_not_enabled:
-
 	/*
 	 * FEAT_IESB provides an implicit error synchronization event at exception
 	 * entry and exception return, so there is no need for any explicit

@@ -4,6 +4,8 @@
 
 //! Tests SIMD context switch.
 
+// TODO: Make it possible for a platform to enable SVE in STF and test NS SVE context switch.
+
 use crate::{
     framework::{
         TestHelperProxy, TestHelperRequest, TestHelperResponse, TestResult, normal_world_test,

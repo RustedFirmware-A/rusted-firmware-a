@@ -207,7 +207,7 @@ unsafe impl Platform for Fvp {
         &Mpam,
         &MultiThreadedPmu,
         &Ras,
-        &Simd,
+        &Simd::new(true),
         &StatisticalProfiling,
         &SysRegTrace,
         &Tcr2,

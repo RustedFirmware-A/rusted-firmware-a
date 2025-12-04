@@ -23,10 +23,9 @@ use aarch64_paging::{
 use arm_sysregs::{SctlrEl3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
 use core::{
     fmt::{self, Debug, Formatter},
-    mem::take,
     ptr::NonNull,
 };
-use log::{debug, info, trace, warn};
+use log::{debug, info, trace};
 use spin::{
     Once,
     mutex::{SpinMutex, SpinMutexGuard},
@@ -318,14 +317,17 @@ pub unsafe fn disable_mmu_el3() {
 }
 
 struct IdTranslation {
-    /// Pages which may be allocated for page tables but have not yet been.
-    unused_pages: &'static mut [PageTable],
+    /// Pages which can be allocated for page tables.
+    pages: &'static mut [PageTable],
+    /// Record of which `pages` are currently allocated.
+    allocated: [bool; PlatformImpl::PAGE_HEAP_PAGE_COUNT],
 }
 
 impl Debug for IdTranslation {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_struct("IdTranslation")
-            .field("unused_pages", &self.unused_pages.len())
+            .field("pages", &self.pages.len())
+            .field("allocated", &self.allocated)
             .finish()
     }
 }
@@ -340,12 +342,13 @@ impl IdTranslation {
 
 impl Translation for IdTranslation {
     fn allocate_table(&mut self) -> (NonNull<PageTable>, PhysicalAddress) {
-        let (table, rest) = take(&mut self.unused_pages)
-            .split_first_mut()
+        let index = self
+            .allocated
+            .iter()
+            .position(|&allocated| !allocated)
             .expect("Failed to allocate page table");
-        self.unused_pages = rest;
-
-        let table = NonNull::from(table);
+        self.allocated[index] = true;
+        let table = NonNull::from(&mut self.pages[index]);
         (
             table,
             Self::virtual_to_physical(VirtualAddress(table.as_ptr() as usize)),
@@ -353,7 +356,9 @@ impl Translation for IdTranslation {
     }
 
     unsafe fn deallocate_table(&mut self, page_table: NonNull<PageTable>) {
-        warn!("Leaking page table allocation {page_table:?}");
+        let index =
+            (page_table.addr().get() - &raw const self.pages[0] as usize) / size_of::<PageTable>();
+        self.allocated[index] = false;
     }
 
     fn physical_to_virtual(&self, page_table_pa: PhysicalAddress) -> NonNull<PageTable> {
@@ -372,7 +377,8 @@ impl IdMap {
         Self {
             mapping: Mapping::new(
                 IdTranslation {
-                    unused_pages: pages,
+                    pages,
+                    allocated: [false; PlatformImpl::PAGE_HEAP_PAGE_COUNT],
                 },
                 0,
                 ROOT_LEVEL,

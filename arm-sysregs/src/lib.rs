@@ -331,7 +331,7 @@ impl IdAa64mmfr0El1 {
     const FGT_SHIFT: u64 = 56;
     const FGT_MASK: u64 = 0b1111;
     const FGT_SUPPORTED: u64 = 0b0001;
-    const FGT2_SUPPORTED: u64 = 0b0001;
+    const FGT2_SUPPORTED: u64 = 0b0010;
 
     /// Indicates whether Fine Grain Traps Extension is implemented.
     pub fn is_feat_fgt_present(self) -> bool {
@@ -1047,7 +1047,7 @@ read_write_sysreg!(hdfgrtr2_el2: s3_4_c3_c1_0, u64, safe_read, safe_write, fake:
 read_write_sysreg!(hdfgwtr2_el2: s3_4_c3_c1_1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hfgitr2_el2: s3_4_c3_c1_7, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hfgrtr2_el2: s3_4_c3_c1_2, u64, safe_read, safe_write, fake::SYSREGS);
-read_write_sysreg!(hfgwtr_el2: s3_4_c1_c1_5, u64, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg!(hfgwtr2_el2: s3_4_c3_c1_3, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hpfar_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(hstr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(icc_sre_el1, u64: IccSre, safe_read, safe_write, fake::SYSREGS);

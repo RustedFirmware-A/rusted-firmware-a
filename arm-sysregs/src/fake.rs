@@ -198,8 +198,8 @@ pub struct SystemRegisters {
     pub hfgitr2_el2: u64,
     /// Fake value for the HFGRTR2_EL2 system register.
     pub hfgrtr2_el2: u64,
-    /// Fake value for the HFGWTR_EL2 system register.
-    pub hfgwtr_el2: u64,
+    /// Fake value for the HFGWTR2_EL2 system register.
+    pub hfgwtr2_el2: u64,
     /// Fake value for the HPFAR_EL2 system register.
     pub hpfar_el2: u64,
     /// Fake value for the HSTR_EL2 system register.
@@ -398,7 +398,7 @@ impl SystemRegisters {
             hdfgwtr2_el2: 0,
             hfgitr2_el2: 0,
             hfgrtr2_el2: 0,
-            hfgwtr_el2: 0,
+            hfgwtr2_el2: 0,
             hpfar_el2: 0,
             hstr_el2: 0,
             icc_sre_el1: IccSre::empty(),

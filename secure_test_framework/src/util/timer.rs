@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use arm_gic::IntId;
-use arm_sysregs::write_sysreg;
+use arm_sysregs::{read_cntfrq_el0, read_sysreg, write_sysreg};
 use bitflags::bitflags;
 
 bitflags! {
@@ -42,6 +42,29 @@ pub trait Timer {
 
 /// An implementation for the ARM Generic **Non-secure** Physical Timer.
 pub struct NonSecureTimer;
+
+impl NonSecureTimer {
+    #[allow(dead_code)]
+    pub fn delay_us(us: u64) {
+        let freq = read_cntfrq_el0();
+        if freq == 0 {
+            panic!("CNTFREQ_EL0 not configured/inaccessible");
+        }
+
+        // Calculate the number of timer ticks required for the delay.
+        // Use u128 for the multiplication to prevent overflow.
+        let ticks_to_wait = (freq as u128 * us as u128) / 1_000_000;
+        let start_time = read_cntpct_el0();
+        let end_time = start_time.saturating_add(ticks_to_wait as u64);
+
+        // Loop until the system counter reaches the target time.
+        while read_cntpct_el0() < end_time {
+            // Hint the processor that we are in a spin-wait loop.
+            // This can save power on some systems.
+            core::hint::spin_loop();
+        }
+    }
+}
 
 impl Timer for NonSecureTimer {
     const INTERRUPT_ID: IntId = IntId::ppi(14);
@@ -85,6 +108,7 @@ impl Timer for SEL2Timer {
     }
 }
 
+read_sysreg!(cntpct_el0, u64, safe);
 write_sysreg!(cntp_tval_el0, u64, safe);
 write_sysreg!(cntp_ctl_el0, u64: TimerControl, safe);
 write_sysreg!(cntps_tval_el1, u64, safe);

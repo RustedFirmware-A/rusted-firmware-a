@@ -4,11 +4,11 @@
 
 //! Tests for standard Arm architecture SMCCC calls.
 
-use crate::framework::{expect::expect_eq, normal_world_test, secure_world_test};
+use crate::framework::{TestResult, expect::expect_eq, normal_world_test, secure_world_test};
 use smccc::{Smc, arch};
 
 normal_world_test!(test_arch_normal);
-fn test_arch_normal() -> Result<(), ()> {
+fn test_arch_normal() -> TestResult {
     expect_eq!(
         arch::version::<Smc>(),
         Ok(arch::Version { major: 1, minor: 5 })
@@ -18,7 +18,7 @@ fn test_arch_normal() -> Result<(), ()> {
 }
 
 secure_world_test!(test_arch_secure);
-fn test_arch_secure() -> Result<(), ()> {
+fn test_arch_secure() -> TestResult {
     expect_eq!(
         arch::version::<Smc>(),
         Ok(arch::Version { major: 1, minor: 5 })

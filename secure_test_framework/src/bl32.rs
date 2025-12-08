@@ -27,6 +27,7 @@ use crate::{
     exceptions::set_exception_vector,
     ffa::{call, direct_response, msg_wait, secondary_ep_register},
     framework::{
+        TestError,
         protocol::{ParseRequestError, Request, Response},
         run_secure_world_test, run_test_ffa_handler, run_test_helper,
     },
@@ -281,12 +282,12 @@ fn handle_request(request: Request) -> Response {
     let is_primary_core = core_index == 0;
     match request {
         Request::RunSecureTest { test_index } if is_primary_core => {
-            if run_secure_world_test(test_index).is_ok() {
-                Response::Success {
+            match run_secure_world_test(test_index) {
+                Ok(()) => Response::Success {
                     return_value: [0; 4],
-                }
-            } else {
-                Response::Failure
+                },
+                Err(TestError::Failed) => Response::Failure,
+                Err(TestError::Ignored) => Response::Ignored,
             }
         }
         Request::RunTestHelper { test_index, args } => match run_test_helper(test_index, args) {

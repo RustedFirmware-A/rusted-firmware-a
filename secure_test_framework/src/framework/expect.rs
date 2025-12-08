@@ -4,7 +4,7 @@
 
 //! Macros for checking expectations in tests without panicking.
 
-/// Logs an error and returns `Err(())` if the given expression is false.
+/// Logs an error and returns `Err(TestError::Failed)` if the given expression is false.
 #[macro_export]
 macro_rules! expect {
     ($expectation:expr) => {
@@ -16,12 +16,12 @@ macro_rules! expect {
                 column!(),
                 stringify!($expectation),
             );
-            return Err(());
+            return Err(crate::framework::TestError::Failed);
         }
     };
 }
 
-/// Logs an error and returns `Err(())` if the given expressions are not equal.
+/// Logs an error and returns `Err(TestError::Failed)` if the given expressions are not equal.
 macro_rules! expect_eq {
     ($left:expr, $right:expr) => {{
         let left = $left;
@@ -37,17 +37,17 @@ macro_rules! expect_eq {
             );
             log::error!("  left: {:?}", left);
             log::error!(" right: {:?}", right);
-            return Err(());
+            return Err(crate::framework::TestError::Failed);
         }
     }};
 }
 pub(crate) use expect_eq;
 
-/// Logs the given error and returns `Err(())`.
+/// Logs the given error and returns `Err(TestError::Failed)`.
 macro_rules! fail {
     ($($arg:tt)+) => {{
         log::error!($($arg)+);
-        return Err(());
+        return Err(crate::framework::TestError::Failed);
     }};
 }
 pub(crate) use fail;

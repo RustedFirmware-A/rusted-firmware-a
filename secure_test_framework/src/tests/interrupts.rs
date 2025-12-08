@@ -6,7 +6,7 @@
 
 use crate::{
     framework::{
-        TestHelperProxy, TestHelperRequest, TestHelperResponse, normal_world_test,
+        TestHelperProxy, TestHelperRequest, TestHelperResponse, TestResult, normal_world_test,
         secure_world_test,
     },
     gicv3::set_interrupt_handler,
@@ -140,7 +140,7 @@ fn secure_timer_helper(ns_world_request: TestHelperRequest) -> Result<TestHelper
 ///
 /// If timer interrupt handling (or world switching) works incorrectly
 /// then the tests below will hang.
-fn timer_test_main_loop(helper: &TestHelperProxy) -> Result<(), ()> {
+fn timer_test_main_loop(helper: &TestHelperProxy) -> TestResult {
     // Setup timer test.
     helper(helper_run_phase_request(Phase::Setup))?;
 
@@ -188,7 +188,7 @@ normal_world_test!(
 );
 /// Tests if a secure interrupt is routed to the secure world
 /// when the core is idle (wfi) in the non secure world.
-fn test_timer_interrupt_world_switch(helper: &TestHelperProxy) -> Result<(), ()> {
+fn test_timer_interrupt_world_switch(helper: &TestHelperProxy) -> TestResult {
     timer_test_main_loop(helper)
 }
 
@@ -198,7 +198,7 @@ normal_world_test!(test_nonsecure_timer);
 ///
 /// This just tests the normal-world interrupt handling
 /// without world-switching.
-fn test_nonsecure_timer() -> Result<(), ()> {
+fn test_nonsecure_timer() -> TestResult {
     timer_test_main_loop(&nonsecure_timer_helper)
 }
 
@@ -208,6 +208,6 @@ secure_world_test!(test_secure_timer);
 ///
 /// This just tests the secure-world interrupt handling
 /// without world-switching.
-fn test_secure_timer() -> Result<(), ()> {
+fn test_secure_timer() -> TestResult {
     timer_test_main_loop(&secure_timer_helper)
 }

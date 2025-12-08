@@ -82,19 +82,34 @@ impl NormalWorldTest {
 #[derive(Clone, Debug)]
 pub enum TestFunctions {
     NormalWorldOnly {
-        function: fn() -> Result<(), ()>,
+        function: fn() -> TestResult,
     },
     NormalWorldWithHelper {
-        function: fn(&TestHelperProxy) -> Result<(), ()>,
+        function: fn(&TestHelperProxy) -> TestResult,
         helper: fn([u64; 3]) -> Result<[u64; 4], ()>,
     },
+}
+
+/// The result type returned by each test case function.
+pub type TestResult = Result<(), TestError>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TestError {
+    Failed,
+    Ignored,
+}
+
+impl From<()> for TestError {
+    fn from((): ()) -> Self {
+        Self::Failed
+    }
 }
 
 /// A single secure-world test.
 #[derive(Clone, Debug)]
 pub struct SecureWorldTest {
     pub name: &'static str,
-    pub function: fn() -> Result<(), ()>,
+    pub function: fn() -> TestResult,
 }
 
 impl SecureWorldTest {
@@ -118,7 +133,7 @@ pub type TestHelperProxy = dyn Fn(TestHelperRequest) -> Result<TestHelperRespons
 ///
 /// This should only be called from the normal world (BL33) part of STF.
 #[allow(unused)]
-pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> Result<(), ()> {
+pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> TestResult {
     info!("Running normal world test {}: {}", test_index, test.name());
     match test.functions {
         TestFunctions::NormalWorldOnly { function } => function(),
@@ -132,13 +147,13 @@ pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> Resul
 ///
 /// This should only be called from the secure world (BL32) part of STF.
 #[allow(unused)]
-pub fn run_secure_world_test(test_index: usize) -> Result<(), ()> {
+pub fn run_secure_world_test(test_index: usize) -> TestResult {
     if let Some(test) = SECURE_WORLD_TESTS_SORTED.get(test_index) {
         debug!("Running secure world test {}: {}", test_index, test.name());
         (test.function)()
     } else {
         error!("Requested to run unknown test {}", test_index);
-        Err(())
+        Err(TestError::Failed)
     }
 }
 

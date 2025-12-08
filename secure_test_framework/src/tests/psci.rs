@@ -7,6 +7,7 @@
 use crate::{
     expect,
     framework::{
+        TestError, TestResult,
         expect::{expect_eq, fail},
         normal_world_test, secure_world_test,
     },
@@ -35,7 +36,7 @@ fn is_osi_supported() -> Result<bool, ()> {
 }
 
 normal_world_test!(test_psci_version);
-fn test_psci_version() -> Result<(), ()> {
+fn test_psci_version() -> TestResult {
     expect_eq!(
         psci::version::<Smc>(),
         Ok(psci::Version { major: 1, minor: 3 })
@@ -44,10 +45,9 @@ fn test_psci_version() -> Result<(), ()> {
 }
 
 normal_world_test!(test_set_suspend_mode_to_osi);
-fn test_set_suspend_mode_to_osi() -> Result<(), ()> {
-    let has_osi_support = is_osi_supported()?;
-    if !has_osi_support {
-        return Ok(());
+fn test_set_suspend_mode_to_osi() -> TestResult {
+    if !is_osi_supported()? {
+        return Err(TestError::Ignored);
     }
     expect_eq!(
         psci::set_suspend_mode::<Smc>(psci::SuspendMode::OsInitiated),
@@ -57,13 +57,13 @@ fn test_set_suspend_mode_to_osi() -> Result<(), ()> {
 }
 
 secure_world_test!(test_psci_version_secure);
-fn test_psci_version_secure() -> Result<(), ()> {
+fn test_psci_version_secure() -> TestResult {
     expect_eq!(psci::version::<Smc>(), Err(psci::Error::NotSupported));
     Ok(())
 }
 
 normal_world_test!(test_cpu_on_off);
-fn test_cpu_on_off() -> Result<(), ()> {
+fn test_cpu_on_off() -> TestResult {
     static SECONDARY_CPU_STARTED: AtomicBool = AtomicBool::new(false);
     static SECONDARY_CPU_ARG: AtomicU64 = AtomicU64::new(0);
     static CPU_OFF_READY: AtomicBool = AtomicBool::new(false);

@@ -22,12 +22,15 @@ const STOP_TEST: u64 = 4;
 /// Value returned in a direct message response for a test success.
 const TEST_SUCCESS: u64 = 0;
 
+/// Value returned in a direct message response for a test ignored.
+const TEST_IGNORED: u64 = 1;
+
 /// Value returned in a direct message response for a test failure.
-const TEST_FAILURE: u64 = 1;
+const TEST_FAILURE: u64 = 2;
 
 /// Value returned in a direct message response for a test panic. No further tests should be run
 /// after this.
-const TEST_PANIC: u64 = 2;
+const TEST_PANIC: u64 = 3;
 
 /// Requests sent from BL33 to BL32.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -98,6 +101,8 @@ pub enum ParseRequestError {
 pub enum Response {
     /// A secure test passed, or a secure helper returned successfully.
     Success { return_value: [u64; 4] },
+    /// A secure test returned that it should be ignored.
+    Ignored,
     /// A secure test or secure helper failed.
     Failure,
     /// Something panicked in secure world.
@@ -114,6 +119,7 @@ impl From<Response> for DirectMsgArgs {
                 return_value[2],
                 return_value[3],
             ],
+            Response::Ignored => [TEST_IGNORED, 0, 0, 0, 0],
             Response::Failure => [TEST_FAILURE, 0, 0, 0, 0],
             Response::Panic => [TEST_PANIC, 0, 0, 0, 0],
         })
@@ -129,6 +135,7 @@ impl TryFrom<DirectMsgArgs> for Response {
                 TEST_SUCCESS => Ok(Self::Success {
                     return_value: [args[1], args[2], args[3], args[4]],
                 }),
+                TEST_IGNORED => Ok(Self::Ignored),
                 TEST_FAILURE => Ok(Self::Failure),
                 TEST_PANIC => Ok(Self::Panic),
                 response_code => Err(ParseResponseError::InvalidResponseCode(response_code)),

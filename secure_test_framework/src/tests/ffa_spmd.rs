@@ -9,6 +9,7 @@
 use crate::{
     ffa,
     framework::{
+        TestResult,
         expect::{expect_eq, fail},
         normal_world_test, secure_world_test,
     },
@@ -32,7 +33,7 @@ use arm_ffa::{
 
 normal_world_test!(test_ffa_no_msg_wait);
 /// Check that FFA_MSG_WAIT returns NOT_SUPPORTED as normal world isn't allowed to call FFA_MSG_WAIT.
-fn test_ffa_no_msg_wait() -> Result<(), ()> {
+fn test_ffa_no_msg_wait() -> TestResult {
     // Normal world isn't allowed to call FFA_MSG_WAIT.
     let error = log_error("MSG_WAIT failed", ffa::msg_wait(None))?;
 
@@ -53,7 +54,7 @@ fn test_ffa_no_msg_wait() -> Result<(), ()> {
 normal_world_test!(test_ffa_id_get);
 /// Check that the FFA_ID_GET interface (and its parameters) gets a correct response from SPMD (this interface is not
 /// forwarded to secure world).
-fn test_ffa_id_get() -> Result<(), ()> {
+fn test_ffa_id_get() -> TestResult {
     let id = match log_error("ID_GET failed", ffa::id_get())? {
         Interface::Success { args, .. } => {
             log_error(
@@ -72,7 +73,7 @@ fn test_ffa_id_get() -> Result<(), ()> {
 normal_world_test!(test_ffa_spm_id_get);
 /// Check that the FFA_SPM_ID_GET interface (and its parameters) gets a correct response from SPMD (this interface is not
 /// forwarded to secure world).
-fn test_ffa_spm_id_get() -> Result<(), ()> {
+fn test_ffa_spm_id_get() -> TestResult {
     let id = match log_error("SPM_ID_GET failed", ffa::spm_id_get())? {
         Interface::Success { args, .. } => {
             log_error(
@@ -92,7 +93,7 @@ fn test_ffa_spm_id_get() -> Result<(), ()> {
 normal_world_test!(test_ffa_rxtx_map, handler = rxtx_map_handler);
 /// Check that the FFA_RXTX_MAP interface (and its parameters) is successfully forwarded from normal world
 /// to secure world and back.
-fn test_ffa_rxtx_map() -> Result<(), ()> {
+fn test_ffa_rxtx_map() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "RXTX_MAP failed",
@@ -122,7 +123,7 @@ fn rxtx_map_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_rxtx_unmap, handler = rxtx_unmap_handler);
 /// Check that the FFA_RXTX_UNMAP interface (and its parameters) is successfully forwarded from normal world
 /// to secure world and back.
-fn test_ffa_rxtx_unmap() -> Result<(), ()> {
+fn test_ffa_rxtx_unmap() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "RXTX_UNMAP failed",
@@ -153,7 +154,7 @@ normal_world_test!(test_ffa_features, handler = ffa_features_handler);
 /// to secure world and back.
 /// Currently, this test checks that the SPMD returns success and does not check for specific properties.
 /// TODO: update with more specific tests when FFA_FEATURES is implemented more completely.
-fn test_ffa_features() -> Result<(), ()> {
+fn test_ffa_features() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "FEATURES failed",
@@ -194,7 +195,7 @@ fn ffa_features_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_rx_acquire, handler = rx_acquire_handler);
 /// Check that the FFA_RX_ACQUIRE interface (and its parameters) is successfully forwarded from normal world
 /// to secure world and back.
-fn test_ffa_rx_acquire() -> Result<(), ()> {
+fn test_ffa_rx_acquire() -> TestResult {
     let args = expect_ffa_interface!(expect_ffa_success, "RX_ACQUIRE failed", ffa::rx_acquire(87));
 
     expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
@@ -221,7 +222,7 @@ fn rx_acquire_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_rx_release, handler = rx_release_handler);
 /// Check that the FFA_RX_RELEASE interface (and its parameters) is successfully forwarded from normal world
 /// to secure world and back.
-fn test_ffa_rx_release() -> Result<(), ()> {
+fn test_ffa_rx_release() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "RX_RELEASE failed",
@@ -254,7 +255,7 @@ normal_world_test!(
 );
 /// Check that the FFA_PARTITION_INFO_GET interface (and its parameters) is successfully forwarded from normal world
 /// to secure world and back.
-fn test_ffa_partition_info_get() -> Result<(), ()> {
+fn test_ffa_partition_info_get() -> TestResult {
     let flags = PartitionInfoGetFlags { count_only: false };
     let uuid = Uuid::parse_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d8").unwrap();
 
@@ -305,7 +306,7 @@ normal_world_test!(
 );
 /// Check that the FFA_PARTITION_INFO_GET_REGS interface (and its parameters) is successfully forwarded from normal world
 /// to secure world and back.
-fn test_ffa_partition_info_get_regs() -> Result<(), ()> {
+fn test_ffa_partition_info_get_regs() -> TestResult {
     let uuid = Uuid::parse_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d8").unwrap();
 
     let args = expect_ffa_interface!(
@@ -363,7 +364,7 @@ fn partition_info_get_regs_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_error, handler = error_handler);
 /// Check that the FFA_ERROR interface (and its parameters) is successfully forwarded from normal world to secure
 /// world and back.
-fn test_ffa_error() -> Result<(), ()> {
+fn test_ffa_error() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "ERROR failed",
@@ -407,7 +408,7 @@ fn error_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_success, handler = success_handler);
 /// Check that the FFA_SUCCESS interface (and its parameters) is successfully forwarded from normal world to secure
 /// world and back.
-fn test_ffa_success() -> Result<(), ()> {
+fn test_ffa_success() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "SUCCESS failed",
@@ -445,7 +446,7 @@ fn success_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_run, handler = run_handler);
 /// Check that the FFA_RUN interface (and its parameters) is successfully forwarded from normal world to secure
 /// world and back.
-fn test_ffa_run() -> Result<(), ()> {
+fn test_ffa_run() -> TestResult {
     let sp_id: u32 = 0x5;
     let vcpu_id: u32 = 0x7;
     let target_information = sp_id << 16 | vcpu_id;
@@ -486,7 +487,7 @@ fn run_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_mem_donate, handler = mem_donate_handler);
 /// Check that the FFA_MEM_DONATE interface (and its parameters) is successfully forwarded from normal world to secure
 /// world and back.
-fn test_ffa_mem_donate() -> Result<(), ()> {
+fn test_ffa_mem_donate() -> TestResult {
     let total_len = 40;
     let frag_len = total_len / 4;
 
@@ -497,7 +498,7 @@ fn test_ffa_mem_donate() -> Result<(), ()> {
     );
 
     let SuccessArgs::Args32(args) = args else {
-        return Err(());
+        fail!("Unexpected args {args:?}");
     };
 
     let handle: Handle = Handle::from([args[0], args[1]]);
@@ -532,7 +533,7 @@ fn mem_donate_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_mem_lend, handler = mem_lend_handler);
 /// Check that the FFA_MEM_LEND interface (and its parameters) is successfully forwarded from normal world to secure
 /// world and back.
-fn test_ffa_mem_lend() -> Result<(), ()> {
+fn test_ffa_mem_lend() -> TestResult {
     let total_len = 40;
     let frag_len = total_len / 4;
 
@@ -543,7 +544,7 @@ fn test_ffa_mem_lend() -> Result<(), ()> {
     );
 
     let SuccessArgs::Args32(args) = args else {
-        return Err(());
+        fail!("Unexpected args {args:?}");
     };
 
     let handle: Handle = Handle::from([args[0], args[1]]);
@@ -578,7 +579,7 @@ fn mem_lend_handler(interface: Interface) -> Option<Interface> {
 normal_world_test!(test_ffa_mem_share, handler = mem_share_handler);
 /// Check that the FFA_MEM_SHARE interface (and its parameters) is successfully forwarded from normal world to secure
 /// world and back.
-fn test_ffa_mem_share() -> Result<(), ()> {
+fn test_ffa_mem_share() -> TestResult {
     let total_len = 40;
     let frag_len = total_len / 4;
 
@@ -589,7 +590,7 @@ fn test_ffa_mem_share() -> Result<(), ()> {
     );
 
     let SuccessArgs::Args32(args) = args else {
-        return Err(());
+        fail!("Unexpected args {args:?}");
     };
 
     let handle: Handle = Handle::from([args[0], args[1]]);
@@ -630,7 +631,7 @@ normal_world_test!(
     test_ffa_mem_retrieve_req,
     handler = mem_retrieve_req_handler
 );
-fn test_ffa_mem_retrieve_req() -> Result<(), ()> {
+fn test_ffa_mem_retrieve_req() -> TestResult {
     let total_len = 40;
     let frag_len = total_len / 4;
 
@@ -673,7 +674,7 @@ fn msg_send2_handler(interface: Interface) -> Option<Interface> {
 }
 
 normal_world_test!(test_ffa_msg_send2, handler = msg_send2_handler);
-fn test_ffa_msg_send2() -> Result<(), ()> {
+fn test_ffa_msg_send2() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "MSG_SEND2 failed",
@@ -715,7 +716,7 @@ fn mem_retrieve_req_handler(interface: Interface) -> Option<Interface> {
 // Check that the FFA_MEM_RECLAIM interface (and its parameters) is successfully forwarded from normal world to secure
 // world and back.
 normal_world_test!(test_ffa_mem_reclaim, handler = mem_reclaim_handler);
-fn test_ffa_mem_reclaim() -> Result<(), ()> {
+fn test_ffa_mem_reclaim() -> TestResult {
     let handle: [u32; 2] = [0x0000_1000, 0x0200_0000];
     let flags = MemReclaimFlags {
         zero_memory: false,
@@ -777,7 +778,7 @@ normal_world_test!(
     test_ffa_notification_bitmap_destroy,
     handler = notification_bitmap_destroy_handler
 );
-fn test_ffa_notification_bitmap_destroy() -> Result<(), ()> {
+fn test_ffa_notification_bitmap_destroy() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "NOTIFICATION_BITMAP_DESTROY failed",
@@ -823,7 +824,7 @@ normal_world_test!(
     test_ffa_notification_bind,
     handler = notification_bind_handler
 );
-fn test_ffa_notification_bind() -> Result<(), ()> {
+fn test_ffa_notification_bind() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "NOTIFICATION_UNBIND failed",
@@ -869,7 +870,7 @@ normal_world_test!(
     test_ffa_notification_unbind,
     handler = notification_unbind_handler
 );
-fn test_ffa_notification_unbind() -> Result<(), ()> {
+fn test_ffa_notification_unbind() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "NOTIFICATION_UNBIND failed",
@@ -916,7 +917,7 @@ normal_world_test!(
     test_ffa_notification_set,
     handler = notification_set_handler
 );
-fn test_ffa_notification_set() -> Result<(), ()> {
+fn test_ffa_notification_set() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "NOTIFICATION_SET failed",
@@ -978,7 +979,7 @@ normal_world_test!(
     test_ffa_notification_get,
     handler = notification_get_handler
 );
-fn test_ffa_notification_get() -> Result<(), ()> {
+fn test_ffa_notification_get() -> TestResult {
     let notification_get_flags = NotificationGetFlags {
         sp_bitmap_id: true,
         vm_bitmap_id: false,
@@ -996,7 +997,7 @@ fn test_ffa_notification_get() -> Result<(), ()> {
         SuccessArgsNotificationGet::try_from((notification_get_flags, args));
 
     match args {
-        Err(_) => Err(()),
+        Err(_) => fail!("Unexpected args {args:?}"),
         Ok(args) => {
             expect_eq!(args.sp_notifications, Some(1));
             expect_eq!(args.vm_notifications, None);
@@ -1029,7 +1030,7 @@ normal_world_test!(
     test_ffa_notification_info_get,
     handler = notification_info_get_handler
 );
-fn test_ffa_notification_info_get() -> Result<(), ()> {
+fn test_ffa_notification_info_get() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "NOTIFICATION_INFO_GET failed",
@@ -1040,7 +1041,7 @@ fn test_ffa_notification_info_get() -> Result<(), ()> {
         SuccessArgsNotificationInfoGet::try_from(args);
 
     match args {
-        Err(_) => Err(()),
+        Err(_) => fail!("Unexpected args {args:?}"),
         Ok(args) => {
             expect_eq!(args.more_pending_notifications, false);
             Ok(())
@@ -1049,7 +1050,7 @@ fn test_ffa_notification_info_get() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_no_mem_perm_get);
-fn test_ffa_no_mem_perm_get() -> Result<(), ()> {
+fn test_ffa_no_mem_perm_get() -> TestResult {
     // Normal world isn't allowed to call FFA_MEM_PERM_GET.
     let error = log_error(
         "MEM_PERM_GET failed",
@@ -1071,7 +1072,7 @@ fn test_ffa_no_mem_perm_get() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_no_mem_perm_set);
-fn test_ffa_no_mem_perm_set() -> Result<(), ()> {
+fn test_ffa_no_mem_perm_set() -> TestResult {
     // Normal world isn't allowed to call FFA_MEM_PERM_SET.
     let error = log_error(
         "MEM_PERM_SET failed",
@@ -1100,7 +1101,7 @@ fn test_ffa_no_mem_perm_set() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_no_el3_intr_handle);
-fn test_ffa_no_el3_intr_handle() -> Result<(), ()> {
+fn test_ffa_no_el3_intr_handle() -> TestResult {
     // Normal world isn't allowed to call FFA_EL3_INTR.
     let error = log_error("EL3_INTR_HANDLE failed", ffa::el3_intr_handle())?;
 
@@ -1119,7 +1120,7 @@ fn test_ffa_no_el3_intr_handle() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_no_mem_relinquish);
-fn test_ffa_no_mem_relinquish() -> Result<(), ()> {
+fn test_ffa_no_mem_relinquish() -> TestResult {
     // Normal world isn't allowed to call FFA_MEM_RELINQUISH.
     let error = log_error("MEM_RELINQUISH failed", ffa::mem_relinquish())?;
 
@@ -1138,7 +1139,7 @@ fn test_ffa_no_mem_relinquish() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_no_secondary_ep_register);
-fn test_ffa_no_secondary_ep_register() -> Result<(), ()> {
+fn test_ffa_no_secondary_ep_register() -> TestResult {
     // Normal world isn't allowed to call FFA_SECONDARY_EP_REGISTER.
 
     // SAFETY: this is a negative test the entrypoint address won't be used and it does not matter if it's valid or not.
@@ -1161,7 +1162,7 @@ fn test_ffa_no_secondary_ep_register() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_no_normal_world_resume);
-fn test_ffa_no_normal_world_resume() -> Result<(), ()> {
+fn test_ffa_no_normal_world_resume() -> TestResult {
     // Normal world isn't allowed to call FFA_NORMAL_WORLD_RESUME.
     let error = log_error("NORMAL_WORLD_RESUME failed", ffa::normal_world_resume())?;
 
@@ -1181,7 +1182,7 @@ fn test_ffa_no_normal_world_resume() -> Result<(), ()> {
 
 secure_world_test!(test_ffa_normal_world_resume);
 /// Try to resume normal world execution. Since normal world was not preempted in the first place, this should fail.
-fn test_ffa_normal_world_resume() -> Result<(), ()> {
+fn test_ffa_normal_world_resume() -> TestResult {
     let error = log_error("NORMAL_WORLD_RESUME failed", ffa::normal_world_resume())?;
 
     expect_eq!(
@@ -1202,7 +1203,7 @@ secure_world_test!(test_ffa_features_secure);
 /// Test FFA_FEATURE interface from secure world.
 /// Currently, this test checks that the SPMD returns success.
 /// TODO: update with more specific tests when FFA_FEATURES is implemented more completely.
-fn test_ffa_features_secure() -> Result<(), ()> {
+fn test_ffa_features_secure() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "FEATURES failed",
@@ -1214,7 +1215,7 @@ fn test_ffa_features_secure() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_no_yield);
-fn test_ffa_no_yield() -> Result<(), ()> {
+fn test_ffa_no_yield() -> TestResult {
     // Normal world isn't allowed to call FFA_YIELD.
     let error = log_error("YIELD failed", ffa::yield_ffa())?;
 
@@ -1233,7 +1234,7 @@ fn test_ffa_no_yield() -> Result<(), ()> {
 }
 
 normal_world_test!(test_ffa_no_interrupt);
-fn test_ffa_no_interrupt() -> Result<(), ()> {
+fn test_ffa_no_interrupt() -> TestResult {
     // Normal world isn't allowed to call FFA_INTERRUPT.
 
     let error = log_error(
@@ -1262,7 +1263,7 @@ fn test_ffa_no_interrupt() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_rxtx_map_secure);
-fn test_ffa_no_rxtx_map_secure() -> Result<(), ()> {
+fn test_ffa_no_rxtx_map_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_RXTX_MAP.
     let error = log_error(
         "RXTX_MAP failed",
@@ -1284,7 +1285,7 @@ fn test_ffa_no_rxtx_map_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_rxtx_unmap_secure);
-fn test_ffa_no_rxtx_unmap_secure() -> Result<(), ()> {
+fn test_ffa_no_rxtx_unmap_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_RXTX_UNMAP.
     let error = log_error("RXTX_UNMAP failed", ffa::rxtx_unmap(14))?;
 
@@ -1303,7 +1304,7 @@ fn test_ffa_no_rxtx_unmap_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_rx_release_secure);
-fn test_ffa_no_rx_release_secure() -> Result<(), ()> {
+fn test_ffa_no_rx_release_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_RX_RELEASE.
     let error = log_error("RX_RELEASE failed", ffa::rx_release(13))?;
 
@@ -1322,7 +1323,7 @@ fn test_ffa_no_rx_release_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_rx_acquire_secure);
-fn test_ffa_no_rx_acquire_secure() -> Result<(), ()> {
+fn test_ffa_no_rx_acquire_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_RX_ACQUIRE.
     let error = log_error("RX_ACQUIRE failed", ffa::rx_acquire(39))?;
 
@@ -1341,7 +1342,7 @@ fn test_ffa_no_rx_acquire_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_partition_info_get_secure);
-fn test_ffa_no_partition_info_get_secure() -> Result<(), ()> {
+fn test_ffa_no_partition_info_get_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_PARTITION_INFO_GET.
     let error = log_error(
         "PARTITION_INFO_GET failed",
@@ -1366,7 +1367,7 @@ fn test_ffa_no_partition_info_get_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_notification_bitmap_create_secure);
-fn test_ffa_no_notification_bitmap_create_secure() -> Result<(), ()> {
+fn test_ffa_no_notification_bitmap_create_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_NOTIFICATION_BITMAP_CREATE.
     let error = log_error(
         "NOTIFICATION_BITMAP_CREATE failed",
@@ -1388,7 +1389,7 @@ fn test_ffa_no_notification_bitmap_create_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_notification_bitmap_destroy_secure);
-fn test_ffa_no_notification_bitmap_destroy_secure() -> Result<(), ()> {
+fn test_ffa_no_notification_bitmap_destroy_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_NOTIFICATION_BITMAP_DESTROY.
     let error = log_error(
         "NOTIFICATION_BITMAP_DESTROY failed",
@@ -1410,7 +1411,7 @@ fn test_ffa_no_notification_bitmap_destroy_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_notification_bind_secure);
-fn test_ffa_no_notification_bind_secure() -> Result<(), ()> {
+fn test_ffa_no_notification_bind_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_NOTIFICATION_BIND.
     let error = log_error(
         "NOTIFICATION_BIND failed",
@@ -1439,7 +1440,7 @@ fn test_ffa_no_notification_bind_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_notification_unbind_secure);
-fn test_ffa_no_notification_unbind_secure() -> Result<(), ()> {
+fn test_ffa_no_notification_unbind_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_NOTIFICATION_UNBIND.
     let error = log_error(
         "NOTIFICATION_UNBIND failed",
@@ -1461,7 +1462,7 @@ fn test_ffa_no_notification_unbind_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_notification_get_secure);
-fn test_ffa_no_notification_get_secure() -> Result<(), ()> {
+fn test_ffa_no_notification_get_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_NOTIFICATION_GET.
     let error = log_error(
         "NOTIFICATION_GET failed",
@@ -1492,7 +1493,7 @@ fn test_ffa_no_notification_get_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_notification_set_secure);
-fn test_ffa_no_notification_set_secure() -> Result<(), ()> {
+fn test_ffa_no_notification_set_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_NOTIFICATION_SET.
     let error = log_error(
         "NOTIFICATION_SET failed",
@@ -1522,7 +1523,7 @@ fn test_ffa_no_notification_set_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_notification_info_get_secure);
-fn test_ffa_no_notification_info_get_secure() -> Result<(), ()> {
+fn test_ffa_no_notification_info_get_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_NOTIFICATION_INFO_GET.
     let error = log_error(
         "NOTIFICATION_INFO_GET failed",
@@ -1544,7 +1545,7 @@ fn test_ffa_no_notification_info_get_secure() -> Result<(), ()> {
 }
 
 secure_world_test!(test_ffa_no_run_secure);
-fn test_ffa_no_run_secure() -> Result<(), ()> {
+fn test_ffa_no_run_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_RUN.
     let error = log_error(
         "RUN failed",

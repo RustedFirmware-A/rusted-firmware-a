@@ -27,7 +27,7 @@ use crate::{
     exceptions::set_exception_vector,
     ffa::direct_request,
     framework::{
-        normal_world_test_count, normal_world_tests,
+        TestError, normal_world_test_count, normal_world_tests,
         protocol::{Request, Response},
         run_normal_world_test, secure_world_test_count, secure_world_tests,
     },
@@ -90,50 +90,62 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     // Run normal world tests.
     let mut passing_normal_test_count = 0;
+    let mut ignored_normal_test_count = 0;
     for (test_index, test) in normal_world_tests() {
         if test.secure_handler.is_some() {
             // Tell secure world that the test is starting, so it can use the handler.
             match send_request(Request::StartTest { test_index }) {
                 Ok(Response::Success { .. }) => {}
-                Ok(Response::Failure) => {
-                    warn!("Registering test start with secure world failed.");
-                    continue;
-                }
                 Ok(Response::Panic) => {
                     panic!("Registering test start with secure world caused panic.");
+                }
+                Ok(response) => {
+                    panic!(
+                        "Registering test start returned unexpected response {response:?}, this should never happen."
+                    );
                 }
                 Err(()) => continue,
             }
         }
-        if run_normal_world_test(test_index, test).is_ok() {
-            info!("Normal world test {} passed", test.name());
-            passing_normal_test_count += 1;
-        } else {
-            warn!("Normal world test {} failed", test.name());
+        match run_normal_world_test(test_index, test) {
+            Ok(()) => {
+                info!("Normal world test {} passed", test.name());
+                passing_normal_test_count += 1;
+            }
+            Err(TestError::Ignored) => {
+                info!("Normal world test {} ignored", test.name());
+                ignored_normal_test_count += 1;
+            }
+            Err(TestError::Failed) => {
+                warn!("Normal world test {} failed", test.name());
+            }
         }
         if test.secure_handler.is_some() {
             // Tell secure world that the test is finished so it can remove the handler.
             match send_request(Request::StopTest) {
                 Ok(Response::Success { .. }) => {}
-                Ok(Response::Failure) => {
-                    warn!("Registering test stop with secure world failed.");
-                    continue;
-                }
                 Ok(Response::Panic) => {
                     panic!("Registering test stop with secure world caused panic.");
+                }
+                Ok(response) => {
+                    panic!(
+                        "Registering test start returned unexpected response {response:?}, this should never happen."
+                    );
                 }
                 Err(()) => continue,
             }
         }
     }
     info!(
-        "{}/{} tests passed in normal world",
+        "{}/{} tests passed in normal world, {} ignored",
         passing_normal_test_count,
         normal_world_test_count(),
+        ignored_normal_test_count,
     );
 
     // Run secure world tests.
     let mut passing_secure_test_count = 0;
+    let mut ignored_secure_test_count = 0;
     for (test_index, test) in secure_world_tests() {
         info!(
             "Requesting secure world test {} run: {}",
@@ -144,6 +156,10 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
             Ok(Response::Success { .. }) => {
                 info!("Secure world test {} passed", test_index);
                 passing_secure_test_count += 1;
+            }
+            Ok(Response::Ignored) => {
+                info!("Secure world test {} ignored", test_index);
+                ignored_secure_test_count += 1;
             }
             Ok(Response::Failure) => {
                 warn!("Secure world test {} failed", test_index);
@@ -157,9 +173,10 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
         }
     }
     info!(
-        "{}/{} tests passed in secure world",
+        "{}/{} tests passed in secure world, {} ignored",
         passing_secure_test_count,
         secure_world_test_count(),
+        ignored_secure_test_count,
     );
 
     let ret = psci::system_off::<Smc>();
@@ -224,6 +241,11 @@ fn call_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
         Response::Failure => {
             warn!("Secure world test helper {} failed", test_index);
             Err(())
+        }
+        Response::Ignored => {
+            panic!(
+                "Secure world test helper {test_index} returned ignored, this should never happen."
+            );
         }
         Response::Panic => {
             // We can't continue running other tests after the secure world panics, so we panic

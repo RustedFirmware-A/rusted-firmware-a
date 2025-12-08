@@ -5,7 +5,9 @@
 //! Tests SIMD context switch.
 
 use crate::{
-    framework::{TestHelperProxy, TestHelperRequest, TestHelperResponse, normal_world_test},
+    framework::{
+        TestHelperProxy, TestHelperRequest, TestHelperResponse, TestResult, normal_world_test,
+    },
     util::current_el,
 };
 use core::arch::asm;
@@ -154,7 +156,7 @@ normal_world_test!(
     helper = test_simd_context_switch_helper
 );
 /// Checks if SIMD vector registers' state is preserved across world switches.
-fn test_simd_context_switch(helper: &TestHelperProxy) -> Result<(), ()> {
+fn test_simd_context_switch(helper: &TestHelperProxy) -> TestResult {
     // NSWd overwrites SIMD vector registers with 1, 3, 5, .. (consecutive odd numbers).
     let nswd_simd_state: SimdVectors = core::array::from_fn(|i| (2 * i + 1) as u128);
     overwrite_simd(&nswd_simd_state);

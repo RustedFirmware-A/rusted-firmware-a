@@ -89,8 +89,7 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     assert_eq!(ffa::version(FFA_VERSION), Ok(FFA_VERSION));
 
     // Run normal world tests.
-    let mut passing_normal_test_count = 0;
-    let mut ignored_normal_test_count = 0;
+    let mut normal_test_counts = TestResultCounts::default();
     for (test_index, test) in normal_world_tests() {
         if test.secure_handler.is_some() {
             // Tell secure world that the test is starting, so it can use the handler.
@@ -109,15 +108,16 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
         }
         match run_normal_world_test(test_index, test) {
             Ok(()) => {
-                info!("Normal world test {} passed", test.name());
-                passing_normal_test_count += 1;
+                info!("Normal world test {test_index} {} passed", test.name());
+                normal_test_counts.passed += 1;
             }
             Err(TestError::Ignored) => {
-                info!("Normal world test {} ignored", test.name());
-                ignored_normal_test_count += 1;
+                info!("Normal world test {test_index} {} ignored", test.name());
+                normal_test_counts.ignored += 1;
             }
             Err(TestError::Failed) => {
-                warn!("Normal world test {} failed", test.name());
+                warn!("Normal world test {test_index} {} failed", test.name());
+                normal_test_counts.failed += 1;
             }
         }
         if test.secure_handler.is_some() {
@@ -136,51 +136,58 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
             }
         }
     }
-    info!(
-        "{}/{} tests passed in normal world, {} ignored",
-        passing_normal_test_count,
-        normal_world_test_count(),
-        ignored_normal_test_count,
-    );
 
     // Run secure world tests.
-    let mut passing_secure_test_count = 0;
-    let mut ignored_secure_test_count = 0;
+    let mut secure_test_counts = TestResultCounts::default();
     for (test_index, test) in secure_world_tests() {
-        info!(
-            "Requesting secure world test {} run: {}",
-            test_index,
-            test.name(),
-        );
+        info!("Secure world test {test_index} {} running...", test.name(),);
         match send_request(Request::RunSecureTest { test_index }) {
             Ok(Response::Success { .. }) => {
-                info!("Secure world test {} passed", test_index);
-                passing_secure_test_count += 1;
+                info!("Secure world test {test_index} {} passed", test.name());
+                secure_test_counts.passed += 1;
             }
             Ok(Response::Ignored) => {
-                info!("Secure world test {} ignored", test_index);
-                ignored_secure_test_count += 1;
+                info!("Secure world test {test_index} {} ignored", test.name());
+                secure_test_counts.ignored += 1;
             }
             Ok(Response::Failure) => {
-                warn!("Secure world test {} failed", test_index);
+                warn!("Secure world test {test_index} {} failed", test.name());
+                secure_test_counts.failed += 1;
             }
             Ok(Response::Panic) => {
-                warn!("Secure world test {} panicked", test_index);
+                warn!("Secure world test {test_index} {} panicked", test.name());
+                secure_test_counts.failed += 1;
                 // We can't continue running other tests after one panics.
                 break;
             }
             Err(()) => {}
         }
     }
+
     info!(
-        "{}/{} tests passed in secure world, {} ignored",
-        passing_secure_test_count,
+        "{}/{} tests passed in normal world, {} ignored, {} failed",
+        normal_test_counts.passed,
+        normal_world_test_count(),
+        normal_test_counts.ignored,
+        normal_test_counts.failed,
+    );
+    info!(
+        "{}/{} tests passed in secure world, {} ignored, {} failed",
+        secure_test_counts.passed,
         secure_world_test_count(),
-        ignored_secure_test_count,
+        secure_test_counts.ignored,
+        secure_test_counts.failed,
     );
 
     let ret = psci::system_off::<Smc>();
     panic!("PSCI_SYSTEM_OFF returned {:?}", ret);
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct TestResultCounts {
+    ignored: usize,
+    passed: usize,
+    failed: usize,
 }
 
 extern "C" fn secondary_main(arg: u64) -> ! {

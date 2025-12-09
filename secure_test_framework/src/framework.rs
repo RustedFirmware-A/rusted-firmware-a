@@ -11,7 +11,7 @@ use crate::call_test_helper;
 use alloc::boxed::Box;
 use arm_ffa::Interface;
 use linkme::distributed_slice;
-use log::{debug, error, info};
+use log::{error, info, trace};
 use spin::Lazy;
 
 /// The normal world tests.
@@ -134,7 +134,11 @@ pub type TestHelperProxy = dyn Fn(TestHelperRequest) -> Result<TestHelperRespons
 /// This should only be called from the normal world (BL33) part of STF.
 #[allow(unused)]
 pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> TestResult {
-    info!("Running normal world test {}: {}", test_index, test.name());
+    info!(
+        "Normal world test {} {} running...",
+        test_index,
+        test.name()
+    );
     match test.functions {
         TestFunctions::NormalWorldOnly { function } => function(),
         TestFunctions::NormalWorldWithHelper { function, .. } => {
@@ -149,7 +153,11 @@ pub fn run_normal_world_test(test_index: usize, test: &NormalWorldTest) -> TestR
 #[allow(unused)]
 pub fn run_secure_world_test(test_index: usize) -> TestResult {
     if let Some(test) = SECURE_WORLD_TESTS_SORTED.get(test_index) {
-        debug!("Running secure world test {}: {}", test_index, test.name());
+        trace!(
+            "Secure world test {} {} running in secure world.",
+            test_index,
+            test.name()
+        );
         (test.function)()
     } else {
         error!("Requested to run unknown test {}", test_index);
@@ -162,7 +170,7 @@ pub fn run_secure_world_test(test_index: usize) -> TestResult {
 /// This should only be called from the secure world (BL32) part of STF.
 #[allow(unused)]
 pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
-    debug!("Running secure world test helper {}", test_index);
+    trace!("Running secure world test helper {}", test_index);
     if let Some(test) = NORMAL_WORLD_TESTS_SORTED.get(test_index) {
         if let TestFunctions::NormalWorldWithHelper { helper, .. } = test.functions {
             helper(args)
@@ -184,7 +192,7 @@ pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()
 #[allow(unused)]
 pub fn run_test_ffa_handler(test_index: usize, interface: Interface) -> Option<Interface> {
     let handler = NORMAL_WORLD_TESTS_SORTED.get(test_index)?.secure_handler?;
-    debug!("Running test {} FF-A handler", test_index);
+    trace!("Running test {} FF-A handler", test_index);
     handler(interface)
 }
 

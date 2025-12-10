@@ -6,9 +6,9 @@
 
 use super::{
     ClidrEl1, CptrEl3, CsselrEl1, CtrEl0, Esr, Gcscr, HcrEl2, HcrxEl2, IccSre, IdAa64dfr0El1,
-    IdAa64dfr1El1, IdAa64mmfr0El1, IdAa64mmfr1El1, IdAa64mmfr2El1, IdAa64mmfr3El1, IdAa64pfr0El1,
-    IdAa64pfr1El1, IdAa64smfr0El1, MdcrEl2, MidrEl1, Mpam3El3, MpamIdrEl1, MpidrEl1, Pmcr, ScrEl3,
-    SctlrEl1, SctlrEl2, SctlrEl3, SmcrEl3, Spsr,
+    IdAa64dfr1El1, IdAa64isar1El1, IdAa64isar2El1, IdAa64mmfr0El1, IdAa64mmfr1El1, IdAa64mmfr2El1,
+    IdAa64mmfr3El1, IdAa64pfr0El1, IdAa64pfr1El1, IdAa64smfr0El1, MdcrEl2, MidrEl1, Mpam3El3,
+    MpamIdrEl1, MpidrEl1, Pmcr, ScrEl3, Sctlr2El3, SctlrEl1, SctlrEl2, SctlrEl3, SmcrEl3, Spsr,
 };
 use std::sync::Mutex;
 
@@ -148,6 +148,8 @@ pub struct SystemRegisters {
     pub cntfrq_el0: u64,
     /// Fake value for the CNTHCTL_EL2 system register.
     pub cnthctl_el2: u64,
+    /// Fake value for the CNTPCT_EL0 system register.
+    pub cntpct_el0: u64,
     /// Fake value for the CNTVOFF_EL2 system register.
     pub cntvoff_el2: u64,
     /// Fake value for the CONTEXTIDR_EL1 system register.
@@ -218,6 +220,10 @@ pub struct SystemRegisters {
     pub id_aa64dfr0_el1: IdAa64dfr0El1,
     /// Fake value for the ID_AA64DFR1_EL1 system register.
     pub id_aa64dfr1_el1: IdAa64dfr1El1,
+    /// Fake value for the ID_AA64ISAR1_EL1 system register.
+    pub id_aa64isar1_el1: IdAa64isar1El1,
+    /// Fake value for the ID_AA64ISAR2_EL1 system register.
+    pub id_aa64isar2_el1: IdAa64isar2El1,
     /// Fake value for the ID_AA64MMFR0_EL1 system register.
     pub id_aa64mmfr0_el1: IdAa64mmfr0El1,
     /// Fake value for the ID_AA64MMFR1_EL1 system register.
@@ -290,6 +296,8 @@ pub struct SystemRegisters {
     pub sctlr_el2: SctlrEl2,
     /// Fake value for THESCTLR_EL3 system register.
     pub sctlr_el3: SctlrEl3,
+    /// Fake value for the SCTLR2_EL3 system register.
+    pub sctlr2_el3: Sctlr2El3,
     /// Fake value for SMCR_EL3 system register.
     pub smcr_el3: SmcrEl3,
     /// Fake value for THESP_EL1 system register.
@@ -373,6 +381,7 @@ impl SystemRegisters {
             clidr_el1: ClidrEl1::empty(),
             cntfrq_el0: 0,
             cnthctl_el2: 0,
+            cntpct_el0: 0,
             cntvoff_el2: 0,
             contextidr_el1: 0,
             contextidr_el2: 0,
@@ -408,6 +417,8 @@ impl SystemRegisters {
             ich_vmcr_el2: 0,
             id_aa64dfr0_el1: IdAa64dfr0El1::empty(),
             id_aa64dfr1_el1: IdAa64dfr1El1::empty(),
+            id_aa64isar1_el1: IdAa64isar1El1::empty(),
+            id_aa64isar2_el1: IdAa64isar2El1::empty(),
             id_aa64mmfr0_el1: IdAa64mmfr0El1::empty(),
             id_aa64mmfr1_el1: IdAa64mmfr1El1::empty(),
             id_aa64mmfr2_el1: IdAa64mmfr2El1::empty(),
@@ -444,6 +455,7 @@ impl SystemRegisters {
             sctlr_el1: SctlrEl1::empty(),
             sctlr_el2: SctlrEl2::empty(),
             sctlr_el3: SctlrEl3::empty(),
+            sctlr2_el3: Sctlr2El3::empty(),
             smcr_el3: SmcrEl3::empty(),
             sp_el1: 0,
             sp_el2: 0,

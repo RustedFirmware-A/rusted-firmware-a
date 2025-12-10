@@ -8,6 +8,8 @@ pub mod fgt2;
 pub mod hcx;
 pub mod mpam;
 pub mod mte2;
+#[cfg(feature = "pauth")]
+pub mod pauth;
 pub mod pmuv3;
 pub mod ras;
 pub mod simd;

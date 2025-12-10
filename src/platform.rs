@@ -149,6 +149,14 @@ pub unsafe trait Platform {
     /// This must only be called once, to avoid creating aliases of the GIC driver.
     unsafe fn create_gic() -> Gic<'static>;
 
+    /// Returns a 128-bit value that can be used to program the pointer authentication keys.
+    ///
+    /// The value should be obtained from a reliable source of entropy. This function will be called
+    /// each time a core powers on and it is the platform's responsibility to decide when to
+    /// regenerate the keys if generating them is an expensive operation.
+    #[cfg(feature = "pauth")]
+    fn init_apkey() -> u128;
+
     /// Creates instance of PlatformServiceImpl.
     ///
     /// This is used for dispatching platform-specific SMCs.

@@ -58,6 +58,7 @@ arm-sysregs = { version = "0.1.0", features = ["fakes"], path = "arm-sysregs" }
 
 [features]
 default = ["sel2"]
+pauth = []
 rme = []
 sel2 = []
 max_log_error = ["log/max_level_error"]

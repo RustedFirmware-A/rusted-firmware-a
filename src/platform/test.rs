@@ -109,6 +109,11 @@ unsafe impl Platform for TestPlatform {
         SpinMutexGuard::leak(FAKE_GIC.try_lock().unwrap()).build()
     }
 
+    #[cfg(feature = "pauth")]
+    fn init_apkey() -> u128 {
+        0
+    }
+
     fn create_service() -> Self::PlatformServiceImpl {
         DummyService
     }

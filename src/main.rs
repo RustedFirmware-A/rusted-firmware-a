@@ -29,6 +29,8 @@ mod services;
 mod smccc;
 mod stacks;
 
+#[cfg(feature = "pauth")]
+use crate::cpu_extensions::pauth;
 use crate::{
     context::{CoresImpl, initialise_contexts, update_contexts_suspend},
     platform::{Platform, PlatformImpl},
@@ -49,6 +51,12 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
     info!("Parameters: {arg0:#0x} {arg1:#0x} {arg2:#0x} {arg3:#0x}");
 
     info!("Page table activated.");
+
+    // SAFETY: This function never returns, so it is safe to enable PAuth part way through it.
+    #[cfg(feature = "pauth")]
+    unsafe {
+        pauth::init();
+    }
 
     // Set up GIC.
     gicv3::init();
@@ -72,6 +80,12 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
 #[cfg_attr(test, allow(unused))]
 extern "C" fn psci_warmboot_entrypoint() -> ! {
     debug!("Warmboot on core #{}", CoresImpl::core_index());
+
+    // SAFETY: This function never returns, so it is safe to enable PAuth part way through it.
+    #[cfg(feature = "pauth")]
+    unsafe {
+        pauth::init();
+    }
 
     let services = Services::get();
 

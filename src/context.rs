@@ -554,6 +554,10 @@ pub type CrashBuf = [u64; CPU_DATA_CRASH_BUF_COUNT];
 #[derive(Clone, Debug)]
 #[repr(C, align(64))]
 pub struct CpuData {
+    #[cfg(feature = "pauth")]
+    apiakey_lo: u64,
+    #[cfg(feature = "pauth")]
+    apiakey_hi: u64,
     pub crash_buf: CrashBuf,
 }
 
@@ -562,6 +566,10 @@ const _: () = assert!(size_of::<CpuData>() % PlatformImpl::CACHE_WRITEBACK_GRANU
 
 impl CpuData {
     const EMPTY: Self = Self {
+        #[cfg(feature = "pauth")]
+        apiakey_lo: 0,
+        #[cfg(feature = "pauth")]
+        apiakey_hi: 0,
         crash_buf: [0; CPU_DATA_CRASH_BUF_COUNT],
     };
 }
@@ -578,6 +586,16 @@ pub fn world_context(world: World) -> &'static PerWorldContext {
 #[unsafe(export_name = "percpu_data")]
 static mut PERCPU_DATA: [CpuData; PlatformImpl::CORE_COUNT] =
     [CpuData::EMPTY; PlatformImpl::CORE_COUNT];
+
+/// Sets the apkey fields of the current CPU's data.
+#[cfg(feature = "pauth")]
+pub fn cpu_data_set_apkey(_token: ExceptionFree, apkey: u128) {
+    // SAFETY: Only the current CPU's data is ever accessed and exceptions are masked so the
+    // modification will not be interrupted part-way through.
+    let cpu_data = unsafe { &mut PERCPU_DATA[CoresImpl::core_index()] };
+    cpu_data.apiakey_lo = apkey as u64;
+    cpu_data.apiakey_hi = (apkey >> 64) as u64;
+}
 
 /// An array with one `T` for each world.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -926,6 +944,11 @@ mod asm {
     #[cfg(feature = "sel2")]
     const _: () = assert!(!ERRATA_SPECULATIVE_AT);
 
+    #[cfg(feature = "pauth")]
+    const APIAKEY_OFFSET: usize = offset_of!(CpuData, apiakey_lo);
+    #[cfg(not(feature = "pauth"))]
+    const APIAKEY_OFFSET: usize = 0;
+
     global_asm!(
         include_str!("asm_macros_common.S"),
         include_str!("context.S"),
@@ -982,6 +1005,8 @@ mod asm {
         RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
         RUN_RESULT_INTERRUPT = const RunResult::INTERRUPT,
         CPU_DATA_SIZE = const size_of::<CpuData>(),
+        CPU_DATA_APIAKEY_OFFSET = const APIAKEY_OFFSET,
+        ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,
         plat_my_core_pos = sym plat_my_core_pos,
     );
 }

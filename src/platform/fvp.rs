@@ -50,7 +50,11 @@ use arm_gic::{
 };
 use arm_pl011_uart::{Uart, UniqueMmioPointer};
 use arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState};
+#[cfg(feature = "pauth")]
+use arm_sysregs::read_cntpct_el0;
 use arm_sysregs::{IccSre, MpidrEl1, Spsr, read_mpidr_el1, write_cntfrq_el0};
+#[cfg(feature = "pauth")]
+use core::arch::asm;
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
 use percore::Cores;
 use spin::mutex::SpinMutex;
@@ -262,6 +266,27 @@ unsafe impl Platform for Fvp {
         // Safety: `gicr_base` points to a continuously mapped GIC redistributor memory area until
         // the last redistributor block. There are no other references to this address range.
         unsafe { Gic::new(gicd, gicr_base, false) }
+    }
+
+    // This is only a toy implementation to generate a seemingly random 128-bit key from FP, LR and
+    // cntpct_el0 values. A production system must re-implement this function to generate keys from
+    // a reliable entropy source.
+    #[cfg(feature = "pauth")]
+    fn init_apkey() -> u128 {
+        let return_addr: u64;
+        let frame_addr: u64;
+        let cntpct = read_cntpct_el0();
+
+        // SAFETY: We are just reading general purpose registers.
+        unsafe {
+            asm!("mov {0}, x30", out(reg) return_addr, options(nomem, nostack, preserves_flags));
+            asm!("mov {0}, x29", out(reg) frame_addr, options(nomem, nostack, preserves_flags));
+        }
+
+        let key_lo = (return_addr << 13) ^ frame_addr ^ cntpct;
+        let key_hi = (frame_addr << 15) ^ return_addr ^ cntpct;
+
+        ((key_hi as u128) << 64) | (key_lo as u128)
     }
 
     fn create_service() -> Self::PlatformServiceImpl {

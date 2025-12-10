@@ -23,6 +23,10 @@ if [ -z ${PAUTH_EL3} ]; then
     PAUTH_EL3=0
 fi
 
+if [ -z ${PAUTH_LR_EL3} ]; then
+    PAUTH_LR_EL3=0
+fi
+
 if [ -z ${BTI_EL3} ]; then
     BTI_EL3=0
 fi
@@ -63,7 +67,7 @@ case "$PLAT" in
         QEMU_WAIT="-S"
     fi
     make -C $TFA PLAT=qemu ${DEBUG} CC=clang NEED_BL32=yes NEED_BL31=no bl1 bl2
-    make PLAT=qemu ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} BTI_EL3=${BTI_EL3} all
+    make PLAT=qemu ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all
     ln -fsr ${BL1} ${OUT}
     ln -fsr ${BL2} ${OUT}
     cd ${OUT}
@@ -137,7 +141,7 @@ case "$PLAT" in
     # (because a debug build of RF-A is too big to fit in 256 kB). The `FVP_TRUSTED_SRAM_SIZE=512` TF-A
     # build flag is required to stop TF-A from complaining that RF-A does not fit.
     if [[ "${RME:-}" == 1 ]]; then
-        make PLAT=fvp FEATURES=sel2,rme ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} BTI_EL3=${BTI_EL3} all
+        make PLAT=fvp FEATURES=sel2,rme ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all
         make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 \
             BL31=${OUT}/bl31.bin \
             BL32=${BL32} \
@@ -192,7 +196,7 @@ case "$PLAT" in
             ${FVP_COMMON_ARGS}
 
     else
-        make PLAT=fvp ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} BTI_EL3=${BTI_EL3} all
+        make PLAT=fvp ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all
         make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=${SPMD_SPM_AT_SEL2} CTX_INCLUDE_AARCH32_REGS=0 \
             BL31=${OUT}/bl31.bin \
             BL32=${BL32} \

@@ -35,7 +35,7 @@ endif
 
 STF_CARGO_FLAGS := --release
 STF_IMAGES_FLAGS = $(patsubst target/%.bin, "--bin" "%", $(STF_IMAGES))
-RFA_CARGO_FLAGS := --no-default-features --features "$(FEATURES)"
+RFA_CARGO_FLAGS := --no-default-features
 
 # List of test images that can be built for that platform.
 STF_IMAGES := $(BL32) $(BL33)
@@ -59,14 +59,20 @@ TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\" -D warnings
 # optimizations. Requires a nightly Cargo.
 BUILD_STD ?= 0
 
-# Whether to enable PAuth and/or BTI support in EL3. Flagged out only because it requires a nightly
-# compiler.
+# Whether to enable PAuth and/or BTI support in EL3. If PAuth is enabled, then PAuth_LR can
+# additionally be enabled to use the PC as a diversifier when signing the LR. These features are
+# flagged out only because they require a nightly compiler.
 PAUTH_EL3 ?= 0
+PAUTH_LR_EL3 ?= 0
 BTI_EL3 ?= 0
 
 ifeq ($(PAUTH_EL3), 1)
 	BP_OPTIONS += pac-ret
+	FEATURES += pauth
 	STF_FEATURES += pauth
+	ifeq ($(PAUTH_LR_EL3), 1)
+		BP_OPTIONS += pc
+	endif
 endif
 ifeq ($(BTI_EL3), 1)
 	BP_OPTIONS += bti
@@ -88,6 +94,7 @@ else
 	CARGO ?= cargo
 endif
 
+RFA_CARGO_FLAGS += --features "$(FEATURES)"
 STF_CARGO_FLAGS += --features "$(STF_FEATURES)"
 TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh" $(CARGO)
 STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" $(CARGO)

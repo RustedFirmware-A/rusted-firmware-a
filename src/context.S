@@ -90,6 +90,17 @@
 	stp	x24, x25, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APDAKEY_LO}] /* APDAKey = x25:x24 */
 	stp	x26, x27, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APDBKEY_LO}] /* APDBKey = x27:x26 */
 	stp	x28, x29, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APGAKEY_LO}] /* APGAKey = x29:x28 */
+
+.if {ENABLE_PAUTH}
+	/* tpidr_el3 contains the address of the cpu_data structure */
+	mrs	x20, tpidr_el3
+	/* Load the EL3 APIAKey from cpu_data */
+	ldp	x21, x22, [x20, #{CPU_DATA_APIAKEY_OFFSET}]
+
+	/* Program APIAKey with the EL3 key */
+	msr	s3_0_c2_c1_0, x21 /* apiakeylo_el1 */
+	msr	s3_0_c2_c1_1, x22 /* apiakeyhi_el1 */
+.endif /* ENABLE_PAUTH */
 .endm
 /* save_gp_pmcr_pauth_regs */
 

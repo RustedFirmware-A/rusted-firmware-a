@@ -313,6 +313,55 @@ impl IdAa64dfr1El1 {
 }
 
 bitflags! {
+    /// ID_AA64ISAR1_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64isar1El1: u64 {}
+}
+
+impl IdAa64isar1El1 {
+    const APA_SHIFT: u64 = 4;
+    const APA_MASK: u64 = 0b1111;
+
+    const API_SHIFT: u64 = 8;
+    const API_MASK: u64 = 0b1111;
+    const PAUTH_LR_IMPLEMENTED: u64 = 0b110;
+
+    fn is_feat_pauth_lr_present(self) -> bool {
+        (self.bits() >> Self::APA_SHIFT) & Self::APA_MASK == Self::PAUTH_LR_IMPLEMENTED
+            || (self.bits() >> Self::API_SHIFT) & Self::API_MASK == Self::PAUTH_LR_IMPLEMENTED
+    }
+}
+
+bitflags! {
+    /// ID_AA64ISAR2_EL1 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct IdAa64isar2El1: u64 {}
+}
+
+impl IdAa64isar2El1 {
+    const APA3_SHIFT: u64 = 12;
+    const APA3_MASK: u64 = 0b1111;
+    const PAUTH_LR_IMPLEMENTED: u64 = 0b110;
+
+    fn is_feat_pauth_lr_present(self) -> bool {
+        (self.bits() >> Self::APA3_SHIFT) & Self::APA3_MASK == Self::PAUTH_LR_IMPLEMENTED
+    }
+}
+
+/// Indicates whether FEAT_PAuth_LR is implemented.
+pub fn is_feat_pauth_lr_present() -> bool {
+    // FEAT_PAuth_LR support is indicated by up to 3 fields, where if one or more of these is 0b0110
+    // then the feature is present.
+    //   1) id_aa64isr1_el1.api
+    //   2) id_aa64isr1_el1.apa
+    //   3) id_aa64isr2_el1.apa3
+    read_id_aa64isar1_el1().is_feat_pauth_lr_present()
+        || read_id_aa64isar2_el1().is_feat_pauth_lr_present()
+}
+
+bitflags! {
     /// ID_AA64MMFR1_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
@@ -846,6 +895,16 @@ bitflags! {
 }
 
 bitflags! {
+    /// SCTLR2_EL3 system register value.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(transparent)]
+    pub struct Sctlr2El3: u64 {
+        /// Enables PACM instructions at EL3.
+        const EnPACM = 1 << 7;
+    }
+}
+
+bitflags! {
     /// SCTLR_EL1 system register value.
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     #[repr(transparent)]
@@ -1040,6 +1099,7 @@ read_sysreg!(ccsidr_el1, u64, safe, fake::SYSREGS);
 read_sysreg!(clidr_el1, u64: ClidrEl1, safe, fake::SYSREGS);
 read_write_sysreg!(cntfrq_el0, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(cnthctl_el2, u64, safe_read, safe_write, fake::SYSREGS);
+read_sysreg!(cntpct_el0, u64, safe, fake::SYSREGS);
 read_write_sysreg!(cntvoff_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(contextidr_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(contextidr_el2, u64, safe_read, safe_write, fake::SYSREGS);
@@ -1081,6 +1141,8 @@ read_write_sysreg!(ich_hcr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(ich_vmcr_el2, u64, safe_read, safe_write, fake::SYSREGS);
 read_sysreg!(id_aa64dfr0_el1, u64: IdAa64dfr0El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64dfr1_el1, u64: IdAa64dfr1El1, safe, fake::SYSREGS);
+read_sysreg!(id_aa64isar1_el1, u64: IdAa64isar1El1, safe, fake::SYSREGS);
+read_sysreg!(id_aa64isar2_el1, u64: IdAa64isar2El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr0_el1, u64: IdAa64mmfr0El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr1_el1, u64: IdAa64mmfr1El1, safe, fake::SYSREGS);
 read_sysreg!(id_aa64mmfr2_el1, u64: IdAa64mmfr2El1, safe, fake::SYSREGS);
@@ -1120,6 +1182,14 @@ read_write_sysreg!(par_el1, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(pmcr_el0, u64: Pmcr, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(rgsr_el1: s3_0_c1_c0_5, u64, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(scr_el3, u64: ScrEl3, safe_read, safe_write, fake::SYSREGS);
+read_write_sysreg! {
+    /// # Safety
+    ///
+    /// As with `sctlr_el3`, writing to the EL3 system control register can be very dangerous, so
+    /// callers of `write_sctlr2_el3` must ensure that the register value upholds RF-A security and
+    /// reliability requirements.
+    sctlr2_el3, u64: Sctlr2El3, safe_read, fake::SYSREGS
+}
 read_write_sysreg!(sctlr_el1, u64: SctlrEl1, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg!(sctlr_el2, u64: SctlrEl2, safe_read, safe_write, fake::SYSREGS);
 read_write_sysreg! {
@@ -1128,7 +1198,7 @@ read_write_sysreg! {
     /// Given its purpose, writing to the EL3 system control register can be very dangerous: it
     /// affects the behavior of the MMU, interrupt handling, security-relevant features like memory
     /// tagging, branch target identification, and pointer authentication, and more. Callers of
-    /// `write_sctlr_el3` must ensure that the register value upholds TF-A security and reliability
+    /// `write_sctlr_el3` must ensure that the register value upholds RF-A security and reliability
     /// requirements.
     sctlr_el3, u64: SctlrEl3, safe_read, fake::SYSREGS
 }

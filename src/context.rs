@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+#[cfg(feature = "sel2")]
+use crate::errata_framework::erratum_applies;
 use crate::{
     aarch64::isb,
     cpu_extensions::{
@@ -21,15 +23,16 @@ use arm_sysregs::{
     read_afsr0_el2, read_afsr1_el2, read_amair_el2, read_cnthctl_el2, read_cntvoff_el2,
     read_contextidr_el2, read_cptr_el2, read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2,
     read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
-    read_ich_vmcr_el2, read_id_aa64mmfr1_el1, read_mair_el2, read_mdcr_el2, read_sctlr_el2,
-    read_sp_el2, read_spsr_el2, read_tcr_el2, read_tpidr_el2, read_ttbr0_el2, read_ttbr1_el2,
-    read_vbar_el2, read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2, read_vttbr_el2, write_actlr_el2,
-    write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2, write_cntvoff_el2,
-    write_contextidr_el2, write_cptr_el2, write_elr_el2, write_esr_el2, write_far_el2,
-    write_hacr_el2, write_hcr_el2, write_hpfar_el2, write_hstr_el2, write_icc_sre_el2,
-    write_ich_hcr_el2, write_ich_vmcr_el2, write_mair_el2, write_mdcr_el2, write_sctlr_el2,
-    write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_ttbr1_el2,
-    write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
+    read_ich_vmcr_el2, read_id_aa64mmfr1_el1, read_mair_el2, read_mdcr_el2, read_scr_el3,
+    read_sctlr_el2, read_sp_el2, read_spsr_el2, read_tcr_el2, read_tpidr_el2, read_ttbr0_el2,
+    read_ttbr1_el2, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2, read_vttbr_el2,
+    write_actlr_el2, write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2,
+    write_cntvoff_el2, write_contextidr_el2, write_cptr_el2, write_elr_el2, write_esr_el2,
+    write_far_el2, write_hacr_el2, write_hcr_el2, write_hpfar_el2, write_hstr_el2,
+    write_icc_sre_el2, write_ich_hcr_el2, write_ich_vmcr_el2, write_mair_el2, write_mdcr_el2,
+    write_sctlr_el2, write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2,
+    write_ttbr1_el2, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2,
+    write_vttbr_el2,
 };
 #[cfg(not(feature = "sel2"))]
 use arm_sysregs::{
@@ -121,11 +124,13 @@ impl CpuContext {
         self.el1_sysregs.save();
     }
 
-    fn restore_lower_el_sysregs(&self) {
+    fn restore_lower_el_sysregs(&self, world: World) {
         #[cfg(feature = "sel2")]
-        self.el2_sysregs.restore();
+        self.el2_sysregs.restore(world);
         #[cfg(not(feature = "sel2"))]
         self.el1_sysregs.restore();
+        #[cfg(not(feature = "sel2"))]
+        let _ = world;
     }
 
     /// Skips an instruction in a lower EL.
@@ -466,7 +471,7 @@ impl El2Sysregs {
     }
 
     /// Writes the saved register values to the system registers.
-    fn restore(&self) {
+    fn restore(&self, world: World) {
         // SAFETY: We're restoring the values previously saved, so they must be valid.
         unsafe {
             write_actlr_el2(self.actlr_el2);
@@ -485,7 +490,21 @@ impl El2Sysregs {
             write_hstr_el2(self.hstr_el2);
             write_icc_sre_el2(self.icc_sre_el2);
             write_ich_hcr_el2(self.ich_hcr_el2);
+
+            let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies();
+            if apply_ich_vmcr_el2_errata {
+                let scr_el3 = read_scr_el3();
+                if world == World::Secure {
+                    write_scr_el3(scr_el3 - ScrEl3::NS);
+                } else {
+                    write_scr_el3(scr_el3 | ScrEl3::NS);
+                }
+                isb();
+            }
             write_ich_vmcr_el2(self.ich_vmcr_el2);
+            // No need to restore the previous value of SCR_EL3, it will be overwritten soon by
+            // el3_exit.
+
             write_mair_el2(self.mair_el2);
             write_mdcr_el2(self.mdcr_el2);
             write_sctlr_el2(self.sctlr_el2);
@@ -518,6 +537,11 @@ impl El2Sysregs {
             write_ttbr1_el2(self.ttbr1_el2);
         }
     }
+}
+
+#[cfg(feature = "sel2")]
+fn errata_ich_vmcr_el2_applies() -> bool {
+    erratum_applies(3_300_099) || erratum_applies(3_773_617)
 }
 
 /// Registers whose values can be shared across CPUs.
@@ -715,7 +739,7 @@ fn restore_world(world: World, context: &CpuContext) {
         ext.restore_context(world);
     }
 
-    context.restore_lower_el_sysregs();
+    context.restore_lower_el_sysregs(world);
 }
 
 /// Saves lower EL system registers from the current world, restores lower EL and some per-world

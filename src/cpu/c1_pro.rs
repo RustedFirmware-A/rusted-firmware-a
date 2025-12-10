@@ -55,6 +55,56 @@ unsafe impl Cpu for C1Pro {
 }
 
 #[allow(unused)]
+pub struct Erratum3300099;
+
+// SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
+// memory, and only clobber x0-x4.
+unsafe impl Erratum for Erratum3300099 {
+    const ID: ErratumId = 3_300_099;
+    const CVE: Cve = 0;
+    const APPLY_ON: ErratumType = ErratumType::Runtime;
+
+    #[unsafe(naked)]
+    extern "C" fn check() -> bool {
+        implement_erratum_check!(
+            C1Pro::MIDR,
+            RevisionVariant::new(0, 0),
+            RevisionVariant::new(1, 1),
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn workaround() {
+        naked_asm!("ret")
+    }
+}
+
+#[allow(unused)]
+pub struct Erratum3773617;
+
+// SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
+// memory, and only clobber x0-x4.
+unsafe impl Erratum for Erratum3773617 {
+    const ID: ErratumId = 3_773_617;
+    const CVE: Cve = 0;
+    const APPLY_ON: ErratumType = ErratumType::Runtime;
+
+    #[unsafe(naked)]
+    extern "C" fn check() -> bool {
+        implement_erratum_check!(
+            C1Pro::MIDR,
+            RevisionVariant::new(1, 1),
+            RevisionVariant::new(1, 2),
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn workaround() {
+        naked_asm!("ret")
+    }
+}
+
+#[allow(unused)]
 pub struct Erratum3619847;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or

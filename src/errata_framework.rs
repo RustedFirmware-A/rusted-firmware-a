@@ -5,6 +5,8 @@
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub mod dsu;
 
+use crate::platform::ERRATA_LIST;
+
 /// A unique identifier for an erratum.
 pub type ErratumId = u32;
 
@@ -84,6 +86,15 @@ impl ErratumEntry {
             workaround: T::workaround,
         }
     }
+}
+
+/// Returns true if the platform has an erratum with the given ID, and it applies on the current
+/// CPU.
+#[allow(unused)]
+pub fn erratum_applies(id: ErratumId) -> bool {
+    ERRATA_LIST
+        .iter()
+        .any(|erratum| erratum.id == id && (erratum.check)())
 }
 
 /// Calculates the count of specified Erratum types.

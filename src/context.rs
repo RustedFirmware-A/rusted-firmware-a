@@ -39,10 +39,10 @@ use arm_sysregs::{
     read_vtcr_el2, read_vttbr_el2, write_actlr_el2, write_afsr0_el2, write_afsr1_el2,
     write_amair_el2, write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el2, write_cptr_el2,
     write_elr_el2, write_esr_el2, write_far_el2, write_hacr_el2, write_hcr_el2, write_hpfar_el2,
-    write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_mair_el2, write_mdcr_el2,
-    write_sctlr_el2, write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2,
-    write_ttbr1_el2, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2,
-    write_vttbr_el2,
+    write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2, write_ich_vmcr_el2, write_mair_el2,
+    write_mdcr_el2, write_sctlr_el2, write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2,
+    write_ttbr0_el2, write_ttbr1_el2, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2,
+    write_vtcr_el2, write_vttbr_el2,
 };
 use core::{
     cell::{RefCell, RefMut},
@@ -480,8 +480,7 @@ impl El2Sysregs {
         write_hstr_el2(self.hstr_el2);
         write_icc_sre_el2(self.icc_sre_el2);
         write_ich_hcr_el2(self.ich_hcr_el2);
-        // TODO: Write the ich_vmcr_el2 register when the GIC driver is used
-        // write_ich_vmcr_el2(self.ich_vmcr_el2);
+        write_ich_vmcr_el2(self.ich_vmcr_el2);
         write_mair_el2(self.mair_el2);
         write_mdcr_el2(self.mdcr_el2);
         write_sctlr_el2(self.sctlr_el2);

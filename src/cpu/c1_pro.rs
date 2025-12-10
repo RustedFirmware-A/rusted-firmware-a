@@ -43,6 +43,10 @@ unsafe impl Cpu for C1Pro {
         let cpupwrctlr = read_cpupwrctlr();
         write_cpupwrctlr(cpupwrctlr | CORE_PWRDN_ENABLE_BIT_MASK);
         isb();
+
+        if Erratum3686597::check() {
+            Erratum3686597::workaround();
+        }
     }
 
     fn power_down_level1() {
@@ -76,6 +80,38 @@ unsafe impl Erratum for Erratum3619847 {
             "mrs x1, s3_0_c15_c1_1",
             "orr x1, x1, #(1 << 42)",
             "msr s3_0_c15_c1_1, x1",
+            "ret",
+        )
+    }
+}
+
+/// Workaround for CME-related powerdown transition deadlocks.
+pub struct Erratum3686597;
+
+// SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
+// memory, and only clobber x0-x4.
+unsafe impl Erratum for Erratum3686597 {
+    const ID: ErratumId = 3_686_597;
+    const CVE: Cve = 0;
+    const APPLY_ON: ErratumType = ErratumType::Runtime;
+
+    #[unsafe(naked)]
+    extern "C" fn check() -> bool {
+        implement_erratum_check!(
+            C1Pro::MIDR,
+            RevisionVariant::new(0, 0),
+            RevisionVariant::new(1, 1),
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn workaround() {
+        // Set bit 57 in C1_PRO_IMP_CPUECTLR_EL1.
+        naked_asm!(
+            "mrs x1, s3_0_c15_c1_4",
+            "orr x1, x1, #(1 << 57)",
+            "msr s3_0_c15_c1_4, x1",
+            "dsb sy",
             "ret",
         )
     }

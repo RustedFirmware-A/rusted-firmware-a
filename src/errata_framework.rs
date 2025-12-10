@@ -115,16 +115,19 @@ pub(crate) use define_errata_list;
 ///
 /// Clobbers registers x0-x4.
 ///
-/// This macro generates an assembly implementation for the `check` function.
-/// It reads the MIDR_EL1 of the CPU, compares the part number and implementer numbers
-/// against Self::MIDR, then compares the revision and variant numbers of the CPU
-/// against `Self::APPLY_FROM` and `Self::FIXED_IN`. It handles both fixed
-/// and unfixed errata by checking against `RevisionVariant::NOT_FIXED`.
+/// This macro generates an assembly implementation for the `check` function of an `Erratum`
+/// implementation. It reads the MIDR_EL1 of the CPU, compares the part number and implementer
+/// numbers against the given `$midr`, then compares the revision and variant numbers of the CPU
+/// against `$apply_from` and `$fixed_in`. If the erratum is not yet fixed, then
+/// `RevisionVariant::NOT_FIXED` can be passed for `$fixed_in`.
+///
+/// Note that the revision-variant check implemented here is for a half-open range, unlike
+/// `check_erratum_range` in C TF-A which checks a closed range. In other words, the `$fixed_in`
+/// value passed to this macro should be one higher than the `_rev_num_hi` passed to
+/// `check_erratum_range`.
 ///
 /// The generated assembly returns `true` (1) if the erratum should be applied,
 /// and `false` (0) otherwise, following the AArch64 C calling convention.
-///
-/// This should be used inside the `check` function of an `Erratum` implementation.
 ///
 /// # Example
 ///

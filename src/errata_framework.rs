@@ -140,7 +140,7 @@ pub(crate) use define_errata_list;
 /// ```
 #[allow(unused_macros)]
 macro_rules! implement_erratum_check {
-    ($midr:expr, $apply_from:expr, $fixed_in:expr) => {
+    ($midr:expr, $apply_from:expr, $fixed_in:expr $(,)?) => {
         {
             const MIDR__: arm_sysregs::MidrEl1 = $midr;
             const APPLY_FROM__: $crate::errata_framework::RevisionVariant = $apply_from;

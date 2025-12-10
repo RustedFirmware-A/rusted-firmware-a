@@ -3,15 +3,52 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
+    aarch64::isb,
+    cpu::Cpu,
     errata_framework::{
         Cve, Erratum, ErratumId, ErratumType, RevisionVariant, implement_erratum_check,
     },
     naked_asm,
 };
-use arm_sysregs::MidrEl1;
+use arm_sysregs::{MidrEl1, read_write_sysreg};
+
+pub struct C1Pro;
 
 #[allow(unused)]
-const MIDR: MidrEl1 = MidrEl1::from_bits_retain(0x410F_D8B0);
+/// SAFETY: `reset_handler` and `dump_registers` are implemented as naked functions and only clobber
+/// x1.
+unsafe impl Cpu for C1Pro {
+    const MIDR: MidrEl1 = MidrEl1::from_bits_retain(0x410F_D8B0);
+
+    #[unsafe(naked)]
+    extern "C" fn reset_handler() {
+        naked_asm!(
+            // Disable speculative loads by zeroing SSBS.
+            "msr s3_3_c4_c2_6, xzr",
+            // Clear bit 0 (CORE_PWRDN_EN) in IMP_CPUPWRCTLR_EL1, to work around a model bug where
+            // it isn't cleared on reset.
+            "mrs x1, s3_0_c15_c2_7",
+            "bic x1, x1, #(1 << 0)",
+            "msr s3_0_c15_c2_7, x1",
+            "ret"
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn dump_registers() {
+        naked_asm!("ret");
+    }
+
+    fn power_down_level0() {
+        let cpupwrctlr = read_cpupwrctlr();
+        write_cpupwrctlr(cpupwrctlr | CORE_PWRDN_ENABLE_BIT_MASK);
+        isb();
+    }
+
+    fn power_down_level1() {
+        Self::power_down_level0();
+    }
+}
 
 #[allow(unused)]
 pub struct Erratum3619847;
@@ -25,7 +62,11 @@ unsafe impl Erratum for Erratum3619847 {
 
     #[unsafe(naked)]
     extern "C" fn check() -> bool {
-        implement_erratum_check!(MIDR, RevisionVariant::new(0, 0), RevisionVariant::new(1, 0));
+        implement_erratum_check!(
+            C1Pro::MIDR,
+            RevisionVariant::new(0, 0),
+            RevisionVariant::new(1, 0)
+        );
     }
 
     #[unsafe(naked)]
@@ -52,7 +93,11 @@ unsafe impl Erratum for Erratum3694158 {
 
     #[unsafe(naked)]
     extern "C" fn check() -> bool {
-        implement_erratum_check!(MIDR, RevisionVariant::new(0, 0), RevisionVariant::new(1, 2));
+        implement_erratum_check!(
+            C1Pro::MIDR,
+            RevisionVariant::new(0, 0),
+            RevisionVariant::new(1, 2)
+        );
     }
 
     #[unsafe(naked)]
@@ -74,3 +119,6 @@ unsafe impl Erratum for Erratum3694158 {
         )
     }
 }
+
+read_write_sysreg!(cpupwrctlr: s3_0_c15_c2_7, u64, safe_read, safe_write);
+const CORE_PWRDN_ENABLE_BIT_MASK: u64 = 0x1;

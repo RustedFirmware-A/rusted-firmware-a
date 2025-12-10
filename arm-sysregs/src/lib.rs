@@ -558,14 +558,14 @@ impl MidrEl1 {
     pub const VARIANT_LEN: u32 = 4;
 
     /// Mask for the Implementer field.
-    const IMPLEMENTER_MASK: u64 = 0xff;
+    pub const IMPLEMENTER_MASK: u64 = 0xff;
     /// Position of the lowest bit in the Implementer field.
     pub const IMPLEMENTER_SHIFT: u32 = 24;
     /// Length of the Implementer field.
     pub const IMPLEMENTER_LEN: u32 = 8;
 
     /// Mask for the PartNum field.
-    const PART_NUM_MASK: u64 = 0xfff;
+    pub const PART_NUM_MASK: u64 = 0xfff;
     /// Position of the lowest bit in the PartNum field.
     pub const PART_NUM_SHIFT: u32 = 4;
     /// Length of the PartNum field.

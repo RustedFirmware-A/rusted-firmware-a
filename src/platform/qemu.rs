@@ -47,7 +47,7 @@ use arm_sysregs::{IccSre, MpidrEl1};
 use core::arch::asm;
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
 use percore::Cores;
-use spin::mutex::SpinMutexGuard;
+use spin::mutex::{SpinMutex, SpinMutexGuard};
 
 #[cfg(feature = "rme")]
 compile_error!("RME is not supported on QEMU");
@@ -244,7 +244,9 @@ unsafe impl Platform for Qemu {
     }
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
-        Some(QemuPsciPlatformImpl)
+        Some(QemuPsciPlatformImpl{
+            per_cpu_powerdown_kinds: [const { SpinMutex::new(PowerDownKind::Off) }; Qemu::CORE_COUNT]
+        })
     }
 
     fn arch_workaround_1_supported() -> WorkaroundSupport {
@@ -351,9 +353,9 @@ unsafe impl Platform for Qemu {
 
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
 pub enum QemuPowerState {
-    PowerDown,
-    Standby,
     On,
+    Retention,
+    PowerDown,
 }
 
 impl PlatformPowerStateInterface for QemuPowerState {
@@ -363,7 +365,7 @@ impl PlatformPowerStateInterface for QemuPowerState {
     fn power_state_type(&self) -> PowerStateType {
         match self {
             Self::PowerDown => PowerStateType::PowerDown,
-            Self::Standby => PowerStateType::StandbyOrRetention,
+            Self::Retention => PowerStateType::StandbyOrRetention,
             Self::On => PowerStateType::Run,
         }
     }
@@ -375,13 +377,23 @@ impl From<QemuPowerState> for usize {
     }
 }
 
-pub struct QemuPsciPlatformImpl;
+#[derive(PartialEq, Clone, Copy, Eq)]
+enum PowerDownKind {
+    // For CPU_OFF
+    Off,
+    // For CPU_SUSPEND
+    Suspend,
+}
+
+pub struct QemuPsciPlatformImpl {
+    per_cpu_powerdown_kinds: [SpinMutex<PowerDownKind>; Qemu::CORE_COUNT]
+}
 
 impl PsciPlatformInterface for QemuPsciPlatformImpl {
     const POWER_DOMAIN_COUNT: usize = 1 + CLUSTER_COUNT + Qemu::CORE_COUNT;
     const MAX_POWER_LEVEL: usize = 2;
 
-    const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::empty();
+    const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::OS_INITIATED_MODE;
 
     type PlatformPowerState = QemuPowerState;
 
@@ -389,37 +401,91 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         &[1, CLUSTER_COUNT, MAX_CPUS_PER_CLUSTER]
     }
 
-    fn try_parse_power_state(_power_state: PowerState) -> Option<PsciCompositePowerState> {
-        todo!()
+    fn try_parse_power_state(power_state: PowerState) -> Option<PsciCompositePowerState> {
+        const POWER_STATES_MASK: u32 = 0x0000_0fff;
+        const LOCAL_PSTATE_WIDTH: u32 = 4;
+        const LOCAL_PSTATE_MASK: u32 = (1 << LOCAL_PSTATE_WIDTH) - 1;
+        // last_at_power_level is encoded in the bits immediately following the state ID bits
+        // for each power level.
+        let last_at_power_level_shift: u32 =
+            LOCAL_PSTATE_WIDTH * (Self::MAX_POWER_LEVEL as u32 + 1);
+
+        let last_at_power_level_mask: u32 = LOCAL_PSTATE_MASK << last_at_power_level_shift;
+        let last_at_power_level: u32 = (u32::from(power_state) & last_at_power_level_mask) >> last_at_power_level_shift;
+        if last_at_power_level as usize > Self::MAX_POWER_LEVEL {
+            return None
+        }
+
+        let raw_composite_power_states = u32::from(power_state) & POWER_STATES_MASK;
+
+        if let PowerState::StandbyOrRetention(0x1) = power_state {
+            return Some(PsciCompositePowerState::new_with_last_power_level([
+                QemuPowerState::Retention, QemuPowerState::On, QemuPowerState::On
+            ], last_at_power_level as usize));
+        }
+
+        if let PowerState::StandbyOrRetention(_) = power_state {
+            return None;
+        }
+
+        let composite_states = match raw_composite_power_states {
+            0x2 => [QemuPowerState::PowerDown, QemuPowerState::On, QemuPowerState::On],
+            0x12 => [QemuPowerState::PowerDown, QemuPowerState::Retention, QemuPowerState::On],
+            0x22 => [QemuPowerState::PowerDown, QemuPowerState::PowerDown, QemuPowerState::On],
+            // Ensure that the system power domain can't be powered down by CPU_SUSPEND. Only SYSTEM_SUSPEND can do that.
+            0x222 => [QemuPowerState::PowerDown, QemuPowerState::PowerDown, QemuPowerState::On],
+            _ => return None
+        };
+
+        Some(PsciCompositePowerState::new_with_last_power_level(composite_states, last_at_power_level as usize))
     }
 
     fn cpu_standby(&self, cpu_state: QemuPowerState) {
-        assert_eq!(cpu_state, QemuPowerState::Standby);
+        assert_eq!(cpu_state.power_state_type(), PowerStateType::StandbyOrRetention);
 
         dsb_sy();
         wfi();
     }
 
+    fn power_domain_validate_suspend(
+        &self,
+        _target_state: &PsciCompositePowerState
+    ) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+
     fn power_domain_suspend(&self, _target_state: &PsciCompositePowerState) {
-        todo!()
+        *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() = PowerDownKind::Suspend;
     }
 
     fn power_domain_suspend_finish(&self, _previous_state: &PsciCompositePowerState) {
-        todo!()
     }
 
     fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
         assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);
 
         Gic::get().cpu_interface_disable();
+        *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() = PowerDownKind::Off;
     }
 
     fn power_domain_power_down_wfi(&self, _target_state: &PsciCompositePowerState) -> ! {
-        // SAFETY: `disable_mmu_el3` is safe to call here as the CPU is about to be switched off.
-        // `plat_secondary_cold_boot_setup` is trusted assembly.
-        unsafe {
-            disable_mmu_el3();
-            plat_secondary_cold_boot_setup();
+        if *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() == PowerDownKind::Off {
+            // SAFETY: `disable_mmu_el3` is safe to call here as the CPU is about to be switched off.
+            // `plat_secondary_cold_boot_setup` is trusted assembly.
+            unsafe {
+                disable_mmu_el3();
+                plat_secondary_cold_boot_setup();
+            }
+        } else {
+            dsb_sy();
+            wfi();
+            // Instead of behaving as if this was a powerdown abandon, simply call the bl31
+            // warmboot entry point. This is closer to what real hardware would do most of the time.
+            // SAFETY: `bl31_warmboot_entrypoint` and `disable_mmu_el3` are trusted assembly.
+            unsafe {
+                disable_mmu_el3();
+                bl31_warm_entrypoint();
+            }
         }
     }
 
@@ -442,6 +508,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 
     fn power_domain_on_finish(&self, previous_state: &PsciCompositePowerState) {
         assert_eq!(previous_state.cpu_level_state(), QemuPowerState::PowerDown);
+        Gic::get().redistributor_init(&Qemu::GIC_CONFIG);
         Gic::get().cpu_interface_enable();
     }
 

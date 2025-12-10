@@ -11,6 +11,7 @@ use arm_gic::{
     IntId, Trigger,
     gicv3::{GicCpuInterface, GicV3, Group, HIGHEST_NS_PRIORITY, InterruptGroup, SecureIntGroup},
 };
+use arm_sysregs::read_mpidr_el1;
 use log::debug;
 use percore::{Cores, ExceptionLock, exception_free};
 use spin::{mutex::SpinMutex, once::Once};
@@ -74,7 +75,8 @@ pub fn set_interrupt_handler(intid: IntId, trigger: Trigger, callback: Option<In
 /// Acknowledges the interrupt, calls corresponding handler function and sets EOI.
 pub fn handle_group1_interrupt() {
     let int_id = GicCpuInterface::get_and_acknowledge_interrupt(InterruptGroup::Group1).unwrap();
-    debug!("Group 1 interrupt {int_id:?} acknowledged");
+    let core_pos = PlatformImpl::core_position(read_mpidr_el1());
+    debug!("Group 1 interrupt {int_id:?} acknowledged on core {core_pos:?}");
 
     if !int_id.is_private() {
         panic!("Only private interrupts are supported.");
@@ -86,11 +88,11 @@ pub fn handle_group1_interrupt() {
     if let Some(handler_fn) = handler {
         handler_fn();
     } else {
-        panic!("No handler registered for interrupt {int_id:?}");
+        panic!("No handler registered for interrupt {int_id:?} on core {core_pos:?}");
     }
 
     GicCpuInterface::end_interrupt(int_id, InterruptGroup::Group1);
-    debug!("Group 1 interrupt {int_id:?} EOI");
+    debug!("Group 1 interrupt {int_id:?} EOI on core {core_pos}");
 }
 
 /// Enables IRQ handling for the current EL.

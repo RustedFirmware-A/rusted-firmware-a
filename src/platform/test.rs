@@ -12,9 +12,7 @@ use crate::{
     errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
     gicv3::{Gic, GicConfig},
     logger::{self, LogSink},
-    pagetable::{
-        IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping, map_region,
-    },
+    pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
     services::{
         arch::WorkaroundSupport,
         psci::{
@@ -101,7 +99,10 @@ unsafe impl Platform for TestPlatform {
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {
-        map_region(idmap, &DEVICE0, MT_DEVICE);
+        // SAFETY: The pagetable isn't actually used in unit tests.
+        unsafe {
+            idmap.map_region(&DEVICE0, MT_DEVICE);
+        }
     }
 
     unsafe fn create_gic() -> Gic<'static> {

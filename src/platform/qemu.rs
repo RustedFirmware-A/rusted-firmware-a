@@ -17,7 +17,6 @@ use crate::{
     pagetable::{
         IdMap, MT_DEVICE, MT_MEMORY, disable_mmu_el3,
         early_pagetable::{EarlyRegion, define_early_mapping},
-        map_region,
     },
     platform::{CpuExtension, plat_my_core_pos},
     semihosting::{AdpStopped, semihosting_exit},
@@ -165,9 +164,13 @@ unsafe impl Platform for Qemu {
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {
-        map_region(idmap, &SHARED_RAM, MT_DEVICE);
-        map_region(idmap, &DEVICE0, MT_DEVICE);
-        map_region(idmap, &DEVICE1, MT_DEVICE);
+        // SAFETY: Nothing is being unmapped, and the regions being mapped have the correct
+        // attributes.
+        unsafe {
+            idmap.map_region(&SHARED_RAM, MT_DEVICE);
+            idmap.map_region(&DEVICE0, MT_DEVICE);
+            idmap.map_region(&DEVICE1, MT_DEVICE);
+        }
     }
 
     unsafe fn create_gic() -> Gic<'static> {

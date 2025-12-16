@@ -13,7 +13,7 @@ use crate::{
     platform::{Platform, PlatformImpl},
 };
 use aarch64_paging::{
-    MapError, Mapping,
+    Mapping,
     descriptor::{Attributes, PhysicalAddress, VirtualAddress},
     mair::{Mair, MairAttribute, NormalMemory},
     paging::{Constraints, MemoryRegion, PageTable, Translation, TranslationRegime, VaRange},
@@ -256,46 +256,28 @@ fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
     assert!(secure_entry_pc < bl31_start() || secure_entry_pc >= bl31_end());
     assert!(secure_entry_pc < bss2_start() || secure_entry_pc >= bss2_end());
 
-    // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
-    // BL31_TOTAL
-    map_region(
-        &mut idmap,
-        &MemoryRegion::new(bl31_start(), bl31_end()),
-        MT_MEMORY,
-    );
-    // BL31_RO
-    map_region(
-        &mut idmap,
-        &MemoryRegion::new(bl_code_base(), bl_code_end()),
-        MT_CODE,
-    );
-    map_region(
-        &mut idmap,
-        &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
-        MT_RO_DATA,
-    );
-    let bss2_start = bss2_start();
-    let bss2_end = bss2_end();
-    if bss2_start != bss2_end {
-        map_region(
-            &mut idmap,
-            &MemoryRegion::new(bss2_start, bss2_end),
-            MT_RW_DATA,
+    // SAFETY: Nothing is being unmapped, and the regions being mapped have the correct attributes.
+    unsafe {
+        // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
+        // BL31_TOTAL
+        idmap.map_region(&MemoryRegion::new(bl31_start(), bl31_end()), MT_MEMORY);
+        // BL31_RO
+        idmap.map_region(&MemoryRegion::new(bl_code_base(), bl_code_end()), MT_CODE);
+        idmap.map_region(
+            &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
+            MT_RO_DATA,
         );
+        let bss2_start = bss2_start();
+        let bss2_end = bss2_end();
+        if bss2_start != bss2_end {
+            idmap.map_region(&MemoryRegion::new(bss2_start, bss2_end), MT_RW_DATA);
+        }
     }
 
     // Corresponds to `plat_regions` in C TF-A.
     PlatformImpl::map_extra_regions(&mut idmap);
 
     idmap
-}
-
-/// Adds the given region to the page table with the given attributes, logging it first.
-pub fn map_region(idmap: &mut IdMap, region: &MemoryRegion, attributes: Attributes) {
-    debug!("Mapping {region} as {attributes:?}.");
-    idmap
-        .map_range(region, attributes)
-        .expect("Error mapping memory range");
 }
 
 /// # Safety
@@ -386,18 +368,50 @@ impl IdMap {
         }
     }
 
-    fn map_range(&mut self, range: &MemoryRegion, flags: Attributes) -> Result<(), MapError> {
-        let pa = IdTranslation::virtual_to_physical(range.start());
-        self.mapping
-            .map_range(range, pa, flags, Constraints::empty())
-    }
-
     fn mark_active(&mut self) {
         self.mapping.mark_active();
     }
 
     fn root_address(&self) -> PhysicalAddress {
         self.mapping.root_address()
+    }
+
+    /// Adds the given region to the page table with the given attributes, logging it first.
+    ///
+    /// # Safety
+    ///
+    /// Memory which is still used by RF-A must not be unmapped, or mapped with incorrect
+    /// attributes.
+    pub unsafe fn map_region(&mut self, region: &MemoryRegion, attributes: Attributes) {
+        debug!("Mapping {region} as {attributes:?}.");
+        assert!(attributes.contains(Attributes::VALID));
+        let pa = IdTranslation::virtual_to_physical(region.start());
+        self.mapping
+            .map_range(region, pa, attributes, Constraints::empty())
+            .expect("Error mapping memory range");
+    }
+
+    /// Unmaps the given memory regions from the page table, and removes any subtables which are no
+    /// longer needed as a result.
+    ///
+    /// # Safety
+    ///
+    /// The regions being unmapped must not include any memory which is still used by RF-A after
+    /// this point.
+    #[allow(unused)]
+    pub unsafe fn unmap_regions(&mut self, regions: &[MemoryRegion]) {
+        for region in regions {
+            debug!("Unmapping {region}.");
+            self.mapping
+                .map_range(
+                    region,
+                    PhysicalAddress(0),
+                    Attributes::empty(),
+                    Constraints::empty(),
+                )
+                .expect("Error unmapping memory range");
+        }
+        self.mapping.compact_subtables();
     }
 }
 

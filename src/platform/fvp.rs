@@ -23,7 +23,6 @@ use crate::{
     pagetable::{
         IdMap, MT_DEVICE, MT_MEMORY,
         early_pagetable::{EarlyRegion, define_early_mapping},
-        map_region,
     },
     platform::CpuExtension,
     services::{
@@ -245,9 +244,13 @@ unsafe impl Platform for Fvp {
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {
-        map_region(idmap, &SHARED_RAM, MT_DEVICE);
-        for region in &DEVICE_REGIONS {
-            map_region(idmap, region, MT_DEVICE);
+        // SAFETY: Nothing is being unmapped, and the regions being mapped have the correct
+        // attributes.
+        unsafe {
+            idmap.map_region(&SHARED_RAM, MT_DEVICE);
+            for region in &DEVICE_REGIONS {
+                idmap.map_region(region, MT_DEVICE);
+            }
         }
     }
 

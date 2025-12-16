@@ -137,6 +137,11 @@ activate()/deactivate() changed their behavior to expose the TTBR value instead 
 Adding barriers and using atomic types ensures multicore operation correctness and avoiding race conditions.
 """
 
+[[audits.aarch64-paging]]
+who = "Mateusz Sulimowicz <matsul@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.10.0 -> 0.11.0"
+
 [[audits.aarch64-rt]]
 who = "Pranjal Shrivastava <praan@google.com>"
 criteria = "safe-to-run"

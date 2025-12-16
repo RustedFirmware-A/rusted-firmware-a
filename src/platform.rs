@@ -134,7 +134,9 @@ pub unsafe trait Platform {
     /// enabled, so regions mapped by `map_extra_regions` will be available.
     ///
     /// This may initialise the logger, if `init_with_early_mapping` didn't already do so.
-    fn init() {}
+    ///
+    /// arg0-arg3 are the first four function arguments passed to bl31_main.
+    fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {}
 
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.

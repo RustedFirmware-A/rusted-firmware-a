@@ -43,7 +43,7 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
 
     pagetable::init_runtime_mapping();
 
-    PlatformImpl::init();
+    PlatformImpl::init(arg0, arg1, arg2, arg3);
 
     info!("Rust BL31 starting");
     info!("Parameters: {arg0:#0x} {arg1:#0x} {arg2:#0x} {arg3:#0x}");

@@ -14,11 +14,9 @@ use crate::{
 };
 use aarch64_paging::{
     MapError, Mapping,
+    descriptor::{Attributes, PhysicalAddress, VirtualAddress},
     mair::{Mair, MairAttribute, NormalMemory},
-    paging::{
-        Attributes, Constraints, MemoryRegion, PageTable, PhysicalAddress, Translation,
-        TranslationRegime, VaRange, VirtualAddress,
-    },
+    paging::{Constraints, MemoryRegion, PageTable, Translation, TranslationRegime, VaRange},
 };
 use arm_sysregs::{SctlrEl3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
 use core::{

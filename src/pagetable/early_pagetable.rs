@@ -6,7 +6,7 @@ use crate::{
     pagetable::{GRANULE_SIZE, TOP_LEVEL_BLOCK_SIZE, TOP_LEVEL_DESCRIPTOR_COUNT},
     platform::EARLY_PAGE_TABLE_RANGES,
 };
-use aarch64_paging::paging::Attributes;
+use aarch64_paging::descriptor::Attributes;
 use core::ops::Range;
 
 /// Structure for storing early page table regions.

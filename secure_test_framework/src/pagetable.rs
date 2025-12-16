@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use aarch64_paging::paging::Attributes;
+use aarch64_paging::descriptor::Attributes;
 
 pub const DEVICE_ATTRIBUTES: Attributes = Attributes::VALID
     .union(Attributes::ATTRIBUTE_INDEX_0)

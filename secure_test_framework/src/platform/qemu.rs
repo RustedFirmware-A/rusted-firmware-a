@@ -7,7 +7,7 @@ use crate::{
     pagetable::{DEVICE_ATTRIBUTES, MEMORY_ATTRIBUTES},
     util::naked_asm,
 };
-use aarch64_paging::paging::Attributes;
+use aarch64_paging::descriptor::Attributes;
 use aarch64_rt::InitialPagetable;
 use arm_gic::gicv3::{
     GicV3,

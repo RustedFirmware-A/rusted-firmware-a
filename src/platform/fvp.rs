@@ -35,7 +35,7 @@ use crate::{
         trng::NotSupportedTrngPlatformImpl,
     },
 };
-use aarch64_paging::paging::{MemoryRegion, VirtualAddress};
+use aarch64_paging::{descriptor::VirtualAddress, paging::MemoryRegion};
 use arm_fvp_base_pac::{
     MemoryMap, Peripherals, PhysicalInstance,
     arm_generic_timer::{CntAcr, CntControlBase, CntCtlBase, GenericTimerControl, GenericTimerCtl},

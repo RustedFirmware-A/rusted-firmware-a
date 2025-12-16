@@ -31,7 +31,7 @@ overflow-checks = true
 codegen-units = 1
 
 [dependencies]
-aarch64-paging = { version = "0.10.0", default-features = false }
+aarch64-paging = { version = "0.11.0", default-features = false }
 arrayvec = { version = "0.7.6", default-features = false }
 arm-psci = "0.2.0"
 arm-sysregs = { version = "0.1.0", path = "arm-sysregs" }

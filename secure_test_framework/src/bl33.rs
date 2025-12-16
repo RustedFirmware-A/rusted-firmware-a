@@ -24,7 +24,6 @@ mod util;
 #[cfg(feature = "pauth")]
 use crate::util::enable_pauth;
 use crate::{
-    exceptions::set_exception_vector,
     ffa::direct_request,
     framework::{
         TestError, normal_world_test_count, normal_world_tests,
@@ -35,7 +34,7 @@ use crate::{
     secondary::secondary_entry,
     util::{NORMAL_WORLD_ID, SECURE_WORLD_ID, current_el},
 };
-use aarch64_rt::{enable_mmu, entry};
+use aarch64_rt::{enable_mmu, entry, set_exception_vector};
 use arm_ffa::Interface;
 use arm_sysregs::MpidrEl1;
 use core::panic::PanicInfo;

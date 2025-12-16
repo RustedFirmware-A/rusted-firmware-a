@@ -24,7 +24,6 @@ mod util;
 #[cfg(feature = "pauth")]
 use crate::util::enable_pauth;
 use crate::{
-    exceptions::set_exception_vector,
     ffa::{call, direct_response, msg_wait, secondary_ep_register},
     framework::{
         TestError,
@@ -38,7 +37,7 @@ use crate::{
         expect_ffa_success,
     },
 };
-use aarch64_rt::{enable_mmu, entry};
+use aarch64_rt::{enable_mmu, entry, set_exception_vector};
 use arm_ffa::{DirectMsgArgs, FfaError, Interface, SuccessArgsIdGet, Version, WarmBootType};
 use arm_psci::ReturnCode;
 use core::{

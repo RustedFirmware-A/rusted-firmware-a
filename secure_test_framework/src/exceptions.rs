@@ -2,34 +2,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::gicv3;
-use crate::util::current_el;
+use crate::{gicv3, util::current_el};
+use aarch64_rt::{ExceptionHandlers, RegisterStateRef, exception_handlers};
 use core::arch::asm;
-
-/// Sets the appropriate exception vector for the current exception level.
-pub fn set_exception_vector() {
-    match current_el() {
-        // SAFETY: vector_table is a valid exception vector table, provided by aarch64-rt.
-        1 => unsafe {
-            asm!(
-                "adr x9, vector_table_el1",
-                "msr vbar_el1, x9",
-                options(nomem, nostack),
-                out("x9") _,
-            );
-        },
-        // SAFETY: vector_table is a valid exception vector table, provided by aarch64-rt.
-        2 => unsafe {
-            asm!(
-                "adr x9, vector_table_el2",
-                "msr vbar_el2, x9",
-                options(nomem, nostack),
-                out("x9") _,
-            );
-        },
-        el => panic!("Started at unexpected exception level {}", el),
-    }
-}
 
 /// Without this flag the CPU assumes the IRQ is meant for EL1.
 pub fn enable_irq_trapping_to_el2() {
@@ -54,49 +29,46 @@ pub fn enable_irq_trapping_to_el2() {
     }
 }
 
-#[unsafe(no_mangle)]
-extern "C" fn sync_exception_current(elr: u64, _spsr: u64) {
-    panic!(
-        "Unexpected sync_exception_current, esr={:#x}, far={:#x}, elr={:#x}",
-        esr(),
-        far(),
-        elr
-    );
-}
+exception_handlers!(Exceptions);
+struct Exceptions;
 
-#[unsafe(no_mangle)]
-extern "C" fn irq_current(_elr: u64, _spsr: u64) {
-    gicv3::handle_group1_interrupt();
-}
+impl ExceptionHandlers for Exceptions {
+    extern "C" fn sync_current(register_state: RegisterStateRef) {
+        panic!(
+            "Unexpected sync_current, esr={:#x}, far={:#x}, elr={:#x}",
+            esr(),
+            far(),
+            register_state.elr
+        );
+    }
 
-#[unsafe(no_mangle)]
-extern "C" fn fiq_current(_elr: u64, _spsr: u64) {
-    panic!("Unexpected fiq_current");
-}
+    extern "C" fn irq_current(_register_state: RegisterStateRef) {
+        gicv3::handle_group1_interrupt();
+    }
 
-#[unsafe(no_mangle)]
-extern "C" fn serr_current(_elr: u64, _spsr: u64) {
-    panic!("Unexpected serr_current");
-}
+    extern "C" fn fiq_current(_register_state: RegisterStateRef) {
+        panic!("Unexpected fiq_current");
+    }
 
-#[unsafe(no_mangle)]
-extern "C" fn sync_lower(_elr: u64, _spsr: u64) {
-    panic!("Unexpected sync_lower");
-}
+    extern "C" fn serror_current(_register_state: RegisterStateRef) {
+        panic!("Unexpected serror_current");
+    }
 
-#[unsafe(no_mangle)]
-extern "C" fn irq_lower(_elr: u64, _spsr: u64) {
-    panic!("Unexpected irq_lower");
-}
+    extern "C" fn sync_lower(_register_state: RegisterStateRef) {
+        panic!("Unexpected sync_lower");
+    }
 
-#[unsafe(no_mangle)]
-extern "C" fn fiq_lower(_elr: u64, _spsr: u64) {
-    panic!("Unexpected fiq_lower");
-}
+    extern "C" fn irq_lower(_register_state: RegisterStateRef) {
+        panic!("Unexpected irq_lower");
+    }
 
-#[unsafe(no_mangle)]
-extern "C" fn serr_lower(_elr: u64, _spsr: u64) {
-    panic!("Unexpected serr_lower");
+    extern "C" fn fiq_lower(_register_state: RegisterStateRef) {
+        panic!("Unexpected fiq_lower");
+    }
+
+    extern "C" fn serror_lower(_register_state: RegisterStateRef) {
+        panic!("Unexpected serror_lower");
+    }
 }
 
 fn esr() -> u64 {

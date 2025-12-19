@@ -23,6 +23,9 @@ The current implementation supports:
 * [Arm True Random Number Generator Firmware Interface][13].
 * An optional platform-specific service.
 
+For more details on each of these services, please refer to the
+[SMC services overview document](docs/smc-services.md).
+
 ## Supported Platforms
 
 The following platforms are supported currently:

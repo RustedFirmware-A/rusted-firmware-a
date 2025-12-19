@@ -59,7 +59,7 @@ const CPU_DATA_CRASH_BUF_COUNT: usize = 8;
 
 /// Per-core mutable state.
 pub type PerCoreState<T> =
-    PerCore<ExceptionLock<RefCell<T>>, CoresImpl, { PlatformImpl::CORE_COUNT }>;
+    PerCore<[ExceptionLock<RefCell<T>>; PlatformImpl::CORE_COUNT], CoresImpl>;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]

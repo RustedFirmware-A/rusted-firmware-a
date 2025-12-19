@@ -37,7 +37,9 @@ arm-psci = "0.2.0"
 arm-sysregs = { version = "0.1.0", path = "arm-sysregs" }
 bitflags = "2.10.0"
 log = "0.4.29"
-percore = "0.1.0"
+percore = { version = "0.2.1", default-features = false, features = [
+  "zerocopy",
+] }
 arm-pl011-uart = { version = "0.3.2", default-features = false }
 spin = { version = "0.10.0", default-features = false, features = [
   "lazy",

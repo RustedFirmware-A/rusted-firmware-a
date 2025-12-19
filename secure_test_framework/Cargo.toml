@@ -29,7 +29,9 @@ buddy_system_allocator = { version = "0.11.0", default-features = false, feature
 linkme = "0.3.33"
 log = "0.4.19"
 paste = "1.0.15"
-percore = "0.1.0"
+percore = { version = "0.2.1", default-features = false, features = [
+  "zerocopy",
+] }
 spin = { version = "0.10.0", default-features = false, features = [
   "lazy",
   "once",

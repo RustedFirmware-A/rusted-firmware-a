@@ -13,26 +13,42 @@ use core::{
     fmt::{self, Arguments, Write},
 };
 use percore::{ExceptionLock, PerCore};
+use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 /// An in-memory logger with a circular buffer.
+#[derive(FromBytes, KnownLayout, Immutable)]
+#[repr(C)]
 pub struct MemoryLogger<const BUFFER_SIZE: usize> {
-    buffer: [u8; BUFFER_SIZE],
+    /// The position in `buffer` at which to write the next byte.
     next_offset: usize,
+    /// The total number of bytes logged since the logger was created or reset. Note that this may
+    /// be greater than `BUFFER_SIZE`, so not all the bytes logged may still be available.
+    logged_bytes_count: usize,
+    buffer: [u8; BUFFER_SIZE],
 }
 
 impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
     /// Creates a new in-memory logger with a zeroed-out circular buffer.
     pub const fn new() -> Self {
         Self {
-            buffer: [0; BUFFER_SIZE],
             next_offset: 0,
+            logged_bytes_count: 0,
+            buffer: [0; BUFFER_SIZE],
         }
+    }
+
+    /// Resets the logger to an empty state.
+    #[allow(unused)]
+    pub fn reset(&mut self) {
+        self.next_offset = 0;
+        self.logged_bytes_count = 0;
     }
 
     /// Adds the given bytes to the circular buffer.
     ///
     /// If more bytes are passed than can fit in the buffer at once, then the initial bytes are ignored.
     fn add_bytes(&mut self, mut bytes: &[u8]) {
+        self.logged_bytes_count += bytes.len();
         // If we are given more bytes than we can fit, keep the end.
         if bytes.len() > BUFFER_SIZE {
             bytes = &bytes[bytes.len() - BUFFER_SIZE..];
@@ -43,6 +59,16 @@ impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
             .copy_from_slice(&bytes[0..buffer_end_len]);
         self.buffer[0..bytes.len() - buffer_end_len].copy_from_slice(&bytes[buffer_end_len..]);
         self.next_offset = (self.next_offset + bytes.len()) % BUFFER_SIZE;
+    }
+}
+
+impl<const BUFFER_SIZE: usize> Default for MemoryLogger<BUFFER_SIZE> {
+    fn default() -> Self {
+        Self {
+            next_offset: 0,
+            logged_bytes_count: 0,
+            buffer: [0; BUFFER_SIZE],
+        }
     }
 }
 

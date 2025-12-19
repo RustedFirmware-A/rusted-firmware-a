@@ -67,6 +67,51 @@ impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
     pub fn flush(&self) {
         flush_dcache(self);
     }
+
+    /// Shifts the wrapped contents of the ring buffer so that the oldest byte
+    /// is at index 0.
+    fn shift_to_start(&mut self) {
+        if self.logged_bytes_count < BUFFER_SIZE {
+            return;
+        }
+
+        // self.next_offset points to the oldest byte.
+        self.buffer.rotate_left(self.next_offset);
+
+        // The oldest byte is now at index 0.
+        self.next_offset = 0;
+    }
+
+    /// Finds a valid UTF-8 suffix and returns a reference to it.
+    #[allow(unused)]
+    pub fn as_str(&mut self) -> &str {
+        self.shift_to_start();
+
+        let mut current = &self.buffer[..min(BUFFER_SIZE, self.logged_bytes_count)];
+
+        // After `shift_to_start` the buffer may start with a partially overwritten UTF-8 character
+        // (at most 3 bytes are corrupt).
+        // A single call to `str::from_utf8` may identify only a portion of the corrupt sequence, so
+        // to find the valid suffix we need to loop a few times.
+        loop {
+            match str::from_utf8(current) {
+                Ok(valid_str) => return valid_str,
+                Err(e) => {
+                    // The error is at index 0.
+                    match e.error_len() {
+                        Some(len) => {
+                            // This byte sequence is corrupt. Skip it and retry.
+                            current = &current[len..];
+                        }
+                        None => {
+                            // Only an incomplete character remains at the end.
+                            return "";
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<const BUFFER_SIZE: usize> Default for MemoryLogger<BUFFER_SIZE> {
@@ -183,5 +228,62 @@ mod tests {
         logger.add_bytes(&[6, 7, 8, 9, 10]);
         assert_eq!(logger.next_offset, 0);
         assert_eq!(logger.buffer, [6, 7, 8, 9, 10]);
+    }
+
+    #[test]
+    fn memory_logger_shift_to_start() {
+        let mut logger = MemoryLogger::<5>::new();
+
+        logger.shift_to_start();
+        assert_eq!(logger.buffer, [0, 0, 0, 0, 0]);
+
+        logger.add_bytes(&[0, 1, 2, 3]);
+        logger.shift_to_start();
+        assert_eq!(logger.buffer, [0, 1, 2, 3, 0]);
+
+        logger.add_bytes(&[4, 5, 6]);
+        assert_eq!(logger.buffer, [5, 6, 2, 3, 4]);
+
+        logger.shift_to_start();
+        assert_eq!(logger.buffer, [2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn memory_logger_to_str() {
+        let mut logger = MemoryLogger::<16>::new();
+
+        logger.add_bytes("abcdefgh".as_bytes());
+        assert_eq!(logger.as_str(), "abcdefgh");
+
+        logger.add_bytes("334455667788".as_bytes());
+        assert_eq!(logger.as_str(), "efgh334455667788");
+
+        logger.add_bytes("abcdefgh".as_bytes());
+        logger.add_bytes("abcdefgh".as_bytes());
+        logger.add_bytes("abcdefgh".as_bytes());
+        logger.add_bytes("abcdefgh".as_bytes());
+        assert_eq!(logger.as_str(), "abcdefghabcdefgh");
+    }
+
+    #[test]
+    fn memory_logger_corrupt_utf8() {
+        let mut logger = MemoryLogger::<16>::new();
+
+        // Crab emoji is 4 bytes long in UTF-8.
+
+        logger.add_bytes("🦀🦀🦀🦀".as_bytes());
+        assert_eq!(logger.as_str(), "🦀🦀🦀🦀");
+
+        logger.add_bytes("a".as_bytes());
+        assert_eq!(logger.as_str(), "🦀🦀🦀a");
+
+        logger.add_bytes("a".as_bytes());
+        assert_eq!(logger.as_str(), "🦀🦀🦀aa");
+
+        logger.add_bytes("a".as_bytes());
+        assert_eq!(logger.as_str(), "🦀🦀🦀aaa");
+
+        logger.add_bytes("a".as_bytes());
+        assert_eq!(logger.as_str(), "🦀🦀🦀aaaa");
     }
 }

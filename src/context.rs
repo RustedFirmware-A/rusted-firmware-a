@@ -832,11 +832,16 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     #[cfg(feature = "sel2")]
     {
         // TODO: Initialise the rest of the context.el2_sysregs too.
+        context.el2_sysregs.cptr_el2 = CptrEl2::RES1;
         context.el2_sysregs.icc_sre_el2 =
             IccSreEl2::DIB | IccSreEl2::DFB | IccSreEl2::ENABLE | IccSreEl2::SRE;
+        context.el2_sysregs.tcr_el2 = TcrEl2::RES1;
+        context.el2_sysregs.vmpidr_el2 = VmpidrEl2::RES1;
+        context.el2_sysregs.vtcr_el2 = VtcrEl2::RES1;
     }
     #[cfg(not(feature = "sel2"))]
     {
+        context.el1_sysregs.par_el1 = ParEl1::RES1;
         context.el1_sysregs.sctlr_el1 = SctlrEl1::LSMAOE
             | SctlrEl1::NTLSMD
             | SctlrEl1::SPAN

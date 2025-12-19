@@ -9,7 +9,6 @@ use crate::{
     cpu::{define_cpu_ops, qemu_max::QemuMax},
     cpu_extensions::simd::Simd,
     debug::DEBUG,
-    dram::zeroed_mut,
     errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig},
     logger::{self, HybridLogger, LockedWriter, inmemory::PerCoreMemoryLogger},
@@ -40,7 +39,6 @@ use arm_psci::{ErrorCode, Mpidr, PowerState};
 use arm_sysregs::{IccSre, MpidrEl1, Spsr};
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
 use percore::Cores;
-use spin::mutex::SpinMutexGuard;
 
 #[cfg(feature = "rme")]
 compile_error!("RME is not supported on QEMU");
@@ -99,25 +97,17 @@ const MAX_CPUS_PER_CLUSTER: usize = 1 << PLATFORM_CPU_PER_CLUSTER_SHIFT;
 /// The per-core log buffer size in bytes.
 const LOG_BUFFER_SIZE: usize = 1024;
 
-zeroed_mut! {
-    /// Buffers for the per-core in-memory logger.
-    LOG_BUFFERS, [[u8; LOG_BUFFER_SIZE]; Qemu::CORE_COUNT], unsafe(link_section = ".bss2.dram")
-}
+/// The per-core in-memory logger.
+///
+/// This is here in a static rather than on the stack because it will be quite large, and we may
+/// want to move it to DRAM rather than SRAM.
+static MEMORY_LOGGER: PerCoreMemoryLogger<LOG_BUFFER_SIZE> = PerCoreMemoryLogger::new();
 
 define_cpu_ops!(QemuMax);
 define_errata_list!();
 
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
-
-/// Returns an array of buffer for the per-core in-memory logger to use.
-///
-/// This must only be called once; if it is called a second time it will deadlock.
-fn log_buffers() -> [&'static mut [u8]; Qemu::CORE_COUNT] {
-    SpinMutexGuard::leak(LOG_BUFFERS.lock())
-        .each_mut()
-        .map(|buffer| &mut buffer[..])
-}
 
 define_early_mapping!([
     EarlyRegion {
@@ -137,7 +127,8 @@ unsafe impl Platform for Qemu {
     const CORE_COUNT: usize = CLUSTER_COUNT * MAX_CPUS_PER_CLUSTER;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
-    type LogSinkImpl = HybridLogger<PerCoreMemoryLogger<'static>, LockedWriter<Uart<'static>>>;
+    type LogSinkImpl =
+        HybridLogger<&'static PerCoreMemoryLogger<LOG_BUFFER_SIZE>, LockedWriter<Uart<'static>>>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
     // QEMU does not have a TRNG.
     type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
@@ -157,7 +148,7 @@ unsafe impl Platform for Qemu {
         let uart_pointer =
             unsafe { UniqueMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
         logger::init(HybridLogger::new(
-            PerCoreMemoryLogger::new(log_buffers()),
+            &MEMORY_LOGGER,
             LockedWriter::new(Uart::new(uart_pointer)),
         ))
         .expect("Failed to initialise logger");

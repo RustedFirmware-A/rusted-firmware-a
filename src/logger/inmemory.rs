@@ -15,16 +15,16 @@ use core::{
 use percore::{ExceptionLock, PerCore};
 
 /// An in-memory logger with a circular buffer.
-pub struct MemoryLogger<'a> {
-    buffer: &'a mut [u8],
+pub struct MemoryLogger<const BUFFER_SIZE: usize> {
+    buffer: [u8; BUFFER_SIZE],
     next_offset: usize,
 }
 
-impl<'a> MemoryLogger<'a> {
+impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
     /// Creates a new in-memory logger with a zeroed-out circular buffer.
-    pub const fn new(buffer: &'a mut [u8]) -> Self {
+    pub const fn new() -> Self {
         Self {
-            buffer,
+            buffer: [0; BUFFER_SIZE],
             next_offset: 0,
         }
     }
@@ -34,19 +34,19 @@ impl<'a> MemoryLogger<'a> {
     /// If more bytes are passed than can fit in the buffer at once, then the initial bytes are ignored.
     fn add_bytes(&mut self, mut bytes: &[u8]) {
         // If we are given more bytes than we can fit, keep the end.
-        if bytes.len() > self.buffer.len() {
-            bytes = &bytes[bytes.len() - self.buffer.len()..];
+        if bytes.len() > BUFFER_SIZE {
+            bytes = &bytes[bytes.len() - BUFFER_SIZE..];
         }
 
-        let buffer_end_len = min(bytes.len(), self.buffer.len() - self.next_offset);
+        let buffer_end_len = min(bytes.len(), BUFFER_SIZE - self.next_offset);
         self.buffer[self.next_offset..self.next_offset + buffer_end_len]
             .copy_from_slice(&bytes[0..buffer_end_len]);
         self.buffer[0..bytes.len() - buffer_end_len].copy_from_slice(&bytes[buffer_end_len..]);
-        self.next_offset = (self.next_offset + bytes.len()) % self.buffer.len();
+        self.next_offset = (self.next_offset + bytes.len()) % BUFFER_SIZE;
     }
 }
 
-impl Write for MemoryLogger<'_> {
+impl<const BUFFER_SIZE: usize> Write for MemoryLogger<BUFFER_SIZE> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.add_bytes(s.as_bytes());
         Ok(())
@@ -54,25 +54,32 @@ impl Write for MemoryLogger<'_> {
 }
 
 /// A per-core in-memory logger.
-pub struct PerCoreMemoryLogger<'a> {
-    logs: PerCoreState<MemoryLogger<'a>>,
+pub struct PerCoreMemoryLogger<const BUFFER_SIZE: usize> {
+    logs: PerCoreState<MemoryLogger<BUFFER_SIZE>>,
 }
 
-impl<'a> PerCoreMemoryLogger<'a> {
+impl<const BUFFER_SIZE: usize> PerCoreMemoryLogger<BUFFER_SIZE> {
     #[allow(unused)]
-    pub fn new(buffers: [&'a mut [u8]; PlatformImpl::CORE_COUNT]) -> Self {
+    pub const fn new() -> Self {
         Self {
             logs: PerCore::new(
-                buffers.map(|buffer| ExceptionLock::new(RefCell::new(MemoryLogger::new(buffer)))),
+                [const { ExceptionLock::new(RefCell::new(MemoryLogger::new())) };
+                    PlatformImpl::CORE_COUNT],
             ),
         }
     }
 }
 
-impl LogSink for PerCoreMemoryLogger<'_> {
+impl<const BUFFER_SIZE: usize> LogSink for PerCoreMemoryLogger<BUFFER_SIZE> {
     fn write_fmt(&self, args: Arguments) {
         // The `MemoryLogger` should never return an error.
         let _ = exception_free(|token| self.logs.get().borrow_mut(token).write_fmt(args));
+    }
+}
+
+impl<const BUFFER_SIZE: usize> LogSink for &PerCoreMemoryLogger<BUFFER_SIZE> {
+    fn write_fmt(&self, args: Arguments) {
+        (*self).write_fmt(args)
     }
 }
 
@@ -82,8 +89,7 @@ mod tests {
 
     #[test]
     fn memory_logger_no_wrap() {
-        let mut buffer = [0; 5];
-        let mut logger = MemoryLogger::new(&mut buffer);
+        let mut logger = MemoryLogger::<5>::new();
 
         logger.add_bytes(&[1]);
         assert_eq!(logger.next_offset, 1);
@@ -96,8 +102,7 @@ mod tests {
 
     #[test]
     fn memory_logger_too_long() {
-        let mut buffer = [0; 5];
-        let mut logger = MemoryLogger::new(&mut buffer);
+        let mut logger = MemoryLogger::<5>::new();
 
         logger.add_bytes(&[1, 2, 3, 4, 5, 6]);
         assert_eq!(logger.next_offset, 0);
@@ -114,8 +119,7 @@ mod tests {
 
     #[test]
     fn memory_logger_wrap() {
-        let mut buffer = [0; 5];
-        let mut logger = MemoryLogger::new(&mut buffer);
+        let mut logger = MemoryLogger::<5>::new();
 
         logger.add_bytes(&[1, 2, 3]);
         assert_eq!(logger.next_offset, 3);
@@ -128,8 +132,7 @@ mod tests {
 
     #[test]
     fn memory_logger_boundary() {
-        let mut buffer = [0; 5];
-        let mut logger = MemoryLogger::new(&mut buffer);
+        let mut logger = MemoryLogger::<5>::new();
 
         logger.add_bytes(&[1, 2, 3]);
         assert_eq!(logger.next_offset, 3);

@@ -16,9 +16,12 @@ The EL3 runtime firmware is responsible for:
 
 The current implementation supports:
 
-* Arm Architecture Calls
-* Arm Firmware Framework for Arm A-profile (FF-A)
-* Arm Power State Coordination Interface (PSCI)
+* [Arm Architecture Calls][9].
+* A Secure Partition Manager Dispatcher (SPMD) that complies with [Arm Firmware Framework for Arm A-profile (FF-A)][10].
+* [Arm Power State Coordination Interface (PSCI)][11].
+* [Errata Management][12].
+* [Arm True Random Number Generator Firmware Interface][13].
+* An optional platform-specific service.
 
 ## Supported Platforms
 
@@ -70,6 +73,11 @@ Arm word trademark.
 [6]: https://lists.trustedfirmware.org/mailman3/lists/rusted-firmware-a.lists.trustedfirmware.org/
 [7]: https://discord.com/channels/1106321706588577904/1399339854948601856
 [8]: https://github.com/RustedFirmware-A/rusted-firmware-a/issues
+[9]: https://developer.arm.com/documentation/den0028/latest
+[10]: https://developer.arm.com/documentation/den0077/latest
+[11]: https://developer.arm.com/documentation/den0022/latest/
+[12]: https://developer.arm.com/documentation/den0100/latest/
+[13]: https://developer.arm.com/documentation/den0098/latest
 
 ---
 

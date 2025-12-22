@@ -270,6 +270,10 @@ impl LogSink for StdOutSink {
     fn write_fmt(&self, args: fmt::Arguments) {
         stdout().write_fmt(args).unwrap();
     }
+
+    fn flush(&self) {
+        stdout().flush().unwrap();
+    }
 }
 
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]

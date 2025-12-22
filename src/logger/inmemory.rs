@@ -5,6 +5,7 @@
 use crate::{
     context::PerCoreState,
     logger::LogSink,
+    pagetable::flush_dcache,
     platform::{Platform, PlatformImpl, exception_free},
 };
 use core::{
@@ -61,6 +62,11 @@ impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
         self.buffer[0..bytes.len() - buffer_end_len].copy_from_slice(&bytes[buffer_end_len..]);
         self.next_offset = (self.next_offset + bytes.len()) % BUFFER_SIZE;
     }
+
+    /// Flushes the contents of the logger from the data cache.
+    pub fn flush(&self) {
+        flush_dcache(self);
+    }
 }
 
 impl<const BUFFER_SIZE: usize> Default for MemoryLogger<BUFFER_SIZE> {
@@ -99,11 +105,19 @@ impl<const BUFFER_SIZE: usize> LogSink for PerCoreMemoryLogger<'_, BUFFER_SIZE> 
         // The `MemoryLogger` should never return an error.
         let _ = exception_free(|token| self.logs.get().borrow_mut(token).write_fmt(args));
     }
+
+    fn flush(&self) {
+        exception_free(|token| self.logs.get().borrow_mut(token).flush());
+    }
 }
 
 impl<const BUFFER_SIZE: usize> LogSink for &PerCoreMemoryLogger<'_, BUFFER_SIZE> {
     fn write_fmt(&self, args: Arguments) {
         (*self).write_fmt(args)
+    }
+
+    fn flush(&self) {
+        (*self).flush();
     }
 }
 

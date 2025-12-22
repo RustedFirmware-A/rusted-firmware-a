@@ -147,6 +147,17 @@ static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
 /// it set its TTBR.
 pub static mut PAGE_TABLE_ADDR: usize = 0;
 
+/// Flushes the value from the data cache.
+pub fn flush_dcache<T>(value: &T) {
+    let ptr = value as *const T;
+    trace!("Flushing {} bytes at {ptr:?} from dcache", size_of::<T>());
+    // SAFETY: The pointer must be valid because it came from a reference.
+    #[cfg(all(target_arch = "aarch64", not(test)))]
+    unsafe {
+        asm::flush_dcache_range(ptr as usize, size_of::<T>());
+    }
+}
+
 /// Initialises and enables the runtime page tables.
 ///
 /// At this point the early page tables are active with the required MAIR and TCR values, so the
@@ -167,8 +178,7 @@ pub fn init_runtime_mapping() {
             // Expose page table address so other cores can access it in their boot sequence.
             PAGE_TABLE_ADDR = idmap.root_address().0;
 
-            #[cfg(all(target_arch = "aarch64", not(test)))]
-            asm::flush_dcache_range(&raw mut PAGE_TABLE_ADDR as usize, size_of::<usize>());
+            flush_dcache((&raw const PAGE_TABLE_ADDR).as_ref().unwrap());
         }
 
         info!("Setting MMU config");
@@ -428,6 +438,11 @@ mod asm {
     );
 
     unsafe extern "C" {
+        /// Flushes the given range of addresses from the data cache.
+        ///
+        /// # Safety
+        ///
+        /// The address range from addr to addr+size must be valid.
         pub fn flush_dcache_range(addr: usize, size: usize);
     }
 }

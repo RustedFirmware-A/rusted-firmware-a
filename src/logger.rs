@@ -29,7 +29,9 @@ impl Log for Logger {
         writeln!(self.sink, "{}: {}", record.level(), record.args());
     }
 
-    fn flush(&self) {}
+    fn flush(&self) {
+        self.sink.flush();
+    }
 }
 
 /// Initialises logger.
@@ -90,6 +92,9 @@ pub const fn build_time_log_level() -> LevelFilter {
 pub trait LogSink {
     /// Writes the given format arguments to the log sink.
     fn write_fmt(&self, args: Arguments);
+
+    /// Flushes any in-progress logs.
+    fn flush(&self);
 }
 
 /// An implementation of `LogSink` that wraps around any implementation of `core::fmt::Write`.
@@ -116,6 +121,8 @@ impl<W: Write> LogSink for LockedWriter<W> {
         // Ignore errors.
         let _ = self.writer.lock().write_fmt(args);
     }
+
+    fn flush(&self) {}
 }
 
 /// A logger which will always log to a primary sink, and optionally also to a secondary sink.
@@ -155,5 +162,10 @@ impl<P: LogSink, S: LogSink> LogSink for HybridLogger<P, S> {
         if self.secondary_enabled.load(Ordering::Acquire) {
             self.secondary.write_fmt(args);
         }
+    }
+
+    fn flush(&self) {
+        self.primary.flush();
+        self.secondary.flush();
     }
 }

@@ -37,6 +37,8 @@ The following platforms are supported currently:
 
 See our [Getting Started Guide][3].
 
+See the [RF-A architecture overview][14] for an overview of the code structure.
+
 ## License
 
 The project is provided under the BSD-3-Clause license, see [LICENSE][4]. Contributions to this
@@ -81,6 +83,7 @@ Arm word trademark.
 [11]: https://developer.arm.com/documentation/den0022/latest/
 [12]: https://developer.arm.com/documentation/den0100/latest/
 [13]: https://developer.arm.com/documentation/den0098/latest
+[14]: docs/architecture.md
 
 ---
 

@@ -104,6 +104,8 @@ $ PLAT=fvp RME=1 DEBUG=1 ./build-and-run.sh
 
 ## Documentation
 
+See the [RF-A architecture](architecture.md) documentation for an overview of the code structure.
+
 Build the Rustdoc documentation for a given platform:
 
 ```sh

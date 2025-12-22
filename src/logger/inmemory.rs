@@ -29,6 +29,7 @@ pub struct MemoryLogger<const BUFFER_SIZE: usize> {
 
 impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
     /// Creates a new in-memory logger with a zeroed-out circular buffer.
+    #[allow(unused)]
     pub const fn new() -> Self {
         Self {
             next_offset: 0,
@@ -80,30 +81,27 @@ impl<const BUFFER_SIZE: usize> Write for MemoryLogger<BUFFER_SIZE> {
 }
 
 /// A per-core in-memory logger.
-pub struct PerCoreMemoryLogger<const BUFFER_SIZE: usize> {
-    logs: PerCoreState<MemoryLogger<BUFFER_SIZE>>,
+pub struct PerCoreMemoryLogger<'a, const BUFFER_SIZE: usize> {
+    logs: PerCoreState<&'a mut MemoryLogger<BUFFER_SIZE>>,
 }
 
-impl<const BUFFER_SIZE: usize> PerCoreMemoryLogger<BUFFER_SIZE> {
+impl<'a, const BUFFER_SIZE: usize> PerCoreMemoryLogger<'a, BUFFER_SIZE> {
     #[allow(unused)]
-    pub const fn new() -> Self {
+    pub fn new(loggers: [&'a mut MemoryLogger<BUFFER_SIZE>; PlatformImpl::CORE_COUNT]) -> Self {
         Self {
-            logs: PerCore::new(
-                [const { ExceptionLock::new(RefCell::new(MemoryLogger::new())) };
-                    PlatformImpl::CORE_COUNT],
-            ),
+            logs: PerCore::new(loggers.map(|logger| ExceptionLock::new(RefCell::new(logger)))),
         }
     }
 }
 
-impl<const BUFFER_SIZE: usize> LogSink for PerCoreMemoryLogger<BUFFER_SIZE> {
+impl<const BUFFER_SIZE: usize> LogSink for PerCoreMemoryLogger<'_, BUFFER_SIZE> {
     fn write_fmt(&self, args: Arguments) {
         // The `MemoryLogger` should never return an error.
         let _ = exception_free(|token| self.logs.get().borrow_mut(token).write_fmt(args));
     }
 }
 
-impl<const BUFFER_SIZE: usize> LogSink for &PerCoreMemoryLogger<BUFFER_SIZE> {
+impl<const BUFFER_SIZE: usize> LogSink for &PerCoreMemoryLogger<'_, BUFFER_SIZE> {
     fn write_fmt(&self, args: Arguments) {
         (*self).write_fmt(args)
     }

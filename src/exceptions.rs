@@ -34,7 +34,7 @@ pub fn inject_undef64(world: World) {
 
         let elr_el3 = el3_state.elr_el3;
         let old_spsr = el3_state.spsr_el3;
-        let to_el = target_el(old_spsr.exception_level(), el3_state.scr_el3);
+        let to_el = target_el(old_spsr.exception_level(), world_context(world).scr_el3);
 
         if old_spsr & Spsr::M_EXECUTION_STATE != Spsr::empty() {
             panic!("Trying to inject undefined exception to lower EL in AArch32 mode")

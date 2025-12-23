@@ -14,7 +14,7 @@ use arm_sysregs::{
 use percore::{ExceptionLock, PerCore};
 
 use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, CpuContext, PerCoreState, PerWorld, World},
+    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, PerWorldContext, World},
     cpu_extensions::CpuExtension,
     platform::{Platform, PlatformImpl},
 };
@@ -65,8 +65,8 @@ impl CpuExtension for Fgt2 {
         read_id_aa64mmfr0_el1().is_feat_fgt2_present()
     }
 
-    fn configure_per_cpu(&self, _: World, context: &mut CpuContext) {
-        context.el3_state.scr_el3 |= ScrEl3::FGTEN2
+    fn configure_per_world(&self, _: World, context: &mut PerWorldContext) {
+        context.scr_el3 |= ScrEl3::FGTEN2
     }
 
     #[cfg(any(feature = "sel2", feature = "rme"))]

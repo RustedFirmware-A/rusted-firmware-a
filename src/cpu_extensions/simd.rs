@@ -11,7 +11,7 @@ use super::CpuExtension;
 
 use crate::{
     aarch64::isb,
-    context::{CpuContext, PerWorldContext, World},
+    context::{PerWorldContext, World},
 };
 
 use arm_sysregs::{
@@ -207,16 +207,13 @@ impl CpuExtension for Sme {
         write_cptr_el3(cptr_el3);
     }
 
-    fn configure_per_cpu(&self, world: World, context: &mut CpuContext) {
-        if world == World::NonSecure {
-            context.el3_state.scr_el3 |= ScrEl3::ENTP2;
-        }
-    }
-
     fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
         if (world == World::NonSecure) || (cfg!(feature = "sel2") && world == World::Secure) {
             // Allow SME register access to normal world and secure world if S-EL2 compiled in.
             ctx.cptr_el3 |= CptrEl3::ESM;
+        }
+        if world == World::NonSecure {
+            ctx.scr_el3 |= ScrEl3::ENTP2;
         }
     }
 }

@@ -10,7 +10,7 @@
 mod hcx_sel2;
 
 use super::CpuExtension;
-use crate::context::{CpuContext, World};
+use crate::context::{PerWorldContext, World};
 use arm_sysregs::{HcrxEl2, ScrEl3, read_id_aa64mmfr1_el1, write_hcrx_el2};
 
 pub struct Hcx;
@@ -29,8 +29,8 @@ impl CpuExtension for Hcx {
         write_hcrx_el2(HcrxEl2::empty());
     }
 
-    fn configure_per_cpu(&self, _world: World, context: &mut CpuContext) {
-        context.el3_state.scr_el3 |= ScrEl3::HXEN;
+    fn configure_per_world(&self, _world: World, context: &mut PerWorldContext) {
+        context.scr_el3 |= ScrEl3::HXEN;
     }
 
     #[cfg(feature = "sel2")]

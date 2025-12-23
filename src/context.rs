@@ -199,7 +199,6 @@ impl PAuthRegs {
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
 pub struct El3State {
-    pub scr_el3: ScrEl3,
     esr_el3: Esr,
     // The runtime_sp and runtime_lr fields must be adjacent, because assembly code uses ldp/stp
     // instructions to load/store these together.
@@ -215,7 +214,6 @@ pub struct El3State {
 
 impl El3State {
     const EMPTY: Self = Self {
-        scr_el3: ScrEl3::empty(),
         esr_el3: Esr::empty(),
         runtime_sp: 0,
         runtime_lr: 0,
@@ -519,23 +517,10 @@ pub struct PerWorldContext {
     /// because we should trap MPAM register access
     /// if a platform does not support MPAM.
     pub mpam3_el3: Mpam3El3,
+    pub scr_el3: ScrEl3,
 }
 
 impl PerWorldContext {
-    /// Configure default traps:
-    /// - Do not trap EL2 accesses to CPTR_EL2/HCPTR, and EL2/EL1 accesses to CPACR_EL1/CPACR,
-    /// - Trap lower EL AMU register accesses (will be overwritten if platform supports FEAT_AMU),
-    /// - Trap trace system register accesses (will be overwritten if platform supports
-    ///   FEAT_SYS_REG_TRACE),
-    /// - Trap Advanced SIMD instructions execution, (will be overwritten if platform supports
-    ///   FEAT_SIMD)
-    /// - Trap direct accesses to MPAM System registers that are not UNDEFINED from all ELn lower
-    ///   than EL3 (will be overwritten if platform supports FEAT_MPAM)
-    const DEFAULT: Self = Self {
-        cptr_el3: CptrEl3::TAM.union(CptrEl3::TTA).union(CptrEl3::TFP),
-        mpam3_el3: Mpam3El3::TRAPLOWER,
-    };
-
     /// Restores world-specific EL3 system register configuration.
     fn restore_el3_sysregs(&self) {
         if Mpam.is_present() {
@@ -544,6 +529,65 @@ impl PerWorldContext {
 
         write_cptr_el3(self.cptr_el3);
         isb();
+    }
+
+    /// Initialises parts of the per-world context that are common across all worlds.
+    fn initialise_common(&mut self) {
+        // Configure default traps:
+        // - Do not trap EL2 accesses to CPTR_EL2/HCPTR, and EL2/EL1 accesses to CPACR_EL1/CPACR,
+        // - Trap lower EL AMU register accesses (will be overwritten if platform supports FEAT_AMU),
+        // - Trap trace system register accesses (will be overwritten if platform supports
+        //   FEAT_SYS_REG_TRACE),
+        // - Trap Advanced SIMD instructions execution, (will be overwritten if platform supports
+        //   FEAT_SIMD)
+        // - Trap direct accesses to MPAM System registers that are not UNDEFINED from all ELn lower
+        //   than EL3 (will be overwritten if platform supports FEAT_MPAM)
+        self.cptr_el3 = CptrEl3::TAM.union(CptrEl3::TTA).union(CptrEl3::TFP);
+        self.mpam3_el3 = Mpam3El3::TRAPLOWER;
+
+        // Initialise SCR_EL3, setting all fields rather than relying on hw.
+        // All fields are architecturally UNKNOWN on reset.
+        // The following fields do not change during the TF lifetime.
+        //
+        // SCR_EL3.TWE: Set to zero so that execution of WFE instructions at
+        // EL2, EL1 and EL0 are not trapped to EL3.
+        //
+        // SCR_EL3.TWI: Set to zero so that execution of WFI instructions at
+        // EL2, EL1 and EL0 are not trapped to EL3.
+        //
+        // SCR_EL3.SIF: Set to one to disable instruction fetches from
+        // Non-secure memory.
+        // SCR_EL3.SMD: Set to zero to enable SMC calls at EL1 and above, from
+        // both Security states and both Execution states.
+        //
+        // SCR_EL3.EA: Set to zero so that External aborts and SError exceptions are
+        // not taken to EL3.
+        //
+        // SCR_EL3.APK: Set to one so that PAuth key register accesses are not
+        // trapped to EL3.
+        //
+        // SCR_EL3.API: Set to one so that execution of PAuth instructions are not
+        // trapped to EL3.
+        //
+        // SCR_EL3.EEL2: Set to one if S-EL2 is present and enabled.
+        //
+        // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
+        // against ERRATA_V2_3099206.
+        //
+        // SCR_EL3.ECVEn: Enable Enhanced Counter Virtualization (ECV) CNTPOFF_EL2 register. FEAT_ECV
+        // is mandatory since ARMv8.6.
+        self.scr_el3 = ScrEl3::RES1
+            .union(ScrEl3::HCE)
+            .union(ScrEl3::SIF)
+            .union(ScrEl3::RW)
+            .union(ScrEl3::APK)
+            .union(ScrEl3::API)
+            .union(ScrEl3::ECVEN)
+            .union(if cfg!(feature = "sel2") {
+                ScrEl3::EEL2
+            } else {
+                ScrEl3::empty()
+            });
     }
 }
 
@@ -594,7 +638,7 @@ pub fn cpu_data_set_apkey(_token: ExceptionFree, apkey: u128) {
 }
 
 /// An array with one `T` for each world.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct PerWorld<T>(pub [T; CPU_DATA_CONTEXT_NUM]);
 
@@ -671,7 +715,7 @@ pub fn set_initial_world(world: World) {
 
         // This must be initialised before the EL2 system registers are written to, to avoid an
         // exception.
-        write_scr_el3(context.el3_state.scr_el3);
+        write_scr_el3(world_context(world).scr_el3);
         isb();
 
         restore_world(world, context);
@@ -688,10 +732,30 @@ pub fn cpu_state(token: ExceptionFree) -> RefMut<CpuState> {
 /// Initialises the per-world contexts.
 fn initialise_per_world_contexts() {
     PER_WORLD_CONTEXT.call_once(|| {
-        let mut per_world = PerWorld([PerWorldContext::DEFAULT; CPU_DATA_CONTEXT_NUM]);
+        let mut per_world = PerWorld::<PerWorldContext>::default();
+
+        per_world[World::NonSecure].initialise_common();
+        per_world[World::Secure].initialise_common();
+        #[cfg(feature = "rme")]
+        per_world[World::Realm].initialise_common();
 
         // NS world can always access AMUv1 registers.
         per_world[World::NonSecure].cptr_el3 -= CptrEl3::TAM;
+        // SCR_EL3.FGTEN: Do not trap FGT register accesses to EL3. FEAT_FGT is mandatory since
+        // ARMv8.6.
+        per_world[World::NonSecure].scr_el3 |= ScrEl3::NS | ScrEl3::FGTEN;
+        gicv3::set_routing_model(&mut per_world[World::NonSecure].scr_el3, World::NonSecure);
+
+        // Enable Secure EL1 access to timer registers.
+        // Otherwise they would be accessible only at EL3.
+        per_world[World::Secure].scr_el3 |= ScrEl3::ST;
+        gicv3::set_routing_model(&mut per_world[World::Secure].scr_el3, World::Secure);
+
+        #[cfg(feature = "rme")]
+        {
+            // SCR_NS + SCR_NSE = Realm state
+            per_world[World::Realm].scr_el3 |= ScrEl3::NS | ScrEl3::NSE;
+        }
 
         for ext in PlatformImpl::CPU_EXTENSIONS {
             if ext.is_present() {
@@ -731,47 +795,8 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 
     context.el3_state.spsr_el3 = Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H;
 
-    // Initialise SCR_EL3, setting all fields rather than relying on hw.
-    // All fields are architecturally UNKNOWN on reset.
-    // The following fields do not change during the TF lifetime.
-    //
-    // SCR_EL3.TWE: Set to zero so that execution of WFE instructions at
-    // EL2, EL1 and EL0 are not trapped to EL3.
-    //
-    // SCR_EL3.TWI: Set to zero so that execution of WFI instructions at
-    // EL2, EL1 and EL0 are not trapped to EL3.
-    //
-    // SCR_EL3.SIF: Set to one to disable instruction fetches from
-    // Non-secure memory.
-    // SCR_EL3.SMD: Set to zero to enable SMC calls at EL1 and above, from
-    // both Security states and both Execution states.
-    //
-    // SCR_EL3.EA: Set to zero so that External aborts and SError exceptions are
-    // not taken to EL3.
-    //
-    // SCR_EL3.APK: Set to one so that PAuth key register accesses are not
-    // trapped to EL3.
-    //
-    // SCR_EL3.API: Set to one so that execution of PAuth instructions are not
-    // trapped to EL3.
-    //
-    // SCR_EL3.EEL2: Set to one if S-EL2 is present and enabled.
-    //
-    // NOTE: Modifying EEL2 bit along with EA bit ensures that we mitigate
-    // against ERRATA_V2_3099206.
-    //
-    // SCR_EL3.ECVEn: Enable Enhanced Counter Virtualization (ECV) CNTPOFF_EL2 register. FEAT_ECV
-    // is mandatory since ARMv8.6.
-    context.el3_state.scr_el3 = ScrEl3::RES1
-        | ScrEl3::HCE
-        | ScrEl3::SIF
-        | ScrEl3::RW
-        | ScrEl3::APK
-        | ScrEl3::API
-        | ScrEl3::ECVEN;
     #[cfg(feature = "sel2")]
     {
-        context.el3_state.scr_el3 |= ScrEl3::EEL2;
         // TODO: Initialise the rest of the context.el2_sysregs too.
         context.el2_sysregs.icc_sre_el2 = IccSre::DIB | IccSre::DFB | IccSre::EN | IccSre::SRE;
     }
@@ -817,12 +842,6 @@ fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
 
-    // SCR_EL3.FGTEN: Do not trap FGT register accesses to EL3. FEAT_FGT is mandatory since
-    // ARMv8.6.
-    context.el3_state.scr_el3 |= ScrEl3::NS | ScrEl3::FGTEN;
-
-    gicv3::set_routing_model(&mut context.el3_state.scr_el3, World::NonSecure);
-
     // Configure CPU extensions for the non-secure world.
     for ext in PlatformImpl::CPU_EXTENSIONS {
         if ext.is_present() {
@@ -840,12 +859,6 @@ fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
         context.el3_state.spsr_el3 = Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL1H;
     }
 
-    // Enable Secure EL1 access to timer registers.
-    // Otherwise they would be accessible only at EL3.
-    context.el3_state.scr_el3 |= ScrEl3::ST;
-
-    gicv3::set_routing_model(&mut context.el3_state.scr_el3, World::Secure);
-
     // Configure CPU extensions for the secure world.
     for ext in PlatformImpl::CPU_EXTENSIONS {
         if ext.is_present() {
@@ -858,8 +871,6 @@ fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 #[cfg(feature = "rme")]
 fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
-    // SCR_NS + SCR_NSE = Realm state
-    context.el3_state.scr_el3 |= ScrEl3::NS | ScrEl3::NSE;
 
     // Configure CPU extensions for the Realm world.
     for ext in PlatformImpl::CPU_EXTENSIONS {
@@ -969,7 +980,6 @@ mod asm {
         CTX_EL1_SYSREGS_OFFSET = const CTX_EL1_SYSREGS_OFFSET,
         CTX_SCTLR_EL1 = const CTX_SCTLR_EL1,
         CTX_PMCR_EL0 = const offset_of!(El3State, pmcr_el0),
-        CTX_SCR_EL3 = const offset_of!(El3State, scr_el3),
         CTX_SPSR_EL3 = const offset_of!(El3State, spsr_el3),
         CTX_MDCR_EL3 = const offset_of!(El3State, mdcr_el3),
         CTX_RUNTIME_SP_LR = const offset_of!(El3State, runtime_sp),
@@ -998,6 +1008,7 @@ mod asm {
         CTX_APDAKEY_LO = const offset_of!(PAuthRegs, apdakey_lo),
         CTX_APDBKEY_LO = const offset_of!(PAuthRegs, apdbkey_lo),
         CTX_APGAKEY_LO = const offset_of!(PAuthRegs, apgakey_lo),
+        PERWORLD_CONTEXT_SCR_EL3 = const offset_of!(PerWorldContext, scr_el3),
         ISR_A_SHIFT = const 8,
         SMC_UNK = const NOT_SUPPORTED,
         RUN_RESULT_SMC = const RunResult::SMC,

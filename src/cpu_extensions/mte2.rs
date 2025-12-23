@@ -10,7 +10,7 @@ mod mte2_sel1;
 mod mte2_sel2;
 
 use super::CpuExtension;
-use crate::context::{CpuContext, World};
+use crate::context::{PerWorldContext, World};
 use arm_sysregs::{ScrEl3, read_id_aa64pfr1_el1};
 
 /// Memory Tagging Extension
@@ -28,11 +28,11 @@ impl CpuExtension for MemoryTagging {
         read_id_aa64pfr1_el1().is_feat_mte2_present()
     }
 
-    fn configure_per_cpu(&self, world: World, context: &mut CpuContext) {
+    fn configure_per_world(&self, world: World, context: &mut PerWorldContext) {
         // Allow access to Allocation Tags for Non-secure and Secure worlds when FEAT_MTE2 is
         // implemented.
         if world == World::NonSecure || world == World::Secure {
-            context.el3_state.scr_el3 |= ScrEl3::ATA;
+            context.scr_el3 |= ScrEl3::ATA;
         }
     }
 

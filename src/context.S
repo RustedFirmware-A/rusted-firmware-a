@@ -249,8 +249,8 @@ func el3_exit
 	 * ----------------------------------------------------------
 	 */
 	ldr	x19, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_MDCR_EL3}]
-	ldr	x18, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_SCR_EL3}]
 	ldp	x16, x17, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_SPSR_EL3}]
+	ldr	x18, [x1, #{PERWORLD_CONTEXT_SCR_EL3}]
 	msr	mdcr_el3, x19
 	msr	scr_el3, x18
 	msr	spsr_el3, x16

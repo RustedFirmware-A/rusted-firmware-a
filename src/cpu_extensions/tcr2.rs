@@ -11,7 +11,7 @@ mod tcr2_sel1;
 mod tcr2_sel2;
 
 use super::CpuExtension;
-use crate::context::{CpuContext, World};
+use crate::context::{PerWorldContext, World};
 use arm_sysregs::{ScrEl3, read_id_aa64mmfr3_el1};
 
 /// Enables access to the TCR2_ELx registers at lower ELs, along with context switching of those
@@ -23,9 +23,9 @@ impl CpuExtension for Tcr2 {
         read_id_aa64mmfr3_el1().is_feat_tcr2_present()
     }
 
-    fn configure_per_cpu(&self, _world: World, context: &mut CpuContext) {
+    fn configure_per_world(&self, _world: World, context: &mut PerWorldContext) {
         // Enable access to TCR2_ELx registers at lower ELs.
-        context.el3_state.scr_el3 |= ScrEl3::TCR2EN;
+        context.scr_el3 |= ScrEl3::TCR2EN;
     }
 
     #[allow(unused)]

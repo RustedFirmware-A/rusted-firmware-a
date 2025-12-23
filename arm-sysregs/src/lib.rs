@@ -778,7 +778,7 @@ bitflags! {
 
 bitflags! {
     /// SCR_EL3 system register value.
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
     #[repr(transparent)]
     pub struct ScrEl3: u64 {
         /// RES1 bits in the `scr_el3` register.

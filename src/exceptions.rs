@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    context::{PER_WORLD_CONTEXT, World, cpu_state, world_context},
+    context::{World, cpu_state, world_context, world_cpu_context},
     platform::exception_free,
     smccc::SmcReturn,
 };
@@ -225,8 +225,8 @@ pub fn enter_world(regs: &mut SmcReturn, world: World) -> RunResult {
         });
     }
 
-    let context = world_context(world);
-    let per_world_context = &PER_WORLD_CONTEXT.get().unwrap()[world];
+    let context = world_cpu_context(world);
+    let per_world_context = world_context(world);
     let out_values = regs.mark_all_used();
     let return_reason: u64;
     let esr: u64;

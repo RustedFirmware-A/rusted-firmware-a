@@ -575,7 +575,14 @@ impl CpuData {
     };
 }
 
-pub static PER_WORLD_CONTEXT: Once<PerWorld<PerWorldContext>> = Once::new();
+static PER_WORLD_CONTEXT: Once<PerWorld<PerWorldContext>> = Once::new();
+
+/// Gets the `PerWorldContext` for the given world.
+///
+/// This will panic if it's called before `initialise_per_world_contexts`.
+pub fn world_context(world: World) -> &'static PerWorldContext {
+    &PER_WORLD_CONTEXT.get().unwrap()[world]
+}
 
 #[unsafe(export_name = "percpu_data")]
 static mut PERCPU_DATA: [CpuData; PlatformImpl::CORE_COUNT] =
@@ -611,7 +618,7 @@ static CPU_STATE: PerCoreState<CpuState> = PerCore::new(
 );
 
 /// Returns a raw pointer to the CPU context of the given world on the current core.
-pub fn world_context(world: World) -> *mut CpuContext {
+pub fn world_cpu_context(world: World) -> *mut CpuContext {
     // SAFETY: Getting the `CpuContext` pointer from a `CpuState` pointer requires the `CpuState`
     // pointer to be valid. We know that this is always true, because we get it from
     // `CPU_STATE.get().as_ptr()`. We avoid creating any intermediate references by accessing the
@@ -621,7 +628,7 @@ pub fn world_context(world: World) -> *mut CpuContext {
 
 /// Restores the context for the given world.
 fn restore_world(world: World, context: &CpuContext) {
-    let world_context = &PER_WORLD_CONTEXT.get().unwrap()[world];
+    let world_context = world_context(world);
 
     // Restore EL3 sysregs first, e.g. to allow SVE register access before restoring SVE context.
     world_context.restore_el3_sysregs();

@@ -394,6 +394,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.4.27 -> 0.4.28"
 notes = "Minor changes and tests, no new unsafe code."
 
+[[audits.log]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.4.28 -> 0.4.29"
+notes = "No unsafe code, mostly minor refactoring and lint fixes."
+
 [[audits.num_enum]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -664,6 +670,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "1.18.0 -> 1.18.1"
 notes = "Changed unsafe transmute calls to zerocopy if the relevant feature is enabled."
+
+[[audits.uuid]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.18.1 -> 1.19.0"
+notes = "No unsafe code or major logic changes."
 
 [[audits.zerocopy]]
 who = "Andrew Walbran <qwandor@google.com>"

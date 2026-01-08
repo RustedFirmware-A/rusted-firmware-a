@@ -285,6 +285,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.1 -> 0.3.2"
 notes = "No significant change, only metadata and clippy fix."
 
+[[audits.arm-pl011-uart]]
+who = "Snehal Koukuntla <snehalreddy@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.3.2 -> 0.4.0"
+notes = "Dependency version bump only."
+
 [[audits.arm-psci]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

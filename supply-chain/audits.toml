@@ -454,6 +454,48 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.1.0"
 
+[[audits.percore]]
+who = "Snehal Koukuntla <snehalreddy@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.1.0 -> 0.2.1"
+notes = '''
+\"safe-to-deploy\"
+
+The update introduces no new side effects like network or filesystem access.
+
+The security posture remains unchanged: the crate relies on the caller to provide correct core
+indexing logic, but provides safe abstractions over the data access itself. The diff is still
+aligned with that.
+
+\"does-not-implement-crypto\"
+
+Inspection of the diff reveals no implementation of cryptographic algorithms. The changes are
+strictly related to memory layout (repr(transparent)), trait derivations (zerocopy), dynamic
+memory allocation (Box), and system register manipulation for exception masking.
+
+\"ub-risk-2\"
+
+Negligible unsoundness
+
+THe crate is unsafe as it relies on disabling hardware interrupts and accessing per-core
+memory structures. However, the changes in this version correctly manage this risk.
+
+The introduction of ExceptionGuard involves unsafe calls to mask/unmask interrupts. The
+specific invariant that the guard must not be dropped before the ExceptionFree token, is
+handled internally within the exception_free function, which is the only place the guard is
+constructed. The token is passed to a closure and cannot outlive the function call, ensuring
+the guard is dropped last.
+
+The new unsafe impl Sync for PerCore<Box<[ExceptionLock<V>]>, C> relies on the same safety
+argument as the existing implementation for arrays. Moving from a fixed-size array to a
+boxed slice does not violate these invariants.
+
+The zerocopy derivations are standard and appropriate for the transparent wrappers.
+
+The update reduces the risk of UB in panic scenarios and extends the existing safe abstractions
+to dynamic memory layouts.
+'''
+
 [[audits.proc-macro2]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

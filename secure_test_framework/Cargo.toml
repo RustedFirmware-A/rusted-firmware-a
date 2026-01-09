@@ -19,7 +19,7 @@ aarch64-paging = { version = "0.11.0", default-features = false }
 arm-ffa = "0.4.1"
 arm-psci = "0.2.0"
 arm-gic = "0.7.1"
-arm-pl011-uart = { version = "0.3.1", default-features = false }
+arm-pl011-uart = { version = "0.4.0", default-features = false }
 arm-sysregs = { version = "0.1.0", path = "../arm-sysregs" }
 bitflags = "2.9.4"
 buddy_system_allocator = { version = "0.11.0", default-features = false, features = [

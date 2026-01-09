@@ -325,6 +325,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.1 -> 0.1.2"
 notes = "No substantial changes, only a lint fix."
 
+[[audits.arm-tzc]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+version = "0.1.0"
+notes = "Code seems well structured, has plenty of tests, and uses safe-mmio to avoid unsafe code."
+
 [[audits.autocfg]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"

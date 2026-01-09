@@ -158,6 +158,12 @@ criteria = "safe-to-run"
 delta = "0.2.2 -> 0.3.0"
 notes = "build.rs has not changed and it only accesses files in the project directory and in OUT_DIR."
 
+[[audits.aarch64-rt]]
+who = "Snehal Koukuntla <snehalreddy@google.com>"
+criteria = "safe-to-run"
+delta = "0.3.0 -> 0.4.2"
+notes = "build.rs has not changed and it only accesses files in the project directory and in OUT_DIR."
+
 [[audits.arm-cci]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

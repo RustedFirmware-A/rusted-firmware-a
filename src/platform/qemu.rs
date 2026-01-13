@@ -456,7 +456,7 @@ enum PowerDownKind {
 
 pub const PSCI_MAX_POWER_LEVEL: usize = 2;
 const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
-pub const PSCI_NON_CPU_DOMAIN_COUNT: usize = CLUSTER_COUNT + 1;
+const PSCI_NON_CPU_DOMAIN_COUNT: usize = CLUSTER_COUNT + 1;
 
 pub struct QemuPsciPlatformImpl {
     per_cpu_powerdown_kinds: [SpinMutex<PowerDownKind>; Qemu::CORE_COUNT],
@@ -465,7 +465,7 @@ pub struct QemuPsciPlatformImpl {
 impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
     for QemuPsciPlatformImpl
 {
-    const POWER_DOMAIN_COUNT: usize = 1 + CLUSTER_COUNT + Qemu::CORE_COUNT;
+    const POWER_DOMAIN_COUNT: usize = PSCI_NON_CPU_DOMAIN_COUNT + Qemu::CORE_COUNT;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::OS_INITIATED_MODE;
 
@@ -485,6 +485,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            QemuPowerState,
         >,
     > {
         const POWER_STATES_MASK: u32 = 0x0000_0fff;
@@ -566,6 +567,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            QemuPowerState,
         >,
     ) -> Result<(), ErrorCode> {
         Ok(())
@@ -578,6 +580,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            QemuPowerState,
         >,
     ) {
         *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock() =
@@ -591,6 +594,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            QemuPowerState,
         >,
     ) {
     }
@@ -602,6 +606,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            QemuPowerState,
         >,
     ) {
         assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);
@@ -617,6 +622,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            QemuPowerState,
         >,
     ) {
         if *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock()
@@ -656,6 +662,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            QemuPowerState,
         >,
     ) {
         assert_eq!(previous_state.cpu_level_state(), QemuPowerState::PowerDown);

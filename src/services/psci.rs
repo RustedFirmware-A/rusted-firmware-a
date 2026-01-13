@@ -10,7 +10,7 @@ use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},
     cpu::{cpu_handle_power_down_abandon, cpu_power_down},
-    platform::{Platform, PlatformImpl, PlatformPowerState},
+    platform::{Platform, PlatformImpl},
     services::{Service, owns},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SetFrom, SmcReturn},
 };
@@ -149,13 +149,14 @@ pub trait PsciPlatformInterface<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     >;
 
     /// Places the current CPU into standby state and continues execution on interrupt.
     /// The caller has to guarantee that `cpu_state` is a standby power state, otherwise
     /// `cpu_standby` should panic.
-    fn cpu_standby(&self, cpu_state: PlatformPowerState);
+    fn cpu_standby(&self, cpu_state: Self::PlatformPowerState);
 
     /// Performs the necessary actions to turn off this cpu e.g. program the power controller.
     fn power_domain_suspend(
@@ -165,6 +166,7 @@ pub trait PsciPlatformInterface<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     );
 
@@ -176,6 +178,7 @@ pub trait PsciPlatformInterface<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     );
 
@@ -188,6 +191,7 @@ pub trait PsciPlatformInterface<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     ) -> Result<(), ErrorCode> {
         unimplemented!("OSI mode's suspend state validation is not implemented for the platform")
@@ -201,6 +205,7 @@ pub trait PsciPlatformInterface<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     ) -> Result<(), ErrorCode> {
         Ok(())
@@ -214,6 +219,7 @@ pub trait PsciPlatformInterface<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     );
 
@@ -229,6 +235,7 @@ pub trait PsciPlatformInterface<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     );
 
@@ -243,6 +250,7 @@ pub trait PsciPlatformInterface<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     );
 
@@ -291,8 +299,13 @@ pub trait PsciPlatformInterface<
     /// Returns the power state for `SYSTEM_SUSPEND`, optional.
     fn sys_suspend_power_state(
         &self,
-    ) -> PsciCompositePowerState<STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, Self::NodeIndex>
-    {
+    ) -> PsciCompositePowerState<
+        STATE_COUNT,
+        MAX_POWER_LEVEL,
+        NON_CPU_DOMAIN_COUNT,
+        Self::NodeIndex,
+        Self::PlatformPowerState,
+    > {
         unimplemented!("SYSTEM_SUSPEND is not implemented for the platform")
     }
 
@@ -364,6 +377,7 @@ pub struct PsciCompositePowerState<
     const MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     NodeIndex: NodeIndexInterface,
+    PlatformPowerState: PlatformPowerStateInterface,
 > {
     /// Stores the local power state at each level of the power tree hierarchy.
     pub states: [PlatformPowerState; STATE_COUNT],
@@ -386,7 +400,15 @@ impl<
     const MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     NodeIndex: NodeIndexInterface,
-> PsciCompositePowerState<STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, NodeIndex>
+    PlatformPowerState: PlatformPowerStateInterface,
+>
+    PsciCompositePowerState<
+        STATE_COUNT,
+        MAX_POWER_LEVEL,
+        NON_CPU_DOMAIN_COUNT,
+        NodeIndex,
+        PlatformPowerState,
+    >
 {
     /// States set to OFF on all levels.
     pub const OFF: Self = Self {
@@ -458,12 +480,13 @@ impl<
     /// non-CPU power domain nodes.
     pub fn set_local_states_from_nodes(
         &mut self,
-        cpu: &CpuPowerNode<NodeIndex>,
+        cpu: &CpuPowerNode<NodeIndex, PlatformPowerState>,
         ancestors: &AncestorPowerDomains<
             { PlatformImpl::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             MAX_POWER_LEVEL,
             NodeIndex,
+            PlatformPowerState,
         >,
     ) {
         self.states[CPU_POWER_LEVEL] = cpu.local_state();
@@ -482,12 +505,13 @@ impl<
     pub fn set_nodes_from_local_states(
         &self,
         highest_affected_level: usize,
-        cpu: &mut CpuPowerNode<NodeIndex>,
+        cpu: &mut CpuPowerNode<NodeIndex, PlatformPowerState>,
         ancestors: &mut AncestorPowerDomains<
             { PlatformImpl::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             MAX_POWER_LEVEL,
             NodeIndex,
+            PlatformPowerState,
         >,
     ) {
         cpu.set_local_state(self.cpu_level_state());
@@ -530,12 +554,13 @@ impl<
     pub fn apply_coordinated_state_to_power_domain_tree(
         &self,
         highest_affected_level: usize,
-        cpu: &mut CpuPowerNode<NodeIndex>,
+        cpu: &mut CpuPowerNode<NodeIndex, PlatformPowerState>,
         ancestors: &mut AncestorPowerDomains<
             { PlatformImpl::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             MAX_POWER_LEVEL,
             NodeIndex,
+            PlatformPowerState,
         >,
         cpu_index: NodeIndex,
         resolved_state: Self,
@@ -566,6 +591,7 @@ impl<
             NON_CPU_DOMAIN_COUNT,
             MAX_POWER_LEVEL,
             NodeIndex,
+            PlatformPowerState,
         >,
     ) {
         let mut higher_levels_are_run = false;
@@ -628,6 +654,7 @@ impl<
             NON_CPU_DOMAIN_COUNT,
             MAX_POWER_LEVEL,
             NodeIndex,
+            PlatformPowerState,
         >,
     ) -> Result<(), ErrorCode> {
         let last_at_power_level = self
@@ -728,6 +755,7 @@ pub struct Psci<
         NON_CPU_DOMAIN_COUNT,
         MAX_POWER_LEVEL,
         PsciPlatformImpl::NodeIndex,
+        PsciPlatformImpl::PlatformPowerState,
     >,
     suspend_mode: SpinMutex<SuspendMode>,
     spm: fn() -> &'static Spm,
@@ -765,7 +793,7 @@ impl<
 
             power_domain_tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
                 cpu.set_affinity_info(AffinityInfo::On);
-                cpu.set_local_state(PlatformPowerState::RUN);
+                cpu.set_local_state(PsciPlatformImpl::PlatformPowerState::RUN);
 
                 ancestors.set_running(cpu_index);
             });
@@ -815,7 +843,7 @@ impl<
 
             self.power_domain_tree
                 .locked_cpu_node(cpu_index)
-                .set_local_state(PlatformPowerState::RUN);
+                .set_local_state(PsciPlatformImpl::PlatformPowerState::RUN);
 
             Ok(())
         } else {
@@ -862,6 +890,7 @@ impl<
             MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             PsciPlatformImpl::NodeIndex,
+            PsciPlatformImpl::PlatformPowerState,
         >,
         is_power_down_state: bool,
     ) -> Result<(), ErrorCode> {
@@ -966,7 +995,7 @@ impl<
                     // suspend, clear it here.
                     cpu.pop_entry_point();
                 }
-                cpu.set_local_state(PlatformPowerState::RUN);
+                cpu.set_local_state(PsciPlatformImpl::PlatformPowerState::RUN);
                 ancestors.set_running(cpu_index);
             });
         Ok(())
@@ -985,7 +1014,7 @@ impl<
             .with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
                 self.forward_to_spm(Function::CpuOff);
                 (self.spm)().notify_cpu_off();
-                cpu.set_local_state(PlatformPowerState::OFF);
+                cpu.set_local_state(PsciPlatformImpl::PlatformPowerState::OFF);
                 composite_state.coordinate_state(cpu_index, &mut ancestors);
 
                 cpu_power_down(composite_state.find_highest_power_down_level().unwrap());
@@ -1083,7 +1112,7 @@ impl<
                     wake_from_suspend = true;
                 }
 
-                cpu.set_local_state(PlatformPowerState::RUN);
+                cpu.set_local_state(PsciPlatformImpl::PlatformPowerState::RUN);
 
                 ancestors.set_running(cpu_index);
             });
@@ -1531,7 +1560,7 @@ mod tests {
     use crate::{
         platform::{
             PSCI_STATE_COUNT,
-            test::{PSCI_MAX_POWER_LEVEL, TestPlatform, TestPsciPlatformImpl},
+            test::{PSCI_MAX_POWER_LEVEL, TestPlatform, TestPowerState, TestPsciPlatformImpl},
         },
         services::ffa::spmd::TestSpm,
     };
@@ -1580,12 +1609,13 @@ mod tests {
         PSCI_MAX_POWER_LEVEL,
         NON_CPU_DOMAIN_COUNT,
         u8,
+        TestPowerState,
     > = PsciCompositePowerState::new_with_last_power_level(
         [
-            PlatformPowerState::OFF,
-            PlatformPowerState::RUN,
-            PlatformPowerState::RUN,
-            PlatformPowerState::RUN,
+            TestPowerState::OFF,
+            TestPowerState::RUN,
+            TestPowerState::RUN,
+            TestPowerState::RUN,
         ],
         CPU_POWER_LEVEL,
     );
@@ -1595,12 +1625,13 @@ mod tests {
         PSCI_MAX_POWER_LEVEL,
         NON_CPU_DOMAIN_COUNT,
         u8,
+        TestPowerState,
     > = PsciCompositePowerState::new_with_last_power_level(
         [
-            PlatformPowerState::OFF,
-            PlatformPowerState::Standby2,
-            PlatformPowerState::RUN,
-            PlatformPowerState::RUN,
+            TestPowerState::OFF,
+            TestPowerState::Standby2,
+            TestPowerState::RUN,
+            TestPowerState::RUN,
         ],
         CPU_POWER_LEVEL,
     );
@@ -1610,12 +1641,13 @@ mod tests {
         PSCI_MAX_POWER_LEVEL,
         NON_CPU_DOMAIN_COUNT,
         u8,
+        TestPowerState,
     > = PsciCompositePowerState::new_with_last_power_level(
         [
-            PlatformPowerState::OFF,
-            PlatformPowerState::OFF,
-            PlatformPowerState::RUN,
-            PlatformPowerState::RUN,
+            TestPowerState::OFF,
+            TestPowerState::OFF,
+            TestPowerState::RUN,
+            TestPowerState::RUN,
         ],
         CPU_POWER_LEVEL + 1,
     );
@@ -1625,12 +1657,13 @@ mod tests {
         PSCI_MAX_POWER_LEVEL,
         NON_CPU_DOMAIN_COUNT,
         u8,
+        TestPowerState,
     > = PsciCompositePowerState::new_with_last_power_level(
         [
-            PlatformPowerState::OFF,
-            PlatformPowerState::Standby2,
-            PlatformPowerState::RUN,
-            PlatformPowerState::RUN,
+            TestPowerState::OFF,
+            TestPowerState::Standby2,
+            TestPowerState::RUN,
+            TestPowerState::RUN,
         ],
         CPU_POWER_LEVEL + 1,
     );
@@ -1640,12 +1673,13 @@ mod tests {
         PSCI_MAX_POWER_LEVEL,
         NON_CPU_DOMAIN_COUNT,
         u8,
+        TestPowerState,
     > = PsciCompositePowerState::new_with_last_power_level(
         [
-            PlatformPowerState::OFF,
-            PlatformPowerState::OFF,
-            PlatformPowerState::OFF,
-            PlatformPowerState::RUN,
+            TestPowerState::OFF,
+            TestPowerState::OFF,
+            TestPowerState::OFF,
+            TestPowerState::RUN,
         ],
         CPU_POWER_LEVEL + 2,
     );
@@ -1655,12 +1689,13 @@ mod tests {
         PSCI_MAX_POWER_LEVEL,
         NON_CPU_DOMAIN_COUNT,
         u8,
+        TestPowerState,
     > = PsciCompositePowerState::new_with_last_power_level(
         [
-            PlatformPowerState::OFF,
-            PlatformPowerState::OFF,
-            PlatformPowerState::OFF,
-            PlatformPowerState::RUN,
+            TestPowerState::OFF,
+            TestPowerState::OFF,
+            TestPowerState::OFF,
+            TestPowerState::RUN,
         ],
         CPU_POWER_LEVEL + 2,
     );
@@ -1679,6 +1714,7 @@ mod tests {
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
             u8,
+            TestPowerState,
         >,
         cpu_index: u8,
         state: PsciCompositePowerState<
@@ -1686,6 +1722,7 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             u8,
+            TestPowerState,
         >,
     ) {
         let highest_affected_level = state.find_highest_non_run_level().unwrap();
@@ -1729,6 +1766,7 @@ mod tests {
                     PSCI_MAX_POWER_LEVEL,
                     NON_CPU_DOMAIN_COUNT,
                     u8,
+                    _,
                 >::RUN
                     .states,
             );
@@ -1744,16 +1782,14 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             u8,
+            _,
         >::OFF;
-        assert_eq!(PlatformPowerState::OFF, composite_state.cpu_level_state());
+        assert_eq!(TestPowerState::OFF, composite_state.cpu_level_state());
 
-        assert_eq!(
-            PlatformPowerState::OFF,
-            composite_state.highest_level_state()
-        );
+        assert_eq!(TestPowerState::OFF, composite_state.highest_level_state());
 
-        composite_state.states[CPU_POWER_LEVEL] = PlatformPowerState::RUN;
-        assert_eq!(PlatformPowerState::RUN, composite_state.cpu_level_state());
+        composite_state.states[CPU_POWER_LEVEL] = TestPowerState::RUN;
+        assert_eq!(TestPowerState::RUN, composite_state.cpu_level_state());
 
         composite_state = PsciCompositePowerState::OFF;
         assert_eq!(
@@ -1765,7 +1801,7 @@ mod tests {
             composite_state.find_highest_non_run_level()
         );
 
-        composite_state.states[PSCI_MAX_POWER_LEVEL] = PlatformPowerState::RUN;
+        composite_state.states[PSCI_MAX_POWER_LEVEL] = TestPowerState::RUN;
         assert_eq!(
             Some(PSCI_MAX_POWER_LEVEL - 1),
             composite_state.find_highest_power_down_level()
@@ -1783,7 +1819,7 @@ mod tests {
         assert!(!composite_state.is_valid_suspend_request(false));
 
         composite_state = PsciCompositePowerState::OFF;
-        composite_state.states[CPU_POWER_LEVEL] = PlatformPowerState::RUN;
+        composite_state.states[CPU_POWER_LEVEL] = TestPowerState::RUN;
         assert!(!composite_state.is_valid_suspend_request(false));
 
         composite_state = PsciCompositePowerState::OFF;
@@ -1791,7 +1827,7 @@ mod tests {
         assert!(!composite_state.is_valid_suspend_request(false));
 
         composite_state = PsciCompositePowerState::RUN;
-        composite_state.states[CPU_POWER_LEVEL] = PlatformPowerState::OFF;
+        composite_state.states[CPU_POWER_LEVEL] = TestPowerState::OFF;
         assert!(composite_state.is_valid_suspend_request(true));
         assert!(!composite_state.is_valid_suspend_request(false));
     }
@@ -1803,12 +1839,13 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             u8,
+            _,
         >::new_with_last_power_level(
             [
-                PlatformPowerState::OFF,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ],
             CPU_POWER_LEVEL,
         );
@@ -1819,12 +1856,13 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             u8,
+            _,
         >::new_with_last_power_level(
             [
-                PlatformPowerState::OFF,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ],
             PSCI_MAX_POWER_LEVEL,
         );
@@ -1835,12 +1873,13 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             u8,
+            _,
         >::new_with_last_power_level(
             [
-                PlatformPowerState::OFF,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ],
             PSCI_MAX_POWER_LEVEL + 1,
         );
@@ -1854,26 +1893,28 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             u8,
+            _,
         >::OFF;
         let tree = PowerDomainTree::<
             { TestPlatform::CORE_COUNT },
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
             u8,
+            _,
         >::new(TestPsciPlatformImpl::topology());
 
         let mut cpu = tree.locked_cpu_node(2);
         tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
-            cpu.set_local_state(PlatformPowerState::RUN);
+            cpu.set_local_state(TestPowerState::RUN);
             for ancestor in ancestors.iter_mut() {
-                ancestor.set_local_state(PlatformPowerState::RUN);
+                ancestor.set_local_state(TestPowerState::RUN);
             }
 
             composite_state.set_local_states_from_nodes(cpu, &ancestors);
         });
 
         assert_eq!(
-            [PlatformPowerState::RUN; { PSCI_MAX_POWER_LEVEL - CPU_POWER_LEVEL + 1 }],
+            [TestPowerState::RUN; { PSCI_MAX_POWER_LEVEL - CPU_POWER_LEVEL + 1 }],
             composite_state.states[CPU_POWER_LEVEL..]
         )
     }
@@ -1885,12 +1926,14 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             u8,
+            _,
         >::RUN;
         let tree = PowerDomainTree::<
             { TestPlatform::CORE_COUNT },
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
             u8,
+            _,
         >::new(TestPsciPlatformImpl::topology());
 
         let mut cpu = tree.locked_cpu_node(0);
@@ -1898,48 +1941,48 @@ mod tests {
             run_state.set_nodes_from_local_states(PSCI_MAX_POWER_LEVEL, cpu, &mut ancestors);
         });
 
-        assert_eq!(cpu.local_state(), PlatformPowerState::RUN);
+        assert_eq!(cpu.local_state(), TestPowerState::RUN);
         tree.with_ancestors_locked(&mut cpu, |cpu, ancestors| {
-            assert_eq!(cpu.local_state(), PlatformPowerState::RUN);
+            assert_eq!(cpu.local_state(), TestPowerState::RUN);
             for a in ancestors.iter() {
-                assert_eq!(PlatformPowerState::RUN, a.local_state());
+                assert_eq!(TestPowerState::RUN, a.local_state());
             }
         });
 
         let lvl0_off_state = PsciCompositePowerState::new([
-            PlatformPowerState::OFF,
-            PlatformPowerState::RUN,
-            PlatformPowerState::RUN,
-            PlatformPowerState::RUN,
+            TestPowerState::OFF,
+            TestPowerState::RUN,
+            TestPowerState::RUN,
+            TestPowerState::RUN,
         ]);
         tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
             lvl0_off_state.set_nodes_from_local_states(PSCI_MAX_POWER_LEVEL, cpu, &mut ancestors);
         });
 
         tree.with_ancestors_locked(&mut cpu, |cpu, ancestors| {
-            assert_eq!(PlatformPowerState::OFF, cpu.local_state());
+            assert_eq!(TestPowerState::OFF, cpu.local_state());
             for a in ancestors.iter() {
-                assert_eq!(PlatformPowerState::RUN, a.local_state());
+                assert_eq!(TestPowerState::RUN, a.local_state());
             }
         });
 
         // Checks that highest_affected_level actually affects the outcome.
         let lvl012_off_state = PsciCompositePowerState::new([
-            PlatformPowerState::OFF,
-            PlatformPowerState::OFF,
-            PlatformPowerState::OFF,
-            PlatformPowerState::RUN,
+            TestPowerState::OFF,
+            TestPowerState::OFF,
+            TestPowerState::OFF,
+            TestPowerState::RUN,
         ]);
         tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
             lvl012_off_state.set_nodes_from_local_states(CPU_POWER_LEVEL + 1, cpu, &mut ancestors);
         });
 
         tree.with_ancestors_locked(&mut cpu, |cpu, ancestors| {
-            assert_eq!(PlatformPowerState::OFF, cpu.local_state());
+            assert_eq!(TestPowerState::OFF, cpu.local_state());
             let ancestors_slice = ancestors.iter().as_slice();
-            assert_eq!(ancestors_slice[0].local_state(), PlatformPowerState::OFF);
-            assert_eq!(ancestors_slice[1].local_state(), PlatformPowerState::RUN);
-            assert_eq!(ancestors_slice[2].local_state(), PlatformPowerState::RUN);
+            assert_eq!(ancestors_slice[0].local_state(), TestPowerState::OFF);
+            assert_eq!(ancestors_slice[1].local_state(), TestPowerState::RUN);
+            assert_eq!(ancestors_slice[2].local_state(), TestPowerState::RUN);
         });
 
         // Reset the state.
@@ -1949,6 +1992,7 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                _,
             >::RUN
                 .set_nodes_from_local_states(PSCI_MAX_POWER_LEVEL, cpu, &mut ancestors);
         });
@@ -1959,9 +2003,9 @@ mod tests {
         });
 
         tree.with_ancestors_locked(&mut cpu, |cpu, ancestors| {
-            assert_eq!(PlatformPowerState::OFF, cpu.local_state());
+            assert_eq!(TestPowerState::OFF, cpu.local_state());
             for a in ancestors.iter() {
-                assert_eq!(PlatformPowerState::RUN, a.local_state());
+                assert_eq!(TestPowerState::RUN, a.local_state());
             }
         });
     }
@@ -1973,14 +2017,16 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
             u8,
+            _,
         >::OFF;
-        composite_state.states[PSCI_MAX_POWER_LEVEL - 1] = PlatformPowerState::RUN;
-        composite_state.states[PSCI_MAX_POWER_LEVEL] = PlatformPowerState::RUN;
+        composite_state.states[PSCI_MAX_POWER_LEVEL - 1] = TestPowerState::RUN;
+        composite_state.states[PSCI_MAX_POWER_LEVEL] = TestPowerState::RUN;
         let tree = PowerDomainTree::<
             { TestPlatform::CORE_COUNT },
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
             u8,
+            _,
         >::new(TestPsciPlatformImpl::topology());
 
         let mut cpu = tree.locked_cpu_node(2);
@@ -1996,10 +2042,11 @@ mod tests {
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
             u8,
+            _,
         >::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         let mut cpu0 = tree.locked_cpu_node(0);
@@ -2023,10 +2070,11 @@ mod tests {
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
             u8,
+            _,
         >::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
@@ -2051,10 +2099,11 @@ mod tests {
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
             u8,
+            _,
         >::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
@@ -2078,7 +2127,7 @@ mod tests {
         let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
@@ -2102,7 +2151,7 @@ mod tests {
         let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         // Leftmost sub-cluster
@@ -2143,7 +2192,7 @@ mod tests {
         let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         let mut level0_with_level1_last_at_level = LEVEL0_OFF.clone();
@@ -2169,7 +2218,7 @@ mod tests {
         let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
@@ -2192,7 +2241,7 @@ mod tests {
         let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
@@ -2219,7 +2268,7 @@ mod tests {
         let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
@@ -2246,7 +2295,7 @@ mod tests {
         let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
-            set_cpu_power_state_by_index(&tree, index, PlatformPowerState::RUN);
+            set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         let mut bad_level0_off = LEVEL0_OFF.clone();
@@ -2273,11 +2322,12 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                TestPowerState,
             >::new([
-                PlatformPowerState::OFF,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ])
             .create_highest_affected_level_resolved_state(0),
             PsciCompositePowerState::<
@@ -2285,11 +2335,12 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                TestPowerState,
             >::new([
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
             ])
         );
 
@@ -2299,11 +2350,12 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                TestPowerState,
             >::new([
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ])
             .create_highest_affected_level_resolved_state(1),
             PsciCompositePowerState::<
@@ -2311,11 +2363,12 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                TestPowerState,
             >::new([
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
             ])
         );
 
@@ -2325,11 +2378,12 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                TestPowerState,
             >::new([
-                PlatformPowerState::OFF,
-                PlatformPowerState::Standby2,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::Standby2,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ])
             .create_highest_affected_level_resolved_state(1),
             PsciCompositePowerState::<
@@ -2337,11 +2391,12 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                TestPowerState,
             >::new([
-                PlatformPowerState::OFF,
-                PlatformPowerState::Standby2,
-                PlatformPowerState::Standby2,
-                PlatformPowerState::Standby2,
+                TestPowerState::OFF,
+                TestPowerState::Standby2,
+                TestPowerState::Standby2,
+                TestPowerState::Standby2,
             ])
         );
 
@@ -2351,11 +2406,12 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                TestPowerState,
             >::new([
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
             ])
             .create_highest_affected_level_resolved_state(2),
             PsciCompositePowerState::<
@@ -2363,11 +2419,12 @@ mod tests {
                 PSCI_MAX_POWER_LEVEL,
                 NON_CPU_DOMAIN_COUNT,
                 u8,
+                TestPowerState,
             >::new([
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
             ])
         );
     }
@@ -2535,7 +2592,7 @@ mod tests {
             TestSpm,
         >,
         cpu_index: usize,
-        expected_states: &[PlatformPowerState],
+        expected_states: &[TestPowerState],
     ) {
         let mut cpu = psci
             .power_domain_tree
@@ -2622,10 +2679,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2644,10 +2701,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2666,10 +2723,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
                 ],
             );
         }
@@ -2685,10 +2742,10 @@ mod tests {
             &psci,
             0,
             &[
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ],
         );
 
@@ -2698,10 +2755,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2712,10 +2769,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2726,10 +2783,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2745,10 +2802,10 @@ mod tests {
             &psci,
             0,
             &[
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ],
         );
 
@@ -2758,10 +2815,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2772,10 +2829,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2785,10 +2842,10 @@ mod tests {
             &psci,
             6,
             &[
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ],
         );
 
@@ -2798,10 +2855,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2812,10 +2869,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2837,10 +2894,10 @@ mod tests {
             &psci,
             0,
             &[
-                PlatformPowerState::OFF,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
+                TestPowerState::RUN,
             ],
         );
 
@@ -2858,10 +2915,10 @@ mod tests {
             &psci,
             0,
             &[
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::RUN,
             ],
         );
     }
@@ -2886,10 +2943,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2924,10 +2981,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::Standby2,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::Standby2,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2962,10 +3019,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -2982,10 +3039,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -3028,10 +3085,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -3077,10 +3134,10 @@ mod tests {
                 &psci,
                 cpu_index,
                 &[
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::OFF,
-                    PlatformPowerState::RUN,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::OFF,
+                    TestPowerState::RUN,
                 ],
             );
         }
@@ -3166,6 +3223,7 @@ mod tests {
                     PSCI_MAX_POWER_LEVEL,
                     NON_CPU_DOMAIN_COUNT,
                     u8,
+                    _,
                 >::RUN
                     .states,
             );
@@ -3218,6 +3276,7 @@ mod tests {
                     PSCI_MAX_POWER_LEVEL,
                     NON_CPU_DOMAIN_COUNT,
                     u8,
+                    _,
                 >::RUN
                     .states,
             );
@@ -3247,10 +3306,10 @@ mod tests {
             &psci,
             0,
             &[
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::OFF,
-                PlatformPowerState::RUN,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::OFF,
+                TestPowerState::RUN,
             ],
         );
     }

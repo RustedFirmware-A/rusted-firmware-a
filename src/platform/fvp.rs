@@ -797,6 +797,7 @@ impl FvpPsciPlatformImpl<'_> {
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             NodeIndex,
+            FvpPowerState,
         >,
     ) {
         assert_eq!(previous_state.cpu_level_state(), FvpPowerState::Off);
@@ -874,15 +875,14 @@ const _: () = assert!(
 
 pub const PSCI_MAX_POWER_LEVEL: usize = 2;
 const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
-pub const PSCI_NON_CPU_DOMAIN_COUNT: usize = 1 + FVP_CLUSTER_COUNT;
+const PSCI_NON_CPU_DOMAIN_COUNT: usize = 1 + FVP_CLUSTER_COUNT;
 
 type NodeIndex = u8;
 
 impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
     for FvpPsciPlatformImpl<'_>
 {
-    const POWER_DOMAIN_COUNT: usize =
-        1 + FVP_CLUSTER_COUNT + FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER;
+    const POWER_DOMAIN_COUNT: usize = PSCI_NON_CPU_DOMAIN_COUNT + Fvp::CORE_COUNT;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::NODE_HW_STATE
         .union(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND)
@@ -922,6 +922,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     > {
         const POWER_LEVEL_STATE_MASK: u32 = 0x0000_0fff;
@@ -982,6 +983,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     ) {
         // FVP has retention only at cpu level. Just return as nothing is to be done for retention.
@@ -1020,6 +1022,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     ) {
         // Nothing to be done on waking up from retention at CPU level.
@@ -1038,6 +1041,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     ) {
         assert_eq!(FvpPowerState::Off, target_state.cpu_level_state());
@@ -1060,6 +1064,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     ) {
     }
@@ -1089,6 +1094,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     ) {
         self.power_domain_on_finish_common(previous_state);
@@ -1143,6 +1149,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         PSCI_MAX_POWER_LEVEL,
         PSCI_NON_CPU_DOMAIN_COUNT,
         Self::NodeIndex,
+        Self::PlatformPowerState,
     > {
         PsciCompositePowerState::OFF
     }
@@ -1161,6 +1168,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            Self::PlatformPowerState,
         >,
     ) -> Result<(), ErrorCode> {
         Ok(())

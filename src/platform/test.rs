@@ -374,12 +374,12 @@ impl TestPsciPlatformImpl {
 /// Maximum PSCI power level for fake platform.
 pub const PSCI_MAX_POWER_LEVEL: usize = 3;
 const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
-pub const PSCI_NON_CPU_DOMAIN_COUNT: usize = 7;
+const PSCI_NON_CPU_DOMAIN_COUNT: usize = 7;
 
 impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
     for TestPsciPlatformImpl
 {
-    const POWER_DOMAIN_COUNT: usize = 20;
+    const POWER_DOMAIN_COUNT: usize = TestPlatform::CORE_COUNT + PSCI_NON_CPU_DOMAIN_COUNT;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::all();
 
@@ -399,6 +399,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            TestPowerState,
         >,
     > {
         let states = match power_state {
@@ -456,6 +457,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
                 PSCI_MAX_POWER_LEVEL,
                 PSCI_NON_CPU_DOMAIN_COUNT,
                 Self::NodeIndex,
+                TestPowerState,
             >::new(states)
             .find_highest_non_run_level()
             .unwrap(),
@@ -471,6 +473,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            TestPowerState,
         >,
     ) {
     }
@@ -482,6 +485,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            TestPowerState,
         >,
     ) {
     }
@@ -493,6 +497,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            TestPowerState,
         >,
     ) -> Result<(), ErrorCode> {
         Ok(())
@@ -505,6 +510,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            TestPowerState,
         >,
     ) {
         assert_eq!(target_state.cpu_level_state(), TestPowerState::PowerDown);
@@ -517,6 +523,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            TestPowerState,
         >,
     ) {
         // SAFETY: `disable_mmu_el3` is safe to call here as it doesn't actually do anything with
@@ -539,6 +546,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PSCI_MAX_POWER_LEVEL,
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
+            TestPowerState,
         >,
     ) {
     }
@@ -590,6 +598,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         PSCI_MAX_POWER_LEVEL,
         PSCI_NON_CPU_DOMAIN_COUNT,
         Self::NodeIndex,
+        TestPowerState,
     > {
         PsciCompositePowerState::OFF
     }

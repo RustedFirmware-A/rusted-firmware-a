@@ -11,7 +11,7 @@ macro_rules! select_platform {
         #[cfg(platform = $condition)]
         pub use $mod::$sub::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT, $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
         };
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
@@ -21,7 +21,7 @@ macro_rules! select_platform {
         #[cfg(platform = $condition)]
         pub use $mod::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT, $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
         };
     };
     (test, $mod:ident::$plat_impl:ident) => {
@@ -31,7 +31,7 @@ macro_rules! select_platform {
         #[cfg(test)]
         pub use $mod::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT, $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
         };
     };
 }
@@ -51,9 +51,7 @@ use crate::{
     gicv3::{self, Gic},
     logger::LogSink,
     pagetable::{IdMap, MAIR_IWBRWA_OWBRWA_NTR},
-    services::{
-        Service, arch::WorkaroundSupport, psci::PsciPlatformInterface, trng::TrngPlatformInterface,
-    },
+    services::{Service, arch::WorkaroundSupport, trng::TrngPlatformInterface},
     smccc::FunctionId,
 };
 use aarch64_paging::mair::MairAttribute;
@@ -79,13 +77,7 @@ impl Service for DummyService {
 /// Type alias for convenience, to avoid having to use the complicated type name everywhere.
 pub type LogSinkImpl = <PlatformImpl as Platform>::LogSinkImpl;
 
-pub type PsciPlatformImpl = <PlatformImpl as Platform>::PsciPlatformImpl;
 pub type TrngPlatformImpl = <PlatformImpl as Platform>::TrngPlatformImpl;
-pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface<
-    PSCI_STATE_COUNT,
-    PSCI_MAX_POWER_LEVEL,
-    PSCI_NON_CPU_DOMAIN_COUNT,
->>::PlatformPowerState;
 
 pub const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 

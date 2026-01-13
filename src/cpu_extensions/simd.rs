@@ -120,8 +120,8 @@ impl CpuExtension for Sve {
     }
 
     fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
-        if world == World::NonSecure {
-            // Allow NS world SVE register access.
+        if (world == World::NonSecure) || (cfg!(feature = "sel2") && world == World::Secure) {
+            // Allow SVE register access to normal world and secure world if S-EL2 compiled in.
             ctx.cptr_el3 |= CptrEl3::EZ;
         }
     }
@@ -214,8 +214,8 @@ impl CpuExtension for Sme {
     }
 
     fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
-        if world == World::NonSecure {
-            // Allow NS world SME register access.
+        if (world == World::NonSecure) || (cfg!(feature = "sel2") && world == World::Secure) {
+            // Allow SME register access to normal world and secure world if S-EL2 compiled in.
             ctx.cptr_el3 |= CptrEl3::ESM;
         }
     }

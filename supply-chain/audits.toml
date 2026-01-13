@@ -433,6 +433,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.7.3 -> 0.7.4"
 notes = "Dependency version bump, small changes in Cargo.toml."
 
+[[audits.num_enum]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.7.4 -> 0.7.5"
+notes = "Only dependency updates and minor test changes. No unsafe code."
+
 [[audits.num_enum_derive]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -448,6 +454,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.7.3 -> 0.7.4"
 notes = "Dependency version bump and minor changes in Cargo.toml."
+
+[[audits.num_enum_derive]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.7.4 -> 0.7.5"
+notes = "Some changes to proc macro but no unsafe code and nothing that looks dangerous."
 
 [[audits.paste]]
 who = "Andrew Walbran <qwandor@google.com>"

@@ -16,7 +16,7 @@ macro_rules! expect {
                 column!(),
                 stringify!($expectation),
             );
-            return Err(crate::framework::TestError::Failed);
+            return Err($crate::framework::TestError::Failed);
         }
     };
 }

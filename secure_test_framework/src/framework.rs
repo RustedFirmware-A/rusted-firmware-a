@@ -74,7 +74,7 @@ impl NormalWorldTest {
         // Remove the crate name, if there is one.
         match self.name.split_once("::") {
             Some((_, rest)) => rest,
-            None => &self.name,
+            None => self.name,
         }
     }
 }
@@ -118,7 +118,7 @@ impl SecureWorldTest {
         // Remove the crate name, if there is one.
         match self.name.split_once("::") {
             Some((_, rest)) => rest,
-            None => &self.name,
+            None => self.name,
         }
     }
 }
@@ -160,7 +160,7 @@ pub fn run_secure_world_test(test_index: usize) -> TestResult {
         );
         (test.function)()
     } else {
-        error!("Requested to run unknown test {}", test_index);
+        error!("Requested to run unknown test {test_index}");
         Err(TestError::Failed)
     }
 }
@@ -170,7 +170,7 @@ pub fn run_secure_world_test(test_index: usize) -> TestResult {
 /// This should only be called from the secure world (BL32) part of STF.
 #[allow(unused)]
 pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
-    trace!("Running secure world test helper {}", test_index);
+    trace!("Running secure world test helper {test_index}");
     if let Some(test) = NORMAL_WORLD_TESTS_SORTED.get(test_index) {
         if let TestFunctions::NormalWorldWithHelper { helper, .. } = test.functions {
             helper(args)
@@ -179,7 +179,7 @@ pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()
             Err(())
         }
     } else {
-        error!("Requested to run unknown test helper {}.", test_index);
+        error!("Requested to run unknown test helper {test_index}.");
         Err(())
     }
 }
@@ -192,7 +192,7 @@ pub fn run_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()
 #[allow(unused)]
 pub fn run_test_ffa_handler(test_index: usize, interface: Interface) -> Option<Interface> {
     let handler = NORMAL_WORLD_TESTS_SORTED.get(test_index)?.secure_handler?;
-    trace!("Running test {} FF-A handler", test_index);
+    trace!("Running test {test_index} FF-A handler");
     handler(interface)
 }
 

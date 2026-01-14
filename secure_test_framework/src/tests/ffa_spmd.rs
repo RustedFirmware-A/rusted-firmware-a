@@ -708,8 +708,8 @@ fn mem_retrieve_req_handler(interface: Interface) -> Option<Interface> {
     assert_eq!(buf, None);
 
     Some(Interface::MemRetrieveResp {
-        total_len: total_len,
-        frag_len: frag_len,
+        total_len,
+        frag_len,
     })
 }
 
@@ -803,7 +803,7 @@ fn notification_bind_handler(interface: Interface) -> Option<Interface> {
 
     assert_eq!(sender_id, 0x8003);
     assert_eq!(receiver_id, 0x8004);
-    assert_eq!(bitmap, 0x1051006008009030);
+    assert_eq!(bitmap, 0x1051_0060_0800_9030);
     assert_eq!(
         flags,
         NotificationBindFlags {
@@ -834,7 +834,7 @@ fn test_ffa_notification_bind() -> TestResult {
             NotificationBindFlags {
                 per_vcpu_notification: false,
             },
-            0x1051006008009030,
+            0x1051_0060_0800_9030,
         )
     );
 
@@ -902,7 +902,7 @@ fn notification_set_handler(interface: Interface) -> Option<Interface> {
             vcpu_id: Some(5)
         }
     );
-    assert_eq!(bitmap, 0x0051006388009530);
+    assert_eq!(bitmap, 0x0051_0063_8800_9530);
 
     Some(Interface::Success {
         target_info: TargetInfo {
@@ -928,7 +928,7 @@ fn test_ffa_notification_set() -> TestResult {
                 delay_schedule_receiver: true,
                 vcpu_id: Some(5),
             },
-            0x0051006388009530,
+            0x0051_0063_8800_9530,
         )
     );
 
@@ -990,7 +990,7 @@ fn test_ffa_notification_get() -> TestResult {
     let args = expect_ffa_interface!(
         expect_ffa_success,
         "NOTIFICATION_GET failed",
-        ffa::notification_get(17, 44, notification_get_flags.clone(),)
+        ffa::notification_get(17, 44, notification_get_flags)
     );
 
     let args: Result<SuccessArgsNotificationGet, arm_ffa::Error> =
@@ -1016,7 +1016,7 @@ fn notification_info_get_handler(interface: Interface) -> Option<Interface> {
         return None;
     };
 
-    assert_eq!(is_32bit, false);
+    assert!(!is_32bit);
 
     Some(Interface::Success {
         target_info: TargetInfo {

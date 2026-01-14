@@ -10,6 +10,7 @@ use spin::mutex::{SpinMutex, SpinMutexGuard};
 
 const PAGE_SIZE: usize = 4096;
 
+#[allow(clippy::identity_op)]
 const HEAP_SIZE: usize = 1 * PAGE_SIZE;
 static HEAP: SpinMutex<[u8; HEAP_SIZE]> = SpinMutex::new([0; HEAP_SIZE]);
 

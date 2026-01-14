@@ -100,6 +100,7 @@ unsafe impl Platform for Fvp {
     fn psci_mpidr_for_core(core_index: usize) -> u64 {
         assert!(core_index < Self::CORE_COUNT);
 
+        #[allow(clippy::modulo_one)]
         let aff0 = (core_index % FVP_MAX_PE_PER_CPU) as u64;
         let aff1 = ((core_index / FVP_MAX_PE_PER_CPU) % FVP_MAX_CPUS_PER_CLUSTER) as u64;
         let aff2 = (core_index / FVP_MAX_PE_PER_CPU / FVP_MAX_CPUS_PER_CLUSTER) as u64;

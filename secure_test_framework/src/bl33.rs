@@ -49,9 +49,11 @@ const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 2);
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
 
+type Entrypoint = fn(u64) -> !;
+
 /// An entry point function may be set for each secondary core. When that core starts it will call
 /// the function and unset the entry.
-static SECONDARY_ENTRIES: [SpinMutex<Option<fn(u64) -> !>>; PlatformImpl::CORE_COUNT] =
+static SECONDARY_ENTRIES: [SpinMutex<Option<Entrypoint>>; PlatformImpl::CORE_COUNT] =
     [const { SpinMutex::new(None) }; PlatformImpl::CORE_COUNT];
 
 enable_mmu!(BL33_IDMAP);
@@ -81,7 +83,7 @@ fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     // Test what happens if we try a much higher version.
     let spmc_supported_ffa_version = ffa::version(HIGH_FFA_VERSION).expect("FFA_VERSION failed");
-    info!("SPMC supports FF-A version {}", spmc_supported_ffa_version);
+    info!("SPMC supports FF-A version {spmc_supported_ffa_version}");
     assert!(spmc_supported_ffa_version >= FFA_VERSION);
     assert!(spmc_supported_ffa_version < HIGH_FFA_VERSION);
     // Negotiate the FF-A version we actually support. This must happen before any other FF-A calls.
@@ -229,14 +231,14 @@ fn send_request(request: Request) -> Result<Response, ()> {
         args,
     } = result
     else {
-        warn!("Unexpected response {:?}", result);
+        warn!("Unexpected response {result:?}");
         return Err(());
     };
     assert_eq!(src_id, SECURE_WORLD_ID);
     assert_eq!(dst_id, NORMAL_WORLD_ID);
 
     Response::try_from(args).map_err(|e| {
-        warn!("{}", e);
+        warn!("{e}");
     })
 }
 
@@ -246,7 +248,7 @@ fn call_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
     match send_request(Request::RunTestHelper { test_index, args })? {
         Response::Success { return_value } => Ok(return_value),
         Response::Failure => {
-            warn!("Secure world test helper {} failed", test_index);
+            warn!("Secure world test helper {test_index} failed");
             Err(())
         }
         Response::Ignored => {
@@ -264,7 +266,7 @@ fn call_test_helper(test_index: usize, args: [u64; 3]) -> Result<[u64; 4], ()> {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    error!("{}", info);
+    error!("{info}");
     let _ = psci::system_off::<Smc>();
     loop {}
 }

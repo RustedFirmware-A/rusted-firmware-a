@@ -292,5 +292,5 @@ fn call_raw(interface: Interface) -> [u64; 18] {
     let function_id = u32::from(interface.function_id().unwrap());
     let mut regs = [0; 18];
     interface.to_regs(FFA_VERSION, &mut regs);
-    smc64(function_id.into(), regs[1..].try_into().unwrap())
+    smc64(function_id, regs[1..].try_into().unwrap())
 }

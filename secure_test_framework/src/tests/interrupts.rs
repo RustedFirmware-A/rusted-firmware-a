@@ -68,6 +68,7 @@ fn helper_timer_interrupt_status_response(timer_handled: bool) -> TestHelperResp
 /// On the other hand, the world switch test calls:
 /// - the main loop in the non-secure world,
 /// - this helper in the secure world.
+///
 /// (World switch happens when TestHelperProxy is called).
 fn timer_helper<TIMER: Timer>(request: TestHelperRequest) -> Result<TestHelperResponse, ()> {
     let [phase, ..] = request;

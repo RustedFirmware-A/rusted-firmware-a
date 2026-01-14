@@ -94,7 +94,7 @@ unsafe impl Platform for Qemu {
 pub static BL33_IDMAP: InitialPagetable = {
     let mut idmap = [0; 512];
     idmap[0] = DEVICE_ATTRIBUTES.bits();
-    idmap[1] = MEMORY_ATTRIBUTES.bits() | 0x40000000;
+    idmap[1] = MEMORY_ATTRIBUTES.bits() | 0x4000_0000;
     InitialPagetable(idmap)
 };
 

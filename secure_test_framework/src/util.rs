@@ -61,7 +61,7 @@ pub fn enable_pauth(key: u128) {
 ///
 /// This is convenient for handling errors which should cause a test to fail.
 pub fn log_error<V, E: Display>(message: &str, result: Result<V, E>) -> Result<V, ()> {
-    result.map_err(|e| error!("{}: {}", message, e))
+    result.map_err(|e| error!("{message}: {e}"))
 }
 
 /// If the given FF-A response is a success then returns its arguments, otherwise logs and returns
@@ -70,7 +70,7 @@ pub fn expect_ffa_success(response: Interface) -> Result<SuccessArgs, ()> {
     if let Interface::Success { args, .. } = response {
         Ok(args)
     } else {
-        error!("Expected success but got {:?}", response);
+        error!("Expected success but got {response:?}");
         Err(())
     }
 }
@@ -85,7 +85,7 @@ pub fn expect_ffa_mem_retrieve_resp(response: Interface) -> Result<(u32, u32), (
     {
         Ok((total_len, frag_len))
     } else {
-        error!("Expected MemRetrieveResp but got {:?}", response);
+        error!("Expected MemRetrieveResp but got {response:?}");
         Err(())
     }
 }

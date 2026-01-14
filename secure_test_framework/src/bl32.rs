@@ -89,7 +89,7 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     // Test what happens if we try a much higher version.
     let el3_supported_ffa_version = ffa::version(HIGH_FFA_VERSION).expect("FFA_VERSION failed");
-    info!("EL3 supports FF-A version {}", el3_supported_ffa_version);
+    info!("EL3 supports FF-A version {el3_supported_ffa_version}");
     assert!(el3_supported_ffa_version >= FFA_VERSION);
     assert!(el3_supported_ffa_version < HIGH_FFA_VERSION);
     // Negotiate the FF-A version we actually support. This must happen before any other FF-A calls.
@@ -217,7 +217,7 @@ fn handle_direct_message(
                 );
             }
             Err(e @ ParseRequestError::InvalidRequestCode(_)) => {
-                error!("{}", e);
+                error!("{e}");
                 Response::Failure.into()
             }
         }
@@ -242,10 +242,7 @@ fn handle_version_request(version: Version) -> DirectMsgArgs {
     let out_version = if version.is_compatible_to(&FFA_VERSION) {
         // If NWd queries a version that we're compatible with, return the same
         let nwd_supported_ffa_version = version;
-        info!(
-            "Normal World supports FF-A version {}",
-            nwd_supported_ffa_version
-        );
+        info!("Normal World supports FF-A version {nwd_supported_ffa_version}");
         nwd_supported_ffa_version
     } else {
         // Otherwise return the highest version we do support
@@ -321,7 +318,7 @@ fn call_test_helper(_index: usize, _args: [u64; 3]) -> Result<[u64; 4], ()> {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     // Log the panic message
-    error!("{}", info);
+    error!("{info}");
     // Tell normal world that the test panicked. In case we get another request anyway, keep
     // sending the same response.
     loop {

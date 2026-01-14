@@ -856,13 +856,23 @@ fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 /// state for resuming their execution. This can be a different entry point or just arguments passed
 /// in registers.
 pub fn update_contexts_suspend(psci_entrypoint: EntryPoint, secure_args: &SmcReturn) {
+    initialise_el3_sysregs();
+
     exception_free(|token| {
         let mut cpu_state = cpu_state(token);
 
-        cpu_state[World::NonSecure].el3_state.elr_el3 =
-            psci_entrypoint.entry_point_address() as usize;
-        cpu_state[World::NonSecure].gpregs.registers[0] = psci_entrypoint.context_id();
-        cpu_state[World::NonSecure].gpregs.registers[1..8].fill(0);
+        let entry_point = EntryPointInfo {
+            pc: psci_entrypoint.entry_point_address() as usize,
+            args: [psci_entrypoint.context_id(), 0, 0, 0, 0, 0, 0, 0],
+            ..PlatformImpl::non_secure_entry_point()
+        };
+        cpu_state[World::NonSecure] = CpuContext::EMPTY;
+        // This will reset all the saved system registers of the non-secure world. Among other
+        // things, this ensures that the SPSR_EL3.DAIF bits are set to 1 as required by section
+        // 6.4.3.3 of the PSCI 1.3 specification. The execution state and endianness will also match
+        // the state when the PSCI call was made, because the lower EL can't change these so they
+        // are always the state we set initially.
+        initialise_nonsecure(&mut cpu_state[World::NonSecure], &entry_point);
 
         cpu_state[World::Secure].gpregs.registers[..18].copy_from_slice(secure_args.values());
 

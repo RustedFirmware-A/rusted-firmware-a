@@ -729,6 +729,7 @@ pub fn initialise_contexts(
 
 /// Initialises parts of the given CPU context that are the same for all worlds.
 fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
+    *context = CpuContext::EMPTY;
     context.el3_state.elr_el3 = entry_point.pc;
     context.el3_state.spsr_el3 = entry_point.spsr;
     context.gpregs.registers[..entry_point.args.len()].copy_from_slice(&entry_point.args);
@@ -884,7 +885,6 @@ pub fn update_contexts_suspend(psci_entrypoint: EntryPoint, secure_args: &SmcRet
             args: [psci_entrypoint.context_id(), 0, 0, 0, 0, 0, 0, 0],
             ..PlatformImpl::non_secure_entry_point()
         };
-        cpu_state[World::NonSecure] = CpuContext::EMPTY;
         // This will reset all the saved system registers of the non-secure world. Among other
         // things, this ensures that the SPSR_EL3.DAIF bits are set to 1 as required by section
         // 6.4.3.3 of the PSCI 1.3 specification. The execution state and endianness will also match

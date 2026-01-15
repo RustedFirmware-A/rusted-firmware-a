@@ -14,7 +14,7 @@ use crate::{
 use arm_psci::EntryPoint;
 use arm_sysregs::{
     CptrEl3, Esr, MdcrEl3, Mpam3El3, ScrEl3, Spsr, read_mpidr_el1, write_cptr_el3, write_mpam3_el3,
-    write_scr_el3, write_zcr_el3,
+    write_scr_el3,
 };
 #[cfg(not(feature = "sel2"))]
 use arm_sysregs::{
@@ -521,7 +521,6 @@ pub struct PerWorldContext {
     /// because we should trap MPAM register access
     /// if a platform does not support MPAM.
     pub mpam3_el3: Mpam3El3,
-    zcr_el3: u64,
 }
 
 impl PerWorldContext {
@@ -537,7 +536,6 @@ impl PerWorldContext {
     const DEFAULT: Self = Self {
         cptr_el3: CptrEl3::TAM.union(CptrEl3::TTA).union(CptrEl3::TFP),
         mpam3_el3: Mpam3El3::TRAPLOWER,
-        zcr_el3: 0,
     };
 
     /// Restores world-specific EL3 system register configuration.
@@ -548,12 +546,6 @@ impl PerWorldContext {
 
         write_cptr_el3(self.cptr_el3);
         isb();
-
-        // Restore SVE setup only if SVE is enabled.
-        if self.cptr_el3.contains(CptrEl3::EZ) {
-            write_zcr_el3(self.zcr_el3);
-            isb();
-        }
     }
 }
 

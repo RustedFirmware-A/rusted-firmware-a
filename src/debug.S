@@ -72,7 +72,7 @@ func asm_assert
 	bl	{plat_crash_console_flush}
 _assert_loop:
 .endif /* LOG_LEVEL >= LOG_LEVEL_INFO */
-	no_ret	plat_panic_handler
+	no_ret	{plat_panic_handler}
 endfunc asm_assert
 .endif /* ENABLE_ASSERTIONS */
 
@@ -173,6 +173,6 @@ _panic_handler:
 	/* Pass to plat_panic_handler the address from where el3_panic was
 	 * called, not the address of the call from el3_panic. */
 	mov	x30, x6
-	b	plat_panic_handler
+	b	{plat_panic_handler}
 
 endfunc el3_panic

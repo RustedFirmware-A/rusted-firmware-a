@@ -320,16 +320,16 @@ print_el3_sys_regs:
 	bl	{plat_crash_console_flush}
 
 	/* Done reporting */
-	no_ret	plat_panic_handler
+	no_ret	{plat_panic_handler}
 endfunc report_el3_panic
 
 .else /* CRASH_REPORTING */
 func report_unhandled_exception
 report_unhandled_interrupt:
-	no_ret	plat_panic_handler
+	no_ret	{plat_panic_handler}
 endfunc report_unhandled_exception
 .endif /* CRASH_REPORTING */
 
 func crash_panic
-	no_ret	plat_panic_handler
+	no_ret	{plat_panic_handler}
 endfunc crash_panic

@@ -88,8 +88,8 @@ pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
 /// for the primary core that boots first on cold boot.
 ///
 /// The implementations of `cold_boot_handler`, `crash_console_init`, `crash_console_putc`,
-/// `crash_console_flush` and `dump_registers` must be naked functions which doesn't use the stack,
-/// and only clobber the registers they are documented to clobber.
+/// `crash_console_flush`, `dump_registers` and `panic_handler` must be naked functions which
+/// doesn't use the stack, and only clobber the registers they are documented to clobber.
 ///
 /// (These requirements don't apply to the test platform, as it is only used in unit tests.)
 pub unsafe trait Platform {
@@ -244,6 +244,17 @@ pub unsafe trait Platform {
     #[cfg_attr(test, allow(unused))]
     extern "C" fn crash_console_flush();
 
+    /// Handles a panic from assembly code.
+    ///
+    /// The default implementation loops forever, but platforms may override it to do something
+    /// else, like rebooting.
+    #[cfg(all(target_arch = "aarch64", not(test)))]
+    #[unsafe(naked)]
+    extern "C" fn panic_handler() -> ! {
+        // Endless loop.
+        crate::naked_asm!("1:", "wfi", "b 1b");
+    }
+
     /// Dumps platform-specific registers, e.g. for the GIC, for a crash dump.
     ///
     /// This may be called without a Rust runtime, e.g. with no stack.
@@ -260,16 +271,7 @@ pub unsafe trait Platform {
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
-    use crate::debug::DEBUG;
     use crate::naked_asm;
-    use core::arch::global_asm;
-
-    global_asm!(
-        include_str!("asm_macros_common.S"),
-        include_str!("platform_helpers.S"),
-        include_str!("asm_macros_common_purge.S"),
-        DEBUG = const DEBUG as i32,
-    );
 
     /// Uses `PlatformImpl::core_position` to get the index of the calling CPU.
     ///

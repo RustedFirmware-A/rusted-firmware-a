@@ -132,7 +132,7 @@ mod asm {
 
     global_asm!(
         include_str!("asm_macros_common.S"),
-        include_str!("misc_helpers.S"),
+        include_str!("zeromem.S"),
         include_str!("bl31_entrypoint.S"),
         include_str!("asm_macros_common_purge.S"),
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,

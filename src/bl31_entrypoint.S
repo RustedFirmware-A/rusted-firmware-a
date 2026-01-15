@@ -79,33 +79,25 @@ func bl31_entrypoint
          * overlap with previous boot loader stages, without this we can end up
          * re-using dirty cache lines from previous stages.
          */
-        adrp    x0, __TEXT_START__
-        add     x0, x0, :lo12:__TEXT_START__
-        adrp    x1, __BL31_END__
-        add     x1, x1, :lo12:__BL31_END__
+        adr_l    x0, __TEXT_START__
+        adr_l    x1, __BL31_END__
         sub     x1, x1, x0
         bl      inv_dcache_range
 
-        adrp    x0, __BSS_START__
-        add     x0, x0, :lo12:__BSS_START__
+        adr_l    x0, __BSS_START__
 
-        adrp    x1, __BSS_END__
-        add     x1, x1, :lo12:__BSS_END__
+        adr_l    x1, __BSS_END__
         sub     x1, x1, x0
         bl      zeromem
 
         /* Invalidate cache for and zero BSS2. */
-        adrp    x0, __BSS2_START__
-        add     x0, x0, :lo12:__BSS2_START__
-        adrp    x1, __BSS2_END__
-        add     x1, x1, :lo12:__BSS2_END__
+        adr_l    x0, __BSS2_START__
+        adr_l    x1, __BSS2_END__
         sub     x1, x1, x0
         bl      inv_dcache_range
 
-        adrp    x0, __BSS2_START__
-        add     x0, x0, :lo12:__BSS2_START__
-        adrp    x1, __BSS2_END__
-        add     x1, x1, :lo12:__BSS2_END__
+        adr_l    x0, __BSS2_START__
+        adr_l    x1, __BSS2_END__
         sub     x1, x1, x0
         bl      zeromem
 

@@ -39,8 +39,7 @@ endfunc init_cpu_data_ptr
 func _cpu_data_by_index
 	mov_imm	x1, {CPU_DATA_SIZE}
 	mul	x0, x0, x1
-	adrp	x1, percpu_data
-	add	x1, x1, :lo12:percpu_data
+	adr_l	x1, percpu_data
 	add	x0, x0, x1
 	ret
 endfunc _cpu_data_by_index

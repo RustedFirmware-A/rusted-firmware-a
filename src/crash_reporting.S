@@ -5,10 +5,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	.globl	report_unhandled_exception
-	.globl	report_unhandled_interrupt
-	.globl	report_el3_panic
-	.globl	str_in_crash_buf_print
+.globl	report_unhandled_exception
+.globl	report_unhandled_interrupt
+.globl	report_el3_panic
+.globl	str_in_crash_buf_print
 
 .if {CRASH_REPORTING}
 

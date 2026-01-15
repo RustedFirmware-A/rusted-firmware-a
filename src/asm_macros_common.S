@@ -73,65 +73,65 @@
 	.endif
 .endm
 
-	/*
-	 * Helper macro to generate the best mov/movk combinations according
-	 * the value to be moved. The 16 bits from '_shift' are tested and
-	 * if not zero, they are moved into '_reg' without affecting
-	 * other bits.
-	 */
-	.macro _mov_imm16 _reg, _val, _shift
-		.if (\_val >> \_shift) & 0xffff
-			.if (\_val & (1 << \_shift - 1))
-				movk	\_reg, (\_val >> \_shift) & 0xffff, LSL \_shift
-			.else
-				mov	\_reg, \_val & (0xffff << \_shift)
-			.endif
-		.endif
-	.endm
-
-	/*
-	 * Helper macro to load arbitrary values into 32 or 64-bit registers
-	 * which generates the best mov/movk combinations. Many base addresses
-	 * are 64KB aligned the macro will eliminate updating bits 15:0 in
-	 * that case
-	 */
-	.macro mov_imm _reg, _val
-		.if (\_val) == 0
-			mov	\_reg, #0
+/*
+ * Helper macro to generate the best mov/movk combinations according
+ * the value to be moved. The 16 bits from '_shift' are tested and
+ * if not zero, they are moved into '_reg' without affecting
+ * other bits.
+ */
+.macro _mov_imm16 _reg, _val, _shift
+	.if (\_val >> \_shift) & 0xffff
+		.if (\_val & (1 << \_shift - 1))
+			movk	\_reg, (\_val >> \_shift) & 0xffff, LSL \_shift
 		.else
-			_mov_imm16	\_reg, (\_val), 0
-			_mov_imm16	\_reg, (\_val), 16
-			_mov_imm16	\_reg, (\_val), 32
-			_mov_imm16	\_reg, (\_val), 48
+			mov	\_reg, \_val & (0xffff << \_shift)
 		.endif
-	.endm
+	.endif
+.endm
 
-	/*
-	 * Macro for mitigating against speculative execution beyond ERET. Uses the
-	 * speculation barrier instruction, which is mandatory as of Arm v8.5.
-	 */
-	.macro exception_return
+/*
+ * Helper macro to load arbitrary values into 32 or 64-bit registers
+ * which generates the best mov/movk combinations. Many base addresses
+ * are 64KB aligned the macro will eliminate updating bits 15:0 in
+ * that case
+ */
+.macro mov_imm _reg, _val
+	.if (\_val) == 0
+		mov	\_reg, #0
+	.else
+		_mov_imm16	\_reg, (\_val), 0
+		_mov_imm16	\_reg, (\_val), 16
+		_mov_imm16	\_reg, (\_val), 32
+		_mov_imm16	\_reg, (\_val), 48
+	.endif
+.endm
+
+/*
+ * Macro for mitigating against speculative execution beyond ERET. Uses the
+ * speculation barrier instruction, which is mandatory as of Arm v8.5.
+ */
+.macro exception_return
 	eret
 	/* TODO: switch to -C target-feature=+v9a once it stabilizes so that `sb` is recognized. */
 	msr	s0_3_c3_c0_7, xzr /* sb instruction system register encoding */
-	.endm
+.endm
 
-	/*
-	 * Helper macro to instruction adr <reg>, <symbol> where <symbol> is
-	 * within the range +/- 4 GB.
-	 */
-	.macro adr_l, dst, sym
+/*
+ * Helper macro to instruction adr <reg>, <symbol> where <symbol> is
+ * within the range +/- 4 GB.
+ */
+.macro adr_l, dst, sym
 	adrp	\dst, \sym
 	add	\dst, \dst, :lo12:\sym
-	.endm
+.endm
 
-	/*
-	 * Assembler macro to enable asm_assert. Use this macro wherever
-	 * assert is required in assembly. Please note that the macro makes
-	 * use of label '300' to provide the logic and the caller
-	 * should make sure that this label is not used to branch prior
-	 * to calling this macro.
-	 */
+/*
+ * Assembler macro to enable asm_assert. Use this macro wherever
+ * assert is required in assembly. Please note that the macro makes
+ * use of label '300' to provide the logic and the caller
+ * should make sure that this label is not used to branch prior
+ * to calling this macro.
+ */
 .macro ASM_ASSERT _cc:req, message:req, message_name=assert_message
 	.pushsection .rodata.str1.1, "aS"
 	.L_\message_name:

@@ -5,28 +5,28 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	/*
-	 * "core" functions are low-level implementations that don't require
-	 * writable memory and are thus safe to call in BL1 crash context.
-	 */
-	.globl console_pl011_core_init
-	.globl console_pl011_core_putc
-	.globl console_pl011_core_flush
+/*
+ * "core" functions are low-level implementations that don't require
+ * writable memory and are thus safe to call in BL1 crash context.
+ */
+.globl console_pl011_core_init
+.globl console_pl011_core_putc
+.globl console_pl011_core_flush
 
-	/* -----------------------------------------------
-	 * int console_pl011_core_init(uintptr_t base_addr,
-	 * unsigned int uart_clk, unsigned int baud_rate)
-	 * Function to initialize the console without a
-	 * C Runtime to print debug information. This
-	 * function will be accessed by console_init and
-	 * crash reporting.
-	 * In: x0 - console base address
-	 *     w1 - Uart clock in Hz
-	 *     w2 - Baud rate
-	 * Out: return 1 on success else 0 on error
-	 * Clobber list : x1, x2, x3, x4
-	 * -----------------------------------------------
-	 */
+/* -----------------------------------------------
+ * int console_pl011_core_init(uintptr_t base_addr,
+ * unsigned int uart_clk, unsigned int baud_rate)
+ * Function to initialize the console without a
+ * C Runtime to print debug information. This
+ * function will be accessed by console_init and
+ * crash reporting.
+ * In: x0 - console base address
+ *     w1 - Uart clock in Hz
+ *     w2 - Baud rate
+ * Out: return 1 on success else 0 on error
+ * Clobber list : x1, x2, x3, x4
+ * -----------------------------------------------
+ */
 func console_pl011_core_init
 	/* Check the input base address */
 	cbz	x0, core_init_fail
@@ -66,16 +66,16 @@ core_init_fail:
 	ret
 endfunc console_pl011_core_init
 
-	/* --------------------------------------------------------
-	 * int console_pl011_core_putc(int c, uintptr_t base_addr)
-	 * Function to output a character over the console. It
-	 * returns the character printed on success or -1 on error.
-	 * In : w0 - character to be printed
-	 *      x1 - console base address
-	 * Out : return -1 on error else return character.
-	 * Clobber list : x2
-	 * --------------------------------------------------------
-	 */
+/* --------------------------------------------------------
+ * int console_pl011_core_putc(int c, uintptr_t base_addr)
+ * Function to output a character over the console. It
+ * returns the character printed on success or -1 on error.
+ * In : w0 - character to be printed
+ *      x1 - console base address
+ * Out : return -1 on error else return character.
+ * Clobber list : x2
+ * --------------------------------------------------------
+ */
 func console_pl011_core_putc
 .if {ENABLE_ASSERTIONS}
 	cmp	x1, #0
@@ -99,15 +99,15 @@ func console_pl011_core_putc
 	ret
 endfunc console_pl011_core_putc
 
-	/* ---------------------------------------------
-	 * void console_pl011_core_flush(uintptr_t base_addr)
-	 * Function to force a write of all buffered
-	 * data that hasn't been output.
-	 * In : x0 - console base address
-	 * Out : void.
-	 * Clobber list : x0, x1
-	 * ---------------------------------------------
-	 */
+/* ---------------------------------------------
+ * void console_pl011_core_flush(uintptr_t base_addr)
+ * Function to force a write of all buffered
+ * data that hasn't been output.
+ * In : x0 - console base address
+ * Out : void.
+ * Clobber list : x0, x1
+ * ---------------------------------------------
+ */
 func console_pl011_core_flush
 .if {ENABLE_ASSERTIONS}
 	cmp	x0, #0

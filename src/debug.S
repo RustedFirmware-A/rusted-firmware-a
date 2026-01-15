@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	.globl	asm_print_str
-	.globl	asm_print_hex
-	.globl	asm_print_hex_bits
-	.globl	asm_print_newline
-	.globl	asm_assert
-	.globl	el3_panic
+.globl	asm_print_str
+.globl	asm_print_hex
+.globl	asm_print_hex_bits
+.globl	asm_print_newline
+.globl	asm_assert
+.globl	el3_panic
 
 /* Since the max decimal input number is 65536 */
 .set MAX_DEC_DIVISOR, 10000
@@ -21,14 +21,14 @@
 assert_msg:
 	.asciz "ASSERT: "
 
-	/*
-	 * This macro is intended to be used to print the
-	 * line number in decimal. Used by asm_assert macro.
-	 * The max number expected is 65536.
-	 * In: x4 = the decimal to print.
-	 * Clobber: x30, x0, x1, x2, x5, x6
-	 */
-	.macro asm_print_line_dec
+/*
+ * This macro is intended to be used to print the
+ * line number in decimal. Used by asm_assert macro.
+ * The max number expected is 65536.
+ * In: x4 = the decimal to print.
+ * Clobber: x30, x0, x1, x2, x5, x6
+ */
+.macro asm_print_line_dec
 	mov	x6, #10		/* Divide by 10 after every loop iteration */
 	mov	x5, #MAX_DEC_DIVISOR
 dec_print_loop:
@@ -38,7 +38,7 @@ dec_print_loop:
 	bl	{plat_crash_console_putc}
 	udiv	x5, x5, x6			/* Reduce divisor */
 	cbnz	x5, dec_print_loop
-	.endm
+.endm
 
 
 /* ---------------------------------------------------------------------------

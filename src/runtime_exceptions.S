@@ -5,37 +5,37 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	.globl	runtime_exceptions
+.globl	runtime_exceptions
 
-	.globl	sync_exception_sp_el0
-	.globl	irq_sp_el0
-	.globl	fiq_sp_el0
-	.globl	serror_sp_el0
+.globl	sync_exception_sp_el0
+.globl	irq_sp_el0
+.globl	fiq_sp_el0
+.globl	serror_sp_el0
 
-	.globl	sync_exception_sp_elx
-	.globl	irq_sp_elx
-	.globl	fiq_sp_elx
-	.globl	serror_sp_elx
+.globl	sync_exception_sp_elx
+.globl	irq_sp_elx
+.globl	fiq_sp_elx
+.globl	serror_sp_elx
 
-	.globl	sync_exception_aarch64
-	.globl	irq_aarch64
-	.globl	fiq_aarch64
-	.globl	serror_aarch64
+.globl	sync_exception_aarch64
+.globl	irq_aarch64
+.globl	fiq_aarch64
+.globl	serror_aarch64
 
-	.globl	sync_exception_aarch32
-	.globl	irq_aarch32
-	.globl	fiq_aarch32
-	.globl	serror_aarch32
+.globl	sync_exception_aarch32
+.globl	irq_aarch32
+.globl	fiq_aarch32
+.globl	serror_aarch32
 
-	.set DAIF_ABT_BIT, (1 << 2)
-	.set ESR_EC_SHIFT, 26
-	.set ESR_EC_LENGTH, 6
-	.set EC_AARCH32_SMC, 0x13
-	.set EC_AARCH64_SMC, 0x17
-	.set EC_AARCH64_SYS, 0x18
-	.set EC_IMP_DEF_EL3, 0x1f
-	.set FUNCID_CC_SHIFT, 30
-	.set ASYNC_EA_REPLAY_COUNTER, 100
+.set DAIF_ABT_BIT, (1 << 2)
+.set ESR_EC_SHIFT, 26
+.set ESR_EC_LENGTH, 6
+.set EC_AARCH32_SMC, 0x13
+.set EC_AARCH64_SMC, 0x17
+.set EC_AARCH64_SYS, 0x18
+.set EC_IMP_DEF_EL3, 0x1f
+.set FUNCID_CC_SHIFT, 30
+.set ASYNC_EA_REPLAY_COUNTER, 100
 
 /*
  * Declare the exception vector table, enforcing it is aligned on a
@@ -76,7 +76,7 @@
 	.fill	\label + (32 * 4) - .
 .endm
 
-	.macro	apply_at_speculative_wa
+.macro	apply_at_speculative_wa
 .if {ERRATA_SPECULATIVE_AT}
 	/*
 	 * This function expects x30 has been saved.
@@ -86,35 +86,35 @@
 	bl	save_and_update_ptw_el1_sys_regs
 	ldr	x29, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X29}]
 .endif
-	.endm
+.endm
 
-	/*
-	 * Macro to unmask External Aborts by changing PSTATE.A bit.
-	 * Put explicit synchronization event to ensure newly unmasked interrupt
-	 * is taken immediately.
-	 */
-	.macro  unmask_async_ea
+/*
+ * Macro to unmask External Aborts by changing PSTATE.A bit.
+ * Put explicit synchronization event to ensure newly unmasked interrupt
+ * is taken immediately.
+ */
+.macro  unmask_async_ea
 	msr     daifclr, #DAIF_ABT_BIT
 	isb
-	.endm
+.endm
 
-	/*
-	 * Save LR and make x30 available as most of the routines in vector entry
-	 * need a free register
-	 */
-	.macro save_x30
+/*
+ * Save LR and make x30 available as most of the routines in vector entry
+ * need a free register
+ */
+.macro save_x30
 	str	x30, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_LR}]
-	.endm
+.endm
 
-	.macro restore_x30
+.macro restore_x30
 	ldr	x30, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_LR}]
-	.endm
+.endm
 
-	/*
-	 * Macro that synchronizes errors (EA) and checks for pending SError.
-	 * On detecting a pending SError it reflects it back to lower EL (KFH).
-	 */
-	.macro	sync_and_handle_pending_serror
+/*
+ * Macro that synchronizes errors (EA) and checks for pending SError.
+ * On detecting a pending SError it reflects it back to lower EL (KFH).
+ */
+.macro	sync_and_handle_pending_serror
 	/*
 	 * FEAT_IESB provides an implicit error synchronization event at exception
 	 * entry and exception return, so there is no need for any explicit
@@ -128,14 +128,14 @@
 	/* This function never returns, but need LR for decision making */
 	bl	reflect_pending_async_ea_to_lower_el
 2:
-	.endm
+.endm
 
-	/* ---------------------------------------------------------------------
-	 * This macro handles Synchronous exceptions.
-	 * Only SMC exceptions are supported.
-	 * ---------------------------------------------------------------------
-	 */
-	.macro	handle_sync_exception
+/* ---------------------------------------------------------------------
+ * This macro handles Synchronous exceptions.
+ * Only SMC exceptions are supported.
+ * ---------------------------------------------------------------------
+ */
+.macro	handle_sync_exception
 
 	mrs	x30, esr_el3
 	ubfx	x30, x30, #ESR_EC_SHIFT, #ESR_EC_LENGTH
@@ -156,7 +156,7 @@
 1:
 	/* Synchronous exceptions other than the above are unhandled */
 	b	report_unhandled_exception
-	.endm
+.endm
 
 vector_base runtime_exceptions
 

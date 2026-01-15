@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	.globl	zeromem
+.globl	zeromem
 
 /* -----------------------------------------------------------------------
  * void zeromem(void *mem, unsigned int length);
@@ -44,7 +44,6 @@ endfunc zeromem
  * -----------------------------------------------------------------------
  */
 func zeromem_dczva
-
 	/*
 	 * The function consists of a series of loops that zero memory one byte
 	 * at a time, 16 bytes at a time or using the DC ZVA instruction to

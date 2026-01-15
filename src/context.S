@@ -5,32 +5,32 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	.global	prepare_el3_entry
-	.global	restore_gp_pmcr_pauth_regs
-	.global	el3_exit
+.global	prepare_el3_entry
+.global	restore_gp_pmcr_pauth_regs
+.global	el3_exit
 
-	/*
-	 * Set SCR_EL3.EA bit to enable SErrors at EL3
-	 */
-	.macro enable_serror_at_el3
+/*
+ * Set SCR_EL3.EA bit to enable SErrors at EL3
+ */
+.macro enable_serror_at_el3
 	mrs     x18, scr_el3
 	orr     x18, x18, #{SCR_EA_BIT}
 	msr     scr_el3, x18
-	.endm
+.endm
 
 /*
  * Set the PSTATE bits not set when the exception was taken as
  * described in the AArch64.TakeException() pseudocode function
  * in ARM DDI 0487F.c page J1-7635 to a default value.
  */
-	.macro set_unset_pstate_bits
+.macro set_unset_pstate_bits
 	/*
 	 * Always enable Data Independent Timing (DIT) in EL3.
 	 * NOTE: We assume that FEAT_DIT is present as it is mandatory from Armv8.4.
 	 */
 	mov	x18, #{DIT_BIT}
 	msr	s3_3_c4_c2_5, x18 /* DIT */
-	.endm
+.endm
 
 /* ------------------------------------------------------------------
  * The following macro is used to save all the general purpose and
@@ -46,7 +46,7 @@
  * clobbers: x18
  * ------------------------------------------------------------------
  */
-	.macro save_gp_pmcr_pauth_regs
+.macro save_gp_pmcr_pauth_regs
 	stp	x0, x1, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X0}]
 	stp	x2, x3, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X2}]
 	stp	x4, x5, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X4}]
@@ -90,8 +90,8 @@
 	stp	x24, x25, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APDAKEY_LO}] /* APDAKey = x25:x24 */
 	stp	x26, x27, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APDBKEY_LO}] /* APDBKey = x27:x26 */
 	stp	x28, x29, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APGAKEY_LO}] /* APGAKey = x29:x28 */
-	.endm
-	/* save_gp_pmcr_pauth_regs */
+.endm
+/* save_gp_pmcr_pauth_regs */
 
 /* -----------------------------------------------------------------
  * This function saves the context and sets the PSTATE to a known
@@ -163,18 +163,18 @@ endfunc restore_gp_pmcr_pauth_regs
  * determine the security state of the context upon ERET.
  * ------------------------------------------------------------------
  */
-	.macro get_security_state _ret:req, _scr_reg:req
-		ubfx 	\_ret, \_scr_reg, #{SCR_NSE_SHIFT}, #1
-		cmp 	\_ret, #1
-		beq 	realm_state
-		bfi	\_ret, \_scr_reg, #0, #1
-		b 	end
-	realm_state:
-		mov 	\_ret, #2
-	end:
-	.endm
+.macro get_security_state _ret:req, _scr_reg:req
+	ubfx 	\_ret, \_scr_reg, #{SCR_NSE_SHIFT}, #1
+	cmp 	\_ret, #1
+	beq 	realm_state
+	bfi	\_ret, \_scr_reg, #0, #1
+	b 	end
+realm_state:
+	mov 	\_ret, #2
+end:
+.endm
 
-	.macro	restore_ptw_el1_sys_regs
+.macro	restore_ptw_el1_sys_regs
 .if {ERRATA_SPECULATIVE_AT}
 	/* -----------------------------------------------------------
 	 * In case of ERRATA_SPECULATIVE_AT, must follow below order
@@ -197,7 +197,7 @@ endfunc restore_gp_pmcr_pauth_regs
 	isb
 	msr	tcr_el1, x29
 .endif
-	.endm
+.endm
 
 
 /* ------------------------------------------------------------------
@@ -259,5 +259,4 @@ func el3_exit
 	str	xzr, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_NESTED_EA_FLAG}]
 
 	exception_return
-
 endfunc el3_exit

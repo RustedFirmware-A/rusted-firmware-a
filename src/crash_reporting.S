@@ -8,7 +8,6 @@
 	.globl	report_unhandled_exception
 	.globl	report_unhandled_interrupt
 	.globl	report_el3_panic
-	.globl	report_elx_panic
 	.globl	str_in_crash_buf_print
 
 .if {CRASH_REPORTING}
@@ -167,104 +166,6 @@ func report_unhandled_interrupt
 	/* This call will not return */
 	b	do_crash_reporting
 endfunc report_unhandled_interrupt
-
-	/* -----------------------------------------------------
-	 * This function allows to report a crash from the lower
-	 * exception level (if crash reporting is enabled) when
-	 * lower_el_panic() is invoked from C Runtime.
-	 * It prints the CPU state via the crash console making
-	 * use of 'cpu_context' structure where general purpose
-	 * registers are saved and the crash buf.
-	 * This function will not return.
-	 * -----------------------------------------------------
-	 */
-func report_elx_panic
-	msr	spsel, #{MODE_SP_ELX}
-
-	/* Print the crash message */
-	adr	x4, excpt_msg_el
-	bl	asm_print_str
-
-	/* Report x0 - x29 values stored in 'gpregs_ctx' structure */
-	/* Store the ascii list pointer in x6 */
-	adr	x6, gp_regs
-	add	x7, sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_X0}
-
-print_next:
-	ldrb	w4, [x6]
-	/* Test whether we are at end of list */
-	cbz	w4, print_x30
-	mov	x4, x6
-	/* asm_print_str updates x4 to point to next entry in list */
-	bl	asm_print_str
-	/* x0 = number of symbols printed + 1 */
-	sub	x0, x4, x6
-	/* Update x6 with the updated list pointer */
-	mov	x6, x4
-	bl	print_alignment
-	ldr	x4, [x7], #{REGSZ}
-	bl	asm_print_hex
-	bl	asm_print_newline
-	b	print_next
-
-print_x30:
-	adr	x4, x30_msg
-	bl	asm_print_str
-
-	/* Print spaces to align "x30" string */
-	mov	x0, #4
-	bl	print_alignment
-
-	/* Report x30 */
-	ldr	x4, [x7]
-
-	/* ----------------------------------------------------------------
-	 * Different virtual address space size can be defined for each EL.
-	 * Ensure that we use the proper one by reading the corresponding
-	 * TCR_ELx register.
-	 * ----------------------------------------------------------------
-	 */
-	cmp	x8, #{MODE_EL2}
-	b.lt	from_el1	/* EL1 */
-	mrs	x2, sctlr_el2
-	mrs	x1, tcr_el2
-
-	/* ----------------------------------------------------------------
-	 * Check if pointer authentication is enabled at the specified EL.
-	 * If it isn't, we can then skip stripping a PAC code.
-	 * ----------------------------------------------------------------
-	 */
-test_pauth:
-	tst	x2, #({SCTLR_EnIA_BIT} | {SCTLR_EnIB_BIT})
-	b.eq	no_pauth
-
-	/* Demangle address */
-	and	x1, x1, #0x3F	/* T0SZ = TCR_ELx[5:0] */
-	sub	x1, x1, #64
-	neg	x1, x1		/* bottom_pac_bit = 64 - T0SZ */
-	mov	x2, #-1
-	lsl	x2, x2, x1
-	bic	x4, x4, x2
-
-no_pauth:
-	bl	asm_print_hex
-	bl	asm_print_newline
-
-	/* tpidr_el3 contains the address to cpu_data structure */
-	mrs	x0, tpidr_el3
-	/* Calculate the Crash buffer offset in cpu_data */
-	add	x0, x0, #{CPU_DATA_CRASH_BUF_OFFSET}
-	/* Store crash buffer address in tpidr_el3 */
-	msr	tpidr_el3, x0
-
-	/* Print the rest of crash dump */
-	b	print_el3_sys_regs
-
-from_el1:
-	mrs	x2, sctlr_el1
-	mrs	x1, tcr_el1
-	b	test_pauth
-endfunc	report_elx_panic
 
 	/* -----------------------------------------------------
 	 * This function allows to report a crash (if crash

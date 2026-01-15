@@ -10,7 +10,6 @@
 	.globl	asm_print_newline
 	.globl	asm_assert
 	.globl	el3_panic
-	.globl	elx_panic
 
 /* Since the max decimal input number is 65536 */
 .set MAX_DEC_DIVISOR, 10000
@@ -136,14 +135,6 @@ endfunc asm_print_newline
 
 .section .rodata.panic_str, "aS"
 	panic_msg: .asciz "PANIC at PC : 0x"
-
-func elx_panic
-.if {CRASH_REPORTING}
-	b	report_elx_panic
-.endif
-
-	b	panic_common
-endfunc elx_panic
 
 /* ---------------------------------------------------------------------------
  * el3_panic assumes that it is invoked from a C Runtime Environment ie a

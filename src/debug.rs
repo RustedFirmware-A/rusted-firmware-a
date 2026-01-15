@@ -16,13 +16,12 @@ pub const CRASH_REPORTING: bool = DEBUG;
 mod asm {
     use super::*;
     use crate::{
-        context::{CpuData, CrashBuf, GpRegs},
+        context::{CpuData, CrashBuf},
         cpu::cpu_dump_registers,
         debug::{CRASH_REPORTING, DEBUG},
         logger::build_time_log_level,
         platform::{Platform, PlatformImpl},
     };
-    use arm_sysregs::SctlrEl3;
     use core::{arch::global_asm, mem::offset_of};
     use log::LevelFilter;
 
@@ -37,14 +36,9 @@ mod asm {
         LOG_LEVEL = const build_time_log_level() as u32,
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         MODE_SP_ELX = const 1,
-        CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),
-        CTX_GPREG_X0 = const 0,
         CPU_DATA_CRASH_BUF_OFFSET = const offset_of!(CpuData, crash_buf),
         CPU_DATA_CRASH_BUF_SIZE = const size_of::<CrashBuf>(),
         REGSZ = const size_of::<u64>(),
-        MODE_EL2 = const 2,
-        SCTLR_EnIA_BIT = const SctlrEl3::ENIA.bits(),
-        SCTLR_EnIB_BIT = const SctlrEl3::ENIB.bits(),
         plat_crash_console_init = sym PlatformImpl::crash_console_init,
         plat_crash_console_putc = sym PlatformImpl::crash_console_putc,
         plat_crash_console_flush = sym PlatformImpl::crash_console_flush,

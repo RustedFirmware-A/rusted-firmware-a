@@ -44,12 +44,13 @@ use crate::{
     cpu_extensions::CpuExtension,
     gicv3::{self, Gic},
     logger::LogSink,
-    pagetable::IdMap,
+    pagetable::{IdMap, MAIR_IWBRWA_OWBRWA_NTR},
     services::{
         Service, arch::WorkaroundSupport, psci::PsciPlatformInterface, trng::TrngPlatformInterface,
     },
     smccc::FunctionId,
 };
+use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
 use arm_sysregs::MpidrEl1;
 #[cfg(not(test))]
@@ -91,6 +92,9 @@ pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
 /// `crash_console_flush`, `dump_registers` and `panic_handler` must be naked functions which
 /// doesn't use the stack, and only clobber the registers they are documented to clobber.
 ///
+/// `NORMAL_MEMORY_MAIR_ATTRIBUTE` must be a normal memory type with cache enabled, so that atomic
+/// operations work correctly.
+///
 /// (These requirements don't apply to the test platform, as it is only used in unit tests.)
 pub unsafe trait Platform {
     /// The number of CPU cores.
@@ -107,6 +111,13 @@ pub unsafe trait Platform {
 
     /// The number of pages to reserve for the page heap.
     const PAGE_HEAP_PAGE_COUNT: usize = 5;
+
+    /// The MAIR attribute value to use for normal memory.
+    ///
+    /// The default value here is correct in most cases, but may need to be overridden if the
+    /// platform doesn't have a DSU. In any case, it must be a normal memory type with cache
+    /// enabled so that atomics operations work correctly.
+    const NORMAL_MEMORY_MAIR_ATTRIBUTE: MairAttribute = MAIR_IWBRWA_OWBRWA_NTR;
 
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;

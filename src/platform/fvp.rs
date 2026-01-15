@@ -35,7 +35,11 @@ use crate::{
         trng::NotSupportedTrngPlatformImpl,
     },
 };
-use aarch64_paging::{descriptor::VirtualAddress, paging::MemoryRegion};
+use aarch64_paging::{
+    descriptor::VirtualAddress,
+    mair::{MairAttribute, NormalMemory},
+    paging::MemoryRegion,
+};
 use arm_fvp_base_pac::{
     MemoryMap, Peripherals, PhysicalInstance,
     arm_generic_timer::{CntAcr, CntControlBase, CntCtlBase, GenericTimerControl, GenericTimerCtl},
@@ -218,6 +222,13 @@ unsafe impl Platform for Fvp {
         &TraceBufferNonSecure,
         &TraceFiltering,
     ];
+
+    // Set write-through mode to ensure all written values are propagated to system memory.
+    // This guarantees correct Once and Mutex behavior.
+    const NORMAL_MEMORY_MAIR_ATTRIBUTE: MairAttribute = MairAttribute::normal(
+        NormalMemory::WriteThroughTransientReadWriteAllocate,
+        NormalMemory::WriteThroughTransientReadWriteAllocate,
+    );
 
     fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         let peripherals = Peripherals::take().unwrap();

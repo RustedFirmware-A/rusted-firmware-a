@@ -378,6 +378,14 @@ impl IdAa64pfr0El1 {
     const MPAM_MASK: u64 = 0b1111;
     const MPAM_SUPPORTED: u64 = 1;
 
+    const FP_SHIFT: u64 = 16;
+    const FP_MASK: u64 = 0b1111;
+    const FP_NOT_SUPPORTED: u64 = 0xf;
+
+    const ADVSIMD_SHIFT: u64 = 20;
+    const ADVSIMD_MASK: u64 = 0b1111;
+    const ADVSIMD_NOT_SUPPORTED: u64 = 0xf;
+
     /// Indicates whether SVE is implemented.
     pub fn is_feat_sve_present(self) -> bool {
         (self.bits() >> Self::SVE_SHIFT) & Self::SVE_MASK == Self::SVE_SUPPORTED
@@ -386,6 +394,16 @@ impl IdAa64pfr0El1 {
     /// Indicates whether MPAM Extension is implemented.
     pub fn is_feat_mpam_present(self) -> bool {
         (self.bits() >> Self::MPAM_SHIFT) & Self::MPAM_MASK == Self::MPAM_SUPPORTED
+    }
+
+    /// Indicates whether FP extension is implemented.
+    pub fn is_feat_fp_present(self) -> bool {
+        (self.bits() >> Self::FP_SHIFT) & Self::FP_MASK != Self::FP_NOT_SUPPORTED
+    }
+
+    /// Indicates whether Adv. SIMD extension is implemented.
+    pub fn is_feat_advsimd_present(self) -> bool {
+        (self.bits() >> Self::ADVSIMD_SHIFT) & Self::ADVSIMD_MASK != Self::ADVSIMD_NOT_SUPPORTED
     }
 }
 

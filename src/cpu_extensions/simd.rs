@@ -42,8 +42,8 @@ impl Simd {
 
 impl CpuExtension for Simd {
     fn is_present(&self) -> bool {
-        // FP is mandatory.
-        true
+        read_id_aa64pfr0_el1().is_feat_fp_present()
+            && read_id_aa64pfr0_el1().is_feat_advsimd_present()
     }
 
     fn configure_per_world(&self, _world: World, ctx: &mut PerWorldContext) {

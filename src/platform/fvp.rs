@@ -84,8 +84,7 @@ const ARM_SHARED_RAM_SIZE: usize = 0x0000_1000; /* 4 KB */
 const UART_BASE: usize = 0x1c09_0000;
 const UART_SIZE: usize = 0x0001_0000;
 
-const WARM_ENTRYPOINT_FIELD: *mut unsafe extern "C" fn() =
-    ARM_SHARED_RAM_BASE as *mut unsafe extern "C" fn();
+const WARM_ENTRYPOINT_FIELD: *mut unsafe extern "C" fn() -> ! = ARM_SHARED_RAM_BASE as _;
 
 const V2M_IOFPGA_BASE: usize = 0x1c00_0000;
 const V2M_IOFPGA_SIZE: usize = 0x0300_0000;

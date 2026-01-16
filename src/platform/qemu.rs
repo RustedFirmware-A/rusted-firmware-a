@@ -72,7 +72,7 @@ const GICR_BASE: usize = 0x080A_0000;
 const TRUSTED_MAILBOX_BASE: usize = SHARED_RAM_BASE;
 /// Location to which to write the address that secondary cores should jump to after being released
 /// from their holding pens.
-const HOLD_ENTRYPOINT: *mut unsafe extern "C" fn() = TRUSTED_MAILBOX_BASE as _;
+const HOLD_ENTRYPOINT: *mut unsafe extern "C" fn() -> ! = TRUSTED_MAILBOX_BASE as _;
 /// Base address of hold entries for secondary cores. Writing `HOLD_STATE_GO` to the entry for a
 /// secondary core will cause it to be released from its holding pen and jump to `*HOLD_ENTRYPOINT`.
 const HOLD_BASE: usize = TRUSTED_MAILBOX_BASE + 8;

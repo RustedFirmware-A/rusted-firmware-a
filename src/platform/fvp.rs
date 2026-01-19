@@ -53,7 +53,7 @@ use arm_pl011_uart::{Uart, UniqueMmioPointer};
 use arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState};
 #[cfg(feature = "pauth")]
 use arm_sysregs::read_cntpct_el0;
-use arm_sysregs::{IccSre, MpidrEl1, Spsr, read_mpidr_el1, write_cntfrq_el0};
+use arm_sysregs::{IccSre, MpidrEl1, read_mpidr_el1, write_cntfrq_el0};
 #[cfg(feature = "pauth")]
 use core::arch::asm;
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
@@ -302,10 +302,6 @@ unsafe impl Platform for Fvp {
         let core_linear_id = CoresImpl::core_index() as u64;
         EntryPointInfo {
             pc: 0x0600_0000,
-            #[cfg(feature = "sel2")]
-            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
-            #[cfg(not(feature = "sel2"))]
-            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL1H,
             args: [
                 TOS_FW_CONFIG_ADDRESS,
                 HW_CONFIG_ADDRESS,
@@ -322,7 +318,6 @@ unsafe impl Platform for Fvp {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x8800_0000,
-            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
             args: [NT_FW_CONFIG_ADDRESS, HW_CONFIG_ADDRESS_NS, 0, 0, 0, 0, 0, 0],
         }
     }
@@ -332,7 +327,6 @@ unsafe impl Platform for Fvp {
         let core_linear_id = CoresImpl::core_index() as u64;
         EntryPointInfo {
             pc: 0xfdc0_0000,
-            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
             args: [
                 core_linear_id,
                 RMM_BOOT_VERSION,

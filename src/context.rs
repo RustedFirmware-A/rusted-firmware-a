@@ -731,8 +731,9 @@ pub fn initialise_contexts(
 fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     *context = CpuContext::EMPTY;
     context.el3_state.elr_el3 = entry_point.pc;
-    context.el3_state.spsr_el3 = entry_point.spsr;
     context.gpregs.registers[..entry_point.args.len()].copy_from_slice(&entry_point.args);
+
+    context.el3_state.spsr_el3 = Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H;
 
     // Initialise SCR_EL3, setting all fields rather than relying on hw.
     // All fields are architecturally UNKNOWN on reset.
@@ -838,6 +839,11 @@ fn initialise_nonsecure(context: &mut CpuContext, entry_point: &EntryPointInfo) 
 fn initialise_secure(context: &mut CpuContext, entry_point: &EntryPointInfo) {
     initialise_common(context, entry_point);
 
+    #[cfg(not(feature = "sel2"))]
+    {
+        context.el3_state.spsr_el3 = Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL1H;
+    }
+
     // Enable Secure EL1 access to timer registers.
     // Otherwise they would be accessible only at EL3.
     context.el3_state.scr_el3 |= ScrEl3::ST;
@@ -883,7 +889,6 @@ pub fn update_contexts_suspend(psci_entrypoint: EntryPoint, secure_args: &SmcRet
         let entry_point = EntryPointInfo {
             pc: psci_entrypoint.entry_point_address() as usize,
             args: [psci_entrypoint.context_id(), 0, 0, 0, 0, 0, 0, 0],
-            ..PlatformImpl::non_secure_entry_point()
         };
         // This will reset all the saved system registers of the non-secure world. Among other
         // things, this ensures that the SPSR_EL3.DAIF bits are set to 1 as required by section
@@ -903,8 +908,6 @@ pub fn update_contexts_suspend(psci_entrypoint: EntryPoint, secure_args: &SmcRet
 pub struct EntryPointInfo {
     /// The entry point address.
     pub pc: usize,
-    /// The `spsr_el3` value to set before `eret`, to set the appropriate PSTATE.
-    pub spsr: Spsr,
     /// Boot arguments to pass in `x0`-`x7`.
     pub args: [u64; 8],
 }

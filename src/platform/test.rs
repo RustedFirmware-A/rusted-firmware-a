@@ -28,7 +28,7 @@ use arm_gic::{
     gicv3::registers::{Gicd, GicrSgi, Waker},
 };
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
-use arm_sysregs::{MidrEl1, MpidrEl1, Spsr};
+use arm_sysregs::{MidrEl1, MpidrEl1};
 use core::{fmt, ptr::NonNull};
 use percore::ExceptionFree;
 use spin::mutex::{SpinMutex, SpinMutexGuard};
@@ -125,10 +125,6 @@ unsafe impl Platform for TestPlatform {
     fn secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x4000_0000,
-            #[cfg(feature = "sel2")]
-            spsr: Spsr::M_AARCH64_EL2H,
-            #[cfg(not(feature = "sel2"))]
-            spsr: Spsr::M_AARCH64_EL1H,
             args: Default::default(),
         }
     }
@@ -136,7 +132,6 @@ unsafe impl Platform for TestPlatform {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x6000_0000,
-            spsr: Spsr::M_AARCH64_EL2H,
             args: Default::default(),
         }
     }
@@ -145,7 +140,6 @@ unsafe impl Platform for TestPlatform {
     fn realm_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x2000_0000,
-            spsr: Spsr::M_AARCH64_EL2H,
             args: Default::default(),
         }
     }

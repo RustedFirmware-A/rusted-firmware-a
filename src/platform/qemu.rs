@@ -42,7 +42,7 @@ use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 #[cfg(feature = "pauth")]
 use arm_sysregs::read_cntpct_el0;
-use arm_sysregs::{IccSre, MpidrEl1, Spsr};
+use arm_sysregs::{IccSre, MpidrEl1};
 #[cfg(feature = "pauth")]
 use core::arch::asm;
 use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
@@ -216,10 +216,6 @@ unsafe impl Platform for Qemu {
         let core_linear_id = CoresImpl::core_index() as u64;
         EntryPointInfo {
             pc: 0x0e10_0000,
-            #[cfg(feature = "sel2")]
-            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
-            #[cfg(not(feature = "sel2"))]
-            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL1H,
             args: [
                 TOS_FW_CONFIG_ADDRESS,
                 HW_CONFIG_ADDRESS,
@@ -236,7 +232,6 @@ unsafe impl Platform for Qemu {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x6000_0000,
-            spsr: Spsr::D | Spsr::A | Spsr::I | Spsr::F | Spsr::M_AARCH64_EL2H,
             args: Default::default(),
         }
     }

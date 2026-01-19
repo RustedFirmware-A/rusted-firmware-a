@@ -59,7 +59,7 @@ use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
 use arm_sysregs::MpidrEl1;
 #[cfg(not(test))]
-pub use asm::plat_my_core_pos;
+pub use asm::my_core_pos;
 #[cfg(not(test))]
 pub use percore::exception_free;
 #[cfg(test)]
@@ -330,7 +330,7 @@ mod asm {
     ///
     /// Clobbers x0-x5.
     #[unsafe(naked)]
-    pub extern "C" fn plat_my_core_pos() -> usize {
+    pub extern "C" fn my_core_pos<PlatformImpl: Platform>() -> usize {
         naked_asm!(
             "mrs	x0, mpidr_el1",
             "b	{core_position}",

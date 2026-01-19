@@ -22,7 +22,7 @@ use crate::{
         IdMap, MT_DEVICE, MT_MEMORY_EL3, disable_mmu_el3,
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
-    platform::{CpuExtension, plat_my_core_pos},
+    platform::{CpuExtension, my_core_pos},
     services::{
         arch::WorkaroundSupport,
         psci::{
@@ -534,7 +534,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
             // SAFETY: `bl31_warmboot_entrypoint` and `disable_mmu_el3` are trusted assembly.
             unsafe {
                 disable_mmu_el3();
-                bl31_warm_entrypoint();
+                bl31_warm_entrypoint::<Qemu>();
             }
         }
     }
@@ -548,7 +548,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         // and writing HOLD_STATE_GO to the hold address of the appropriate CPU doesn't violate
         // Rust's safety guarantees, as this memory region is only used for the trusted mailbox.
         unsafe {
-            *HOLD_ENTRYPOINT = bl31_warm_entrypoint;
+            *HOLD_ENTRYPOINT = bl31_warm_entrypoint::<Qemu>;
             let cpu_hold_addr = (HOLD_BASE as *mut u64).add(cpu_index);
             *cpu_hold_addr = HOLD_STATE_GO;
         }
@@ -604,7 +604,7 @@ unsafe extern "C" fn plat_secondary_cold_boot_setup() -> ! {
         HOLD_BASE = const HOLD_BASE,
         HOLD_ENTRY_SHIFT = const HOLD_ENTRY_SHIFT,
         HOLD_STATE_WAIT = const HOLD_STATE_WAIT,
-        plat_my_core_pos = sym plat_my_core_pos,
+        plat_my_core_pos = sym my_core_pos::<Qemu>,
     );
 }
 

@@ -189,8 +189,8 @@ mod asm {
             enable_mmu = sym enable_mmu,
             bl31_main = sym bl31_main,
             apply_reset_errata = sym errata_framework::apply_reset_errata,
-            plat_set_my_stack = sym set_my_stack,
-            init_cpu_data_ptr = sym init_cpu_data_ptr,
+            plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
+            init_cpu_data_ptr = sym init_cpu_data_ptr::<PlatformImpl>,
         );
     }
 
@@ -201,7 +201,7 @@ mod asm {
     ///
     /// This must be called with the MMU turned off.
     #[unsafe(naked)]
-    pub unsafe extern "C" fn bl31_warm_entrypoint() -> ! {
+    pub unsafe extern "C" fn bl31_warm_entrypoint<PlatformImpl: Platform>() -> ! {
         naked_asm!(
             include_str!("asm_macros_common.S"),
             include_str!("bl31_warm_entrypoint.S"),
@@ -221,8 +221,8 @@ mod asm {
             enable_mmu = sym enable_mmu,
             psci_warmboot_entrypoint = sym psci_warmboot_entrypoint,
             apply_reset_errata = sym errata_framework::apply_reset_errata,
-            plat_set_my_stack = sym set_my_stack,
-            init_cpu_data_ptr = sym init_cpu_data_ptr,
+            plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
+            init_cpu_data_ptr = sym init_cpu_data_ptr::<PlatformImpl>,
         );
     }
 

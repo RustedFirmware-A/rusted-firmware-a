@@ -1007,7 +1007,7 @@ mod asm {
         debug::{DEBUG, ENABLE_ASSERTIONS},
         exceptions::RunResult,
         naked_asm,
-        platform::plat_my_core_pos,
+        platform::my_core_pos,
         smccc::NOT_SUPPORTED,
     };
     use arm_sysregs::{Dit, PmcrEl0, StackPointer};
@@ -1048,14 +1048,14 @@ mod asm {
     ///
     /// Clobbers x0-x5, x10.
     #[unsafe(naked)]
-    pub extern "C" fn init_cpu_data_ptr() {
+    pub extern "C" fn init_cpu_data_ptr<PlatformImpl: Platform>() {
         naked_asm!(
             "mov x10, x30",
             "bl {plat_my_core_pos}",
             "bl {cpu_data_by_index}",
             "msr tpidr_el3, x0",
             "ret x10",
-            plat_my_core_pos = sym plat_my_core_pos,
+            plat_my_core_pos = sym my_core_pos::<PlatformImpl>,
             cpu_data_by_index = sym cpu_data_by_index,
         );
     }

@@ -18,14 +18,14 @@ const _: () = assert!(
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
-    use crate::{debug::DEBUG, naked_asm, pagetable::GRANULE_SIZE, platform::plat_my_core_pos};
+    use crate::{debug::DEBUG, naked_asm, pagetable::GRANULE_SIZE, platform::my_core_pos};
     use core::arch::global_asm;
 
     /// Returns a pointer to the top of the stack to use for current CPU.
     ///
     /// Returns the stack pointer in x0. Clobbers x1-x5, x10.
     #[unsafe(naked)]
-    extern "C" fn get_my_stack() -> *mut () {
+    extern "C" fn get_my_stack<PlatformImpl: Platform>() -> *mut () {
         naked_asm!(
             include_str!("asm_macros_common.S"),
             "mov	x10, x30",
@@ -37,7 +37,7 @@ mod asm {
             include_str!("asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,
             STACK_SIZE = const STACK_SIZE,
-            plat_my_core_pos = sym plat_my_core_pos,
+            plat_my_core_pos = sym my_core_pos::<PlatformImpl>,
         );
     }
 
@@ -45,13 +45,13 @@ mod asm {
     ///
     /// Clobbers x0-x5, x9, x10.
     #[unsafe(naked)]
-    pub extern "C" fn set_my_stack() {
+    pub extern "C" fn set_my_stack<PlatformImpl: Platform>() {
         naked_asm!(
             "mov	x9, x30",
             "bl 	{get_my_stack}",
             "mov	sp, x0",
             "ret	x9",
-            get_my_stack = sym get_my_stack,
+            get_my_stack = sym get_my_stack::<PlatformImpl>,
         );
     }
 

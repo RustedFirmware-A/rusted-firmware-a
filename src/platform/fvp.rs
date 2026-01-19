@@ -381,7 +381,7 @@ unsafe impl Platform for Fvp {
         // boot.
         // Safety: WARM_ENTRYPOINT_FIELD points to a valid, writable address.
         unsafe {
-            *WARM_ENTRYPOINT_FIELD = bl31_warm_entrypoint;
+            *WARM_ENTRYPOINT_FIELD = bl31_warm_entrypoint::<Fvp>;
         }
         dsb_sy();
     }

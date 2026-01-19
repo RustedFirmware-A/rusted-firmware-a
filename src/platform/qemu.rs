@@ -9,7 +9,7 @@ use crate::{
     context::{CoresImpl, EntryPointInfo},
     cpu::{define_cpu_ops, qemu_max::QemuMax},
     cpu_extensions::simd::Simd,
-    debug::DEBUG,
+    debug::{DEBUG, debug_asm},
     dram::zeroed_mut,
     errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig},
@@ -753,3 +753,5 @@ unsafe extern "C" fn plat_secondary_cold_boot_setup() -> ! {
 }
 
 global_asm!(include_str!("../gic_debug_macros_data.S"));
+
+debug_asm!(Qemu);

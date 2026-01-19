@@ -25,6 +25,7 @@ mod layout;
 mod logger;
 mod pagetable;
 mod platform;
+pub mod reexports;
 #[cfg(platform = "qemu")]
 mod semihosting;
 mod services;

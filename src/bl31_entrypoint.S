@@ -105,7 +105,7 @@
 	 * the MMU is enabled.
 	 * ---------------------------------------------------------------------
 	 */
-	bl	plat_set_my_stack
+	bl	{plat_set_my_stack}
 
 	/* Clear and build early page tables. */
 	adr_l   x0, early_page_table_start

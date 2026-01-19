@@ -66,7 +66,7 @@
 	 * the MMU is enabled.
 	 * ---------------------------------------------------------------------
 	 */
-	bl	plat_set_my_stack
+	bl	{plat_set_my_stack}
 
 	/* Enable page tables using the runtime page tables created by the primary core. */
 	adr_l x0, {PAGE_TABLE_ADDR}

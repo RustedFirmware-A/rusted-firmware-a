@@ -4,4 +4,5 @@
 
 //! Dependencies which are reexported because we depend on them in macros.
 
+pub use arm_sysregs;
 pub use log;

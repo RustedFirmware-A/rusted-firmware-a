@@ -9,7 +9,7 @@ use crate::platform::{EARLY_PAGE_TABLE_SIZE, Platform, PlatformImpl};
 pub use asm::set_my_stack;
 
 /// The number of bytes of stack space to reserve for each core.
-const STACK_SIZE: usize = 0x2000;
+pub const STACK_SIZE: usize = 0x2000;
 
 #[allow(unused)]
 const _: () = assert!(
@@ -20,8 +20,7 @@ const _: () = assert!(
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
-    use crate::{debug::DEBUG, naked_asm, pagetable::GRANULE_SIZE, platform::my_core_pos};
-    use core::arch::global_asm;
+    use crate::{debug::DEBUG, naked_asm, platform::my_core_pos};
 
     /// Returns a pointer to the top of the stack to use for current CPU.
     ///
@@ -56,47 +55,64 @@ mod asm {
             get_my_stack = sym get_my_stack::<PlatformImpl>,
         );
     }
-
-    global_asm!(
-        // Helper assembler macro to count trailing zeros. The output is populated in the `TZ_COUNT`
-        // symbol.
-        ".macro count_tz _value, _tz_count",
-        ".if \\_value",
-        "  count_tz \"(\\_value >> 1)\", \"(\\_tz_count + 1)\"",
-        ".else",
-        "  .equ TZ_COUNT, (\\_tz_count - 1)",
-        ".endif",
-        ".endm",
-
-        "count_tz {CACHE_WRITEBACK_GRANULE}, 0",
-        ".if ({CACHE_WRITEBACK_GRANULE} - (1 << TZ_COUNT))",
-        "  .error \"Incorrect stack alignment specified (Must be a power of 2).\"",
-        ".endif",
-        ".if (({STACK_SIZE} & ((1 << TZ_COUNT) - 1)) <> 0)",
-        "  .error \"Stack size not correctly aligned\"",
-        ".endif",
-        ".section    .tzfw_normal_stacks, \"aw\", %nobits",
-        ".align TZ_COUNT",
-        ".global platform_normal_stacks",
-        "platform_normal_stacks:",
-        // Primary core stack
-        ".space (({STACK_SIZE})), 0",
-        // Reusing secondary core stacks as the early page tables. Early page tables are only used
-        // during the primary core early boot, so the secondary cores are still turned off, and it is
-        // safe to use their stack for other purpuses.
-        "secondary_stacks_start:",
-
-        // Make sure that the early page tables are page aligned.
-        ".balign {GRANULE_SIZE}",
-        ".global early_page_table_start",
-        "early_page_table_start:",
-        ".space (({PLATFORM_CORE_COUNT} - 1) * ({STACK_SIZE})) - (early_page_table_start - secondary_stacks_start), 0",
-        ".global early_page_table_end",
-        "early_page_table_end:",
-
-        STACK_SIZE = const STACK_SIZE,
-        PLATFORM_CORE_COUNT = const PlatformImpl::CORE_COUNT,
-        CACHE_WRITEBACK_GRANULE = const PlatformImpl::CACHE_WRITEBACK_GRANULE,
-        GRANULE_SIZE = const GRANULE_SIZE,
-    );
 }
+
+/// Generates a `global_asm!` block for stack-related assembly code.
+#[cfg(all(target_arch = "aarch64", not(test)))]
+#[macro_export]
+macro_rules! stacks_asm {
+    ($platform:ty) => {
+        type PlatformImplStacks_ = $platform;
+
+        mod stacks_asm {
+            use super::PlatformImplStacks_ as PlatformImpl;
+            use $crate::platform::Platform;
+
+            core::arch::global_asm!(
+                // Helper assembler macro to count trailing zeros. The output is populated in the
+                // `TZ_COUNT` symbol.
+                ".macro count_tz _value, _tz_count",
+                ".if \\_value",
+                "  count_tz \"(\\_value >> 1)\", \"(\\_tz_count + 1)\"",
+                ".else",
+                "  .equ TZ_COUNT, (\\_tz_count - 1)",
+                ".endif",
+                ".endm",
+
+                "count_tz {CACHE_WRITEBACK_GRANULE}, 0",
+                ".if ({CACHE_WRITEBACK_GRANULE} - (1 << TZ_COUNT))",
+                "  .error \"Incorrect stack alignment specified (Must be a power of 2).\"",
+                ".endif",
+                ".if (({STACK_SIZE} & ((1 << TZ_COUNT) - 1)) <> 0)",
+                "  .error \"Stack size not correctly aligned\"",
+                ".endif",
+                ".section    .tzfw_normal_stacks, \"aw\", %nobits",
+                ".align TZ_COUNT",
+                ".global platform_normal_stacks",
+                "platform_normal_stacks:",
+                // Primary core stack
+                ".space (({STACK_SIZE})), 0",
+                // Reusing secondary core stacks as the early page tables. Early page tables are
+                // only used during the primary core early boot, so the secondary cores are still
+                // turned off, and it is safe to use their stack for other purposes.
+                "secondary_stacks_start:",
+
+                // Make sure that the early page tables are page aligned.
+                ".balign {GRANULE_SIZE}",
+                ".global early_page_table_start",
+                "early_page_table_start:",
+                ".space (({PLATFORM_CORE_COUNT} - 1) * ({STACK_SIZE})) - (early_page_table_start - secondary_stacks_start), 0",
+                ".global early_page_table_end",
+                "early_page_table_end:",
+
+                STACK_SIZE = const $crate::stacks::STACK_SIZE,
+                PLATFORM_CORE_COUNT = const PlatformImpl::CORE_COUNT,
+                CACHE_WRITEBACK_GRANULE = const PlatformImpl::CACHE_WRITEBACK_GRANULE,
+                GRANULE_SIZE = const $crate::pagetable::GRANULE_SIZE,
+            );
+        }
+    };
+}
+#[allow(clippy::single_component_path_imports)]
+#[cfg(all(target_arch = "aarch64", not(test)))]
+pub use stacks_asm;

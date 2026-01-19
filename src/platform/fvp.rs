@@ -17,7 +17,7 @@ use crate::{
 };
 use crate::{
     aarch64::{dsb_ish, dsb_sy, wfi},
-    bl31_warm_entrypoint,
+    all_asm, bl31_warm_entrypoint,
     context::{CoresImpl, EntryPointInfo},
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
     cpu_extensions::{
@@ -25,7 +25,7 @@ use crate::{
         pmuv3::MultiThreadedPmu, ras::Ras, simd::Simd, spe::StatisticalProfiling,
         sys_reg_trace::SysRegTrace, tcr2::Tcr2, trbe::TraceBufferNonSecure, trf::TraceFiltering,
     },
-    debug::{DEBUG, debug_asm},
+    debug::DEBUG,
     errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig, InterruptConfig},
     logger::{LOGGER, LockedWriter},
@@ -1192,4 +1192,4 @@ impl
 
 global_asm!(include_str!("../gic_debug_macros_data.S"));
 
-debug_asm!(Fvp);
+all_asm!(Fvp);

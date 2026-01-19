@@ -41,6 +41,8 @@ use crate::{
 };
 #[cfg(not(test))]
 pub use asm::bl31_warm_entrypoint;
+#[cfg(all(target_arch = "aarch64", not(test)))]
+use include_first::include_first;
 use log::{debug, info};
 use percore::Cores;
 
@@ -154,7 +156,7 @@ mod asm {
         context::init_cpu_data_ptr,
         cpu::cpu_reset_handler,
         debug::{DEBUG, ENABLE_ASSERTIONS},
-        pagetable::{PAGE_TABLE_ADDR, early_pagetable::init_early_page_tables, enable_mmu},
+        pagetable::{PAGE_TABLE_ADDR, enable_mmu},
         stacks::set_my_stack,
     };
     use arm_sysregs::{Dit, SctlrEl3};
@@ -170,35 +172,6 @@ mod asm {
         DEBUG = const DEBUG as i32,
         SCTLR_M_BIT = const SctlrEl3::M.bits(),
     );
-
-    /// The cold boot entrypoint, executed only by the primary cpu.
-    #[unsafe(naked)]
-    #[unsafe(no_mangle)]
-    unsafe extern "C" fn bl31_entrypoint() -> ! {
-        naked_asm!(
-            include_str!("asm_macros_common.S"),
-            include_str!("bl31_entrypoint.S"),
-            include_str!("asm_macros_common_purge.S"),
-            DEBUG = const DEBUG as i32,
-            SCTLR_M_BIT = const SctlrEl3::M.bits(),
-            SCTLR_C_BIT = const SctlrEl3::C.bits(),
-            SCTLR_WXN_BIT = const SctlrEl3::WXN.bits(),
-            SCTLR_IESB_BIT = const SctlrEl3::IESB.bits(),
-            SCTLR_A_BIT = const SctlrEl3::A.bits(),
-            SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
-            SCTLR_I_BIT = const SctlrEl3::I.bits(),
-            DAIF_ABT_BIT = const DAIF_ABT_BIT,
-            DIT_BIT = const Dit::DIT.bits(),
-            plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
-            cpu_reset_handler = sym cpu_reset_handler,
-            init_early_page_tables = sym init_early_page_tables,
-            enable_mmu = sym enable_mmu,
-            bl31_main = sym bl31_main,
-            apply_reset_errata = sym errata_framework::apply_reset_errata,
-            plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
-            init_cpu_data_ptr = sym init_cpu_data_ptr::<PlatformImpl>,
-        );
-    }
 
     /// This CPU has been physically powered up. It is either resuming from suspend or has simply
     /// been turned on. In both cases, call the BL31 warmboot entrypoint.
@@ -243,6 +216,70 @@ mod asm {
         }
     }
     pub(crate) use naked_asm;
+}
+
+/// Generates a naked function for the cold boot entrypoint assembly code.
+#[cfg(all(target_arch = "aarch64", not(test)))]
+#[include_first]
+macro_rules! main_asm {
+    ($platform:ty) => {
+        type PlatformImplMain_ = $platform;
+
+        mod main_asm {
+            use super::PlatformImplMain_ as PlatformImpl;
+            use $crate::platform::Platform;
+
+            /// ABT bit for DAIFClr.
+            ///
+            /// Note that in DAIFClr the DAIF bits are in bits 0-3, rather than bits 6-9 as they are
+            /// in the DAIF register itself.
+            const DAIF_ABT_BIT: u32 = 1 << 2;
+
+            /// The cold boot entrypoint, executed only by the primary cpu.
+            #[unsafe(naked)]
+            #[unsafe(no_mangle)]
+            unsafe extern "C" fn bl31_entrypoint() -> ! {
+                $crate::naked_asm!(
+                    include_str!("asm_macros_common.S"),
+                    include_str!("bl31_entrypoint.S"),
+                    include_str!("asm_macros_common_purge.S"),
+                    DEBUG = const $crate::debug::DEBUG as i32,
+                    SCTLR_M_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::M.bits(),
+                    SCTLR_C_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::C.bits(),
+                    SCTLR_WXN_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::WXN.bits(),
+                    SCTLR_IESB_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::IESB.bits(),
+                    SCTLR_A_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::A.bits(),
+                    SCTLR_SA_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::SA.bits(),
+                    SCTLR_I_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::I.bits(),
+                    DAIF_ABT_BIT = const DAIF_ABT_BIT,
+                    DIT_BIT = const $crate::reexports::arm_sysregs::Dit::DIT.bits(),
+                    plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
+                    cpu_reset_handler = sym $crate::cpu::cpu_reset_handler,
+                    init_early_page_tables = sym $crate::pagetable::early_pagetable::init_early_page_tables,
+                    enable_mmu = sym $crate::pagetable::enable_mmu,
+                    bl31_main = sym $crate::bl31_main,
+                    apply_reset_errata = sym $crate::errata_framework::apply_reset_errata,
+                    plat_set_my_stack = sym $crate::stacks::set_my_stack::<PlatformImpl>,
+                    init_cpu_data_ptr = sym $crate::context::init_cpu_data_ptr::<PlatformImpl>,
+                );
+            }
+
+        }
+    };
+}
+#[allow(clippy::single_component_path_imports)]
+#[cfg(all(target_arch = "aarch64", not(test)))]
+pub(crate) use main_asm;
+
+/// Generates `global_asm!` blocks for the given platform.
+#[cfg(all(target_arch = "aarch64", not(test)))]
+#[macro_export]
+macro_rules! all_asm {
+    ($platform:ty) => {
+        $crate::debug::debug_asm!($platform);
+        $crate::stacks::stacks_asm!($platform);
+        $crate::main_asm!($platform);
+    };
 }
 
 #[cfg(all(target_arch = "aarch64", not(test)))]

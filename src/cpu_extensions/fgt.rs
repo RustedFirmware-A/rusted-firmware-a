@@ -63,7 +63,11 @@ mod fgt_el2 {
         };
     }
 
-    static FGT_CTX: PerCoreState<PerWorld<FgtCpuContext>> = PerCore::new(
+    static FGT_CTX: PerCoreState<
+        { PlatformImpl::CORE_COUNT },
+        PlatformImpl,
+        PerWorld<FgtCpuContext>,
+    > = PerCore::new(
         [const {
             ExceptionLock::new(RefCell::new(PerWorld(
                 [FgtCpuContext::INIT_VAL; CPU_DATA_CONTEXT_NUM],

@@ -22,13 +22,14 @@ impl RasCpuContext {
     };
 }
 
-static RAS_CTX: PerCoreState<PerWorld<RasCpuContext>> = PerCore::new(
-    [const {
-        ExceptionLock::new(RefCell::new(PerWorld(
-            [RasCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-        )))
-    }; PlatformImpl::CORE_COUNT],
-);
+static RAS_CTX: PerCoreState<{ PlatformImpl::CORE_COUNT }, PlatformImpl, PerWorld<RasCpuContext>> =
+    PerCore::new(
+        [const {
+            ExceptionLock::new(RefCell::new(PerWorld(
+                [RasCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
+            )))
+        }; PlatformImpl::CORE_COUNT],
+    );
 
 pub fn save_context(world: World) {
     exception_free(|token| {

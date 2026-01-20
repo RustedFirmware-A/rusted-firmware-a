@@ -107,7 +107,7 @@ pub struct Services<
     const PSCI_STATE_COUNT: usize,
     const PSCI_MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
-    PlatformImpl: Platform,
+    PlatformImpl: Platform + 'static,
 > where
     <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
             PSCI_STATE_COUNT,
@@ -124,14 +124,14 @@ pub struct Services<
         NON_CPU_DOMAIN_COUNT,
         PlatformImpl,
         PlatformImpl::PsciPlatformImpl,
-        Spmd,
+        Spmd<CORE_COUNT, PlatformImpl>,
     >,
     platform: PlatformImpl::PlatformServiceImpl,
     /// The FF-A SPMD service.
-    pub spmd: Spmd,
+    pub spmd: Spmd<CORE_COUNT, PlatformImpl>,
     /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
-    pub rmmd: Rmmd<PlatformImpl>,
+    pub rmmd: Rmmd<CORE_COUNT, PlatformImpl>,
     trng: Trng,
     errata_management: ErrataManagement,
 }

@@ -194,8 +194,10 @@ unsafe impl Platform for Qemu {
     const CORE_COUNT: usize = CLUSTER_COUNT * MAX_CPUS_PER_CLUSTER;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
-    type LogSinkImpl =
-        HybridLogger<PerCoreMemoryLogger<'static, LOG_BUFFER_SIZE>, LockedWriter<Uart<'static>>>;
+    type LogSinkImpl = HybridLogger<
+        PerCoreMemoryLogger<'static, { Self::CORE_COUNT }, LOG_BUFFER_SIZE, Self>,
+        LockedWriter<Uart<'static>>,
+    >;
     type Gic = Gic<'static, { Self::CORE_COUNT }, Self>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
     // QEMU does not have a TRNG.

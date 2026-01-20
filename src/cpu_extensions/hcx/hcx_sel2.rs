@@ -22,13 +22,14 @@ impl HcxCpuContext {
     };
 }
 
-static HCX_CTX: PerCoreState<PerWorld<HcxCpuContext>> = PerCore::new(
-    [const {
-        ExceptionLock::new(RefCell::new(PerWorld(
-            [HcxCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-        )))
-    }; PlatformImpl::CORE_COUNT],
-);
+static HCX_CTX: PerCoreState<{ PlatformImpl::CORE_COUNT }, PlatformImpl, PerWorld<HcxCpuContext>> =
+    PerCore::new(
+        [const {
+            ExceptionLock::new(RefCell::new(PerWorld(
+                [HcxCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
+            )))
+        }; PlatformImpl::CORE_COUNT],
+    );
 
 pub fn save_context(world: World) {
     exception_free(|token| {

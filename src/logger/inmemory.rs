@@ -8,7 +8,7 @@ use crate::{
     context::PerCoreState,
     logger::LogSink,
     pagetable::flush_dcache,
-    platform::{Platform, PlatformImpl, exception_free},
+    platform::{Platform, exception_free},
 };
 use core::{
     cell::RefCell,
@@ -134,21 +134,30 @@ impl<const BUFFER_SIZE: usize> Write for MemoryLogger<BUFFER_SIZE> {
 }
 
 /// A per-core in-memory logger.
-pub struct PerCoreMemoryLogger<'a, const BUFFER_SIZE: usize> {
-    logs: PerCoreState<&'a mut MemoryLogger<BUFFER_SIZE>>,
+pub struct PerCoreMemoryLogger<
+    'a,
+    const CORE_COUNT: usize,
+    const BUFFER_SIZE: usize,
+    PlatformImpl: Platform,
+> {
+    logs: PerCoreState<CORE_COUNT, PlatformImpl, &'a mut MemoryLogger<BUFFER_SIZE>>,
 }
 
-impl<'a, const BUFFER_SIZE: usize> PerCoreMemoryLogger<'a, BUFFER_SIZE> {
+impl<'a, const CORE_COUNT: usize, const BUFFER_SIZE: usize, PlatformImpl: Platform>
+    PerCoreMemoryLogger<'a, CORE_COUNT, BUFFER_SIZE, PlatformImpl>
+{
     /// Constructs a new per-core in-memory logger wrapping the given array of in-memory loggers.
     #[allow(unused)]
-    pub fn new(loggers: [&'a mut MemoryLogger<BUFFER_SIZE>; PlatformImpl::CORE_COUNT]) -> Self {
+    pub fn new(loggers: [&'a mut MemoryLogger<BUFFER_SIZE>; CORE_COUNT]) -> Self {
         Self {
             logs: PerCore::new(loggers.map(|logger| ExceptionLock::new(RefCell::new(logger)))),
         }
     }
 }
 
-impl<const BUFFER_SIZE: usize> LogSink for PerCoreMemoryLogger<'_, BUFFER_SIZE> {
+impl<const CORE_COUNT: usize, const BUFFER_SIZE: usize, PlatformImpl: Platform> LogSink
+    for PerCoreMemoryLogger<'_, CORE_COUNT, BUFFER_SIZE, PlatformImpl>
+{
     fn write_fmt(&self, args: Arguments) {
         // The `MemoryLogger` should never return an error.
         let _ = exception_free(|token| self.logs.get().borrow_mut(token).write_fmt(args));
@@ -159,7 +168,9 @@ impl<const BUFFER_SIZE: usize> LogSink for PerCoreMemoryLogger<'_, BUFFER_SIZE> 
     }
 }
 
-impl<const BUFFER_SIZE: usize> LogSink for &PerCoreMemoryLogger<'_, BUFFER_SIZE> {
+impl<const CORE_COUNT: usize, const BUFFER_SIZE: usize, PlatformImpl: Platform> LogSink
+    for &PerCoreMemoryLogger<'_, CORE_COUNT, BUFFER_SIZE, PlatformImpl>
+{
     fn write_fmt(&self, args: Arguments) {
         (*self).write_fmt(args)
     }

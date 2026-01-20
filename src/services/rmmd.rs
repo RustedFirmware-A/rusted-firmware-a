@@ -9,7 +9,6 @@ pub mod svc;
 
 use core::{
     cell::RefCell,
-    marker::PhantomData,
     slice::from_raw_parts_mut,
     sync::atomic::{AtomicU8, Ordering},
 };
@@ -23,7 +22,7 @@ use crate::{
     context::{CoresImpl, PerCoreState, World},
     gpt::{GPIAccessType, GranuleProtection},
     pagetable::flush_dcache_to_popa_range,
-    platform::{Platform, PlatformImpl, exception_free},
+    platform::{Platform, exception_free},
     services::{
         Service, owns,
         rmmd::svc::{
@@ -186,16 +185,15 @@ enum RmiFuncId {
 ///
 /// This is described at
 /// <https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html>
-pub struct Rmmd<PlatformImpl: Platform> {
-    core_local: PerCoreState<RmmdLocal>,
+pub struct Rmmd<const CORE_COUNT: usize, PlatformImpl: Platform> {
+    core_local: PerCoreState<CORE_COUNT, PlatformImpl, RmmdLocal>,
     attestation_token_read_index: SpinMutex<usize>,
     // Boot status of RMM across all cores.
     // If RMM fails to boot on any core then it is disabled for all cores.
     rmm_boot_state: AtomicU8,
-    _platform: PhantomData<PlatformImpl>,
 }
 
-impl<PlatformImpl: Platform> Service for Rmmd<PlatformImpl> {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Service for Rmmd<CORE_COUNT, PlatformImpl> {
     owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x01CF}
 
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
@@ -224,9 +222,7 @@ impl<PlatformImpl: Platform> Service for Rmmd<PlatformImpl> {
     }
 }
 
-const CORE_COUNT: usize = PlatformImpl::CORE_COUNT;
-
-impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Rmmd<CORE_COUNT, PlatformImpl> {
     pub(super) fn new() -> Self {
         let core_local = PerCore::new(
             [const { ExceptionLock::new(RefCell::new(RmmdLocal::new())) }; CORE_COUNT],
@@ -255,7 +251,6 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
             core_local,
             attestation_token_read_index: SpinMutex::new(0),
             rmm_boot_state: AtomicU8::new(RmmBootState::Unknown as u8),
-            _platform: PhantomData,
         }
     }
 
@@ -629,19 +624,13 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
-    use crate::{
-        context::World,
-        platform::test::TestPlatform,
-        services::{
-            Rmmd, Service,
-            rmmd::{RMM_BOOT_COMPLETE, RmiFuncId, RmmBootState},
-        },
-        smccc::{SetFrom, SmcReturn},
-    };
+    use super::*;
+    use crate::platform::test::TestPlatform;
 
-    fn setup() -> Rmmd<TestPlatform> {
+    fn setup() -> Rmmd<{ TestPlatform::CORE_COUNT }, TestPlatform> {
         Rmmd::new()
     }
 

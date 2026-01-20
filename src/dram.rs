@@ -143,7 +143,7 @@ mod tests {
     fn lazy_percore() {
         lazy_indirect!(
             TEST_PERCORE,
-            PerCoreState<u64>,
+            PerCoreState<{TestPlatform::CORE_COUNT}, TestPlatform, u64>,
             PerCore::new(
                 [const { ExceptionLock::new(RefCell::new(42)) }; TestPlatform::CORE_COUNT]
             )

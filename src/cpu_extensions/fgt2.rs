@@ -44,7 +44,11 @@ impl Fgt2CpuContext {
 }
 
 #[allow(dead_code)]
-static FGT2_CTX: PerCoreState<PerWorld<Fgt2CpuContext>> = PerCore::new(
+static FGT2_CTX: PerCoreState<
+    { PlatformImpl::CORE_COUNT },
+    PlatformImpl,
+    PerWorld<Fgt2CpuContext>,
+> = PerCore::new(
     [const {
         ExceptionLock::new(RefCell::new(PerWorld(
             [Fgt2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],

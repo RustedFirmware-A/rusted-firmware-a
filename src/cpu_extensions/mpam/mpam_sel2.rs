@@ -50,7 +50,11 @@ impl MpamCpuContext {
     };
 }
 
-static MPAM_CTX: PerCoreState<PerWorld<MpamCpuContext>> = PerCore::new(
+static MPAM_CTX: PerCoreState<
+    { PlatformImpl::CORE_COUNT },
+    PlatformImpl,
+    PerWorld<MpamCpuContext>,
+> = PerCore::new(
     [const {
         ExceptionLock::new(RefCell::new(PerWorld(
             [MpamCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],

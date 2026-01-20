@@ -12,7 +12,11 @@ use arm_sysregs::{IdAa64smfr0El1, Svcr, read_id_aa64smfr0_el1, read_svcr, write_
 use core::{arch::asm, cell::RefCell};
 use percore::{ExceptionLock, PerCore};
 
-pub static SIMD_CTX: PerCoreState<PerWorld<SimdCpuContext>> = PerCore::new(
+pub static SIMD_CTX: PerCoreState<
+    { PlatformImpl::CORE_COUNT },
+    PlatformImpl,
+    PerWorld<SimdCpuContext>,
+> = PerCore::new(
     [const {
         ExceptionLock::new(RefCell::new(PerWorld(
             [SimdCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
@@ -20,9 +24,11 @@ pub static SIMD_CTX: PerCoreState<PerWorld<SimdCpuContext>> = PerCore::new(
     }; PlatformImpl::CORE_COUNT],
 );
 
-pub static NS_SVE_CTX: PerCoreState<SveCpuContext> = PerCore::new(
-    [const { ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY)) }; PlatformImpl::CORE_COUNT],
-);
+pub static NS_SVE_CTX: PerCoreState<{ PlatformImpl::CORE_COUNT }, PlatformImpl, SveCpuContext> =
+    PerCore::new(
+        [const { ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY)) };
+            PlatformImpl::CORE_COUNT],
+    );
 
 #[repr(C)]
 pub struct SimdCpuContext {

@@ -22,7 +22,11 @@ impl Tcr2CpuContext {
     };
 }
 
-static TCR2_CTX: PerCoreState<PerWorld<Tcr2CpuContext>> = PerCore::new(
+static TCR2_CTX: PerCoreState<
+    { PlatformImpl::CORE_COUNT },
+    PlatformImpl,
+    PerWorld<Tcr2CpuContext>,
+> = PerCore::new(
     [const {
         ExceptionLock::new(RefCell::new(PerWorld(
             [Tcr2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],

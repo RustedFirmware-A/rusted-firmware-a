@@ -7,7 +7,7 @@
 use crate::{
     context::{PerCoreState, World, switch_world},
     exceptions::{RunResult, enter_world},
-    platform::{Platform, PlatformImpl, exception_free},
+    platform::{Platform, exception_free},
     services::{Service, owns, psci::PsciSpmInterface},
     smccc::{FunctionId, OwningEntityNumber, SmcReturn, SmcccCallType},
 };
@@ -52,15 +52,15 @@ enum SpmcState {
 }
 
 /// Secure Partition Manager Dispatcher, defined by Arm Firmware Framework for A-Profile (FF-A)
-pub struct Spmd {
+pub struct Spmd<const CORE_COUNT: usize, PlatformImpl: Platform> {
     spmc_id: u16,
     spmc_version: Version,
     spmc_primary_ep: usize,
     spmc_secondary_ep: AtomicUsize,
-    core_local: PerCoreState<SpmdLocal>,
+    core_local: PerCoreState<CORE_COUNT, PlatformImpl, SpmdLocal>,
 }
 
-impl Service for Spmd {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Service for Spmd<CORE_COUNT, PlatformImpl> {
     owns!(
         OwningEntityNumber::STANDARD_SECURE,
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
@@ -152,7 +152,7 @@ fn get_smc_regs(regs: &mut SmcReturn) -> &mut [u64] {
     }
 }
 
-impl Spmd {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformImpl> {
     const OWN_ID: u16 = 0xffff;
     const VERSION: Version = Version(1, 3);
     const NS_EP_ID: u16 = 0; // TODO: this should come from arm_ffa
@@ -169,11 +169,10 @@ impl Spmd {
         let spmc_version = Version(1, 3);
         let spmc_primary_ep = 0x0600_0000;
 
-        assert!(spmc_version.is_compatible_to(Spmd::VERSION));
+        assert!(spmc_version.is_compatible_to(Self::VERSION));
 
         let core_local = PerCore::new(
-            [const { ExceptionLock::new(RefCell::new(SpmdLocal::new())) };
-                PlatformImpl::CORE_COUNT],
+            [const { ExceptionLock::new(RefCell::new(SpmdLocal::new())) }; CORE_COUNT],
         );
 
         let spmd = Self {
@@ -570,7 +569,9 @@ impl Spmd {
     }
 }
 
-impl PsciSpmInterface for Spmd {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> PsciSpmInterface
+    for Spmd<CORE_COUNT, PlatformImpl>
+{
     fn forward_psci_request(&self, function: Function) -> ReturnCode {
         let version = self.spmc_version;
         let mut regs = SmcReturn::EMPTY;

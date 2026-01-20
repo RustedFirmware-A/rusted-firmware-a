@@ -12,7 +12,11 @@ use arm_sysregs::{TfsrEl2, read_tfsr_el2, write_tfsr_el2};
 use core::cell::RefCell;
 use percore::{ExceptionLock, PerCore};
 
-static MTE2_CTX: PerCoreState<PerWorld<Mte2CpuContext>> = PerCore::new(
+static MTE2_CTX: PerCoreState<
+    { PlatformImpl::CORE_COUNT },
+    PlatformImpl,
+    PerWorld<Mte2CpuContext>,
+> = PerCore::new(
     [const {
         ExceptionLock::new(RefCell::new(PerWorld(
             [Mte2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],

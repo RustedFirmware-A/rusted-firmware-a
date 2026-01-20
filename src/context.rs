@@ -69,8 +69,8 @@ use spin::Once;
 pub const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
 
 /// Per-core mutable state.
-pub type PerCoreState<T> =
-    PerCore<[ExceptionLock<RefCell<T>>; PlatformImpl::CORE_COUNT], CoresImpl<PlatformImpl>>;
+pub type PerCoreState<const CORE_COUNT: usize, PlatformImpl, T> =
+    PerCore<[ExceptionLock<RefCell<T>>; CORE_COUNT], CoresImpl<PlatformImpl>>;
 
 /// A world which a CPU may be in.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -741,7 +741,7 @@ impl CpuState {
     const EMPTY: Self = Self([CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM]);
 }
 
-static CPU_STATE: PerCoreState<CpuState> = PerCore::new(
+static CPU_STATE: PerCoreState<{ PlatformImpl::CORE_COUNT }, PlatformImpl, CpuState> = PerCore::new(
     [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; PlatformImpl::CORE_COUNT],
 );
 

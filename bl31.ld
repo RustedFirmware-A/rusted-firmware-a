@@ -25,7 +25,7 @@ SECTIONS
 	 */
 	.text : ALIGN(PAGE_SIZE) {
 		__TEXT_START__ = .;
-		*(.text.asm.bl31_entrypoint)
+		*(.text.bl31_entrypoint)
 		*(.init.*)
 		*(.text.*)
 		*(.vectors)

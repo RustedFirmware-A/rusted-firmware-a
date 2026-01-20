@@ -1262,11 +1262,6 @@ pub fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<usize> {
     }
 }
 
-#[cfg(not(test))]
-unsafe extern "C" {
-    pub unsafe fn bl31_warm_entrypoint() -> !;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

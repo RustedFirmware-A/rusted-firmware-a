@@ -5,15 +5,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-	/* ---------------------------------------------------------------------
-	 * Stash the previous bootloader arguments x0 - x3 for later use.
-	 * ---------------------------------------------------------------------
-	 */
-	mov     x20, x0
-	mov     x21, x1
-	mov     x22, x2
-	mov     x23, x3
-
 	adr     x0, runtime_exceptions
 	msr     vbar_el3, x0
 	isb
@@ -55,8 +46,7 @@
 	 * vectors have been setup.
 	 * ---------------------------------------------------------------------
 	 */
-	msr     daifclr, #{DAIF_ABT_BIT}
-
+	msr	daifclr, #{DAIF_ABT_BIT}
 
 	/*
 	 * Always enable Data Independent Timing (DIT) in EL3.
@@ -65,40 +55,11 @@
 	mov     x0, #{DIT_BIT}
 	msr     s3_3_c4_c2_5, x0 /* DIT */
 
-	/*
-	 * Invalidate cache for the entire BL31 image. Since there can be memory
-	 * overlap with previous boot loader stages, without this we can end up
-	 * re-using dirty cache lines from previous stages.
-	 */
-	adr_l    x0, __TEXT_START__
-	adr_l    x1, __BL31_END__
-	sub     x1, x1, x0
-	bl      inv_dcache_range
-
-	adr_l    x0, __BSS_START__
-
-	adr_l    x1, __BSS_END__
-	sub     x1, x1, x0
-	bl      zeromem
-
-	/* Invalidate cache for and zero BSS2. */
-	adr_l    x0, __BSS2_START__
-	adr_l    x1, __BSS2_END__
-	sub     x1, x1, x0
-	bl      inv_dcache_range
-
-	adr_l    x0, __BSS2_START__
-	adr_l    x1, __BSS2_END__
-	sub     x1, x1, x0
-	bl      zeromem
-
-	bl      {plat_cold_boot_handler}
-
 	/* ---------------------------------------------------------------------
 	 * Use SP_EL0 for the C runtime stack.
 	 * ---------------------------------------------------------------------
 	 */
-	msr     spsel, #0
+	msr	spsel, #0
 
 	/* ---------------------------------------------------------------------
 	 * Allocate a stack whose memory will be marked as Normal-IS-WBWA when
@@ -107,23 +68,13 @@
 	 */
 	bl	plat_set_my_stack
 
-	/* Clear and build early page tables. */
-	adr_l   x0, early_page_table_start
-	adr_l     x1, early_page_table_end
-	sub     x1, x1, x0
-	bl      zeromem
-
-	bl {init_early_page_tables}
-
-	/* Enable MMU using early page tables. This maps BL31 as RWX, thus WXN is cleared. */
-	adr_l x0, early_page_table_start
-	mov_imm x1, ({SCTLR_M_BIT} | {SCTLR_C_BIT})
-	mov x2, {SCTLR_WXN_BIT}
+	/* Enable page tables using the runtime page tables created by the primary core. */
+	adr_l x0, {PAGE_TABLE_ADDR}
+	ldr x0, [x0]
+	mov_imm x1, ({SCTLR_M_BIT} | {SCTLR_C_BIT} | {SCTLR_WXN_BIT})
+	mov x2, xzr
 	bl {enable_mmu}
 
-	mov     x0, x20
-	mov     x1, x21
-	mov     x2, x22
-	mov     x3, x23
+	// TODO: gpt_enable for RME to set up sysregs?
 
-	b       {bl31_main}
+	b  {psci_warmboot_entrypoint}

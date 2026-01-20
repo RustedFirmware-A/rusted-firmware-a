@@ -8,6 +8,7 @@ use self::config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_C
 use super::{DummyService, Platform};
 use crate::{
     aarch64::{dsb_ish, dsb_sy, wfi},
+    bl31_warm_entrypoint,
     context::{CoresImpl, EntryPointInfo},
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
     cpu_extensions::{
@@ -29,7 +30,7 @@ use crate::{
         arch::WorkaroundSupport,
         psci::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
-            PsciPlatformInterface, PsciPlatformOptionalFeatures, bl31_warm_entrypoint,
+            PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
         trng::NotSupportedTrngPlatformImpl,
     },

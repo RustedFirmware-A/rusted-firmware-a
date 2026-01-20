@@ -5,6 +5,7 @@
 use super::{DummyService, Platform};
 use crate::{
     aarch64::{dsb_sy, sev, wfi},
+    bl31_warm_entrypoint,
     context::{CoresImpl, EntryPointInfo},
     cpu::{define_cpu_ops, qemu_max::QemuMax},
     cpu_extensions::simd::Simd,
@@ -27,8 +28,7 @@ use crate::{
         arch::WorkaroundSupport,
         psci::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
-            PsciPlatformInterface, PsciPlatformOptionalFeatures, bl31_warm_entrypoint,
-            try_get_cpu_index_by_mpidr,
+            PsciPlatformInterface, PsciPlatformOptionalFeatures, try_get_cpu_index_by_mpidr,
         },
         trng::NotSupportedTrngPlatformImpl,
     },

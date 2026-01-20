@@ -36,6 +36,8 @@ use crate::{
     platform::{Platform, PlatformImpl},
     services::{Services, psci::WakeUpReason},
 };
+#[cfg(not(test))]
+pub use asm::bl31_warm_entrypoint;
 use log::{debug, info};
 use percore::Cores;
 
@@ -147,28 +149,68 @@ mod asm {
     global_asm!(
         include_str!("asm_macros_common.S"),
         include_str!("zeromem.S"),
-        include_str!("bl31_entrypoint.S"),
         include_str!("asm_macros_common_purge.S"),
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         DEBUG = const DEBUG as i32,
         SCTLR_M_BIT = const SctlrEl3::M.bits(),
-        SCTLR_C_BIT = const SctlrEl3::C.bits(),
-        SCTLR_WXN_BIT = const SctlrEl3::WXN.bits(),
-        SCTLR_IESB_BIT = const SctlrEl3::IESB.bits(),
-        SCTLR_A_BIT = const SctlrEl3::A.bits(),
-        SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
-        SCTLR_I_BIT = const SctlrEl3::I.bits(),
-        DAIF_ABT_BIT = const DAIF_ABT_BIT,
-        DIT_BIT = const Dit::DIT.bits(),
-        plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
-        PAGE_TABLE_ADDR = sym PAGE_TABLE_ADDR,
-        cpu_reset_handler = sym cpu_reset_handler,
-        init_early_page_tables = sym init_early_page_tables,
-        enable_mmu = sym enable_mmu,
-        bl31_main = sym bl31_main,
-        psci_warmboot_entrypoint = sym psci_warmboot_entrypoint,
-        apply_reset_errata = sym errata_framework::apply_reset_errata,
     );
+
+    /// The cold boot entrypoint, executed only by the primary cpu.
+    #[unsafe(naked)]
+    #[unsafe(no_mangle)]
+    unsafe extern "C" fn bl31_entrypoint() -> ! {
+        naked_asm!(
+            include_str!("asm_macros_common.S"),
+            include_str!("bl31_entrypoint.S"),
+            include_str!("asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            SCTLR_M_BIT = const SctlrEl3::M.bits(),
+            SCTLR_C_BIT = const SctlrEl3::C.bits(),
+            SCTLR_WXN_BIT = const SctlrEl3::WXN.bits(),
+            SCTLR_IESB_BIT = const SctlrEl3::IESB.bits(),
+            SCTLR_A_BIT = const SctlrEl3::A.bits(),
+            SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
+            SCTLR_I_BIT = const SctlrEl3::I.bits(),
+            DAIF_ABT_BIT = const DAIF_ABT_BIT,
+            DIT_BIT = const Dit::DIT.bits(),
+            plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
+            cpu_reset_handler = sym cpu_reset_handler,
+            init_early_page_tables = sym init_early_page_tables,
+            enable_mmu = sym enable_mmu,
+            bl31_main = sym bl31_main,
+            apply_reset_errata = sym errata_framework::apply_reset_errata,
+        );
+    }
+
+    /// This CPU has been physically powered up. It is either resuming from suspend or has simply
+    /// been turned on. In both cases, call the BL31 warmboot entrypoint.
+    ///
+    /// # Safety
+    ///
+    /// This must be called with the MMU turned off.
+    #[unsafe(naked)]
+    pub unsafe extern "C" fn bl31_warm_entrypoint() -> ! {
+        naked_asm!(
+            include_str!("asm_macros_common.S"),
+            include_str!("bl31_warm_entrypoint.S"),
+            include_str!("asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            SCTLR_M_BIT = const SctlrEl3::M.bits(),
+            SCTLR_C_BIT = const SctlrEl3::C.bits(),
+            SCTLR_WXN_BIT = const SctlrEl3::WXN.bits(),
+            SCTLR_IESB_BIT = const SctlrEl3::IESB.bits(),
+            SCTLR_A_BIT = const SctlrEl3::A.bits(),
+            SCTLR_SA_BIT = const SctlrEl3::SA.bits(),
+            SCTLR_I_BIT = const SctlrEl3::I.bits(),
+            DAIF_ABT_BIT = const DAIF_ABT_BIT,
+            DIT_BIT = const Dit::DIT.bits(),
+            PAGE_TABLE_ADDR = sym PAGE_TABLE_ADDR,
+            cpu_reset_handler = sym cpu_reset_handler,
+            enable_mmu = sym enable_mmu,
+            psci_warmboot_entrypoint = sym psci_warmboot_entrypoint,
+            apply_reset_errata = sym errata_framework::apply_reset_errata,
+        );
+    }
 
     /// This macro wraps a naked_asm block with `bti`, or any other universal
     /// prologue we'd still like added.

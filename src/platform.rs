@@ -48,7 +48,7 @@ use crate::services::rmmd::{
 use crate::{
     context::EntryPointInfo,
     cpu_extensions::CpuExtension,
-    gicv3::{self, Gic},
+    gicv3,
     logger::LogSink,
     pagetable::{IdMap, MAIR_IWBRWA_OWBRWA_NTR},
     services::{Service, arch::WorkaroundSupport, trng::TrngPlatformInterface},
@@ -132,6 +132,11 @@ pub unsafe trait Platform {
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;
 
+    /// The type returned by `create_gic`.
+    ///
+    /// Should be `Gic<'static, { Self::CORE_COUNT }, Self>`.
+    type Gic: 'static;
+
     /// Platform dependent PsciPlatformInterface implementation type.
     type PsciPlatformImpl;
 
@@ -168,7 +173,7 @@ pub unsafe trait Platform {
     /// # Safety
     ///
     /// This must only be called once, to avoid creating aliases of the GIC driver.
-    unsafe fn create_gic() -> Gic<'static>;
+    unsafe fn create_gic() -> Self::Gic;
 
     /// Returns a 128-bit value that can be used to program the pointer authentication keys.
     ///

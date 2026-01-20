@@ -196,6 +196,7 @@ unsafe impl Platform for Qemu {
 
     type LogSinkImpl =
         HybridLogger<PerCoreMemoryLogger<'static, LOG_BUFFER_SIZE>, LockedWriter<Uart<'static>>>;
+    type Gic = Gic<'static, { Self::CORE_COUNT }, Self>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
     // QEMU does not have a TRNG.
     type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
@@ -241,7 +242,7 @@ unsafe impl Platform for Qemu {
         }
     }
 
-    unsafe fn create_gic() -> Gic<'static> {
+    unsafe fn create_gic() -> Self::Gic {
         // Safety: `GICD_BASE_ADDRESS` is a unique pointer to the Qemu's GICD register block.
         let gicd = unsafe { UniqueMmioPointer::new(NonNull::new(GICD_BASE_ADDRESS).unwrap()) };
         let gicr_base = NonNull::new(GICR_BASE_ADDRESS).unwrap();

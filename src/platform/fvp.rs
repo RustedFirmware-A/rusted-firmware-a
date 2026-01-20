@@ -337,6 +337,7 @@ unsafe impl Platform for Fvp {
     const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
 
     type LogSinkImpl = LockedWriter<Uart<'static>>;
+    type Gic = Gic<'static, { Self::CORE_COUNT }, Self>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
     // TODO: Implement TRNG for FVP.
     type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
@@ -431,7 +432,7 @@ unsafe impl Platform for Fvp {
         }
     }
 
-    unsafe fn create_gic() -> Gic<'static> {
+    unsafe fn create_gic() -> Self::Gic {
         let peripherals = GIC_PERIPHERALS.lock().take().unwrap();
 
         let gicd = map_peripheral(peripherals.gicd);

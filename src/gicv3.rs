@@ -20,14 +20,14 @@ use arm_gic::{
     },
 };
 use arm_sysregs::{MpidrEl1, ScrEl3, read_mpidr_el1};
-use core::{panic, ptr::NonNull};
+use core::{marker::PhantomData, panic, ptr::NonNull};
 use log::debug;
 use percore::Cores;
 use spin::{Once, mutex::SpinMutex};
 
 const GIC_PRI_MASK: u8 = 0xff;
 
-static GIC: Once<Gic> = Once::new();
+static GIC: Once<Gic<{ PlatformImpl::CORE_COUNT }, PlatformImpl>> = Once::new();
 
 /// The configuration of a single interrupt.
 #[derive(Clone, Copy, Debug)]
@@ -94,17 +94,20 @@ pub enum InterruptType {
 }
 
 /// Registry for storing GIC redistributor instances.
-struct GicRedistributorRegistry<'a> {
-    redistributors: [SpinMutex<GicRedistributor<'a>>; PlatformImpl::CORE_COUNT],
+struct GicRedistributorRegistry<'a, const CORE_COUNT: usize, PlatformImpl: Platform> {
+    redistributors: [SpinMutex<GicRedistributor<'a>>; CORE_COUNT],
+    _platform: PhantomData<PlatformImpl>,
 }
 
-impl<'a> GicRedistributorRegistry<'a> {
+impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform>
+    GicRedistributorRegistry<'a, CORE_COUNT, PlatformImpl>
+{
     /// # Safety
     /// The caller must ensure that `base` points to a continiously mapped GIC redistributor memory
     /// area that spans until the last redistributor block where GICR_TYPER.Last is set. There must
     /// be no other references to this address.
     pub unsafe fn new(base: NonNull<GicrSgi>, gic_v4: bool) -> Self {
-        let mut redistributors = [const { None }; PlatformImpl::CORE_COUNT];
+        let mut redistributors = [const { None }; CORE_COUNT];
 
         // Safety: The function propagates the safety requirements to the caller.
         for redist in unsafe { GicRedistributorIterator::new(base, gic_v4) } {
@@ -118,6 +121,7 @@ impl<'a> GicRedistributorRegistry<'a> {
 
         Self {
             redistributors: redistributors.map(|r| r.unwrap()),
+            _platform: PhantomData,
         }
     }
 
@@ -135,12 +139,19 @@ impl<'a> GicRedistributorRegistry<'a> {
 /// The `Gic` structure contains the driver instances of the GIC distributor and redistributors. Its
 /// implementation offers platform independent functions for initializing, enabling, disabling,
 /// saving and restoring the various components of the GIC peripheral.
-pub struct Gic<'a> {
+pub struct Gic<'a, const CORE_COUNT: usize, PlatformImpl: Platform> {
     distributor: SpinMutex<GicDistributor<'a>>,
-    redistributors: GicRedistributorRegistry<'a>,
+    redistributors: GicRedistributorRegistry<'a, CORE_COUNT, PlatformImpl>,
 }
 
-impl<'a> Gic<'a> {
+impl Gic<'static, { PlatformImpl::CORE_COUNT }, PlatformImpl> {
+    /// Gets the GIC instance.
+    pub fn get() -> &'static Self {
+        GIC.get().unwrap()
+    }
+}
+
+impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, PlatformImpl> {
     /// # Safety
     /// The caller must ensure that `gicr_base` points to a continiously mapped GIC redistributor
     /// memory area that spans until the last redistributor block where GICR_TYPER.Last is set.
@@ -156,11 +167,6 @@ impl<'a> Gic<'a> {
             // redistributor block.
             redistributors: unsafe { GicRedistributorRegistry::new(gicr_base, gic_v4) },
         }
-    }
-
-    /// Get GIC instance.
-    pub fn get() -> &'static Self {
-        GIC.get().unwrap()
     }
 
     /// Sets the default configuration for all interrupts of the distributor. Configures the shared
@@ -379,7 +385,7 @@ pub fn get_pending_interrupt_type() -> InterruptType {
 }
 
 /// Wraps a platform-specific group 0 interrupt handler.
-pub fn handle_group0_interrupt() {
+pub fn handle_group0_interrupt<PlatformImpl: Platform>() {
     let int_id = GicCpuInterface::get_and_acknowledge_interrupt(InterruptGroup::Group0).unwrap();
 
     debug!("Group 0 interrupt {int_id:?} acknowledged");

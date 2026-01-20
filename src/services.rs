@@ -232,7 +232,7 @@ where
             // synchronously, by invoking FFA_EL3_INTR_HANDLE.
             (InterruptType::El3, World::Secure) => todo!(),
             (InterruptType::El3, World::NonSecure) => {
-                gicv3::handle_group0_interrupt();
+                gicv3::handle_group0_interrupt::<PlatformImpl>();
                 regs.mark_empty();
                 world
             }

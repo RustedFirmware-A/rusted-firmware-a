@@ -114,6 +114,7 @@ unsafe impl Platform for TestPlatform {
     }
 
     type LogSinkImpl = StdOutSink;
+    type Gic = Gic<'static, { Self::CORE_COUNT }, Self>;
     type PsciPlatformImpl = TestPsciPlatformImpl;
     type TrngPlatformImpl = TestTrngPlatformImpl;
 
@@ -138,7 +139,7 @@ unsafe impl Platform for TestPlatform {
         }
     }
 
-    unsafe fn create_gic() -> Gic<'static> {
+    unsafe fn create_gic() -> Self::Gic {
         SpinMutexGuard::leak(FAKE_GIC.try_lock().unwrap()).build()
     }
 
@@ -262,7 +263,7 @@ struct FakeGic {
 }
 
 impl FakeGic {
-    fn build(&mut self) -> Gic<'_> {
+    fn build(&mut self) -> Gic<'_, { TestPlatform::CORE_COUNT }, TestPlatform> {
         for (core_index, mpidr) in TestPlatform::MPIDR_VALUES.iter().enumerate() {
             let typer: &mut u64 = transmute_mut!(&mut self.gicr_regs[core_index].gicr.typer.0);
             *typer = u64::from(mpidr.aff3()) << 56

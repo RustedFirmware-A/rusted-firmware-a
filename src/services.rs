@@ -92,24 +92,37 @@ pub trait Service {
 const NON_CPU_DOMAIN_COUNT: usize =
     <PlatformImpl as Platform>::PsciPlatformImpl::POWER_DOMAIN_COUNT - PlatformImpl::CORE_COUNT;
 static SERVICES: Lazy<
-    Services<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>,
+    Services<
+        { PlatformImpl::CORE_COUNT },
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        NON_CPU_DOMAIN_COUNT,
+        PlatformImpl,
+    >,
 > = Lazy::new(Services::new);
 
 /// Contains an instance of all of the currently implemented services.
 pub struct Services<
+    const CORE_COUNT: usize,
     const PSCI_STATE_COUNT: usize,
     const PSCI_MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     PlatformImpl: Platform,
 > where
-    <PlatformImpl as Platform>::PsciPlatformImpl:
-        PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT>,
+    <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            CORE_COUNT,
+            NON_CPU_DOMAIN_COUNT,
+        >,
 {
     arch: Arch<PlatformImpl>,
     pub psci: Psci<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
+        CORE_COUNT,
         NON_CPU_DOMAIN_COUNT,
+        PlatformImpl,
         PlatformImpl::PsciPlatformImpl,
         Spmd,
     >,
@@ -123,7 +136,15 @@ pub struct Services<
     errata_management: ErrataManagement,
 }
 
-impl Services<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl> {
+impl
+    Services<
+        { PlatformImpl::CORE_COUNT },
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        NON_CPU_DOMAIN_COUNT,
+        PlatformImpl,
+    >
+{
     /// Constructs a new instance of the services.
     fn new() -> Self {
         Self {
@@ -147,14 +168,15 @@ impl Services<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, Plat
 }
 
 impl<
+    const CORE_COUNT: usize,
     const STATE_COUNT: usize,
     const MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     PlatformImpl: Platform,
-> Services<STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>
+> Services<CORE_COUNT, STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>
 where
     <PlatformImpl as Platform>::PsciPlatformImpl:
-        PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT>,
+        PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, CORE_COUNT, NON_CPU_DOMAIN_COUNT>,
 {
     fn handle_smc(&self, regs: &mut SmcReturn, world: World) -> World {
         let function = FunctionId(regs.values()[0] as u32);

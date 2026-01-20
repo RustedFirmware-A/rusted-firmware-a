@@ -462,8 +462,13 @@ pub struct QemuPsciPlatformImpl {
     per_cpu_powerdown_kinds: [SpinMutex<PowerDownKind>; Qemu::CORE_COUNT],
 }
 
-impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
-    for QemuPsciPlatformImpl
+impl
+    PsciPlatformInterface<
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        { Qemu::CORE_COUNT },
+        PSCI_NON_CPU_DOMAIN_COUNT,
+    > for QemuPsciPlatformImpl
 {
     const POWER_DOMAIN_COUNT: usize = PSCI_NON_CPU_DOMAIN_COUNT + Qemu::CORE_COUNT;
 
@@ -483,6 +488,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Qemu::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             QemuPowerState,
@@ -565,6 +571,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Qemu::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             QemuPowerState,
@@ -578,6 +585,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Qemu::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             QemuPowerState,
@@ -592,6 +600,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Qemu::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             QemuPowerState,
@@ -604,6 +613,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Qemu::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             QemuPowerState,
@@ -620,6 +630,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Qemu::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             QemuPowerState,
@@ -660,6 +671,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Qemu::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             QemuPowerState,

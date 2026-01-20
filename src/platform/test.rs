@@ -376,8 +376,13 @@ pub const PSCI_MAX_POWER_LEVEL: usize = 3;
 const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 const PSCI_NON_CPU_DOMAIN_COUNT: usize = 7;
 
-impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
-    for TestPsciPlatformImpl
+impl
+    PsciPlatformInterface<
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        { TestPlatform::CORE_COUNT },
+        PSCI_NON_CPU_DOMAIN_COUNT,
+    > for TestPsciPlatformImpl
 {
     const POWER_DOMAIN_COUNT: usize = TestPlatform::CORE_COUNT + PSCI_NON_CPU_DOMAIN_COUNT;
 
@@ -397,6 +402,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { TestPlatform::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -455,6 +461,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
             PsciCompositePowerState::<
                 PSCI_STATE_COUNT,
                 PSCI_MAX_POWER_LEVEL,
+                { TestPlatform::CORE_COUNT },
                 PSCI_NON_CPU_DOMAIN_COUNT,
                 Self::NodeIndex,
                 TestPowerState,
@@ -471,6 +478,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { TestPlatform::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -483,6 +491,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { TestPlatform::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -495,6 +504,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { TestPlatform::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -508,6 +518,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { TestPlatform::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -521,6 +532,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { TestPlatform::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -544,6 +556,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { TestPlatform::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -596,6 +609,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
     ) -> PsciCompositePowerState<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
+        { TestPlatform::CORE_COUNT },
         PSCI_NON_CPU_DOMAIN_COUNT,
         Self::NodeIndex,
         TestPowerState,

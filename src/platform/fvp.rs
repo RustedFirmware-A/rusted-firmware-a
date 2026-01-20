@@ -795,6 +795,7 @@ impl FvpPsciPlatformImpl<'_> {
         previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Fvp::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             NodeIndex,
             FvpPowerState,
@@ -879,8 +880,13 @@ const PSCI_NON_CPU_DOMAIN_COUNT: usize = 1 + FVP_CLUSTER_COUNT;
 
 type NodeIndex = u8;
 
-impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_DOMAIN_COUNT>
-    for FvpPsciPlatformImpl<'_>
+impl
+    PsciPlatformInterface<
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        { Fvp::CORE_COUNT },
+        PSCI_NON_CPU_DOMAIN_COUNT,
+    > for FvpPsciPlatformImpl<'_>
 {
     const POWER_DOMAIN_COUNT: usize = PSCI_NON_CPU_DOMAIN_COUNT + Fvp::CORE_COUNT;
 
@@ -920,6 +926,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Fvp::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             Self::PlatformPowerState,
@@ -981,6 +988,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Fvp::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             Self::PlatformPowerState,
@@ -1020,6 +1028,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Fvp::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             Self::PlatformPowerState,
@@ -1039,6 +1048,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Fvp::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             Self::PlatformPowerState,
@@ -1062,6 +1072,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Fvp::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             Self::PlatformPowerState,
@@ -1092,6 +1103,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Fvp::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             Self::PlatformPowerState,
@@ -1147,6 +1159,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
     ) -> PsciCompositePowerState<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
+        { Fvp::CORE_COUNT },
         PSCI_NON_CPU_DOMAIN_COUNT,
         Self::NodeIndex,
         Self::PlatformPowerState,
@@ -1166,6 +1179,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, PSCI_NON_CPU_
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            { Fvp::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             Self::PlatformPowerState,

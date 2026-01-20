@@ -377,9 +377,8 @@ fn is_trng_fid(smc_fid: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::smccc::SetFrom;
-
     use super::*;
+    use crate::{platform::test::TestTrngPlatformImpl, smccc::SetFrom};
 
     #[test]
     fn pack_entropy_less_than_word() {
@@ -521,7 +520,7 @@ mod tests {
                 | ((regs.values()[2] as u128) << 64)
                 | ((regs.values()[3] as u128) << 96),
         );
-        let expected_uuid = TrngPlatformImpl::TRNG_UUID;
+        let expected_uuid = TestTrngPlatformImpl::TRNG_UUID;
         assert_eq!(actual_uuid, expected_uuid);
     }
 

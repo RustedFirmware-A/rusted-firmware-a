@@ -499,10 +499,11 @@ mod asm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::test::TestPlatform;
 
     #[test]
     fn create_page_table() {
-        assert_ne!(PlatformImpl::PAGE_HEAP_PAGE_COUNT, 0);
+        assert_ne!(TestPlatform::PAGE_HEAP_PAGE_COUNT, 0);
 
         let page_heap =
             SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));

@@ -385,12 +385,13 @@ pub fn handle_group0_interrupt() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::test::TestPlatform;
 
     #[test]
     fn create_save_restore_off() {
         GIC.call_once(|| {
             // SAFETY: The `GIC.call_once` ensures this isn't called multiple times.
-            unsafe { PlatformImpl::create_gic() }
+            unsafe { TestPlatform::create_gic() }
         });
 
         let gic = Gic::get();

@@ -101,7 +101,7 @@ mod tests {
     use super::*;
     use crate::{
         context::PerCoreState,
-        platform::{Platform, PlatformImpl, exception_free},
+        platform::{Platform, exception_free, test::TestPlatform},
     };
     use core::cell::RefCell;
     use percore::{ExceptionLock, PerCore};
@@ -137,7 +137,7 @@ mod tests {
             TEST_PERCORE,
             PerCoreState<u64>,
             PerCore::new(
-                [const { ExceptionLock::new(RefCell::new(42)) }; PlatformImpl::CORE_COUNT]
+                [const { ExceptionLock::new(RefCell::new(42)) }; TestPlatform::CORE_COUNT]
             )
         );
 

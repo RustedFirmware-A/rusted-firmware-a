@@ -993,6 +993,8 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
         }
     }
 
+    fn power_domain_power_down(&self, _target_state: &PsciCompositePowerState) {}
+
     fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode> {
         let raw_mpidr: u32 = mpidr.try_into().map_err(ErrorCode::from)?;
 

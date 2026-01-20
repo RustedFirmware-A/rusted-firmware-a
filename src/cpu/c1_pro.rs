@@ -59,6 +59,12 @@ unsafe impl Cpu for C1Pro {
     fn power_down_level1() {
         Self::power_down_level0();
     }
+
+    fn handle_power_down_abandon() {
+        let cpupwrctlr = read_cpupwrctlr();
+        write_cpupwrctlr(cpupwrctlr & !CORE_PWRDN_ENABLE_BIT_MASK);
+        isb();
+    }
 }
 
 #[allow(unused)]

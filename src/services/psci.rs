@@ -11,7 +11,7 @@ use crate::services::ffa::spmd::TestSpm;
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},
-    cpu::cpu_power_down,
+    cpu::{cpu_handle_power_down_abandon, cpu_power_down},
     platform::{Platform, PlatformImpl, PlatformPowerState, PsciPlatformImpl},
     services::{Service, owns},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SetFrom, SmcReturn},
@@ -31,6 +31,7 @@ use spin::mutex::SpinMutex;
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0000;
 const FUNCTION_NUMBER_MAX: u16 = 0x001F;
+const CPU_OFF_WFI_RETRY_COUNT: usize = 32;
 
 bitflags! {
     /// Optional platform feature flags
@@ -120,13 +121,12 @@ pub trait PsciPlatformInterface {
     /// Perform platform-specific actions to turn this cpu off e.g. program the power controller.
     fn power_domain_off(&self, target_state: &PsciCompositePowerState);
 
-    /// Platform-specific function for entering WFI on power down, optional.
-    fn power_domain_power_down_wfi(&self, _target_state: &PsciCompositePowerState) -> ! {
-        dsb_sy();
-        loop {
-            wfi();
-        }
-    }
+    /// Platform-specific function for preparing for a power down triggered by a WFI.
+    ///
+    /// _target_state is the coordinated power state that is about to be entered.
+    /// Note: The caller of this function invokes wfi - this function should not unless
+    /// the wfi is guaranteed to be terminal (ie the platform does not support powerdown abandon).
+    fn power_domain_power_down(&self, _target_state: &PsciCompositePowerState);
 
     /// Turn on power domain, which is identified by its MPIDR.
     fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode>;
@@ -209,6 +209,13 @@ pub trait PsciSpmInterface {
     /// Before calling this function, the PSCI request itself should be forwarded to SWd using
     /// forward_psci_request()
     fn notify_cpu_off(&self);
+
+    /// Notify the SPM about a powerdown abandon.
+    ///
+    /// This function should be called to unwind state on the SPM side after a powerdown abandon.
+    /// This unwinding should be the same operation that is performed after resuming from a
+    /// powerdown cpu suspend.
+    fn notify_cpu_suspend_powerdown_abandoned(&self);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -609,13 +616,13 @@ impl Psci {
     ///   rules.
     /// * Request this power state from the platform layer (`power_domain_suspend`). This step does
     ///   not trigger an immediate shutdown of the power domain.
-    /// * Power down the domain by calling `power_domain_power_down_wfi` if this is a power down
-    ///   request. Normally this function calls `WFI` in a loop which actually turns off the domain
-    ///   but platforms may diverge from this. `cpu_suspend_start` does not return after this point.
-    ///   When the CPU wakes up, the boot code must call `handle_cpu_boot` that completes the power
-    ///   down suspend operation.
-    /// * If the requested power state is a standby state, call a `WFI` and restore running state
-    ///   after waking up by an interrupt.
+    /// * Prepare for core domain power down by calling `power_domain_power_down` if this is a power
+    ///   down request. Normally this function prepares for core power down through architecture
+    ///   specific means, but may also call `WFI` directly.
+    /// * Executes a `WFI`. If this is a true domain power down, `cpu_suspend_start` does not return
+    ///   after this. If this is a retention state or if the power down was abandoned (this is a
+    ///   feature that some cores support), then execution picks up after the `WFI`.
+    /// * Following wake from the `WFI`, running state is restored.
     fn cpu_suspend_start(
         &self,
         cpu_index: usize,
@@ -691,30 +698,45 @@ impl Psci {
             return Ok(());
         }
 
-        // Continue suspend operation
         if is_power_down_state {
-            self.platform.power_domain_power_down_wfi(&composite_state);
-            // This branch does not return
-        } else {
-            // Go to suspend by waiting for interrupts.
+            self.platform.power_domain_power_down(&composite_state);
+            // This WFI will trigger core powerdown attempt. If successful, the core will lose all
+            // state and must restart from its reset vector which is typically bl31_warm_entrypoint.
+            //   - If this core supports powerdown abandon, a pending interrupt can wake the core
+            //     before the reaching the point of no return for the powerdown sequence. In this
+            //     case, the core abandons the powerdown and resumes at the next instruction like a
+            //     normal WFI.
+            //   - If the core does not support powerdown abandon, the powerdown attempt will
+            //     always succeed.
+            dsb_sy();
             wfi();
-
-            // Restore running state after wake-up.
-            let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
-            self.power_domain_tree
-                .with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
-                    composite_state.set_local_states_from_nodes(cpu, &ancestors);
-
-                    self.platform.power_domain_suspend_finish(&composite_state);
-                    cpu.set_local_state(PlatformPowerState::RUN);
-
-                    for node in ancestors.iter_mut() {
-                        node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
-                        node.set_local_state(PlatformPowerState::RUN);
-                    }
-                });
-            Ok(())
+            cpu_handle_power_down_abandon();
+        } else {
+            wfi();
         }
+
+        // Restore running state after wake-up.
+        let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
+        self.power_domain_tree
+            .with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
+                composite_state.set_local_states_from_nodes(cpu, &ancestors);
+
+                self.platform.power_domain_suspend_finish(&composite_state);
+                if is_power_down_state {
+                    Self::get_spm().notify_cpu_suspend_powerdown_abandoned();
+                    // Since this is a powerdown abandon, the entry point will never be consumed by
+                    // a warmboot entry. To avoid an assert the next time this core attempts to
+                    // suspend, clear it here.
+                    cpu.pop_entry_point();
+                }
+                cpu.set_local_state(PlatformPowerState::RUN);
+
+                for node in ancestors.iter_mut() {
+                    node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
+                    node.set_local_state(PlatformPowerState::RUN);
+                }
+            });
+        Ok(())
     }
 
     /// Handles `CPU_OFF` PSCI call.
@@ -743,8 +765,21 @@ impl Psci {
         // Unlock CPU before actually turning it off
         drop(cpu);
 
-        self.platform.power_domain_power_down_wfi(&composite_state);
-        // Does not return
+        self.platform.power_domain_power_down(&composite_state);
+        dsb_sy();
+
+        /*
+         * Execute a wfi which, in most cases, will allow the power controller
+         * to physically power down this cpu. Under some circumstances that may
+         * be denied. Hopefully this is transient, retrying a few times should
+         * power down.
+         */
+        for _ in 0..CPU_OFF_WFI_RETRY_COUNT {
+            wfi();
+        }
+
+        /* Wake up wasn't transient. System is probably in a bad state. */
+        panic!("Could not power off CPU");
     }
 
     /// Handles `CPU_ON` PSCI call by turning on the CPU identified by the given `target_cpu` MPIDR.

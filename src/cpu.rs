@@ -45,6 +45,13 @@ pub unsafe trait Cpu {
 
     /// Prepares for a power down that affects power level 0 and 1.
     fn power_down_level1();
+
+    /// Unwinds architectural state set by the above power down functions in the event of a power
+    /// down abandon. Default implementation assumes that the CPU does not support powerdown abandon
+    /// and will panic since it should be impossible to wake from a power down wfi.
+    fn handle_power_down_abandon() {
+        panic!("Unexpected wake up from WFI!");
+    }
 }
 
 /// Structure for storing MIDR value and `CpuOps` function pointers.
@@ -56,6 +63,7 @@ pub struct CpuOps {
     dump_registers: extern "C" fn(),
     power_down_level0: fn(),
     power_down_level1: fn(),
+    handle_power_down_abandon: fn(),
 }
 
 impl CpuOps {
@@ -77,6 +85,7 @@ impl CpuOps {
             dump_registers: T::dump_registers,
             power_down_level0: T::power_down_level0,
             power_down_level1: T::power_down_level1,
+            handle_power_down_abandon: T::handle_power_down_abandon,
         }
     }
 }
@@ -229,6 +238,11 @@ pub fn cpu_power_down(level: usize) {
     } else {
         (ops.power_down_level1)()
     };
+}
+
+pub fn cpu_handle_power_down_abandon() {
+    let ops = find_cpu_ops();
+    (ops.handle_power_down_abandon)()
 }
 
 #[cfg(test)]

@@ -183,7 +183,10 @@ impl Spmd {
     fn switch_spmc_local_state(&self, expected_state: SpmcState, new_state: SpmcState) {
         exception_free(|token| {
             let spmc_state = &mut self.core_local.get().borrow_mut(token).spmc_state;
-            assert_eq!(*spmc_state, expected_state);
+            assert_eq!(
+                *spmc_state, expected_state,
+                "Unexpected starting state while attempting transition {expected_state:?} -> {new_state:?}, actual: {spmc_state:?} -> {new_state:?}"
+            );
             *spmc_state = new_state;
         });
     }
@@ -565,6 +568,34 @@ impl PsciSpmInterface for Spmd {
     fn notify_cpu_off(&self) {
         self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::Off);
     }
+
+    fn notify_cpu_suspend_powerdown_abandoned(&self) {
+        let mut regs = self.handle_wake_from_cpu_suspend();
+
+        switch_world(World::NonSecure, World::Secure);
+        let _ret: i32 = loop {
+            match enter_world(&mut regs, World::Secure) {
+                RunResult::Smc => match Interface::from_regs(self.spmc_version, regs.values()) {
+                    Ok(Interface::MsgSendDirectResp {
+                        src_id,
+                        dst_id: Self::OWN_ID,
+                        args: DirectMsgArgs::PowerPsciResp { psci_status },
+                    }) if src_id == self.spmc_id => break psci_status,
+                    _ => panic!("Unexpected SMC return from PowerWarmBootReq"),
+                },
+                // Interrupts shouldn't be routed to EL3 from SWd
+                RunResult::Interrupt => panic!(
+                    "Unexpected SMC return from PowerWarmBootReq- Interrupts shouldn't be routed to EL3 from SWd"
+                ),
+                RunResult::SysregTrap { .. } => todo!("Handle SysregTrap"),
+            }
+        };
+
+        // The PSCI request was sent and a response was received in enter_world. As such, revert
+        // the state back to Runtime.
+        self.switch_spmc_local_state(SpmcState::PsciEventHandling, SpmcState::Runtime);
+        switch_world(World::Secure, World::NonSecure);
+    }
 }
 
 #[cfg(test)]
@@ -577,4 +608,6 @@ impl PsciSpmInterface for TestSpm {
     }
 
     fn notify_cpu_off(&self) {}
+
+    fn notify_cpu_suspend_powerdown_abandoned(&self) {}
 }

@@ -518,7 +518,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() = PowerDownKind::Off;
     }
 
-    fn power_domain_power_down_wfi(&self, _target_state: &PsciCompositePowerState) -> ! {
+    fn power_domain_power_down(&self, _target_state: &PsciCompositePowerState) {
         if *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() == PowerDownKind::Off {
             // SAFETY: `disable_mmu_el3` is safe to call here as the CPU is about to be switched off.
             // `plat_secondary_cold_boot_setup` is trusted assembly.

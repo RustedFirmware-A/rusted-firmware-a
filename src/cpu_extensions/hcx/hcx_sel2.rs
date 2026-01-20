@@ -4,45 +4,38 @@
 
 //! FEAT_HCX context management for when Secure EL2 is enabled.
 
+use super::Hcx;
 use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, World},
-    platform::{Platform, PlatformImpl, exception_free},
+    context::World,
+    platform::{Platform, exception_free},
 };
 use arm_sysregs::{HcrxEl2, read_hcrx_el2, write_hcrx_el2};
-use core::cell::RefCell;
-use percore::{ExceptionLock, PerCore};
 
-struct HcxCpuContext {
+pub struct HcxCpuContext {
     hcrx_el2: HcrxEl2,
 }
 
 impl HcxCpuContext {
-    const EMPTY: Self = Self {
+    pub const EMPTY: Self = Self {
         hcrx_el2: HcrxEl2::empty(),
     };
 }
 
-static HCX_CTX: PerCoreState<{ PlatformImpl::CORE_COUNT }, PlatformImpl, PerWorld<HcxCpuContext>> =
-    PerCore::new(
-        [const {
-            ExceptionLock::new(RefCell::new(PerWorld(
-                [HcxCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-            )))
-        }; PlatformImpl::CORE_COUNT],
-    );
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Hcx<CORE_COUNT, PlatformImpl> {
+    /// Saves the system register values to this context struct.
+    pub fn save_el2_context(&self, world: World) {
+        exception_free(|token| {
+            self.context.get().borrow_mut(token)[world].hcrx_el2 = read_hcrx_el2();
+        })
+    }
 
-pub fn save_context(world: World) {
-    exception_free(|token| {
-        HCX_CTX.get().borrow_mut(token)[world].hcrx_el2 = read_hcrx_el2();
-    })
-}
-
-#[allow(dead_code)]
-pub fn restore_context(world: World) {
-    exception_free(|token| {
-        // SAFETY: We're restoring the value previously saved, so it must be valid.
-        unsafe {
-            write_hcrx_el2(HCX_CTX.get().borrow_mut(token)[world].hcrx_el2);
-        }
-    })
+    /// Restores the system register values from this context struct.
+    pub fn restore_el2_context(&self, world: World) {
+        exception_free(|token| {
+            // SAFETY: We're restoring the value previously saved, so it must be valid.
+            unsafe {
+                write_hcrx_el2(self.context.get().borrow_mut(token)[world].hcrx_el2);
+            }
+        })
+    }
 }

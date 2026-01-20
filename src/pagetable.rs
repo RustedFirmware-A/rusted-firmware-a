@@ -16,8 +16,7 @@ use crate::{
 };
 #[cfg(feature = "rme")]
 use crate::{
-    cpu_extensions::{CpuExtension, mte2::MemoryTagging},
-    gpt::GPIAccessType,
+    cpu_extensions::mte2::mte2_is_present, gpt::GPIAccessType,
     services::rmmd::RMM_SHARED_BUFFER_SIZE,
 };
 use aarch64_paging::{
@@ -268,7 +267,7 @@ pub fn flush_dcache_to_popa_range(
         let bits = PhysicalAddressSpace::try_from(gpi)?;
         let addr_masked = addr as u64 | u64::from(bits);
 
-        if MemoryTagging.is_present() {
+        if mte2_is_present() {
             // SAFETY:
             // Flushing the dcache does not violate Rust safety guarantees.
             // `addr` is not out of range, and contains the correct values for the NS and NSE bits.

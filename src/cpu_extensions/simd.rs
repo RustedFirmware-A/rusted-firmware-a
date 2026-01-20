@@ -7,15 +7,25 @@
 #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
 mod simd_sel1;
 
+#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+use self::simd_sel1::{SimdCpuContext, SveCpuContext};
 use super::CpuExtension;
+#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+use crate::context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld};
 use crate::{
     aarch64::isb,
     context::{PerWorldContext, World},
+    platform::Platform,
 };
 use arm_sysregs::{
     CptrEl3, IdAa64smfr0El1, ScrEl3, SmcrEl3, ZcrEl3, read_cptr_el3, read_id_aa64pfr0_el1,
     read_id_aa64pfr1_el1, read_id_aa64smfr0_el1, write_cptr_el3, write_smcr_el3, write_zcr_el3,
 };
+#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+use core::cell::RefCell;
+use core::marker::PhantomData;
+#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+use percore::{ExceptionLock, PerCore};
 
 const FP_NOT_SUPPORTED: u8 = 0xf;
 const ADVSIMD_NOT_SUPPORTED: u8 = 0xf;
@@ -35,19 +45,29 @@ fn needs_sve_sme(world: World) -> bool {
 /// FEAT_SVE support.
 ///
 /// Enables NS world SVE register access and configures the maximum SVE vector length.
-struct Sve {
+struct Sve<const CORE_COUNT: usize, PlatformImpl: Platform> {
     /// Limits the Effective Non-streaming SVE vector length to `vector_length` bits.
     vector_length: u64,
+    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+    ns_context: PerCoreState<CORE_COUNT, PlatformImpl, SveCpuContext>,
+    _platform: PhantomData<PlatformImpl>,
 }
 
-impl Sve {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Sve<CORE_COUNT, PlatformImpl> {
     #[allow(unused)]
     const fn new(vector_length: u64) -> Self {
         assert!(
             vector_length.is_multiple_of(128) && vector_length >= 128 && vector_length <= 2048,
             "Invalid SVE vector length"
         );
-        Self { vector_length }
+        Self {
+            vector_length,
+            #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+            ns_context: PerCore::new(
+                [const { ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY)) }; CORE_COUNT],
+            ),
+            _platform: PhantomData,
+        }
     }
 
     fn is_present() -> bool {
@@ -153,12 +173,14 @@ impl Sme {
 }
 
 /// Enables FP, SIMD, SVE and SME CPU extensions.
-pub struct Simd {
-    sve: Option<Sve>,
+pub struct Simd<const CORE_COUNT: usize, PlatformImpl: Platform> {
+    sve: Option<Sve<CORE_COUNT, PlatformImpl>>,
     sme: Option<Sme>,
+    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+    context: PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<SimdCpuContext>>,
 }
 
-impl Simd {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Simd<CORE_COUNT, PlatformImpl> {
     /// Creates a new `Simd` extension with SVE and SME disabled.
     #[allow(unused)]
     #[allow(clippy::self_named_constructors)]
@@ -166,6 +188,14 @@ impl Simd {
         Self {
             sve: None,
             sme: None,
+            #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+            context: PerCore::new(
+                [const {
+                    ExceptionLock::new(RefCell::new(PerWorld(
+                        [SimdCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
+                    )))
+                }; CORE_COUNT],
+            ),
         }
     }
 
@@ -184,11 +214,21 @@ impl Simd {
             } else {
                 None
             },
+            #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+            context: PerCore::new(
+                [const {
+                    ExceptionLock::new(RefCell::new(PerWorld(
+                        [SimdCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
+                    )))
+                }; CORE_COUNT],
+            ),
         }
     }
 }
 
-impl CpuExtension for Simd {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
+    for Simd<CORE_COUNT, PlatformImpl>
+{
     fn is_present(&self) -> bool {
         // We assume that SVE or SME presence implies SIMD presence,
         // so its sufficient to only check for the 'base' extension.
@@ -199,7 +239,7 @@ impl CpuExtension for Simd {
 
     fn init(&self) {
         if let Some(sve) = &self.sve
-            && Sve::is_present()
+            && Sve::<CORE_COUNT, PlatformImpl>::is_present()
         {
             sve.init();
         }
@@ -214,8 +254,8 @@ impl CpuExtension for Simd {
         // Allow FP/SIMD register accesses in every World.
         ctx.cptr_el3 -= CptrEl3::TFP;
 
-        if self.sve.is_some() && Sve::is_present() {
-            Sve::configure_per_world(world, ctx);
+        if self.sve.is_some() && Sve::<CORE_COUNT, PlatformImpl>::is_present() {
+            Sve::<CORE_COUNT, PlatformImpl>::configure_per_world(world, ctx);
         }
         if self.sme.is_some() && Sme::is_present() {
             Sme::configure_per_world(world, ctx);
@@ -226,7 +266,6 @@ impl CpuExtension for Simd {
     fn save_context(&self, world: World) {
         use crate::platform::exception_free;
 
-        let has_sve = self.sve.is_some() && Sve::is_present();
         let has_sme = self.sme.is_some() && Sme::is_present();
 
         // Temporarily allow access to save context
@@ -237,13 +276,16 @@ impl CpuExtension for Simd {
         }
         isb();
 
-        if world == World::NonSecure && has_sve {
+        if world == World::NonSecure
+            && let Some(sve) = &self.sve
+            && Sve::<CORE_COUNT, PlatformImpl>::is_present()
+        {
             exception_free(|token| {
-                simd_sel1::NS_SVE_CTX.get().borrow_mut(token).save(has_sme);
+                sve.ns_context.get().borrow_mut(token).save(has_sme);
             })
         } else {
             exception_free(|token| {
-                simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].save();
+                self.context.get().borrow_mut(token)[world].save();
             })
         }
 
@@ -259,7 +301,6 @@ impl CpuExtension for Simd {
     fn restore_context(&self, world: World) {
         use crate::platform::exception_free;
 
-        let has_sve = self.sve.is_some() && Sve::is_present();
         let has_sme = self.sme.is_some() && Sme::is_present();
 
         // Temporarily allow access to restore context
@@ -270,16 +311,16 @@ impl CpuExtension for Simd {
         }
         isb();
 
-        if world == World::NonSecure && has_sve {
+        if world == World::NonSecure
+            && let Some(sve) = &self.sve
+            && Sve::<CORE_COUNT, PlatformImpl>::is_present()
+        {
             exception_free(|token| {
-                simd_sel1::NS_SVE_CTX
-                    .get()
-                    .borrow_mut(token)
-                    .restore(has_sme);
+                sve.ns_context.get().borrow_mut(token).restore(has_sme);
             })
         } else {
             exception_free(|token| {
-                simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].restore();
+                self.context.get().borrow_mut(token)[world].restore();
             })
         }
 

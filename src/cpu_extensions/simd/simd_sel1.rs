@@ -3,32 +3,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 //! SIMD and SVE context management for when Secure EL2 is not enabled.
-use crate::{
-    aarch64::isb,
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld},
-    platform::{Platform, PlatformImpl},
-};
+
+use crate::aarch64::isb;
 use arm_sysregs::{IdAa64smfr0El1, Svcr, read_id_aa64smfr0_el1, read_svcr, write_svcr};
-use core::{arch::asm, cell::RefCell};
-use percore::{ExceptionLock, PerCore};
-
-pub static SIMD_CTX: PerCoreState<
-    { PlatformImpl::CORE_COUNT },
-    PlatformImpl,
-    PerWorld<SimdCpuContext>,
-> = PerCore::new(
-    [const {
-        ExceptionLock::new(RefCell::new(PerWorld(
-            [SimdCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-        )))
-    }; PlatformImpl::CORE_COUNT],
-);
-
-pub static NS_SVE_CTX: PerCoreState<{ PlatformImpl::CORE_COUNT }, PlatformImpl, SveCpuContext> =
-    PerCore::new(
-        [const { ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY)) };
-            PlatformImpl::CORE_COUNT],
-    );
+use core::arch::asm;
 
 #[repr(C)]
 pub struct SimdCpuContext {
@@ -38,7 +16,7 @@ pub struct SimdCpuContext {
 }
 
 impl SimdCpuContext {
-    const EMPTY: Self = Self {
+    pub const EMPTY: Self = Self {
         vectors: [0; 32],
         fpsr: 0,
         fpcr: 0,
@@ -143,7 +121,7 @@ pub struct SveCpuContext {
 }
 
 impl SveCpuContext {
-    const EMPTY: Self = Self {
+    pub const EMPTY: Self = Self {
         vectors: [[0; 16]; 32],
         predicates: [0; 256 / 8],
         ffr: [0; 256 / 8],

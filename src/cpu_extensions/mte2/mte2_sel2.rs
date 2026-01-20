@@ -4,46 +4,37 @@
 
 //! FEAT_MTE2 context management for when Secure EL2 is enabled.
 
+use super::MemoryTagging;
 use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, World},
-    platform::{Platform, PlatformImpl, exception_free},
+    context::World,
+    platform::{Platform, exception_free},
 };
 use arm_sysregs::{TfsrEl2, read_tfsr_el2, write_tfsr_el2};
-use core::cell::RefCell;
-use percore::{ExceptionLock, PerCore};
 
-static MTE2_CTX: PerCoreState<
-    { PlatformImpl::CORE_COUNT },
-    PlatformImpl,
-    PerWorld<Mte2CpuContext>,
-> = PerCore::new(
-    [const {
-        ExceptionLock::new(RefCell::new(PerWorld(
-            [Mte2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-        )))
-    }; PlatformImpl::CORE_COUNT],
-);
-
-struct Mte2CpuContext {
+pub struct Mte2CpuContext {
     tfsr_el2: TfsrEl2,
 }
 
 impl Mte2CpuContext {
-    const EMPTY: Self = Self {
+    pub const EMPTY: Self = Self {
         tfsr_el2: TfsrEl2::empty(),
     };
 }
 
-pub fn save_context(world: World) {
-    exception_free(|token| {
-        let mut ctx = MTE2_CTX.get().borrow_mut(token);
-        ctx[world].tfsr_el2 = read_tfsr_el2();
-    })
-}
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> MemoryTagging<CORE_COUNT, PlatformImpl> {
+    /// Saves the system register values to this context struct.
+    pub(crate) fn save_context_internal(&self, world: World) {
+        exception_free(|token| {
+            let mut ctx = self.context.get().borrow_mut(token);
+            ctx[world].tfsr_el2 = read_tfsr_el2();
+        })
+    }
 
-pub fn restore_context(world: World) {
-    exception_free(|token| {
-        let ctx = MTE2_CTX.get().borrow_mut(token);
-        write_tfsr_el2(ctx[world].tfsr_el2);
-    })
+    /// Restores the system register values from this context struct.
+    pub(crate) fn restore_context_internal(&self, world: World) {
+        exception_free(|token| {
+            let ctx = self.context.get().borrow_mut(token);
+            write_tfsr_el2(ctx[world].tfsr_el2);
+        })
+    }
 }

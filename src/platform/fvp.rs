@@ -324,6 +324,16 @@ const ATTESTATION_TOKEN: [u8; 1518] = [
     0x11, 0xd8, 0x3e, 0x23, 0xe3, 0x1f, 0x7f, 0x62, 0x32, 0x9d, 0xe3, 0x0c, 0x1c, 0xc8,
 ];
 
+static AMU: Amu<{ Fvp::CORE_COUNT }, Fvp> = Amu::new();
+static FGT: Fgt<{ Fvp::CORE_COUNT }, Fvp> = Fgt::new();
+static FGT2: Fgt2<{ Fvp::CORE_COUNT }, Fvp> = Fgt2::new();
+static HCX: Hcx<{ Fvp::CORE_COUNT }, Fvp> = Hcx::new();
+static MPAM: Mpam<{ Fvp::CORE_COUNT }, Fvp> = Mpam::new();
+static MEMORY_TAGGING: MemoryTagging<{ Fvp::CORE_COUNT }, Fvp> = MemoryTagging::new();
+static RAS: Ras<{ Fvp::CORE_COUNT }, Fvp> = Ras::new();
+static TCR2: Tcr2<{ Fvp::CORE_COUNT }, Fvp> = Tcr2::new();
+static SIMD: Simd<{ Fvp::CORE_COUNT }, Fvp> = Simd::simd();
+
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0-x5, and returns a unique core index as long as `FVP_MAX_CPUS_PER_CLUSTER` and
 // `FVP_MAX_PE_PER_CPU` are correct.
@@ -358,18 +368,18 @@ unsafe impl Platform for Fvp {
     };
 
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[
-        &Amu,
-        &Fgt,
-        &Fgt2,
-        &Hcx,
-        &MemoryTagging,
-        &Mpam,
+        &AMU,
+        &FGT,
+        &FGT2,
+        &HCX,
+        &MEMORY_TAGGING,
+        &MPAM,
         &MultiThreadedPmu,
-        &Ras,
-        &Simd::simd(),
+        &RAS,
+        &SIMD,
         &StatisticalProfiling,
         &SysRegTrace,
-        &Tcr2,
+        &TCR2,
         &TraceBufferNonSecure,
         &TraceFiltering,
     ];

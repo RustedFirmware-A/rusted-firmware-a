@@ -187,6 +187,8 @@ define_early_mapping!([
     }
 ]);
 
+static SIMD: Simd<{ Qemu::CORE_COUNT }, Qemu> = Simd::sve(512, false);
+
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0 and x1, and returns a unique index as long as `PLATFORM_CPU_PER_CLUSTER_SHIFT`
 // is correct.
@@ -209,7 +211,7 @@ unsafe impl Platform for Qemu {
         interrupts_config: &[],
     };
 
-    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&Simd::sve(512, false)];
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&SIMD];
 
     fn init_with_early_mapping(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else

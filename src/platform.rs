@@ -102,7 +102,7 @@ pub const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 /// must not yield into R-EL2.
 ///
 /// (These requirements don't apply to the test platform, as it is only used in unit tests.)
-pub unsafe trait Platform: Send {
+pub unsafe trait Platform: Sized + Send + Sync {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
 

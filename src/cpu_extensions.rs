@@ -27,7 +27,7 @@ use crate::{
 };
 
 /// A trait for managing CPU extensions.
-pub trait CpuExtension {
+pub trait CpuExtension: Sync {
     /// Checks if the CPU extension is supported by the hardware.
     fn is_present(&self) -> bool;
 

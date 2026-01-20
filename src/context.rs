@@ -10,7 +10,7 @@ use crate::errata_framework::erratum_applies;
 use crate::{
     aarch64::isb,
     cpu_extensions::{
-        CpuExtension, initialise_el3_sysregs, mpam::Mpam, pmuv3, trf::TraceFiltering,
+        CpuExtension, initialise_el3_sysregs, mpam::mpam_is_present, pmuv3, trf::TraceFiltering,
     },
     debug::CrashBuffer,
     gicv3,
@@ -592,7 +592,7 @@ impl Default for PerWorldContext {
 impl PerWorldContext {
     /// Restores world-specific EL3 system register configuration.
     fn restore_el3_sysregs(&self) {
-        if Mpam.is_present() {
+        if mpam_is_present() {
             // SAFETY: The value initialised above or from the CPU extension should be valid.
             unsafe {
                 write_mpam3_el3(self.mpam3_el3);

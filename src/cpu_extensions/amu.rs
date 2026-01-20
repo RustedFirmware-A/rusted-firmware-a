@@ -4,12 +4,10 @@
 
 //! Activity Monitor Unit (AMU) extension support.
 
-#![allow(dead_code)]
-
 use crate::{
-    context::CoresImpl,
+    context::PerCoreState,
     cpu_extensions::CpuExtension,
-    platform::{Platform, PlatformImpl, exception_free},
+    platform::{Platform, exception_free},
 };
 use arm_sysregs::{
     AmcrEl0, Amevcntr00El0, Amevcntr01El0, Amevcntr02El0, Amevcntr03El0, Amevcntr10El0,
@@ -212,16 +210,32 @@ impl AmuContext {
     }
 }
 
-static AMU_CTX: PerCore<
-    [ExceptionLock<RefCell<AmuContext>>; PlatformImpl::CORE_COUNT],
-    CoresImpl<PlatformImpl>,
-> = PerCore::new(
-    [const { ExceptionLock::new(RefCell::new(AmuContext::EMPTY)) }; PlatformImpl::CORE_COUNT],
-);
+/// Activity Monitor Unit (AMU) extension support.
+pub struct Amu<const CORE_COUNT: usize, PlatformImpl: Platform> {
+    context: PerCoreState<CORE_COUNT, PlatformImpl, AmuContext>,
+}
 
-pub struct Amu;
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Amu<CORE_COUNT, PlatformImpl> {
+    /// Constructs a new instance of the AMU CPU extension.
+    #[allow(dead_code)]
+    pub const fn new() -> Self {
+        Self {
+            context: PerCore::new(
+                [const { ExceptionLock::new(RefCell::new(AmuContext::EMPTY)) }; CORE_COUNT],
+            ),
+        }
+    }
+}
 
-impl CpuExtension for Amu {
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Amu<CORE_COUNT, PlatformImpl> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
+    for Amu<CORE_COUNT, PlatformImpl>
+{
     fn is_present(&self) -> bool {
         read_id_aa64pfr0_el1().is_feat_amu_present()
     }
@@ -232,7 +246,7 @@ impl CpuExtension for Amu {
         }
 
         exception_free(|token| {
-            let mut ctx = AMU_CTX.get().borrow_mut(token);
+            let mut ctx = self.context.get().borrow_mut(token);
             ctx.save();
         });
     }
@@ -243,7 +257,7 @@ impl CpuExtension for Amu {
         }
 
         exception_free(|token| {
-            let ctx = AMU_CTX.get().borrow_mut(token);
+            let ctx = self.context.get().borrow_mut(token);
             ctx.restore();
         });
     }

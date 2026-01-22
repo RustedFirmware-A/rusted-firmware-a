@@ -230,7 +230,9 @@ pub fn init_runtime_mapping() {
         // Safety: The MMU is already enabled with the correct configuration parameters MAIR, TCR.
         // `idmap` provides a valid address to the runtime page tables.
         unsafe {
-            write_ttbr0_el3(Ttbr0El3::from_bits_retain(idmap.root_address().0 as u64));
+            write_ttbr0_el3(
+                Ttbr0El3::from_bits_retain(idmap.root_address().0 as u64) | Ttbr0El3::CNP,
+            );
         }
 
         // Make sure that any entry from the early page table is invalidated. If WXN is not cached,
@@ -274,6 +276,7 @@ pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
         ldr	x3, ={tcr}
         msr	tcr_el3, x3
 
+        orr x0, x0, #{TTBR0_EL3_CNP_BIT}
         msr	ttbr0_el3, x0
 
         dsb	sy
@@ -290,6 +293,7 @@ pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
         ret",
         mair = const MAIR.0,
         tcr = const TCR,
+        TTBR0_EL3_CNP_BIT = const Ttbr0El3::CNP.bits(),
     )
 }
 

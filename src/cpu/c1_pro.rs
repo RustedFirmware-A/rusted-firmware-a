@@ -213,5 +213,68 @@ unsafe impl Erratum for Erratum3694158 {
     }
 }
 
+#[allow(unused)]
+pub struct Erratum3684268;
+
+// SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
+// memory, and only clobber x0-x4.
+unsafe impl Erratum for Erratum3684268 {
+    const ID: ErratumId = 3_684_268;
+    const CVE: Cve = 0;
+    const APPLY_ON: ErratumType = ErratumType::Reset;
+
+    #[unsafe(naked)]
+    extern "C" fn check() -> bool {
+        implement_erratum_check!(
+            C1Pro::MIDR,
+            RevisionVariant::new(0, 0),
+            RevisionVariant::new(1, 1)
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn workaround() {
+        // Set bit 49 in C1_PRO_IMP_CPUECTLR2_EL1.
+        naked_asm!(
+            "mrs x1, s3_0_c15_c1_5",
+            "orr x1, x1, #(1 << 49)",
+            "msr s3_0_c15_c1_5, x1",
+            "dsb sy",
+            "ret",
+        )
+    }
+}
+
+#[allow(unused)]
+pub struct Erratum3706576;
+
+// SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
+// memory, and only clobber x0-x4.
+unsafe impl Erratum for Erratum3706576 {
+    const ID: ErratumId = 3_706_576;
+    const CVE: Cve = 0;
+    const APPLY_ON: ErratumType = ErratumType::Reset;
+
+    #[unsafe(naked)]
+    extern "C" fn check() -> bool {
+        implement_erratum_check!(
+            C1Pro::MIDR,
+            RevisionVariant::new(0, 0),
+            RevisionVariant::new(1, 1)
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn workaround() {
+        // Set bit 37 in C1_PRO_IMP_CPUACTLR2_EL1.
+        naked_asm!(
+            "mrs x1, s3_0_c15_c1_1",
+            "orr x1, x1, #(1 << 37)",
+            "msr s3_0_c15_c1_1, x1",
+            "ret",
+        )
+    }
+}
+
 read_write_sysreg!(cpupwrctlr: s3_0_c15_c2_7, u64, safe_read, safe_write);
 const CORE_PWRDN_ENABLE_BIT_MASK: u64 = 0x1;

@@ -36,7 +36,14 @@ unsafe impl Cpu for C1Pro {
 
     #[unsafe(naked)]
     extern "C" fn dump_registers() {
-        naked_asm!("ret");
+        static C1_PRO_REGS: [u8; 18] = *b"imp_cpuectlr_el1\0\0";
+
+        naked_asm!(
+            "adr x6, {c1_pro_regs}",
+            "mrs x8, s3_0_c15_c1_4",
+            "ret",
+            c1_pro_regs = sym C1_PRO_REGS,
+        );
     }
 
     fn power_down_level0() {

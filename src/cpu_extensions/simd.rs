@@ -20,6 +20,18 @@ use arm_sysregs::{
 const FP_NOT_SUPPORTED: u8 = 0xf;
 const ADVSIMD_NOT_SUPPORTED: u8 = 0xf;
 
+/// Returns whether SVE and SME access must be permitted based on given `world`.
+fn needs_sve_sme(world: World) -> bool {
+    match world {
+        World::NonSecure => true,
+        World::Secure if cfg!(feature = "sel2") => true,
+
+        #[cfg(feature = "rme")]
+        World::Realm => true,
+
+        _ => false,
+    }
+}
 /// FEAT_SVE support.
 ///
 /// Enables NS world SVE register access and configures the maximum SVE vector length.
@@ -66,8 +78,9 @@ impl Sve {
     }
 
     fn configure_per_world(world: World, ctx: &mut PerWorldContext) {
-        if (world == World::NonSecure) || (cfg!(feature = "sel2") && world == World::Secure) {
-            // Allow SVE register access to normal world and secure world if S-EL2 compiled in.
+        // Allow SVE register access to normal world unconditionally,
+        // secure world if S-EL2 enabled, and realm world if enabled.
+        if needs_sve_sme(world) {
             ctx.cptr_el3 |= CptrEl3::EZ;
         }
     }
@@ -130,11 +143,10 @@ impl Sme {
     }
 
     fn configure_per_world(world: World, ctx: &mut PerWorldContext) {
-        if (world == World::NonSecure) || (cfg!(feature = "sel2") && world == World::Secure) {
-            // Allow SME register access to normal world and secure world if S-EL2 compiled in.
+        // Allow SME register access to normal world unconditionally,
+        // secure world if S-EL2 enabled, and realm world if enabled.
+        if needs_sve_sme(world) {
             ctx.cptr_el3 |= CptrEl3::ESM;
-        }
-        if world == World::NonSecure {
             ctx.scr_el3 |= ScrEl3::ENTP2;
         }
     }

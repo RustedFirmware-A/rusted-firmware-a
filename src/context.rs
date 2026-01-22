@@ -541,7 +541,7 @@ impl El2Sysregs {
 
 #[cfg(feature = "sel2")]
 fn errata_ich_vmcr_el2_applies() -> bool {
-    erratum_applies(3_300_099) || erratum_applies(3_773_617)
+    erratum_applies(3_300_099) || erratum_applies(3_658_374) || erratum_applies(3_773_617)
 }
 
 /// Registers whose values can be shared across CPUs.

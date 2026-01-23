@@ -7,6 +7,7 @@ use crate::{
     cpu_extensions::{
         CpuExtension, initialise_el3_sysregs, mpam::Mpam, pmuv3, trf::TraceFiltering,
     },
+    debug::CrashBuffer,
     gicv3,
     platform::{Platform, PlatformImpl, exception_free},
     smccc::SmcReturn,
@@ -53,9 +54,6 @@ use spin::Once;
 
 /// The number of contexts to store for each CPU core, one per security state.
 pub const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
-
-/// The number of registers which can be saved in the crash buffer.
-const CPU_DATA_CRASH_BUF_COUNT: usize = 8;
 
 /// Per-core mutable state.
 pub type PerCoreState<T> =
@@ -549,8 +547,6 @@ impl PerWorldContext {
     }
 }
 
-pub type CrashBuf = [u64; CPU_DATA_CRASH_BUF_COUNT];
-
 #[derive(Clone, Debug)]
 #[repr(C, align(64))]
 pub struct CpuData {
@@ -558,7 +554,7 @@ pub struct CpuData {
     apiakey_lo: u64,
     #[cfg(feature = "pauth")]
     apiakey_hi: u64,
-    pub crash_buf: CrashBuf,
+    pub crash_buffer: CrashBuffer,
 }
 
 const _: () = assert!(size_of::<CpuData>() % align_of::<CpuData>() == 0);
@@ -570,7 +566,7 @@ impl CpuData {
         apiakey_lo: 0,
         #[cfg(feature = "pauth")]
         apiakey_hi: 0,
-        crash_buf: [0; CPU_DATA_CRASH_BUF_COUNT],
+        crash_buffer: CrashBuffer::EMPTY,
     };
 }
 

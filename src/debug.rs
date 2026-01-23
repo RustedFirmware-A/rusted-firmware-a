@@ -12,11 +12,23 @@ pub const ENABLE_ASSERTIONS: bool = DEBUG;
 #[cfg(not(test))]
 pub const CRASH_REPORTING: bool = DEBUG;
 
+/// The number of registers which can be saved in the crash buffer.
+const CRASH_BUFFER_REGISTER_COUNT: usize = 8;
+
+/// A buffer used by the assembly crash dumping code to store registers to dump.
+#[derive(Clone, Debug)]
+#[repr(C, align(64))]
+pub struct CrashBuffer([u64; CRASH_BUFFER_REGISTER_COUNT]);
+
+impl CrashBuffer {
+    pub const EMPTY: Self = Self([0; CRASH_BUFFER_REGISTER_COUNT]);
+}
+
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
     use crate::{
-        context::{CpuData, CrashBuf},
+        context::CpuData,
         cpu::cpu_dump_registers,
         debug::{CRASH_REPORTING, DEBUG},
         logger::build_time_log_level,
@@ -36,8 +48,8 @@ mod asm {
         LOG_LEVEL = const build_time_log_level() as u32,
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         MODE_SP_ELX = const 1,
-        CPU_DATA_CRASH_BUF_OFFSET = const offset_of!(CpuData, crash_buf),
-        CPU_DATA_CRASH_BUF_SIZE = const size_of::<CrashBuf>(),
+        CPU_DATA_CRASH_BUFFER_OFFSET = const offset_of!(CpuData, crash_buffer),
+        CRASH_BUFFER_SIZE = const size_of::<CrashBuffer>(),
         REGSZ = const size_of::<u64>(),
         plat_crash_console_init = sym PlatformImpl::crash_console_init,
         plat_crash_console_putc = sym PlatformImpl::crash_console_putc,

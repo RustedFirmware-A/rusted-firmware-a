@@ -57,7 +57,7 @@ func size_controlled_print
 test_size_list:
 	/* Calculate x5 always as it will be clobbered by asm_print_hex */
 	mrs	x5, tpidr_el3
-	add	x5, x5, #{CPU_DATA_CRASH_BUF_SIZE}
+	add	x5, x5, #{CRASH_BUFFER_SIZE}
 	/* Test whether we have reached end of crash buf */
 	cmp	x7, x5
 	b.eq	exit_size_print
@@ -127,7 +127,7 @@ endfunc str_in_crash_buf_print
 	/* tpidr_el3 contains the address to cpu_data structure */
 	mrs	x0, tpidr_el3
 	/* Calculate the Crash buffer offset in cpu_data */
-	add	x0, x0, #{CPU_DATA_CRASH_BUF_OFFSET}
+	add	x0, x0, #{CPU_DATA_CRASH_BUFFER_OFFSET}
 	/* Store crash buffer address in tpidr_el3 */
 	msr	tpidr_el3, x0
 	str	x1, [x0, #{REGSZ}]

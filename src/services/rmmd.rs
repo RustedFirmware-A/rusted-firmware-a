@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use core::{cell::RefCell, slice::from_raw_parts_mut};
+use num_enum::TryFromPrimitive;
 use percore::{Cores, ExceptionLock, PerCore};
 use spin::Once;
 
@@ -50,6 +51,7 @@ unsafe fn get_shared_buffer() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
 }
 
 const RMM_BOOT_COMPLETE: u32 = 0xC400_01CF;
+const RMM_RMI_REQ_COMPLETE: u32 = 0xC400_018F;
 
 #[derive(Debug)]
 struct RmmdLocal {
@@ -66,6 +68,34 @@ impl RmmdLocal {
 
 pub static RMM_COLD_BOOT_DONE: Once<()> = Once::new();
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
+#[repr(u32)]
+enum RmiFuncId {
+    DataCreate = 0xC400_0153,
+    DataCreateUnknown = 0xC400_0154,
+    DataDestroy = 0xC400_0155,
+    Features = 0xC400_0165,
+    GranuleDelegate = 0xC400_0151,
+    GranuleUndelegate = 0xC400_0152,
+    PsciComplete = 0xC400_0164,
+    RealmActivate = 0xC400_0157,
+    RealmCreate = 0xC400_0158,
+    RealmDestroy = 0xC400_0159,
+    RecAuxCount = 0xC400_0167,
+    RecCreate = 0xC400_015A,
+    RecDestroy = 0xC400_015B,
+    RecEnter = 0xC400_015C,
+    RttCreate = 0xC400_015D,
+    RttDestroy = 0xC400_015E,
+    RttFold = 0xC400_0166,
+    RttInitRipas = 0xC400_0168,
+    RttMapUnprotected = 0xC400_015F,
+    RttReadEntry = 0xC400_0161,
+    RttSetRipas = 0xC400_0169,
+    RttUnmapUnprotected = 0xC400_0162,
+    Version = 0xC400_0150,
+}
+
 /// Arm CCA SMCs, for communication between RF-A and TF-RMM.
 ///
 /// This is described at
@@ -77,6 +107,15 @@ pub struct Rmmd {
 impl Service for Rmmd {
     owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x01CF}
 
+    fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
+        if RmiFuncId::try_from(regs.values()[0] as u32).is_ok() {
+            World::Realm
+        } else {
+            regs.set_from(NOT_SUPPORTED);
+            World::NonSecure
+        }
+    }
+
     fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
         let in_regs = regs.values();
         let mut function = FunctionId(in_regs[0] as u32);
@@ -86,6 +125,14 @@ impl Service for Rmmd {
             RMM_BOOT_COMPLETE => {
                 info!("Realm boot completed with code 0x{:x}", regs.values()[1]);
                 self.handle_boot_complete(regs)
+            }
+
+            RMM_RMI_REQ_COMPLETE => {
+                // Only x1-x6 are used for RMI return values, the remaining ones MBZ.
+                regs.values_mut().copy_within(1..7, 0);
+                regs.values_mut()[6..].fill(0);
+
+                World::NonSecure
             }
             _ => {
                 regs.set_from(NOT_SUPPORTED);

@@ -262,6 +262,7 @@ dependencies = [
  "arrayvec",
  "bitflags",
  "log",
+ "num_enum",
  "paste",
  "percore",
  "spin 0.10.0",

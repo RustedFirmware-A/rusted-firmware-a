@@ -41,6 +41,7 @@ arm-sysregs = { version = "0.2.1", features = ["el3"] }
 arrayvec = { version = "0.7.6", default-features = false }
 bitflags = "2.10.0"
 log = "0.4.29"
+num_enum = { version = "0.7.4", default-features = false }
 paste = "1.0.14"
 percore = { version = "0.2.1", default-features = false, features = [
   "zerocopy",

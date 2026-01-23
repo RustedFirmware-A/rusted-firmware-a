@@ -244,8 +244,9 @@ unsafe impl Platform for Qemu {
     }
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
-        Some(QemuPsciPlatformImpl{
-            per_cpu_powerdown_kinds: [const { SpinMutex::new(PowerDownKind::Off) }; Qemu::CORE_COUNT]
+        Some(QemuPsciPlatformImpl {
+            per_cpu_powerdown_kinds: [const { SpinMutex::new(PowerDownKind::Off) };
+                Qemu::CORE_COUNT],
         })
     }
 
@@ -386,7 +387,7 @@ enum PowerDownKind {
 }
 
 pub struct QemuPsciPlatformImpl {
-    per_cpu_powerdown_kinds: [SpinMutex<PowerDownKind>; Qemu::CORE_COUNT]
+    per_cpu_powerdown_kinds: [SpinMutex<PowerDownKind>; Qemu::CORE_COUNT],
 }
 
 impl PsciPlatformInterface for QemuPsciPlatformImpl {
@@ -411,17 +412,23 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
             LOCAL_PSTATE_WIDTH * (Self::MAX_POWER_LEVEL as u32 + 1);
 
         let last_at_power_level_mask: u32 = LOCAL_PSTATE_MASK << last_at_power_level_shift;
-        let last_at_power_level: u32 = (u32::from(power_state) & last_at_power_level_mask) >> last_at_power_level_shift;
+        let last_at_power_level: u32 =
+            (u32::from(power_state) & last_at_power_level_mask) >> last_at_power_level_shift;
         if last_at_power_level as usize > Self::MAX_POWER_LEVEL {
-            return None
+            return None;
         }
 
         let raw_composite_power_states = u32::from(power_state) & POWER_STATES_MASK;
 
         if let PowerState::StandbyOrRetention(0x1) = power_state {
-            return Some(PsciCompositePowerState::new_with_last_power_level([
-                QemuPowerState::Retention, QemuPowerState::On, QemuPowerState::On
-            ], last_at_power_level as usize));
+            return Some(PsciCompositePowerState::new_with_last_power_level(
+                [
+                    QemuPowerState::Retention,
+                    QemuPowerState::On,
+                    QemuPowerState::On,
+                ],
+                last_at_power_level as usize,
+            ));
         }
 
         if let PowerState::StandbyOrRetention(_) = power_state {
@@ -429,19 +436,41 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         }
 
         let composite_states = match raw_composite_power_states {
-            0x2 => [QemuPowerState::PowerDown, QemuPowerState::On, QemuPowerState::On],
-            0x12 => [QemuPowerState::PowerDown, QemuPowerState::Retention, QemuPowerState::On],
-            0x22 => [QemuPowerState::PowerDown, QemuPowerState::PowerDown, QemuPowerState::On],
+            0x2 => [
+                QemuPowerState::PowerDown,
+                QemuPowerState::On,
+                QemuPowerState::On,
+            ],
+            0x12 => [
+                QemuPowerState::PowerDown,
+                QemuPowerState::Retention,
+                QemuPowerState::On,
+            ],
+            0x22 => [
+                QemuPowerState::PowerDown,
+                QemuPowerState::PowerDown,
+                QemuPowerState::On,
+            ],
             // Ensure that the system power domain can't be powered down by CPU_SUSPEND. Only SYSTEM_SUSPEND can do that.
-            0x222 => [QemuPowerState::PowerDown, QemuPowerState::PowerDown, QemuPowerState::On],
-            _ => return None
+            0x222 => [
+                QemuPowerState::PowerDown,
+                QemuPowerState::PowerDown,
+                QemuPowerState::On,
+            ],
+            _ => return None,
         };
 
-        Some(PsciCompositePowerState::new_with_last_power_level(composite_states, last_at_power_level as usize))
+        Some(PsciCompositePowerState::new_with_last_power_level(
+            composite_states,
+            last_at_power_level as usize,
+        ))
     }
 
     fn cpu_standby(&self, cpu_state: QemuPowerState) {
-        assert_eq!(cpu_state.power_state_type(), PowerStateType::StandbyOrRetention);
+        assert_eq!(
+            cpu_state.power_state_type(),
+            PowerStateType::StandbyOrRetention
+        );
 
         dsb_sy();
         wfi();
@@ -449,7 +478,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 
     fn power_domain_validate_suspend(
         &self,
-        _target_state: &PsciCompositePowerState
+        _target_state: &PsciCompositePowerState,
     ) -> Result<(), ErrorCode> {
         Ok(())
     }
@@ -458,8 +487,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() = PowerDownKind::Suspend;
     }
 
-    fn power_domain_suspend_finish(&self, _previous_state: &PsciCompositePowerState) {
-    }
+    fn power_domain_suspend_finish(&self, _previous_state: &PsciCompositePowerState) {}
 
     fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
         assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);

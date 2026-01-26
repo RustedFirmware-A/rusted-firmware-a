@@ -113,6 +113,7 @@ impl From<AdpStopped> for u64 {
 /// The most common use is to report that execution has completed, with reason
 /// `AdpStopped::ApplicationExit`.
 #[cfg(target_arch = "aarch64")]
+#[allow(unused)]
 pub fn semihosting_exit(reason: AdpStopped, subcode: u64) {
     let parameters: [u64; 2] = [reason.into(), subcode];
     // SAFETY: The `parameters` pointer is valid, and contains two parameters as expected by

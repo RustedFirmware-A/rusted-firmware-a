@@ -4,7 +4,7 @@
 
 use super::{DummyService, Platform};
 use crate::{
-    aarch64::{dsb_sy, sev, wfi},
+    aarch64::{dsb_sy, isb, sev, wfi},
     bl31_warm_entrypoint,
     context::{CoresImpl, EntryPointInfo},
     cpu::{define_cpu_ops, qemu_max::QemuMax},
@@ -23,7 +23,6 @@ use crate::{
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
     platform::{CpuExtension, plat_my_core_pos},
-    semihosting::{AdpStopped, semihosting_exit},
     services::{
         arch::WorkaroundSupport,
         psci::{
@@ -39,6 +38,7 @@ use arm_gic::{
     gicv3::registers::{Gicd, GicrSgi},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
+use arm_pl061::{PL061, PL061Registers};
 use arm_psci::{ErrorCode, Mpidr, PowerState};
 #[cfg(feature = "pauth")]
 use arm_sysregs::read_cntpct_el0;
@@ -92,6 +92,15 @@ const GICD_BASE_ADDRESS: *mut Gicd = GICD_BASE as _;
 /// Base address of the first GICv3 redistributor frame.
 const GICR_BASE_ADDRESS: *mut GicrSgi = GICR_BASE as _;
 
+/// Base addresses for GPIO block that controls system off and system reset as described in the
+/// [QEMU ARM virt platform docs](https://qemu-project.gitlab.io/qemu/system/arm/virt.html).
+/// Addresses taken from C TF-A.
+const SECURE_GPIO_ADDR: *mut PL061Registers = 0x090b_0000 as _;
+
+/// Constants for the system off and system reset GPIO indices.
+const SECURE_GPIO_SYSTEM_OFF: usize = 0;
+const SECURE_GPIO_SYSTEM_RESET: usize = 1;
+
 // TODO: Use the correct addresses here.
 /// The physical address of the SPMC manifest blob.
 const TOS_FW_CONFIG_ADDRESS: u64 = 0;
@@ -114,6 +123,12 @@ zeroed_mut! {
 
 define_cpu_ops!(QemuMax);
 define_errata_list!();
+
+// SAFETY: `SECURE_GPIO_ADDR` is the base address for the PL061 device and nothing else
+// accesses that address range.
+static SECURE_GPIO: SpinMutex<PL061> = SpinMutex::new(
+    PL061::new(unsafe { UniqueMmioPointer::new(NonNull::new(SECURE_GPIO_ADDR).unwrap()) })
+);
 
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
@@ -161,6 +176,13 @@ unsafe impl Platform for Qemu {
             LockedWriter::new(Uart::new(uart_pointer)),
         ))
         .expect("Failed to initialise logger");
+    }
+
+    fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
+        let mut gpio = SECURE_GPIO.lock();
+        let mut config = gpio.config();
+        config.into_output(SECURE_GPIO_SYSTEM_OFF).unwrap();
+        config.into_output(SECURE_GPIO_SYSTEM_RESET).unwrap();
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {
@@ -246,7 +268,7 @@ unsafe impl Platform for Qemu {
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
         Some(QemuPsciPlatformImpl {
             per_cpu_powerdown_kinds: [const { SpinMutex::new(PowerDownKind::Off) };
-                Qemu::CORE_COUNT],
+                                      Qemu::CORE_COUNT],
         })
     }
 
@@ -541,12 +563,19 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
     }
 
     fn system_off(&self) -> ! {
-        semihosting_exit(AdpStopped::ApplicationExit, 0);
-        panic!("Semihosting system off call unexpectedly returned.");
+        let mut gpio = SECURE_GPIO.lock();
+        gpio.pin_set(SECURE_GPIO_SYSTEM_OFF, false).unwrap();
+        gpio.pin_set(SECURE_GPIO_SYSTEM_OFF, true).unwrap();
+        isb();
+        panic!("System off was not triggered by secure GPIO pin");
     }
 
     fn system_reset(&self) -> ! {
-        todo!()
+        let mut gpio = SECURE_GPIO.lock();
+        gpio.pin_set(SECURE_GPIO_SYSTEM_RESET, false).unwrap();
+        gpio.pin_set(SECURE_GPIO_SYSTEM_RESET, true).unwrap();
+        isb();
+        panic!("System reset was not triggered by secure GPIO pin");
     }
 }
 

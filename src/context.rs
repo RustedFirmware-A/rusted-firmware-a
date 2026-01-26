@@ -652,7 +652,7 @@ pub fn world_context(world: World) -> &'static PerWorldContext {
     &PER_WORLD_CONTEXT.get().unwrap()[world]
 }
 
-#[unsafe(export_name = "percpu_data")]
+#[cfg_attr(test, allow(dead_code))]
 static mut PERCPU_DATA: [CpuData; PlatformImpl::CORE_COUNT] =
     [CpuData::EMPTY; PlatformImpl::CORE_COUNT];
 
@@ -1060,6 +1060,7 @@ mod asm {
         RUN_RESULT_SMC = const RunResult::SMC,
         RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
         RUN_RESULT_INTERRUPT = const RunResult::INTERRUPT,
+        percpu_data = sym PERCPU_DATA,
         CPU_DATA_SIZE = const size_of::<CpuData>(),
         CPU_DATA_APIAKEY_OFFSET = const APIAKEY_OFFSET,
         ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,

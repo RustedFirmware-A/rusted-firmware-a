@@ -21,4 +21,10 @@ fn main() {
     println!("cargo:rustc-link-arg-bin=bl33=-T{crate_dir}/{platform}_bl33.ld");
     println!("cargo:rerun-if-changed={crate_dir}/{platform}_bl32.ld");
     println!("cargo:rerun-if-changed={crate_dir}/{platform}_bl33.ld");
+
+    #[cfg(feature = "rme")]
+    {
+        println!("cargo:rustc-link-arg-bin=stf_rmm=-T{crate_dir}/{platform}_stf_rmm.ld");
+        println!("cargo:rerun-if-changed={crate_dir}/{platform}_stf_rmm.ld");
+    }
 }

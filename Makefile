@@ -12,6 +12,7 @@ endif
 BL31_BIN := $(OUT)/bl31.bin
 BL32 := $(OUT)/bl32.bin
 BL33 := $(OUT)/bl33.bin
+STF_RMM := $(OUT)/stf_rmm.bin
 FIP := $(OUT)/fip.bin
 BL31_ELF := $(OUT)/bl31.elf
 
@@ -33,12 +34,16 @@ ifndef PLAT
   endif
 endif
 
-STF_CARGO_FLAGS := --release
+STF_CARGO_FLAGS = --release  --features "$(STF_FEATURES)"
 STF_IMAGES_FLAGS = $(patsubst target/%.bin, "--bin" "%", $(STF_IMAGES))
 RFA_CARGO_FLAGS := --no-default-features
 
 # List of test images that can be built for that platform.
 STF_IMAGES := $(BL32) $(BL33)
+ifeq (${RME}, 1)
+	STF_FEATURES += rme
+	STF_IMAGES += $(STF_RMM)
+endif
 
 # Make a release build by default.
 DEBUG ?= 0
@@ -116,6 +121,8 @@ $(BL32): build-stf
 	$(OBJCOPY) $(OUT)/$(TARGET)/release/bl32 -O binary $@
 $(BL33): build-stf
 	$(OBJCOPY) $(OUT)/$(TARGET)/release/bl33 -O binary $@
+$(STF_RMM): build-stf
+	$(OBJCOPY) $(OUT)/$(TARGET)/release/stf_rmm -O binary $@
 
 clippy-test:
 	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --features "$(FEATURES)"
@@ -132,7 +139,7 @@ clippy:
 		$(STF_CARGO_FLAGS) \
 		$(STF_IMAGES_FLAGS)
 
-images: $(BL32) $(BL33) build
+images: $(STF_IMAGES) build
 
 clean:
 	$(CARGO) clean

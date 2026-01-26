@@ -102,6 +102,13 @@ Build C BL1 and BL2 with RME support, Rust BL31 with RME support and FIP, then r
 $ PLAT=fvp RME=1 DEBUG=1 ./build-and-run.sh
 ```
 
+You can also specify the RMM image to use. If not set, it will default to the `stf_rmm.bin` of STF.
+
+```sh
+$ PLAT=fvp RME=1 RMM=../tf-rmm/build/Debug/rmm.img DEBUG=1 ./build-and-run.sh
+```
+
+
 ## Documentation
 
 See the [RF-A architecture](architecture.md) documentation for an overview of the code structure.

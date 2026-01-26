@@ -173,7 +173,42 @@ BL33_IDMAP:
     TABLE_ATTRIBUTES = const Attributes::VALID.union(Attributes::TABLE_OR_PAGE).bits(),
 );
 
+// RMM:
+// 0x1C09_0000 PL011
+// 0x2f00_0000 GIC
+// 0xfdc0_0000 image
+global_asm!(
+    "
+.section \".rodata.RMM_IDMAP\", \"a\", %progbits
+.global RMM_IDMAP
+.align 12
+RMM_IDMAP:
+    .quad {TABLE_ATTRIBUTES} + 0f
+    .fill 2, 8, 0x0
+    .quad {TABLE_ATTRIBUTES} + 1f
+    .fill 508, 8, 0x0
+
+    /* level 2, 2 MiB block mappings */
+/* at 0x0000_0000 */
+0:
+    .fill 224, 8, 0x0
+    .quad {DEVICE_ATTRIBUTES} | 0x1c000000
+    .fill 151, 8, 0x0
+    .quad {DEVICE_ATTRIBUTES} | 0x2f000000
+    .fill 135, 8, 0x0
+/* at 0xc000_0000 */
+1:
+    .fill 494, 8, 0x0
+    .quad {MEMORY_ATTRIBUTES} | 0xfdc00000
+    .fill 17, 8, 0x0
+",
+    DEVICE_ATTRIBUTES = const DEVICE_ATTRIBUTES.bits(),
+    MEMORY_ATTRIBUTES = const MEMORY_ATTRIBUTES.bits(),
+    TABLE_ATTRIBUTES = const Attributes::VALID.union(Attributes::TABLE_OR_PAGE).bits(),
+);
+
 unsafe extern "C" {
     pub static BL32_IDMAP: InitialPagetable;
     pub static BL33_IDMAP: InitialPagetable;
+    pub static RMM_IDMAP: InitialPagetable;
 }

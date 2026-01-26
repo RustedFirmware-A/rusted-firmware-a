@@ -6,6 +6,8 @@ mod config;
 
 use self::config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU};
 use super::{DummyService, Platform};
+#[cfg(feature = "rme")]
+use crate::Services;
 use crate::{
     aarch64::{dsb_ish, dsb_sy, wfi},
     bl31_warm_entrypoint,
@@ -119,15 +121,6 @@ const NT_FW_CONFIG_ADDRESS: u64 = 0x8000_0000;
 const HW_CONFIG_ADDRESS: u64 = 0x07f0_0000;
 const HW_CONFIG_ADDRESS_NS: u64 = 0x8200_0000;
 
-// TODO: Use the correct values here (see services/std_svc/rmmd/rmmd_main.c).
-/// Version of the RMM Boot Interface.
-#[cfg(feature = "rme")]
-const RMM_BOOT_VERSION: u64 = 0;
-/// Base address for the EL3 - RMM shared area. The boot manifest should be stored at the beginning
-/// of this area.
-#[cfg(feature = "rme")]
-const RMM_SHARED_AREA_BASE_ADDRESS: u64 = 0;
-
 const EARLY_REGIONS: [EarlyRegion; 2] = [
     EarlyRegion {
         address_range: ARM_TRUSTED_SRAM_BASE..(ARM_TRUSTED_SRAM_BASE + ARM_TRUSTED_SRAM_SIZE),
@@ -187,6 +180,11 @@ pub struct Fvp;
 unsafe impl Platform for Fvp {
     const CORE_COUNT: usize = PLATFORM_CORE_COUNT;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
+
+    const PAGE_HEAP_PAGE_COUNT: usize = 6;
+
+    #[cfg(feature = "rme")]
+    const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
 
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
@@ -335,19 +333,9 @@ unsafe impl Platform for Fvp {
 
     #[cfg(feature = "rme")]
     fn realm_entry_point() -> EntryPointInfo {
-        let core_linear_id = CoresImpl::core_index() as u64;
         EntryPointInfo {
             pc: 0xfdc0_0000,
-            args: [
-                core_linear_id,
-                RMM_BOOT_VERSION,
-                Self::CORE_COUNT as u64,
-                RMM_SHARED_AREA_BASE_ADDRESS,
-                0,
-                0,
-                0,
-                0,
-            ],
+            args: Services::get().rmmd.entrypoint_args(),
         }
     }
 

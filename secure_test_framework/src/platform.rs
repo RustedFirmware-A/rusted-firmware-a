@@ -12,7 +12,7 @@ use arm_sysregs::{MpidrEl1, read_mpidr_el1};
 use core::fmt::Write;
 #[cfg(platform = "fvp")]
 #[allow(unused)]
-pub use fvp::{BL32_IDMAP, BL33_IDMAP};
+pub use fvp::{BL32_IDMAP, BL33_IDMAP, RMM_IDMAP};
 use percore::Cores;
 #[cfg(platform = "qemu")]
 #[allow(unused)]

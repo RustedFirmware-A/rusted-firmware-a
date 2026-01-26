@@ -786,8 +786,13 @@ fn initialise_per_world_contexts() {
 
         #[cfg(feature = "rme")]
         {
+            // SCR_EL3.FGTEN: Do not trap FGT register accesses to EL3. FEAT_FGT is mandatory since
+            // ARMv8.6.
+            //
             // SCR_NS + SCR_NSE = Realm state
-            per_world[World::Realm].scr_el3 |= ScrEl3::NS | ScrEl3::NSE;
+            per_world[World::Realm].scr_el3 |= ScrEl3::NS | ScrEl3::NSE | ScrEl3::FGTEN;
+
+            gicv3::set_routing_model(&mut per_world[World::Realm].scr_el3, World::Realm);
         }
 
         for ext in PlatformImpl::CPU_EXTENSIONS {
@@ -924,8 +929,6 @@ fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
             ext.configure_per_cpu(World::Realm, context);
         }
     }
-
-    // TODO: FIQ and IRQ routing model.
 }
 
 /// Updates the CPU context of each world to resume after suspend.

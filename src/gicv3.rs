@@ -351,7 +351,10 @@ pub fn set_routing_model(scr_el3: &mut ScrEl3, world: World) {
             *scr_el3 -= ScrEl3::FIQ;
         }
         #[cfg(feature = "rme")]
-        World::Realm => todo!("Routing model for Realms not configured."),
+        World::Realm => {
+            *scr_el3 -= ScrEl3::FIQ;
+            *scr_el3 -= ScrEl3::IRQ;
+        }
     }
 }
 

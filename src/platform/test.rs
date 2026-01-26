@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::{DummyService, Platform};
+#[cfg(feature = "rme")]
+use crate::Services;
 use crate::{
     aarch64::sev,
     context::EntryPointInfo,
@@ -82,6 +84,11 @@ unsafe impl Platform for TestPlatform {
     const CORE_COUNT: usize = 13;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
+    const PAGE_HEAP_PAGE_COUNT: usize = 6;
+
+    #[cfg(feature = "rme")]
+    const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
+
     type LogSinkImpl = StdOutSink;
     type PsciPlatformImpl = TestPsciPlatformImpl;
     type TrngPlatformImpl = TestTrngPlatformImpl;
@@ -139,8 +146,8 @@ unsafe impl Platform for TestPlatform {
     #[cfg(feature = "rme")]
     fn realm_entry_point() -> EntryPointInfo {
         EntryPointInfo {
-            pc: 0x2000_0000,
-            args: Default::default(),
+            pc: 0xfdc0_0000,
+            args: Services::get().rmmd.entrypoint_args(),
         }
     }
 

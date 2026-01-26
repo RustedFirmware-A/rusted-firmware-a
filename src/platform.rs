@@ -119,6 +119,10 @@ pub unsafe trait Platform {
     /// enabled so that atomics operations work correctly.
     const NORMAL_MEMORY_MAIR_ATTRIBUTE: MairAttribute = MAIR_IWBRWA_OWBRWA_NTR;
 
+    /// Base address for the EL3 - RMM shared area.
+    #[cfg(feature = "rme")]
+    const RMM_SHARED_BUFFER_START: usize;
+
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;
 

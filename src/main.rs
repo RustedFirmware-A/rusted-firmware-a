@@ -124,9 +124,17 @@ extern "C" fn psci_warmboot_entrypoint() -> ! {
 
             let secure_args = services.spmd.handle_wake_from_cpu_suspend();
 
+            #[cfg(feature = "rme")]
+            let realm_args = services.rmmd.handle_wake_from_cpu_suspend();
+
             // TODO: instead of modifying the context directly, should we rather pass the initial
             // gpregs of each world as arguments to run_loop()?
-            update_contexts_suspend(psci_entrypoint, &secure_args);
+            update_contexts_suspend(
+                psci_entrypoint,
+                &secure_args,
+                #[cfg(feature = "rme")]
+                &realm_args,
+            );
         }
     }
 

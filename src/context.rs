@@ -936,7 +936,11 @@ fn initialise_realm(context: &mut CpuContext, entry_point: &EntryPointInfo) {
 /// When the CPU wakes up from a powerdown suspend state, lower ELs in each world expect a specific
 /// state for resuming their execution. This can be a different entry point or just arguments passed
 /// in registers.
-pub fn update_contexts_suspend(psci_entrypoint: EntryPoint, secure_args: &SmcReturn) {
+pub fn update_contexts_suspend(
+    psci_entrypoint: EntryPoint,
+    secure_args: &SmcReturn,
+    #[cfg(feature = "rme")] realm_args: &[u64],
+) {
     initialise_el3_sysregs();
 
     exception_free(|token| {
@@ -955,7 +959,8 @@ pub fn update_contexts_suspend(psci_entrypoint: EntryPoint, secure_args: &SmcRet
 
         cpu_state[World::Secure].gpregs.registers[..18].copy_from_slice(secure_args.values());
 
-        // TODO: implement suspend handling for Realm
+        #[cfg(feature = "rme")]
+        cpu_state[World::Realm].gpregs.registers[..realm_args.len()].copy_from_slice(realm_args);
     });
 }
 

@@ -177,6 +177,7 @@ BL33_IDMAP:
 // 0x1C09_0000 PL011
 // 0x2f00_0000 GIC
 // 0xfdc0_0000 image
+// 0xffb0_0000 shared buffer TODO: this should be mapped at runtime based on the coldboot parameters
 global_asm!(
     "
 .section \".rodata.RMM_IDMAP\", \"a\", %progbits
@@ -200,7 +201,9 @@ RMM_IDMAP:
 1:
     .fill 494, 8, 0x0
     .quad {MEMORY_ATTRIBUTES} | 0xfdc00000
-    .fill 17, 8, 0x0
+    .fill 14, 8, 0x0
+    .quad {MEMORY_ATTRIBUTES} | 0xffb00000
+    .fill 2, 8, 0x0
 ",
     DEVICE_ATTRIBUTES = const DEVICE_ATTRIBUTES.bits(),
     MEMORY_ATTRIBUTES = const MEMORY_ATTRIBUTES.bits(),

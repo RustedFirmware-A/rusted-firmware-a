@@ -89,6 +89,9 @@ unsafe impl Platform for TestPlatform {
     #[cfg(feature = "rme")]
     const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
 
+    #[cfg(feature = "rme")]
+    fn rme_prepare_manifest(_buf: &mut [u8; crate::services::rmmd::RMM_SHARED_BUFFER_SIZE]) {}
+
     type LogSinkImpl = StdOutSink;
     type PsciPlatformImpl = TestPsciPlatformImpl;
     type TrngPlatformImpl = TestTrngPlatformImpl;

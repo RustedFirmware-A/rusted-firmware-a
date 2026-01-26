@@ -39,6 +39,8 @@ select_platform!(platform = "fvp", fvp::Fvp);
 select_platform!(platform = "qemu", qemu::Qemu);
 select_platform!(test, test::TestPlatform);
 
+#[cfg(feature = "rme")]
+use crate::services::rmmd::RMM_SHARED_BUFFER_SIZE;
 use crate::{
     context::EntryPointInfo,
     cpu_extensions::CpuExtension,
@@ -122,6 +124,11 @@ pub unsafe trait Platform {
     /// Base address for the EL3 - RMM shared area.
     #[cfg(feature = "rme")]
     const RMM_SHARED_BUFFER_START: usize;
+    /// Platform dependent part of the RMM Boot Manifest. Entries within the range `0..RMM_<NAME>`
+    /// (see above) are allocated to be filled by this function. Any extra entry is reserved for
+    /// platform independent data.
+    #[cfg(feature = "rme")]
+    fn rme_prepare_manifest(_buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]);
 
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;

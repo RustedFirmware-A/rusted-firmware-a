@@ -23,6 +23,7 @@ mod util;
 
 use core::{
     panic::PanicInfo,
+    slice::from_raw_parts_mut,
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -99,7 +100,7 @@ fn complete_boot(ret: RmmBootReturn, extra_args: &[u64]) -> ! {
     todo!()
 }
 
-fn validate_coldboot_args(pe_idx: u64, version: u64, core_count: u64, _shared_buffer_addr: u64) {
+fn validate_coldboot_args(pe_idx: u64, version: u64, core_count: u64, shared_buffer_addr: u64) {
     if pe_idx >= core_count {
         complete_boot(RmmBootReturn::CpuIdOutOfRange, &[]);
     }
@@ -112,7 +113,16 @@ fn validate_coldboot_args(pe_idx: u64, version: u64, core_count: u64, _shared_bu
         complete_boot(RmmBootReturn::VersionNotValid, &[])
     }
 
-    // TODO: check shared buffer
+    if shared_buffer_addr == 0 {
+        complete_boot(RmmBootReturn::InvalidSharedBuffer, &[]);
+    }
+
+    // Shared buffer must be paged-aligned.
+    if !shared_buffer_addr.is_multiple_of(0x1000) {
+        complete_boot(RmmBootReturn::InvalidSharedBuffer, &[]);
+    }
+
+    // TODO: map the shared buffer into memory.
 
     if core_count > PlatformImpl::CORE_COUNT as u64 {
         complete_boot(RmmBootReturn::CpusOutOfRange, &[]);
@@ -150,6 +160,25 @@ fn coldboot_main(pe_idx: u64, version: u64, core_count: u64, shared_buffer_addr:
         core_count,
         shared_buffer_addr,
     );
+
+    // Safety: the specification states that the `x3` register of the RMM is a pointer to a 4KB
+    // page mapped into the Realm World.
+    let shared_buf =
+        unsafe { from_raw_parts_mut(shared_buffer_addr as *mut u32, 0x1000 / size_of::<u32>()) };
+
+    let Ok(manifest_version) = RmmBootManifestVersion::try_from(shared_buf[0]) else {
+        complete_boot(RmmBootReturn::VersionNotValid, &[]);
+    };
+
+    info!(
+        "Received manifest with version v{}.{}",
+        manifest_version.major, manifest_version.minor
+    );
+
+    if manifest_version.major != SUPPORTED_RMM_MANIFEST_VERSION.major {
+        error!("Unsupported manifest version: 0x{manifest_version:x?}");
+        complete_boot(RmmBootReturn::ManifestVersionNotSupported, &[])
+    }
 
     complete_boot(RmmBootReturn::Success, &[0xdead_beef])
 }

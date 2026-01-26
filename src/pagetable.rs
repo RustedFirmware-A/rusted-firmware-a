@@ -4,6 +4,8 @@
 
 pub mod early_pagetable;
 
+#[cfg(feature = "rme")]
+use crate::services::rmmd::RMM_SHARED_BUFFER_SIZE;
 use crate::{
     aarch64::{dsb_sy, isb, tlbi_alle3},
     layout::{
@@ -83,15 +85,15 @@ const NSE: Attributes = Attributes::NON_GLOBAL;
 /// Attributes used for all mappings.
 ///
 /// We always set the access flag, as we don't manage access flag faults.
-const BASE: Attributes = if cfg!(feature = "rme") {
-    EL3_RES1
-        .union(Attributes::ACCESSED)
-        .union(Attributes::VALID)
-        .union(NSE)
+const BASE: Attributes = EL3_RES1
+    .union(Attributes::ACCESSED)
+    .union(Attributes::VALID);
+
+/// Attributes used for all mappings in EL3.
+const BASE_EL3: Attributes = if cfg!(feature = "rme") {
+    BASE.union(NSE)
 } else {
-    EL3_RES1
-        .union(Attributes::ACCESSED)
-        .union(Attributes::VALID)
+    BASE
 };
 
 /// Attributes used for device mappings.
@@ -104,33 +106,70 @@ const BASE: Attributes = if cfg!(feature = "rme") {
 /// region has an effective Shareability attribute of Outer Shareable."
 /// Arm ARM K.a D8.4.1.2.3 bit 54 UXN/PXN/XN is the XN field at EL3:
 /// "If the Effective value of XN is 1, then PrivExecute is removed."
-pub const MT_DEVICE: Attributes = DEVICE.union(BASE).union(Attributes::UXN);
+pub const MT_DEVICE: Attributes = DEVICE.union(BASE_EL3).union(Attributes::UXN);
 
-/// Attributes used for non-cacheable memory mappings.
-#[allow(unused)]
-pub const MT_NON_CACHEABLE: Attributes = NON_CACHEABLE.union(BASE);
+/// Generates memory attributes for all available worlds.
+///
+/// The attributes created are:
+/// - `MT_NON_CACHEABLE`
+/// - `MT_MEMORY`
+/// - `MT_RO_DATA`
+/// - `MT_RW_DATA`
+/// - `MT_CODE`
+macro_rules! make_memory_attributes {
+    ($name:ident, $base:expr) => {
+        paste::paste! {
+            #[doc = "Attributes used for non-cacheable memory mappings in "]
+            #[doc = stringify!($name)]
+            #[doc = " world."]
+            #[allow(unused)]
+            pub const [<MT_NON_CACHEABLE_ $name>]: Attributes = NON_CACHEABLE.union($base);
 
-/// Attributes used for regular memory mappings.
-pub const MT_MEMORY: Attributes = NORMAL_MEMORY.union(BASE).union(Attributes::INNER_SHAREABLE);
+            #[doc = "Attributes used for all memory mappings in "]
+            #[doc = stringify!($name)]
+            #[doc = " world."]
+            #[allow(unused)]
+            pub const [<MT_MEMORY_ $name>]: Attributes = NORMAL_MEMORY
+                .union($base)
+                .union(Attributes::INNER_SHAREABLE);
 
-/// Attributes used for code (i.e. text) mappings.
-pub const MT_CODE: Attributes = {
-    let attrs = MT_MEMORY.union(Attributes::READ_ONLY);
-    if cfg!(bti) {
-        attrs.union(Attributes::GP)
-    } else {
-        attrs
-    }
-};
 
-/// Attributes used for read-only data mappings.
-pub const MT_RO_DATA: Attributes = MT_MEMORY
-    .union(Attributes::READ_ONLY)
-    .union(Attributes::UXN);
+            #[doc = "Attributes used for read-only data mappings in "]
+            #[doc = stringify!($name)]
+            #[doc = " world."]
+            #[allow(unused)]
+            pub const [<MT_RO_DATA_ $name>]: Attributes = [<MT_MEMORY_ $name>]
+                .union(Attributes::READ_ONLY)
+                .union(Attributes::UXN);
 
-/// Attributes used for read-write data mappings.
-#[allow(unused)]
-pub const MT_RW_DATA: Attributes = MT_MEMORY.union(Attributes::UXN);
+            #[doc = "Attributes used for read-write data mappings in "]
+            #[doc = stringify!($name)]
+            #[doc = " world."]
+            #[allow(unused)]
+            pub const [<MT_RW_DATA_ $name>]: Attributes = [<MT_MEMORY_ $name>].union(Attributes::UXN);
+
+
+            #[doc = "Attributes used for code (i.e. text) mappings in "]
+            #[doc = stringify!($name)]
+            #[doc = " world."]
+            #[allow(unused)]
+            pub const [<MT_CODE_ $name>]: Attributes = {
+                let attrs = [<MT_MEMORY_ $name>].union(Attributes::READ_ONLY);
+                if cfg!(bti) {
+                    attrs.union(Attributes::GP)
+                } else {
+                    attrs
+                }
+            };
+        }
+    };
+}
+
+make_memory_attributes!(EL3, BASE_EL3);
+make_memory_attributes!(SECURE, BASE);
+make_memory_attributes!(NS, BASE.union(Attributes::NS));
+#[cfg(feature = "rme")]
+make_memory_attributes!(REALM, BASE.union(Attributes::NS).union(NSE));
 
 static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
     SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
@@ -268,18 +307,30 @@ fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
     unsafe {
         // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
         // BL31_TOTAL
-        idmap.map_region(&MemoryRegion::new(bl31_start(), bl31_end()), MT_MEMORY);
+        idmap.map_region(&MemoryRegion::new(bl31_start(), bl31_end()), MT_MEMORY_EL3);
         // BL31_RO
-        idmap.map_region(&MemoryRegion::new(bl_code_base(), bl_code_end()), MT_CODE);
+        idmap.map_region(
+            &MemoryRegion::new(bl_code_base(), bl_code_end()),
+            MT_CODE_EL3,
+        );
         idmap.map_region(
             &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
-            MT_RO_DATA,
+            MT_RO_DATA_EL3,
         );
         let bss2_start = bss2_start();
         let bss2_end = bss2_end();
         if bss2_start != bss2_end {
-            idmap.map_region(&MemoryRegion::new(bss2_start, bss2_end), MT_RW_DATA);
+            idmap.map_region(&MemoryRegion::new(bss2_start, bss2_end), MT_RW_DATA_EL3);
         }
+
+        #[cfg(feature = "rme")]
+        idmap.map_region(
+            &MemoryRegion::new(
+                PlatformImpl::RMM_SHARED_BUFFER_START,
+                PlatformImpl::RMM_SHARED_BUFFER_START + RMM_SHARED_BUFFER_SIZE,
+            ),
+            MT_RW_DATA_REALM,
+        );
     }
 
     // Corresponds to `plat_regions` in C TF-A.

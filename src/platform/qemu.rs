@@ -19,7 +19,7 @@ use crate::{
     },
     naked_asm,
     pagetable::{
-        IdMap, MT_DEVICE, MT_MEMORY, disable_mmu_el3,
+        IdMap, MT_DEVICE, MT_MEMORY_EL3, disable_mmu_el3,
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
     platform::{CpuExtension, plat_my_core_pos},
@@ -121,7 +121,7 @@ pub struct Qemu;
 define_early_mapping!([
     EarlyRegion {
         address_range: BL31_BASE..BL32_BASE,
-        attributes: MT_MEMORY
+        attributes: MT_MEMORY_EL3
     },
     EarlyRegion {
         address_range: DEVICE1_BASE..(DEVICE1_BASE + DEVICE1_SIZE),

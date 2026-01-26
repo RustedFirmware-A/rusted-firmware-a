@@ -7,7 +7,13 @@ mod config;
 use self::config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU};
 use super::{DummyService, Platform};
 #[cfg(feature = "rme")]
-use crate::Services;
+use crate::{
+    Services,
+    services::rmmd::{
+        RMM_SHARED_BUFFER_SIZE,
+        manifest::{RmmBootManifest, RmmConsoleInfo, RmmMemoryBank},
+    },
+};
 use crate::{
     aarch64::{dsb_ish, dsb_sy, wfi},
     bl31_warm_entrypoint,
@@ -24,7 +30,7 @@ use crate::{
     logger::{self, LockedWriter},
     naked_asm,
     pagetable::{
-        IdMap, MT_DEVICE, MT_MEMORY,
+        IdMap, MT_DEVICE, MT_MEMORY_EL3,
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
     platform::CpuExtension,
@@ -124,7 +130,7 @@ const HW_CONFIG_ADDRESS_NS: u64 = 0x8200_0000;
 const EARLY_REGIONS: [EarlyRegion; 2] = [
     EarlyRegion {
         address_range: ARM_TRUSTED_SRAM_BASE..(ARM_TRUSTED_SRAM_BASE + ARM_TRUSTED_SRAM_SIZE),
-        attributes: MT_MEMORY,
+        attributes: MT_MEMORY_EL3,
     },
     EarlyRegion {
         address_range: UART_BASE..(UART_BASE + UART_SIZE),
@@ -185,6 +191,48 @@ unsafe impl Platform for Fvp {
 
     #[cfg(feature = "rme")]
     const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
+
+    #[cfg(feature = "rme")]
+    fn rme_prepare_manifest(buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]) {
+        use crate::services::rmmd::manifest::{
+            RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION, RMM_BOOT_MANIFEST_VERSION,
+            RmmRootComplexInfoList,
+        };
+
+        let manifest = RmmBootManifest {
+            version: RMM_BOOT_MANIFEST_VERSION,
+            plat_data: &[],
+            plat_dram: &[
+                RmmMemoryBank {
+                    base: NT_FW_CONFIG_ADDRESS as usize,
+                    size: 0x7c00_0000,
+                },
+                RmmMemoryBank {
+                    base: *MemoryMap::DRAM1.start(),
+                    size: 0x8000_0000,
+                },
+            ],
+            plat_console: &[RmmConsoleInfo {
+                // Value from the pl011_uart crate.
+                base: UART_BASE,
+                // Values from TF-A.
+                map_pages: 0x1,
+                name: *b"pl011\0\0\0",
+                clk_in_hz: 0x00e1_0000,
+                baud_rate: 115_200,
+                flags: 0,
+            }],
+            plat_ncoh_region: &[],
+            plat_coh_region: &[],
+            plat_smmu: &[],
+            plat_root_complex: RmmRootComplexInfoList {
+                rc_info_version: RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION,
+                entries: &[],
+            },
+        };
+
+        manifest.pack(buf, buf.as_ptr() as usize);
+    }
 
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;

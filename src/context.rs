@@ -656,8 +656,8 @@ pub struct CpuData {
     pub crash_buffer: CrashBuffer,
 }
 
-const _: () = assert!(size_of::<CpuData>() % align_of::<CpuData>() == 0);
-const _: () = assert!(size_of::<CpuData>() % PlatformImpl::CACHE_WRITEBACK_GRANULE == 0);
+const _: () = assert!(size_of::<CpuData>().is_multiple_of(align_of::<CpuData>()));
+const _: () = assert!(size_of::<CpuData>().is_multiple_of(PlatformImpl::CACHE_WRITEBACK_GRANULE));
 
 impl CpuData {
     const EMPTY: Self = Self {

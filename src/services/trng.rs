@@ -77,6 +77,7 @@ pub trait TrngPlatformInterface {
 
 /// Default implementation of TrngPlatformInterface for platforms that do not
 /// have a TRNG source.
+#[allow(dead_code)]
 pub struct NotSupportedTrngPlatformImpl;
 impl TrngPlatformInterface for NotSupportedTrngPlatformImpl {}
 
@@ -250,7 +251,7 @@ impl EntropyPool {
         }
 
         // Mask off higher bits if only part of the last word was requested
-        if nbits % BITS_PER_WORD != 0 {
+        if !nbits.is_multiple_of(BITS_PER_WORD) {
             let mask = u64::MAX >> (BITS_PER_WORD - (nbits % BITS_PER_WORD));
             out[to_fill - 1] &= mask;
         }

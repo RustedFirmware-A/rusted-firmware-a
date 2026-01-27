@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 [toolchain]
-channel = "1.88.0"
+channel = "1.90.0"
 components = ["llvm-tools"]
 profile = "default"
 targets = ["aarch64-unknown-none-softfloat"]

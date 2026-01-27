@@ -491,10 +491,10 @@ impl PsciCompositePowerState {
             return false;
         }
 
-        if let Some(last_at_power_level) = self.last_at_power_level {
-            if last_at_power_level > PsciPlatformImpl::MAX_POWER_LEVEL {
-                return false;
-            }
+        if let Some(last_at_power_level) = self.last_at_power_level
+            && last_at_power_level > PsciPlatformImpl::MAX_POWER_LEVEL
+        {
+            return false;
         }
 
         if is_power_down_state {

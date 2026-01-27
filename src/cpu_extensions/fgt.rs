@@ -119,6 +119,7 @@ impl CpuExtension for Fgt {
         true
     }
 
+    #[allow(dead_code)]
     fn init(&self) {
         // Write the HFG*_EL2 init values directly to the registers if FGT context switching is
         // disabled.

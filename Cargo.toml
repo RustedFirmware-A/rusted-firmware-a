@@ -14,7 +14,7 @@ authors = [
   "Andrew Walbran <qwandor@google.com>",
   "Okash Khawaja <okash@google.com>",
 ]
-rust-version = "1.88"
+rust-version = "1.90"
 license = "BSD-3-Clause"
 
 [profile.dev]

@@ -32,7 +32,7 @@ impl Sve {
     #[allow(unused)]
     const fn new(vector_length: u64) -> Self {
         assert!(
-            vector_length % 128 == 0 && vector_length >= 128 && vector_length <= 2048,
+            vector_length.is_multiple_of(128) && vector_length >= 128 && vector_length <= 2048,
             "Invalid SVE vector length"
         );
         Self { vector_length }
@@ -85,7 +85,7 @@ struct Sme {
 impl Sme {
     const fn new(vector_length: u64) -> Self {
         assert!(
-            vector_length % 128 == 0 && vector_length >= 128 && vector_length <= 2048,
+            vector_length.is_multiple_of(128) && vector_length >= 128 && vector_length <= 2048,
             "Invalid SSVE vector length"
         );
         Self { vector_length }
@@ -186,15 +186,15 @@ impl CpuExtension for Simd {
     }
 
     fn init(&self) {
-        if let Some(sve) = &self.sve {
-            if Sve::is_present() {
-                sve.init();
-            }
+        if let Some(sve) = &self.sve
+            && Sve::is_present()
+        {
+            sve.init();
         }
-        if let Some(sme) = &self.sme {
-            if Sme::is_present() {
-                sme.init();
-            }
+        if let Some(sme) = &self.sme
+            && Sme::is_present()
+        {
+            sme.init();
         }
     }
 

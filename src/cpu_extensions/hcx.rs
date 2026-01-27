@@ -13,6 +13,7 @@ use super::CpuExtension;
 use crate::context::{PerWorldContext, World};
 use arm_sysregs::{HcrxEl2, ScrEl3, read_id_aa64mmfr1_el1, write_hcrx_el2};
 
+#[allow(dead_code)]
 pub struct Hcx;
 
 impl CpuExtension for Hcx {

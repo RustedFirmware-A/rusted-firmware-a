@@ -4,7 +4,10 @@
 
 use super::{DummyService, Platform};
 #[cfg(feature = "rme")]
-use crate::{Services, services::rmmd::svc::{EccCurve, RmmCommandReturnCode}};
+use crate::{
+    Services,
+    services::rmmd::svc::{EccCurve, RmmCommandReturnCode},
+};
 use crate::{
     aarch64::sev,
     context::EntryPointInfo,
@@ -13,7 +16,7 @@ use crate::{
     dram::const_zeroed,
     errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
     gicv3::{Gic, GicConfig},
-    logger::{self, LogSink},
+    logger::{LOGGER, LogSink},
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
     services::{
         arch::WorkaroundSupport,
@@ -93,7 +96,10 @@ unsafe impl Platform for TestPlatform {
     fn rme_prepare_manifest(_buf: &mut [u8; crate::services::rmmd::RMM_SHARED_BUFFER_SIZE]) {}
 
     #[cfg(feature = "rme")]
-    fn read_attestation_key(_buf: &mut [u8], _curve: EccCurve) -> Result<usize, RmmCommandReturnCode> {
+    fn read_attestation_key(
+        _buf: &mut [u8],
+        _curve: EccCurve,
+    ) -> Result<usize, RmmCommandReturnCode> {
         Ok(0)
     }
     #[cfg(feature = "rme")]
@@ -118,7 +124,9 @@ unsafe impl Platform for TestPlatform {
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[];
 
     fn init_with_early_mapping(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
-        logger::init(StdOutSink).expect("Failed to initialise logger");
+        LOGGER
+            .init(StdOutSink)
+            .expect("Failed to initialise logger");
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {

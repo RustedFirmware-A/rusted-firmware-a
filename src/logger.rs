@@ -14,13 +14,41 @@ use core::{
 use log::{Log, Metadata, Record, SetLoggerError};
 use spin::{Once, mutex::SpinMutex};
 
-static LOGGER: Once<Logger> = Once::new();
+pub static LOGGER: OnceLogger<LogSinkImpl> = OnceLogger::new();
 
-struct Logger {
+pub struct OnceLogger<LogSinkImpl> {
+    logger: Once<Logger<LogSinkImpl>>,
+}
+
+impl<LogSinkImpl: LogSink> OnceLogger<LogSinkImpl> {
+    pub const fn new() -> Self {
+        Self {
+            logger: Once::new(),
+        }
+    }
+
+    /// Initialises logger.
+    pub fn init(&'static self, sink: LogSinkImpl) -> Result<(), SetLoggerError> {
+        let logger = self.logger.call_once(|| Logger { sink });
+        log::set_logger(logger)?;
+        // Init the maximum log level to the statically configured maximum level controlled by the
+        // `max_log_<level>` Cargo feature flag.
+        log::set_max_level(log::STATIC_MAX_LEVEL);
+        Ok(())
+    }
+
+    /// Gets a reference to the log sink, if it has been set.
+    #[allow(unused)]
+    pub fn log_sink(&self) -> Option<&LogSinkImpl> {
+        self.logger.get().map(|logger| &logger.sink)
+    }
+}
+
+struct Logger<LogSinkImpl> {
     sink: LogSinkImpl,
 }
 
-impl Log for Logger {
+impl<LogSinkImpl: LogSink> Log for Logger<LogSinkImpl> {
     fn enabled(&self, _metadata: &Metadata) -> bool {
         true
     }
@@ -34,26 +62,10 @@ impl Log for Logger {
     }
 }
 
-/// Initialises logger.
-pub fn init(sink: LogSinkImpl) -> Result<(), SetLoggerError> {
-    let logger = LOGGER.call_once(|| Logger { sink });
-    log::set_logger(logger)?;
-    // Init the maximum log level to the statically configured maximum level controlled by the
-    // `max_log_<level>` Cargo feature flag.
-    log::set_max_level(log::STATIC_MAX_LEVEL);
-    Ok(())
-}
-
-/// Gets a reference to the log sink, if it has been set.
-#[allow(unused)]
-pub fn get_log_sink() -> Option<&'static LogSinkImpl> {
-    LOGGER.get().map(|logger| &logger.sink)
-}
-
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    if let Some(sink) = get_log_sink() {
+    if let Some(sink) = LOGGER.log_sink() {
         writeln!(sink, "{info}");
     }
     loop {}
@@ -64,7 +76,7 @@ fn panic(info: &PanicInfo) -> ! {
 /// Note that unlike `core::fmt::Write`, the `write_fmt` method on this trait takes `&self` rather
 /// than `&mut self`. This means that the implementation is responsible for handling locking if
 /// necessary, or can be made lock-free.
-pub trait LogSink {
+pub trait LogSink: Send + Sync {
     /// Writes the given format arguments to the log sink.
     fn write_fmt(&self, args: Arguments);
 
@@ -91,7 +103,7 @@ impl<W: Write> LockedWriter<W> {
     }
 }
 
-impl<W: Write> LogSink for LockedWriter<W> {
+impl<W: Send + Sync + Write> LogSink for LockedWriter<W> {
     fn write_fmt(&self, args: Arguments) {
         // Ignore errors.
         let _ = self.writer.lock().write_fmt(args);

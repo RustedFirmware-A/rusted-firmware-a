@@ -28,7 +28,7 @@ use crate::{
     debug::DEBUG,
     errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig, InterruptConfig},
-    logger::{self, LockedWriter},
+    logger::{LOGGER, LockedWriter},
     naked_asm,
     pagetable::{
         IdMap, MT_DEVICE, MT_MEMORY_EL3,
@@ -363,7 +363,8 @@ unsafe impl Platform for Fvp {
 
         let uart_pointer = map_peripheral(peripherals.uart0);
 
-        logger::init(LockedWriter::new(Uart::new(uart_pointer)))
+        LOGGER
+            .init(LockedWriter::new(Uart::new(uart_pointer)))
             .expect("Failed to initialise logger");
 
         let psci_platform = FvpPsciPlatformImpl::new(

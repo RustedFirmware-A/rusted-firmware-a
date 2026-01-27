@@ -14,7 +14,7 @@ use crate::{
     errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig},
     logger::{
-        self, HybridLogger, LockedWriter,
+        HybridLogger, LOGGER, LockedWriter,
         inmemory::{MemoryLogger, PerCoreMemoryLogger},
     },
     naked_asm,
@@ -171,11 +171,12 @@ unsafe impl Platform for Qemu {
         // main one, as it's within the `DEVICE1` region that is identity mapped in both cases.
         let uart_pointer =
             unsafe { UniqueMmioPointer::new(NonNull::new(PL011_BASE_ADDRESS).unwrap()) };
-        logger::init(HybridLogger::new(
-            PerCoreMemoryLogger::new(SpinMutexGuard::leak(MEMORY_LOGGERS.lock()).each_mut()),
-            LockedWriter::new(Uart::new(uart_pointer)),
-        ))
-        .expect("Failed to initialise logger");
+        LOGGER
+            .init(HybridLogger::new(
+                PerCoreMemoryLogger::new(SpinMutexGuard::leak(MEMORY_LOGGERS.lock()).each_mut()),
+                LockedWriter::new(Uart::new(uart_pointer)),
+            ))
+            .expect("Failed to initialise logger");
     }
 
     fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {

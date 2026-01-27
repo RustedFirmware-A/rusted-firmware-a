@@ -52,6 +52,8 @@ use arm_sysregs::{
     CptrEl3, EsrEl3, MdcrEl3, Mpam3El3, ScrEl3, SpsrEl3, read_mpidr_el1, write_cptr_el3,
     write_mpam3_el3, write_scr_el3,
 };
+#[cfg(not(test))]
+pub use asm::init_cpu_data_ptr;
 use core::{
     cell::{RefCell, RefMut},
     ops::{Index, IndexMut},
@@ -1004,6 +1006,7 @@ mod asm {
     use crate::{
         debug::{DEBUG, ENABLE_ASSERTIONS},
         exceptions::RunResult,
+        naked_asm,
         platform::plat_my_core_pos,
         smccc::NOT_SUPPORTED,
     };
@@ -1037,11 +1040,51 @@ mod asm {
     #[cfg(not(feature = "pauth"))]
     const APIAKEY_OFFSET: usize = 0;
 
+    /// Initialises the TPIDR_EL3 register to refer to the `CpuData`
+    /// for the calling CPU.
+    ///
+    /// This can be called without a valid stack. It assumes that plat_my_core_pos() does not
+    /// clobber register x10.
+    ///
+    /// Clobbers x0-x5, x10.
+    #[unsafe(naked)]
+    pub extern "C" fn init_cpu_data_ptr() {
+        naked_asm!(
+            "mov x10, x30",
+            "bl {plat_my_core_pos}",
+            "bl {cpu_data_by_index}",
+            "msr tpidr_el3, x0",
+            "ret x10",
+            plat_my_core_pos = sym plat_my_core_pos,
+            cpu_data_by_index = sym cpu_data_by_index,
+        );
+    }
+
+    /// Returns the CpuData structure for the CPU with given linear index.
+    ///
+    /// This can be called without a valid stack.
+    ///
+    /// Clobbers x0-x1.
+    #[unsafe(naked)]
+    extern "C" fn cpu_data_by_index(cpu_index: usize) -> *mut CpuData {
+        naked_asm!(
+            include_str!("asm_macros_common.S"),
+            "mov_imm x1, {CPU_DATA_SIZE}",
+            "mul x0, x0, x1",
+            "adr_l x1, {percpu_data}",
+            "add x0, x0, x1",
+            "ret",
+            include_str!("asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as u32,
+            CPU_DATA_SIZE = const size_of::<CpuData>(),
+            percpu_data = sym PERCPU_DATA,
+        );
+    }
+
     global_asm!(
         include_str!("asm_macros_common.S"),
         include_str!("context.S"),
         include_str!("runtime_exceptions.S"),
-        include_str!("cpu_data.S"),
         include_str!("asm_macros_common_purge.S"),
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         DEBUG = const DEBUG as u32,
@@ -1092,10 +1135,7 @@ mod asm {
         RUN_RESULT_SMC = const RunResult::SMC,
         RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
         RUN_RESULT_INTERRUPT = const RunResult::INTERRUPT,
-        percpu_data = sym PERCPU_DATA,
-        CPU_DATA_SIZE = const size_of::<CpuData>(),
         CPU_DATA_APIAKEY_OFFSET = const APIAKEY_OFFSET,
         ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,
-        plat_my_core_pos = sym plat_my_core_pos,
     );
 }

@@ -145,6 +145,7 @@ extern "C" fn psci_warmboot_entrypoint() -> ! {
 mod asm {
     use super::*;
     use crate::{
+        context::init_cpu_data_ptr,
         cpu::cpu_reset_handler,
         debug::{DEBUG, ENABLE_ASSERTIONS},
         pagetable::{PAGE_TABLE_ADDR, early_pagetable::init_early_page_tables, enable_mmu},
@@ -189,6 +190,7 @@ mod asm {
             bl31_main = sym bl31_main,
             apply_reset_errata = sym errata_framework::apply_reset_errata,
             plat_set_my_stack = sym set_my_stack,
+            init_cpu_data_ptr = sym init_cpu_data_ptr,
         );
     }
 
@@ -220,6 +222,7 @@ mod asm {
             psci_warmboot_entrypoint = sym psci_warmboot_entrypoint,
             apply_reset_errata = sym errata_framework::apply_reset_errata,
             plat_set_my_stack = sym set_my_stack,
+            init_cpu_data_ptr = sym init_cpu_data_ptr,
         );
     }
 

@@ -48,7 +48,7 @@
 	isb
 
 	/* Initialise TPIDR_EL3 to point to the current CPU's CpuData instance. */
-	bl init_cpu_data_ptr
+	bl {init_cpu_data_ptr}
 
 	/* ---------------------------------------------------------------------
 	 * Enable External Aborts and SError Interrupts now that the exception

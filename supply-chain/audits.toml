@@ -297,6 +297,32 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.3.2 -> 0.4.0"
 notes = "Dependency version bump only."
 
+[[audits.arm-pl061]]
+who = "Jim Ray <jimray@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.1.1"
+notes = """
+\"safe-to-deploy\"
+
+This crate implements a pl061 driver. It does not perform any ambient related capabilities
+(filesystem, network, OS, etc). It also does not use any particularly powerful imports. The
+functionality is soley limited to interacting with the PL061 hardware itself and provides interfaces
+for interacting with that hardware in a safe manner. There is a single unsafe block. The unsafe
+block is paired with a safety comment that explains why the particular usage of this code is safe.
+
+\"does-not-implement-crypto\"
+
+This crate does not implement any crypto functionality.
+
+\"ub-risk-2\"
+
+Negligible unsoundness.
+
+The crate relies on a single unsafe block. The unsafe block is paired with a comment that explains
+that the code is safe because it does not violate the preconditions of the macro. This is an
+informal justification, but is trivial to verify.
+"""
+
 [[audits.arm-psci]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -616,6 +642,33 @@ abstractions on top of these necessary unsafe primitives. The risk of UB remains
 by this delta.
 """
 
+[[audits.safe-mmio]]
+who = "Jim Ray <jimray@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.5 -> 0.2.7"
+notes = """
+\"safe-to-deploy\"
+This crate is only related to MMIO. It does not use the filesystem, network, or other OS related
+capabilities.
+
+The changes from 0.2.5->0.2.7 are very minor. Some minor code style things have been changed and a
+new library function has been added. The new function contains unsafe code, but each unsafe section
+is paired with safety comments that describe why the particular unsafe code is actually safe. Those
+safety comments are well reasoned and are in line with other safety comments in this crate. In
+general, this crate only allows the user to manipulate memory regions provided by the user
+themselves. This crate helps deal with those memory regions in a more safe manner. This new function
+is in line with that goal by improving the flexbility of the library.
+
+\"does-not-implement-crypto\"
+This crate does not implement any crypto related code. It is soley related to MMIO.
+
+\"ub-risk-2\"
+
+Negligible unsoundness. The changes from 0.2.5->0.2.7 add a small amount of unsafe code. The unsafe
+blocks are paired with safety comments that are well justified. The risk of UB remains negligible
+and is not increased by this delta.
+"""
+
 [[audits.scopeguard]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
@@ -777,6 +830,16 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.8.26 -> 0.8.27"
 
+[[audits.zerocopy]]
+who = "Jim Ray <jimray@google.com>"
+criteria = "does-not-implement-crypto"
+delta = "0.8.27 -> 0.8.34"
+notes = """
+No attempt to add cryptographic functionality from 0.8.27 to 0.8.34. A single hashing function for
+strings has been added (hash_name in macro_util.rs) but it is not used for any cryptographic related
+functionality and makes no attempt to be cryptographically robust.
+"""
+
 [[audits.zerocopy-derive]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"
@@ -787,3 +850,9 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.8.26 -> 0.8.27"
 notes = "Added support and tests for 128 bit types."
+
+[[audits.zerocopy-derive]]
+who = "Jim Ray <jimray@google.com>"
+criteria = "does-not-implement-crypto"
+delta = "0.8.27 -> 0.8.34"
+notes = "The changes from 0.8.27 to 0.8.34 do not add any cryptographic functionality."

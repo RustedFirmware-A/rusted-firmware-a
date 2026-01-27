@@ -36,6 +36,7 @@ arm-ffa = { version = "0.4.1", default-features = false }
 arm-fvp-base-pac = { version = "0.1.4", default-features = false }
 arm-gic = "0.7.1"
 arm-pl011-uart = { version = "0.4.0", default-features = false }
+arm-pl061 = { version = "0.1.1", default-features = false }
 arm-psci = "0.2.0"
 arm-sysregs = { version = "0.2.1", features = ["el3"] }
 arrayvec = { version = "0.7.6", default-features = false }

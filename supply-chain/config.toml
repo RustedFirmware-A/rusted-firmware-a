@@ -24,9 +24,9 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 criteria = "safe-to-run"
 
 [[exemptions.zerocopy]]
-version = "0.8.26"
+version = "0.8.34"
 criteria = ["safe-to-deploy", "ub-risk-2"]
 
 [[exemptions.zerocopy-derive]]
-version = "0.8.26"
+version = "0.8.34"
 criteria = ["safe-to-deploy", "ub-risk-2"]

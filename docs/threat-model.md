@@ -50,7 +50,7 @@ To address threat ID 07,
 , we have some defenses against this in the forms of:
 
 * easier and thus more frequent unit testing
-* integration testing with TFTF (to come)
+* integration testing with TFTF
 * use of the type system to shrink the space of possible machine states (e.g. `MutexGuard` to
   improve our ability to release locks at the right time and in the right order)
 
@@ -77,7 +77,7 @@ we use several techniques:
 
 * minimizing the number of 3P crates
 * using `cargo vet` (including for first-party crates) to ensure that they meet a reasonable safety
-  bar (in paticular, `unsafe` blocks)
+  bar (in particular, `unsafe` blocks)
 * Cargo’s version pinning
 
 RF-A does not have the internal (i.e. vendored) vs. external dependency distinction that C TF-A
@@ -88,10 +88,7 @@ To address TFA-SC-TOOL-01,
 > Malicious code can be injected at build time through malicious tools.
 
 , we can at least (and do) specify a specific Rust toolchain version in our rust-toolchain.toml
-file. Although currently we build some assembly code files with the `cc` crate, when [Audit assembly
-and header files copied from C TF-A](https://github.com/RustedFirmware-A/rusted-firmware-a/issues/7)
-is complete, the toolchain will be somewhat less open-ended in that we will use only `rustc` and not
-a full C front-end as well. (That will also eliminate our largest 3P dependency.)
+file.
 
 --------------
 

@@ -37,6 +37,7 @@ use crate::cpu_extensions::pauth;
 use crate::{
     context::{CoresImpl, initialise_contexts, update_contexts_suspend},
     gicv3::Gic,
+    pagetable::{IdMap, OncePageTable, PageHeap},
     platform::Platform,
     services::{Services, psci::WakeUpReason},
 };
@@ -49,7 +50,13 @@ use percore::Cores;
 use spin::Once;
 
 /// Handles early initialisation at the start of a cold boot, and then runs the main loop.
-pub fn coldboot<const CORE_COUNT: usize, PlatformImpl: Platform>(
+pub fn coldboot<
+    const CORE_COUNT: usize,
+    const PAGE_HEAP_PAGE_COUNT: usize,
+    PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
+>(
+    page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
+    page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
     gic: &'static Once<Gic<'static, CORE_COUNT, PlatformImpl>>,
     arg0: u64,
     arg1: u64,
@@ -58,7 +65,7 @@ pub fn coldboot<const CORE_COUNT: usize, PlatformImpl: Platform>(
 ) -> ! {
     PlatformImpl::init_with_early_mapping(arg0, arg1, arg2, arg3);
 
-    pagetable::init_runtime_mapping();
+    page_table.init_runtime_mapping::<PlatformImpl>(page_heap);
 
     PlatformImpl::init(arg0, arg1, arg2, arg3);
 
@@ -205,7 +212,7 @@ mod asm {
             DIT_BIT = const Dit::DIT.bits(),
             PAGE_TABLE_ADDR = sym PAGE_TABLE_ADDR,
             cpu_reset_handler = sym cpu_reset_handler,
-            enable_mmu = sym enable_mmu,
+            enable_mmu = sym enable_mmu::<PlatformImpl>,
             psci_warmboot_entrypoint = sym psci_warmboot_entrypoint::<PlatformImpl>,
             apply_reset_errata = sym errata_framework::apply_reset_errata,
             plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
@@ -264,7 +271,7 @@ macro_rules! main_asm {
                     plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
                     cpu_reset_handler = sym $crate::cpu::cpu_reset_handler,
                     init_early_page_tables = sym $crate::pagetable::early_pagetable::init_early_page_tables,
-                    enable_mmu = sym $crate::pagetable::enable_mmu,
+                    enable_mmu = sym $crate::pagetable::enable_mmu::<PlatformImpl>,
                     bl31_main = sym super::bl31_main,
                     apply_reset_errata = sym $crate::errata_framework::apply_reset_errata,
                     plat_set_my_stack = sym $crate::stacks::set_my_stack::<PlatformImpl>,
@@ -293,10 +300,18 @@ macro_rules! all_asm {
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub(crate) use asm::naked_asm;
 
-/// Generates static variables `LOGGER` and `GIC` for the platform.
+/// Generates static variables `LOGGER`, `GIC`, `PAGE_HEAP` and `PAGE_TABLE` for the platform, and
+/// the `bl31_main` function.
 #[macro_export]
 macro_rules! statics {
     ($platform:ty) => {
+        const _: () = assert!(
+            EARLY_PAGE_TABLE_SIZE
+                <= (<$platform as $crate::platform::Platform>::CORE_COUNT - 1)
+                    * $crate::stacks::STACK_SIZE,
+            "The early page tables do not fit into the secondary core stack range."
+        );
+
         type LogSinkImpl_ = <$platform as $crate::platform::Platform>::LogSinkImpl;
 
         static GIC: $crate::reexports::spin::Once<
@@ -308,12 +323,21 @@ macro_rules! statics {
 
         static LOGGER: $crate::logger::OnceLogger<LogSinkImpl_> = $crate::logger::OnceLogger::new();
 
+        /// An array of pages which can be allocated for pagetables.
+        pub static PAGE_HEAP: $crate::pagetable::PageHeap<
+            { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
+        > = $crate::pagetable::PageHeap::new();
+        static PAGE_TABLE: $crate::pagetable::OncePageTable<
+            { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
+        > = $crate::pagetable::OncePageTable::new();
+
         #[cfg_attr(test, allow(unused))]
         extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
             $crate::coldboot::<
                 { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
                 $platform,
-            >(&GIC, arg0, arg1, arg2, arg3)
+            >(&PAGE_TABLE, &PAGE_HEAP, &GIC, arg0, arg1, arg2, arg3)
         }
     };
 }

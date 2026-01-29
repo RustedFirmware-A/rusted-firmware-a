@@ -202,6 +202,7 @@ unsafe impl Platform for Qemu {
         PerCoreMemoryLogger<'static, { Self::CORE_COUNT }, LOG_BUFFER_SIZE, Self>,
         LockedWriter<Uart<'static>>,
     >;
+    type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
     // QEMU does not have a TRNG.
     type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
@@ -247,7 +248,7 @@ unsafe impl Platform for Qemu {
         });
     }
 
-    fn map_extra_regions(idmap: &mut IdMap) {
+    fn map_extra_regions(idmap: &mut Self::IdMap) {
         // SAFETY: Nothing is being unmapped, and the regions being mapped have the correct
         // attributes.
         unsafe {

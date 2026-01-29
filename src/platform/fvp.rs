@@ -343,6 +343,7 @@ unsafe impl Platform for Fvp {
     const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
 
     type LogSinkImpl = LockedWriter<Uart<'static>>;
+    type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
     // TODO: Implement TRNG for FVP.
     type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
@@ -424,7 +425,7 @@ unsafe impl Platform for Fvp {
         });
     }
 
-    fn map_extra_regions(idmap: &mut IdMap) {
+    fn map_extra_regions(idmap: &mut Self::IdMap) {
         // SAFETY: Nothing is being unmapped, and the regions being mapped have the correct
         // attributes.
         unsafe {

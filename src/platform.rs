@@ -10,8 +10,8 @@ macro_rules! select_platform {
 
         #[cfg(platform = $condition)]
         pub use $mod::$sub::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL,
+            $plat_impl as PlatformImpl,
         };
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
@@ -20,8 +20,8 @@ macro_rules! select_platform {
 
         #[cfg(platform = $condition)]
         pub use $mod::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL,
+            $plat_impl as PlatformImpl,
         };
     };
     (test, $mod:ident::$plat_impl:ident) => {
@@ -30,8 +30,8 @@ macro_rules! select_platform {
 
         #[cfg(test)]
         pub use $mod::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL,
+            $plat_impl as PlatformImpl,
         };
     };
 }
@@ -50,7 +50,7 @@ use crate::{
     cpu_extensions::CpuExtension,
     gicv3,
     logger::LogSink,
-    pagetable::{IdMap, MAIR_IWBRWA_OWBRWA_NTR},
+    pagetable::MAIR_IWBRWA_OWBRWA_NTR,
     services::{Service, arch::WorkaroundSupport, trng::TrngPlatformInterface},
     smccc::FunctionId,
 };
@@ -129,6 +129,11 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;
 
+    /// The type passed to `map_extra_regions`.
+    ///
+    /// Should be `IdMap<Self::PAGE_HEAP_PAGE_COUNT>`.
+    type IdMap: 'static;
+
     /// Platform dependent PsciPlatformInterface implementation type.
     type PsciPlatformImpl;
 
@@ -158,7 +163,7 @@ pub unsafe trait Platform: Sized + Send + Sync {
 
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.
-    fn map_extra_regions(idmap: &mut IdMap);
+    fn map_extra_regions(idmap: &mut Self::IdMap);
 
     /// Returns a 128-bit value that can be used to program the pointer authentication keys.
     ///

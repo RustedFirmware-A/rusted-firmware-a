@@ -4,23 +4,20 @@
 
 //! Stacks for EL3.
 
-use crate::platform::{EARLY_PAGE_TABLE_SIZE, Platform, PlatformImpl};
 #[cfg(not(test))]
 pub use asm::set_my_stack;
 
 /// The number of bytes of stack space to reserve for each core.
 pub const STACK_SIZE: usize = 0x2000;
 
-#[allow(unused)]
-const _: () = assert!(
-    EARLY_PAGE_TABLE_SIZE <= (PlatformImpl::CORE_COUNT - 1) * STACK_SIZE,
-    "The early page tables do not fit into the secondary core stack range."
-);
-
 #[cfg(all(target_arch = "aarch64", not(test)))]
 mod asm {
     use super::*;
-    use crate::{debug::DEBUG, naked_asm, platform::my_core_pos};
+    use crate::{
+        debug::DEBUG,
+        naked_asm,
+        platform::{Platform, my_core_pos},
+    };
 
     /// Returns a pointer to the top of the stack to use for current CPU.
     ///

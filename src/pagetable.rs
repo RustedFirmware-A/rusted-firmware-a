@@ -12,7 +12,7 @@ use crate::{
         bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end, bl31_end, bl31_start, bss2_end,
         bss2_start,
     },
-    platform::{Platform, PlatformImpl},
+    platform::Platform,
 };
 #[cfg(feature = "rme")]
 use crate::{
@@ -59,15 +59,6 @@ pub const MAIR_IWBRWA_OWBRWA_NTR: MairAttribute = MairAttribute::normal(
 );
 const MAIR_NON_CACHEABLE: MairAttribute =
     MairAttribute::normal(NormalMemory::NonCacheable, NormalMemory::NonCacheable);
-
-#[cfg_attr(test, allow(unused))]
-const MAIR: Mair = Mair::EMPTY
-    .with_attribute(MAIR_DEVICE_INDEX, MAIR_DEVICE)
-    .with_attribute(
-        MAIR_NORMAL_MEMORY_INDEX,
-        PlatformImpl::NORMAL_MEMORY_MAIR_ATTRIBUTE,
-    )
-    .with_attribute(MAIR_NON_CACHEABLE_INDEX, MAIR_NON_CACHEABLE);
 
 #[cfg_attr(test, allow(unused))]
 const TCR: u64 = (0b101 << 16) // 48 bit physical address size (256 TiB).
@@ -185,10 +176,6 @@ make_memory_attributes!(NS, BASE.union(El23Attributes::NS));
 #[cfg(feature = "rme")]
 make_memory_attributes!(REALM, BASE.union(El23Attributes::NS).union(NSE));
 
-static PAGE_HEAP: SpinMutex<[PageTable<El23Attributes>; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
-    SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
-static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
-
 /// The runtime page table address is shared via this variable. After the primary core finished
 /// initializing the page tables it sets this value to point to the address of the top level table.
 /// The variable is written when primary core uses the early page tables, so flushing the variable
@@ -197,6 +184,17 @@ static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
 /// The secondary core early boot sequence reads the variable with device attributes and then uses
 /// it set its TTBR.
 pub static mut PAGE_TABLE_ADDR: usize = 0;
+
+#[cfg_attr(test, allow(unused))]
+const fn mair<PlatformImpl: Platform>() -> Mair {
+    Mair::EMPTY
+        .with_attribute(MAIR_DEVICE_INDEX, MAIR_DEVICE)
+        .with_attribute(
+            MAIR_NORMAL_MEMORY_INDEX,
+            PlatformImpl::NORMAL_MEMORY_MAIR_ATTRIBUTE,
+        )
+        .with_attribute(MAIR_NON_CACHEABLE_INDEX, MAIR_NON_CACHEABLE)
+}
 
 /// Flushes the value from the data cache.
 pub fn flush_dcache<T>(value: &T) {
@@ -286,69 +284,115 @@ pub fn flush_dcache_to_popa_range(
     Ok(())
 }
 
-/// Initialises and enables the runtime page tables.
-///
-/// At this point the early page tables are active with the required MAIR and TCR values, so the
-/// function only switches the TTBR value and updates SCTLR to add WXN.
-///
-/// This should be called once in the startup sequence of the primary core.
-pub fn init_runtime_mapping() {
-    PAGE_TABLE.call_once(|| {
-        let page_heap =
-            SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
-        let mut idmap = init_page_table::<PlatformImpl>(page_heap);
+/// Wrapper around an [`IdMap`] with a mutex and late initialisation, to be stored in a static
+/// variable.
+#[derive(Default)]
+pub struct OncePageTable<const PAGE_HEAP_PAGE_COUNT: usize> {
+    page_table: Once<SpinMutex<IdMap<PAGE_HEAP_PAGE_COUNT>>>,
+}
 
-        trace!("Page table: {idmap:?}");
-
-        // Safety: `PAGE_TABLE_ADDR` is only written once here and then its value is flushed from
-        // the cache to make it visible to other core's early boot sequence.
-        unsafe {
-            // Expose page table address so other cores can access it in their boot sequence.
-            PAGE_TABLE_ADDR = idmap.root_address().0;
-
-            flush_dcache((&raw const PAGE_TABLE_ADDR).as_ref().unwrap());
+impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
+    /// Constructs a new, uninitialised `OncePageTable`.
+    pub const fn new() -> Self {
+        Self {
+            page_table: Once::new(),
         }
+    }
 
-        debug!("Setting MMU config");
+    /// Initialises and enables the runtime page tables.
+    ///
+    /// At this point the early page tables are active with the required MAIR and TCR values, so the
+    /// function only switches the TTBR value and updates SCTLR to add WXN.
+    ///
+    /// This should be called once in the startup sequence of the primary core.
+    pub fn init_runtime_mapping<PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>>(
+        &self,
+        page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
+    ) {
+        self.page_table.call_once(|| {
+            let page_heap = page_heap.take();
+            let mut idmap = init_page_table::<PAGE_HEAP_PAGE_COUNT, PlatformImpl>(page_heap);
 
-        let mut sctlr = read_sctlr_el3();
-        assert!(sctlr.contains(SctlrEl3::C | SctlrEl3::M));
+            trace!("Page table: {idmap:?}");
 
-        // Ensure all translation table writes have drained into memory.
-        dsb_sy();
-        isb();
+            // Safety: `PAGE_TABLE_ADDR` is only written once here and then its value is flushed from
+            // the cache to make it visible to other core's early boot sequence.
+            unsafe {
+                // Expose page table address so other cores can access it in their boot sequence.
+                PAGE_TABLE_ADDR = idmap.root_address().0;
 
-        // Safety: The MMU is already enabled with the correct configuration parameters MAIR, TCR.
-        // `idmap` provides a valid address to the runtime page tables.
-        unsafe {
-            write_ttbr0_el3(
-                Ttbr0El3::from_bits_retain(idmap.root_address().0 as u64) | Ttbr0El3::CNP,
-            );
+                flush_dcache((&raw const PAGE_TABLE_ADDR).as_ref().unwrap());
+            }
+
+            debug!("Setting MMU config");
+
+            let mut sctlr = read_sctlr_el3();
+            assert!(sctlr.contains(SctlrEl3::C | SctlrEl3::M));
+
+            // Ensure all translation table writes have drained into memory.
+            dsb_sy();
+            isb();
+
+            // Safety: The MMU is already enabled with the correct configuration parameters MAIR, TCR.
+            // `idmap` provides a valid address to the runtime page tables.
+            unsafe {
+                write_ttbr0_el3(
+                    Ttbr0El3::from_bits_retain(idmap.root_address().0 as u64) | Ttbr0El3::CNP,
+                );
+            }
+
+            // Make sure that any entry from the early page table is invalidated. If WXN is not cached,
+            // setting WXN removes execution right of the current PC that would result in an exception.
+            tlbi_alle3();
+            isb();
+
+            sctlr |= SctlrEl3::WXN;
+
+            // Safety: `sctlr` is a valid and safe value for the EL3 system control register. At this
+            // point we only set `WXN` to prevent having RWX regions.
+            unsafe {
+                write_sctlr_el3(sctlr);
+            }
+            isb();
+
+            // Invalidate entries to prevent having entries cached without WXN.
+            tlbi_alle3();
+            isb();
+
+            debug!("Marking page table as active");
+            idmap.mark_active();
+
+            SpinMutex::new(idmap)
+        });
+    }
+}
+
+/// A set of pages which may be used to construct a pagetable.
+pub struct PageHeap<const PAGE_HEAP_PAGE_COUNT: usize> {
+    page_heap: SpinMutex<[PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT]>,
+}
+
+impl<const PAGE_HEAP_PAGE_COUNT: usize> PageHeap<PAGE_HEAP_PAGE_COUNT> {
+    /// Constructs a new unused page heap.
+    pub const fn new() -> Self {
+        Self {
+            page_heap: SpinMutex::new([PageTable::EMPTY; PAGE_HEAP_PAGE_COUNT]),
         }
+    }
 
-        // Make sure that any entry from the early page table is invalidated. If WXN is not cached,
-        // setting WXN removes execution right of the current PC that would result in an exception.
-        tlbi_alle3();
-        isb();
+    fn take(&self) -> &mut [PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT] {
+        SpinMutexGuard::leak(
+            self.page_heap
+                .try_lock()
+                .expect("Page heap was already taken"),
+        )
+    }
+}
 
-        sctlr |= SctlrEl3::WXN;
-
-        // Safety: `sctlr` is a valid and safe value for the EL3 system control register. At this
-        // point we only set `WXN` to prevent having RWX regions.
-        unsafe {
-            write_sctlr_el3(sctlr);
-        }
-        isb();
-
-        // Invalidate entries to prevent having entries cached without WXN.
-        tlbi_alle3();
-        isb();
-
-        debug!("Marking page table as active");
-        idmap.mark_active();
-
-        SpinMutex::new(idmap)
-    });
+impl<const PAGE_HEAP_PAGE_COUNT: usize> Default for PageHeap<PAGE_HEAP_PAGE_COUNT> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Enables the MMU for a newly booted core.
@@ -357,7 +401,11 @@ pub fn init_runtime_mapping() {
 /// `SCTLR_EL3 = (SCTLR_EL3 | sctlr_set) & !sctlr_clear`.
 #[cfg(all(target_arch = "aarch64", not(test)))]
 #[unsafe(naked)]
-pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
+pub extern "C" fn enable_mmu<PlatformImpl: Platform>(
+    ttbr: usize,
+    sctlr_set: u64,
+    sctlr_clear: u64,
+) {
     crate::naked_asm!(
         "tlbi	alle3
 
@@ -382,7 +430,7 @@ pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
 
         isb
         ret",
-        mair = const MAIR.0,
+        mair = const mair::<PlatformImpl>().0,
         tcr = const TCR,
         TTBR0_EL3_CNP_BIT = const Ttbr0El3::CNP.bits(),
     )
@@ -390,9 +438,12 @@ pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
 
 /// Creates the page table and maps initial regions needed for boot, including any platform-specific
 /// regions.
-fn init_page_table<PlatformImpl: Platform>(
+fn init_page_table<
+    const PAGE_HEAP_PAGE_COUNT: usize,
+    PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
+>(
     pages: &'static mut [PageTable<El23Attributes>],
-) -> IdMap {
+) -> IdMap<PAGE_HEAP_PAGE_COUNT> {
     let mut idmap = IdMap::new(pages);
 
     // If the BL32 entry point is in the middle of our memory range then something is misconfigured.
@@ -452,14 +503,14 @@ pub unsafe fn disable_mmu_el3() {
     dsb_sy();
 }
 
-struct IdTranslation {
+struct IdTranslation<const PAGE_HEAP_PAGE_COUNT: usize> {
     /// Pages which can be allocated for page tables.
     pages: &'static mut [PageTable<El23Attributes>],
     /// Record of which `pages` are currently allocated.
-    allocated: [bool; PlatformImpl::PAGE_HEAP_PAGE_COUNT],
+    allocated: [bool; PAGE_HEAP_PAGE_COUNT],
 }
 
-impl Debug for IdTranslation {
+impl<const PAGE_HEAP_PAGE_COUNT: usize> Debug for IdTranslation<PAGE_HEAP_PAGE_COUNT> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_struct("IdTranslation")
             .field("pages", &self.pages.len())
@@ -468,7 +519,7 @@ impl Debug for IdTranslation {
     }
 }
 
-impl IdTranslation {
+impl<const PAGE_HEAP_PAGE_COUNT: usize> IdTranslation<PAGE_HEAP_PAGE_COUNT> {
     fn virtual_to_physical(va: VirtualAddress) -> PhysicalAddress {
         // Physical address is the same as the virtual address because we are using identity mapping
         // everywhere.
@@ -476,7 +527,9 @@ impl IdTranslation {
     }
 }
 
-impl Translation<El23Attributes> for IdTranslation {
+impl<const PAGE_HEAP_PAGE_COUNT: usize> Translation<El23Attributes>
+    for IdTranslation<PAGE_HEAP_PAGE_COUNT>
+{
     fn allocate_table(&mut self) -> (NonNull<PageTable<El23Attributes>>, PhysicalAddress) {
         let index = self
             .allocated
@@ -508,17 +561,17 @@ impl Translation<El23Attributes> for IdTranslation {
 
 /// A page table using identity mapping.
 #[derive(Debug)]
-pub struct IdMap {
-    mapping: Mapping<IdTranslation, El3>,
+pub struct IdMap<const PAGE_HEAP_PAGE_COUNT: usize> {
+    mapping: Mapping<IdTranslation<PAGE_HEAP_PAGE_COUNT>, El3>,
 }
 
-impl IdMap {
+impl<const PAGE_HEAP_PAGE_COUNT: usize> IdMap<PAGE_HEAP_PAGE_COUNT> {
     fn new(pages: &'static mut [PageTable<El23Attributes>]) -> Self {
         Self {
             mapping: Mapping::new(
                 IdTranslation {
                     pages,
-                    allocated: [false; PlatformImpl::PAGE_HEAP_PAGE_COUNT],
+                    allocated: [false; PAGE_HEAP_PAGE_COUNT],
                 },
                 ROOT_LEVEL,
                 El3,
@@ -543,7 +596,7 @@ impl IdMap {
     pub unsafe fn map_region(&mut self, region: &MemoryRegion, attributes: El23Attributes) {
         debug!("Mapping {region} as {attributes:?}.");
         assert!(attributes.contains(El23Attributes::VALID));
-        let pa = IdTranslation::virtual_to_physical(region.start());
+        let pa = IdTranslation::<PAGE_HEAP_PAGE_COUNT>::virtual_to_physical(region.start());
         self.mapping
             .map_range(region, pa, attributes, Constraints::empty())
             .expect("Error mapping memory range");
@@ -616,16 +669,16 @@ mod asm {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::test::TestPlatform;
+    use crate::platform::test::{PAGE_HEAP, TestPlatform};
 
     #[test]
     fn create_page_table() {
         assert_ne!(TestPlatform::PAGE_HEAP_PAGE_COUNT, 0);
 
-        let page_heap =
-            SpinMutexGuard::leak(PAGE_HEAP.try_lock().expect("Page heap was already taken"));
+        let page_heap = PAGE_HEAP.take();
 
-        let mut idmap = init_page_table::<TestPlatform>(page_heap);
+        let mut idmap =
+            init_page_table::<{ TestPlatform::PAGE_HEAP_PAGE_COUNT }, TestPlatform>(page_heap);
         assert_ne!(idmap.root_address().0, 0);
         idmap.mark_active();
         // `aarch64-paging` will detect the dropped idmap and panic

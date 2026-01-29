@@ -107,6 +107,7 @@ unsafe impl Platform for TestPlatform {
     }
 
     type LogSinkImpl = StdOutSink;
+    type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = TestPsciPlatformImpl;
     type TrngPlatformImpl = TestTrngPlatformImpl;
 
@@ -124,7 +125,7 @@ unsafe impl Platform for TestPlatform {
             .expect("Failed to initialise logger");
     }
 
-    fn map_extra_regions(idmap: &mut IdMap) {
+    fn map_extra_regions(idmap: &mut Self::IdMap) {
         // SAFETY: The pagetable isn't actually used in unit tests.
         unsafe {
             idmap.map_region(&DEVICE0, MT_DEVICE);

@@ -14,7 +14,7 @@ use crate::{
     errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig},
     logger::{
-        HybridLogger, LOGGER, LockedWriter,
+        HybridLogger, LockedWriter,
         inmemory::{MemoryLogger, PerCoreMemoryLogger},
     },
     naked_asm,
@@ -22,6 +22,7 @@ use crate::{
         IdMap, MT_DEVICE, MT_MEMORY_EL3, disable_mmu_el3,
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
+    panic_handler,
     platform::{CpuExtension, my_core_pos},
     services::{
         arch::WorkaroundSupport,
@@ -31,6 +32,7 @@ use crate::{
         },
         trng::NotSupportedTrngPlatformImpl,
     },
+    statics,
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
@@ -757,3 +759,5 @@ unsafe extern "C" fn plat_secondary_cold_boot_setup() -> ! {
 global_asm!(include_str!("../gic_debug_macros_data.S"));
 
 all_asm!(Qemu);
+statics!(Qemu);
+panic_handler!();

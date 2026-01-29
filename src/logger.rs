@@ -6,9 +6,6 @@
 
 pub mod inmemory;
 
-use crate::platform::LogSinkImpl;
-#[cfg(not(test))]
-use core::panic::PanicInfo;
 use core::{
     fmt::{Arguments, Write},
     sync::atomic::{AtomicBool, Ordering},
@@ -16,8 +13,8 @@ use core::{
 use log::{Log, Metadata, Record, SetLoggerError};
 use spin::{Once, mutex::SpinMutex};
 
-pub static LOGGER: OnceLogger<LogSinkImpl> = OnceLogger::new();
-
+/// Wrapper around `Logger` to be stored in a static variable.
+#[derive(Default)]
 pub struct OnceLogger<LogSinkImpl> {
     logger: Once<Logger<LogSinkImpl>>,
 }
@@ -63,15 +60,6 @@ impl<LogSinkImpl: LogSink> Log for Logger<LogSinkImpl> {
     fn flush(&self) {
         self.sink.flush();
     }
-}
-
-#[cfg(not(test))]
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    if let Some(sink) = LOGGER.log_sink() {
-        writeln!(sink, "{info}");
-    }
-    loop {}
 }
 
 /// Something to which logs can be sent.

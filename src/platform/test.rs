@@ -18,7 +18,7 @@ use crate::{
     dram::const_zeroed,
     errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
     gicv3::{Gic, GicConfig},
-    logger::{LOGGER, LogSink},
+    logger::LogSink,
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
     services::{
         arch::WorkaroundSupport,
@@ -28,6 +28,7 @@ use crate::{
         },
         trng::{TrngError, TrngPlatformInterface},
     },
+    statics,
 };
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::{
@@ -686,6 +687,8 @@ unsafe impl Erratum for TestUnneededErratum {
 
     extern "C" fn workaround() {}
 }
+
+statics!(TestPlatform);
 
 #[cfg(test)]
 mod tests {

@@ -74,9 +74,6 @@ impl Service for DummyService {
     }
 }
 
-/// Type alias for convenience, to avoid having to use the complicated type name everywhere.
-pub type LogSinkImpl = <PlatformImpl as Platform>::LogSinkImpl;
-
 pub type TrngPlatformImpl = <PlatformImpl as Platform>::TrngPlatformImpl;
 
 pub const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;

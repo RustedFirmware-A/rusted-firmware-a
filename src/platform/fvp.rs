@@ -28,12 +28,13 @@ use crate::{
     debug::DEBUG,
     errata_framework::define_errata_list,
     gicv3::{Gic, GicConfig, InterruptConfig},
-    logger::{LOGGER, LockedWriter},
+    logger::LockedWriter,
     naked_asm,
     pagetable::{
         IdMap, MT_DEVICE, MT_MEMORY_EL3,
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
+    panic_handler,
     platform::CpuExtension,
     services::{
         arch::WorkaroundSupport,
@@ -43,6 +44,7 @@ use crate::{
         },
         trng::NotSupportedTrngPlatformImpl,
     },
+    statics,
 };
 use aarch64_paging::{
     descriptor::VirtualAddress,
@@ -1203,3 +1205,5 @@ impl
 global_asm!(include_str!("../gic_debug_macros_data.S"));
 
 all_asm!(Fvp);
+statics!(Fvp);
+panic_handler!();

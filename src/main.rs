@@ -284,3 +284,30 @@ macro_rules! all_asm {
 
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub(crate) use asm::naked_asm;
+
+/// Generates a static `LOGGER` variable for the platform's `LogSinkImpl`.
+#[macro_export]
+macro_rules! statics {
+    ($platform:ty) => {
+        type LogSinkImpl_ = <$platform as $crate::platform::Platform>::LogSinkImpl;
+
+        static LOGGER: $crate::logger::OnceLogger<LogSinkImpl_> = $crate::logger::OnceLogger::new();
+    };
+}
+
+/// Generates a panic handler which will log the panic message to `LOGGER` then loop forever.
+#[macro_export]
+macro_rules! panic_handler {
+    () => {
+        #[cfg(not(test))]
+        #[panic_handler]
+        fn panic(info: &core::panic::PanicInfo) -> ! {
+            use $crate::logger::LogSink;
+
+            if let Some(sink) = LOGGER.log_sink() {
+                writeln!(sink, "{info}");
+            }
+            loop {}
+        }
+    };
+}

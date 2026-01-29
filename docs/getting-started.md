@@ -1,9 +1,11 @@
 # Getting started
 
-Install Rust from [rustup](https://rustup.rs/), then some other tools and the target we need:
+Install Rust from rustup and some other tools we need, and then use rustup to install the Rust
+toolchain and target we need:
 
 ```sh
-$ sudo apt install clang build-essential lld
+$ sudo apt install clang build-essential lld rustup
+$ rustup default stable
 $ rustup target add aarch64-unknown-none-softfloat
 $ rustup component add llvm-tools
 $ cargo install cargo-binutils
@@ -107,7 +109,6 @@ You can also specify the RMM image to use. If not set, it will default to the `s
 ```sh
 $ PLAT=fvp RME=1 RMM=../tf-rmm/build/Debug/rmm.img DEBUG=1 ./build-and-run.sh
 ```
-
 
 ## Documentation
 

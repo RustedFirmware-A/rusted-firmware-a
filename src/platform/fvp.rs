@@ -21,8 +21,8 @@ use crate::{
     context::{CoresImpl, EntryPointInfo},
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
     cpu_extensions::{
-        fgt2::Fgt2, hcx::Hcx, mpam::Mpam, mte2::MemoryTagging, pmuv3::MultiThreadedPmu, ras::Ras,
-        simd::Simd, spe::StatisticalProfiling, sys_reg_trace::SysRegTrace, tcr2::Tcr2,
+        fgt::Fgt, fgt2::Fgt2, hcx::Hcx, mpam::Mpam, mte2::MemoryTagging, pmuv3::MultiThreadedPmu,
+        ras::Ras, simd::Simd, spe::StatisticalProfiling, sys_reg_trace::SysRegTrace, tcr2::Tcr2,
         trbe::TraceBufferNonSecure, trf::TraceFiltering,
     },
     debug::DEBUG,
@@ -319,6 +319,7 @@ unsafe impl Platform for Fvp {
     };
 
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[
+        &Fgt,
         &Fgt2,
         &Hcx,
         &MemoryTagging,

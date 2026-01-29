@@ -15,9 +15,8 @@ use crate::{
     context::EntryPointInfo,
     cpu::{Cpu, define_cpu_ops},
     cpu_extensions::CpuExtension,
-    dram::const_zeroed,
     errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
-    gicv3::{Gic, GicConfig},
+    gicv3::GicConfig,
     logger::LogSink,
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
     services::{
@@ -31,18 +30,13 @@ use crate::{
     statics,
 };
 use aarch64_paging::paging::MemoryRegion;
-use arm_gic::{
-    IntId, UniqueMmioPointer,
-    gicv3::registers::{Gicd, GicrSgi, Waker},
-};
+use arm_gic::IntId;
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use arm_sysregs::{MidrEl1, MpidrEl1};
-use core::{fmt, ptr::NonNull};
+use core::fmt;
 use percore::ExceptionFree;
-use spin::mutex::{SpinMutex, SpinMutexGuard};
 use std::io::{Write, stdout};
 use uuid::Uuid;
-use zerocopy::{FromBytes, transmute_mut};
 
 const DEVICE0_BASE: usize = 0x0200_0000;
 const DEVICE0_SIZE: usize = 0x1000;
@@ -58,8 +52,6 @@ const CORES_PER_CLUSTER_LAST: usize = 4;
 
 define_early_mapping!([]);
 define_errata_list!(TestMitigatedErratum, TestUnneededErratum);
-
-static FAKE_GIC: SpinMutex<FakeGic> = SpinMutex::new(const_zeroed());
 
 /// A fake platform for unit tests.
 pub struct TestPlatform;
@@ -115,7 +107,6 @@ unsafe impl Platform for TestPlatform {
     }
 
     type LogSinkImpl = StdOutSink;
-    type Gic = Gic<'static, { Self::CORE_COUNT }, Self>;
     type PsciPlatformImpl = TestPsciPlatformImpl;
     type TrngPlatformImpl = TestTrngPlatformImpl;
 
@@ -138,10 +129,6 @@ unsafe impl Platform for TestPlatform {
         unsafe {
             idmap.map_region(&DEVICE0, MT_DEVICE);
         }
-    }
-
-    unsafe fn create_gic() -> Self::Gic {
-        SpinMutexGuard::leak(FAKE_GIC.try_lock().unwrap()).build()
     }
 
     #[cfg(feature = "pauth")]
@@ -254,36 +241,6 @@ unsafe impl Platform for TestPlatform {
     extern "C" fn crash_console_flush() {}
 
     unsafe extern "C" fn dump_registers() {}
-}
-
-/// A fake GICv3 for unit tests.
-#[derive(Clone, Eq, PartialEq, FromBytes)]
-struct FakeGic {
-    gicd_regs: Gicd,
-    gicr_regs: [GicrSgi; TestPlatform::CORE_COUNT],
-}
-
-impl FakeGic {
-    fn build(&mut self) -> Gic<'_, { TestPlatform::CORE_COUNT }, TestPlatform> {
-        for (core_index, mpidr) in TestPlatform::MPIDR_VALUES.iter().enumerate() {
-            let typer: &mut u64 = transmute_mut!(&mut self.gicr_regs[core_index].gicr.typer.0);
-            *typer = u64::from(mpidr.aff3()) << 56
-                | u64::from(mpidr.aff2()) << 48
-                | u64::from(mpidr.aff1()) << 40
-                | u64::from(mpidr.aff0()) << 32;
-            if core_index == TestPlatform::CORE_COUNT - 1 {
-                // Mark the last redistributor as being the last.
-                *typer |= 1 << 4;
-            }
-            self.gicr_regs[core_index].gicr.waker.0 = Waker::CHILDREN_ASLEEP;
-        }
-
-        let gicd = UniqueMmioPointer::from(&mut self.gicd_regs);
-        let gicr_base = NonNull::new(self.gicr_regs.as_mut_ptr()).unwrap();
-        // SAFETY: The gicr_base pointer comes from a reference to an array of fake registers which
-        // we don't otherwise access after this point, and the last entry is marked as such.
-        unsafe { Gic::new(gicd, gicr_base, false) }
-    }
 }
 
 /// Runs the given function and returns the result.

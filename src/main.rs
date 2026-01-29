@@ -36,7 +36,8 @@ mod stacks;
 use crate::cpu_extensions::pauth;
 use crate::{
     context::{CoresImpl, initialise_contexts, update_contexts_suspend},
-    platform::{Platform, PlatformImpl},
+    gicv3::Gic,
+    platform::Platform,
     services::{Services, psci::WakeUpReason},
 };
 #[cfg(not(test))]
@@ -45,9 +46,16 @@ pub use asm::bl31_warm_entrypoint;
 use include_first::include_first;
 use log::{debug, info};
 use percore::Cores;
+use spin::Once;
 
-#[cfg_attr(test, allow(unused))]
-extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
+/// Handles early initialisation at the start of a cold boot, and then runs the main loop.
+pub fn coldboot<const CORE_COUNT: usize, PlatformImpl: Platform>(
+    gic: &'static Once<Gic<'static, CORE_COUNT, PlatformImpl>>,
+    arg0: u64,
+    arg1: u64,
+    arg2: u64,
+    arg3: u64,
+) -> ! {
     PlatformImpl::init_with_early_mapping(arg0, arg1, arg2, arg3);
 
     pagetable::init_runtime_mapping();
@@ -66,7 +74,7 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
     }
 
     // Set up GIC.
-    gicv3::init();
+    gic.get().unwrap().init(&PlatformImpl::GIC_CONFIG);
     debug!("GIC configured.");
 
     let non_secure_entry_point = PlatformImpl::non_secure_entry_point();
@@ -81,7 +89,7 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
         &realm_entry_point,
     );
 
-    Services::get().run_loop();
+    Services::get().run_loop()
 }
 
 #[cfg_attr(test, allow(unused))]
@@ -257,7 +265,7 @@ macro_rules! main_asm {
                     cpu_reset_handler = sym $crate::cpu::cpu_reset_handler,
                     init_early_page_tables = sym $crate::pagetable::early_pagetable::init_early_page_tables,
                     enable_mmu = sym $crate::pagetable::enable_mmu,
-                    bl31_main = sym $crate::bl31_main,
+                    bl31_main = sym super::bl31_main,
                     apply_reset_errata = sym $crate::errata_framework::apply_reset_errata,
                     plat_set_my_stack = sym $crate::stacks::set_my_stack::<PlatformImpl>,
                     init_cpu_data_ptr = sym $crate::context::init_cpu_data_ptr::<PlatformImpl>,
@@ -285,13 +293,28 @@ macro_rules! all_asm {
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub(crate) use asm::naked_asm;
 
-/// Generates a static `LOGGER` variable for the platform's `LogSinkImpl`.
+/// Generates static variables `LOGGER` and `GIC` for the platform.
 #[macro_export]
 macro_rules! statics {
     ($platform:ty) => {
         type LogSinkImpl_ = <$platform as $crate::platform::Platform>::LogSinkImpl;
 
+        static GIC: $crate::reexports::spin::Once<
+            $crate::gicv3::Gic<
+                { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                $platform,
+            >,
+        > = $crate::reexports::spin::Once::new();
+
         static LOGGER: $crate::logger::OnceLogger<LogSinkImpl_> = $crate::logger::OnceLogger::new();
+
+        #[cfg_attr(test, allow(unused))]
+        extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
+            $crate::coldboot::<
+                { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                $platform,
+            >(&GIC, arg0, arg1, arg2, arg3)
+        }
     };
 }
 

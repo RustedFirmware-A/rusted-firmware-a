@@ -129,11 +129,6 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;
 
-    /// The type returned by `create_gic`.
-    ///
-    /// Should be `Gic<'static, { Self::CORE_COUNT }, Self>`.
-    type Gic: 'static;
-
     /// Platform dependent PsciPlatformInterface implementation type.
     type PsciPlatformImpl;
 
@@ -164,13 +159,6 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.
     fn map_extra_regions(idmap: &mut IdMap);
-
-    /// Creates instance of GIC driver.
-    ///
-    /// # Safety
-    ///
-    /// This must only be called once, to avoid creating aliases of the GIC driver.
-    unsafe fn create_gic() -> Self::Gic;
 
     /// Returns a 128-bit value that can be used to program the pointer authentication keys.
     ///

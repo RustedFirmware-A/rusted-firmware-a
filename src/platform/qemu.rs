@@ -202,7 +202,6 @@ unsafe impl Platform for Qemu {
         PerCoreMemoryLogger<'static, { Self::CORE_COUNT }, LOG_BUFFER_SIZE, Self>,
         LockedWriter<Uart<'static>>,
     >;
-    type Gic = Gic<'static, { Self::CORE_COUNT }, Self>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
     // QEMU does not have a TRNG.
     type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
@@ -236,6 +235,16 @@ unsafe impl Platform for Qemu {
         config.into_output(SECURE_GPIO_SYSTEM_RESET).unwrap();
         // Initialize hold pen for all secondary cores
         plat_hold_pen_init();
+
+        GIC.call_once(|| {
+            // SAFETY: `GICD_BASE_ADDRESS` is a unique pointer to the Qemu's GICD register block.
+            let gicd = unsafe { UniqueMmioPointer::new(NonNull::new(GICD_BASE_ADDRESS).unwrap()) };
+            let gicr_base = NonNull::new(GICR_BASE_ADDRESS).unwrap();
+            // SAFETY: `gicr_base` points to a continuously mapped GIC redistributor memory area
+            // until the last redistributor block. There are no other references to this address
+            // range.
+            unsafe { Gic::new(gicd, gicr_base, false) }
+        });
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {
@@ -246,16 +255,6 @@ unsafe impl Platform for Qemu {
             idmap.map_region(&DEVICE0, MT_DEVICE);
             idmap.map_region(&DEVICE1, MT_DEVICE);
         }
-    }
-
-    unsafe fn create_gic() -> Self::Gic {
-        // Safety: `GICD_BASE_ADDRESS` is a unique pointer to the Qemu's GICD register block.
-        let gicd = unsafe { UniqueMmioPointer::new(NonNull::new(GICD_BASE_ADDRESS).unwrap()) };
-        let gicr_base = NonNull::new(GICR_BASE_ADDRESS).unwrap();
-
-        // Safety: `gicr_base` points to a continuously mapped GIC redistributor memory area until
-        // the last redistributor block. There are no other references to this address range.
-        unsafe { Gic::new(gicd, gicr_base, false) }
     }
 
     // This is only a toy implementation to generate a seemingly random 128-bit key from FP, LR and
@@ -628,7 +627,7 @@ impl
     ) {
         assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);
 
-        Gic::get().cpu_interface_disable();
+        GIC.get().unwrap().cpu_interface_disable();
         *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock() = PowerDownKind::Off;
     }
 
@@ -685,8 +684,9 @@ impl
         >,
     ) {
         assert_eq!(previous_state.cpu_level_state(), QemuPowerState::PowerDown);
-        Gic::get().redistributor_init(&Qemu::GIC_CONFIG);
-        Gic::get().cpu_interface_enable();
+        let gic = GIC.get().unwrap();
+        gic.redistributor_init(&Qemu::GIC_CONFIG);
+        gic.cpu_interface_enable();
     }
 
     fn system_off(&self) -> ! {

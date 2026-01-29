@@ -63,7 +63,7 @@ use arm_gic::{
     IntId, Trigger,
     gicv3::{
         GicDistributorContext, GicRedistributorContext, Group, HIGHEST_S_PRIORITY, SecureIntGroup,
-        registers::{Gicd, GicrSgi},
+        registers::Gicd,
     },
 };
 use arm_pl011_uart::{Uart, UniqueMmioPointer};
@@ -207,13 +207,7 @@ fn map_peripheral<T>(physical_instance: PhysicalInstance<T>) -> UniqueMmioPointe
     unsafe { UniqueMmioPointer::new(NonNull::new(physical_instance.pa() as *mut T).unwrap()) }
 }
 
-struct GicPeripherals {
-    gicd: PhysicalInstance<Gicd>,
-    gicr: PhysicalInstance<GicrSgi>,
-}
-
 static FVP_PSCI_PLATFORM_IMPL: SpinMutex<Option<FvpPsciPlatformImpl>> = SpinMutex::new(None);
-static GIC_PERIPHERALS: SpinMutex<Option<GicPeripherals>> = SpinMutex::new(None);
 
 define_cpu_ops!(AemGeneric);
 define_errata_list!();
@@ -349,7 +343,6 @@ unsafe impl Platform for Fvp {
     const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
 
     type LogSinkImpl = LockedWriter<Uart<'static>>;
-    type Gic = Gic<'static, { Self::CORE_COUNT }, Self>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
     // TODO: Implement TRNG for FVP.
     type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
@@ -413,11 +406,6 @@ unsafe impl Platform for Fvp {
 
         *FVP_PSCI_PLATFORM_IMPL.lock() = Some(psci_platform);
 
-        *GIC_PERIPHERALS.lock() = Some(GicPeripherals {
-            gicd: peripherals.gicd,
-            gicr: peripherals.gicr,
-        });
-
         // Write warm boot entry point the shared memory, so secondary cores can pick it up during
         // boot.
         // Safety: WARM_ENTRYPOINT_FIELD points to a valid, writable address.
@@ -425,6 +413,15 @@ unsafe impl Platform for Fvp {
             *WARM_ENTRYPOINT_FIELD = bl31_warm_entrypoint::<Fvp>;
         }
         dsb_sy();
+
+        GIC.call_once(|| {
+            let gicd = map_peripheral(peripherals.gicd);
+            let mut gicr = map_peripheral(peripherals.gicr);
+            // SAFETY: `gicr` points to a continuously mapped GIC redistributor memory area until
+            // the last redistributor block. There are no other references to this address range, as
+            // `init` is only called once.
+            unsafe { Gic::new(gicd, gicr.ptr_nonnull(), false) }
+        });
     }
 
     fn map_extra_regions(idmap: &mut IdMap) {
@@ -442,17 +439,6 @@ unsafe impl Platform for Fvp {
                 idmap.map_region(region, MT_DEVICE);
             }
         }
-    }
-
-    unsafe fn create_gic() -> Self::Gic {
-        let peripherals = GIC_PERIPHERALS.lock().take().unwrap();
-
-        let gicd = map_peripheral(peripherals.gicd);
-        let mut gicr = map_peripheral(peripherals.gicr);
-
-        // Safety: `gicr` points to a continuously mapped GIC redistributor memory area until the
-        // last redistributor block. There are no other references to this address range.
-        unsafe { Gic::new(gicd, gicr.ptr_nonnull(), false) }
     }
 
     // This is only a toy implementation to generate a seemingly random 128-bit key from FP, LR and
@@ -860,9 +846,10 @@ impl FvpPsciPlatformImpl<'_> {
 
     fn save_system_power_domain() {
         let mut context = GIC_CONTEXT.lock();
+        let gic = GIC.get().unwrap();
 
-        Gic::get().redistributor_save(&mut context.redistributor_context);
-        Gic::get().distributor_save(&mut context.distributor_context);
+        gic.redistributor_save(&mut context.redistributor_context);
+        gic.distributor_save(&mut context.distributor_context);
 
         log::logger().flush();
 
@@ -872,9 +859,10 @@ impl FvpPsciPlatformImpl<'_> {
 
     fn restore_system_power_domain(&self) {
         let context = GIC_CONTEXT.lock();
+        let gic = GIC.get().unwrap();
 
-        Gic::get().distributor_restore(&context.distributor_context);
-        Gic::get().redistributor_restore(&context.redistributor_context);
+        gic.distributor_restore(&context.distributor_context);
+        gic.redistributor_restore(&context.redistributor_context);
 
         // TODO: plat_arm_security_setup();
 
@@ -1019,7 +1007,7 @@ impl
         self.power_controller.lock().enable_wakeup_requests(mpidr);
 
         // Prevent interrupts from spuriously waking up this cpu.
-        Gic::get().cpu_interface_disable();
+        GIC.get().unwrap().cpu_interface_disable();
 
         // The Redistributor is not powered off as it can potentially prevent wake up events
         // reaching the CPUIF and/or might lead to losing register context.
@@ -1053,7 +1041,7 @@ impl
         }
 
         self.power_domain_on_finish_common(previous_state);
-        Gic::get().cpu_interface_enable();
+        GIC.get().unwrap().cpu_interface_enable();
     }
 
     fn power_domain_off(
@@ -1069,8 +1057,9 @@ impl
     ) {
         assert_eq!(FvpPowerState::Off, target_state.cpu_level_state());
 
-        Gic::get().cpu_interface_disable();
-        Gic::get().redistributor_off();
+        let gic = GIC.get().unwrap();
+        gic.cpu_interface_disable();
+        gic.redistributor_off();
 
         let mpidr = read_mpidr_el1().bits() as u32;
         self.power_controller.lock().power_off_processor(mpidr);
@@ -1123,8 +1112,9 @@ impl
         >,
     ) {
         self.power_domain_on_finish_common(previous_state);
-        Gic::get().redistributor_init(&Fvp::GIC_CONFIG);
-        Gic::get().cpu_interface_enable();
+        let gic = GIC.get().unwrap();
+        gic.redistributor_init(&Fvp::GIC_CONFIG);
+        gic.cpu_interface_enable();
     }
 
     fn system_off(&self) -> ! {

@@ -8,7 +8,7 @@
 use crate::{
     aarch64::{dsb_sy, isb},
     context::{CoresImpl, World},
-    platform::{Platform, PlatformImpl},
+    platform::Platform,
 };
 use arm_gic::{
     IntId, InterruptGroup, Trigger, UniqueMmioPointer,
@@ -23,11 +23,9 @@ use arm_sysregs::{MpidrEl1, ScrEl3, read_mpidr_el1};
 use core::{marker::PhantomData, panic, ptr::NonNull};
 use log::debug;
 use percore::Cores;
-use spin::{Once, mutex::SpinMutex};
+use spin::mutex::SpinMutex;
 
 const GIC_PRI_MASK: u8 = 0xff;
-
-static GIC: Once<Gic<{ PlatformImpl::CORE_COUNT }, PlatformImpl>> = Once::new();
 
 /// The configuration of a single interrupt.
 #[derive(Clone, Copy, Debug)]
@@ -144,13 +142,6 @@ pub struct Gic<'a, const CORE_COUNT: usize, PlatformImpl: Platform> {
     redistributors: GicRedistributorRegistry<'a, CORE_COUNT, PlatformImpl>,
 }
 
-impl Gic<'static, { PlatformImpl::CORE_COUNT }, PlatformImpl> {
-    /// Gets the GIC instance.
-    pub fn get() -> &'static Self {
-        GIC.get().unwrap()
-    }
-}
-
 impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, PlatformImpl> {
     /// # Safety
     /// The caller must ensure that `gicr_base` points to a continiously mapped GIC redistributor
@@ -167,6 +158,13 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, Pl
             // redistributor block.
             redistributors: unsafe { GicRedistributorRegistry::new(gicr_base, gic_v4) },
         }
+    }
+
+    /// Initializes the GIC by configuring the distributor, redistributor and cpu interface.
+    pub fn init(&self, config: &GicConfig) {
+        self.distributor_init(config);
+        self.redistributor_init(config);
+        self.cpu_interface_enable();
     }
 
     /// Sets the default configuration for all interrupts of the distributor. Configures the shared
@@ -329,22 +327,6 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, Pl
     }
 }
 
-/// Initializes the gic by configuring the distributor, redistributor and cpu interface, and puts
-/// the global gic into GIC variable. This function should only be called once early in the boot
-/// process. Subsequent calls will be ignored.
-pub fn init() {
-    GIC.call_once(|| {
-        // SAFETY: This is the only place where GIC is created and there are no aliases.
-        let gic = unsafe { PlatformImpl::create_gic() };
-
-        gic.distributor_init(&PlatformImpl::GIC_CONFIG);
-        gic.redistributor_init(&PlatformImpl::GIC_CONFIG);
-        gic.cpu_interface_enable();
-
-        gic
-    });
-}
-
 /// Configures interrupt-routing related flags in `scr_el3` bitflags.
 ///
 /// While in NS-ELx:
@@ -400,15 +382,44 @@ pub fn handle_group0_interrupt<PlatformImpl: Platform>() {
 mod tests {
     use super::*;
     use crate::platform::test::TestPlatform;
+    use arm_gic::gicv3::registers::Waker;
+    use zerocopy::{FromBytes, FromZeros, transmute_mut};
+
+    /// A fake GICv3 for unit tests.
+    #[derive(Clone, Eq, PartialEq, FromBytes)]
+    struct FakeGic {
+        gicd_regs: Gicd,
+        gicr_regs: [GicrSgi; TestPlatform::CORE_COUNT],
+    }
+
+    impl FakeGic {
+        fn build(&mut self) -> Gic<'_, { TestPlatform::CORE_COUNT }, TestPlatform> {
+            for (core_index, mpidr) in TestPlatform::MPIDR_VALUES.iter().enumerate() {
+                let typer: &mut u64 = transmute_mut!(&mut self.gicr_regs[core_index].gicr.typer.0);
+                *typer = u64::from(mpidr.aff3()) << 56
+                    | u64::from(mpidr.aff2()) << 48
+                    | u64::from(mpidr.aff1()) << 40
+                    | u64::from(mpidr.aff0()) << 32;
+                if core_index == TestPlatform::CORE_COUNT - 1 {
+                    // Mark the last redistributor as being the last.
+                    *typer |= 1 << 4;
+                }
+                self.gicr_regs[core_index].gicr.waker.0 = Waker::CHILDREN_ASLEEP;
+            }
+
+            let gicd = UniqueMmioPointer::from(&mut self.gicd_regs);
+            let gicr_base = NonNull::new(self.gicr_regs.as_mut_ptr()).unwrap();
+            // SAFETY: The gicr_base pointer comes from a reference to an array of fake registers which
+            // we don't otherwise access after this point, and the last entry is marked as such.
+            unsafe { Gic::new(gicd, gicr_base, false) }
+        }
+    }
 
     #[test]
     fn create_save_restore_off() {
-        GIC.call_once(|| {
-            // SAFETY: The `GIC.call_once` ensures this isn't called multiple times.
-            unsafe { TestPlatform::create_gic() }
-        });
+        let fake_gic = Box::leak(Box::new(FakeGic::new_zeroed()));
+        let gic = fake_gic.build();
 
-        let gic = Gic::get();
         let mut distributor_context = GicDistributorContext::<
             { GicDistributorContext::ireg_count(988) },
             { GicDistributorContext::ireg_e_count(1024) },

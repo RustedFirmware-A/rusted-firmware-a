@@ -4,7 +4,7 @@
 
 use super::{DummyService, Platform};
 #[cfg(feature = "rme")]
-use crate::Services;
+use crate::{Services, services::rmmd::svc::{EccCurve, RmmCommandReturnCode}};
 use crate::{
     aarch64::sev,
     context::EntryPointInfo,
@@ -91,6 +91,11 @@ unsafe impl Platform for TestPlatform {
 
     #[cfg(feature = "rme")]
     fn rme_prepare_manifest(_buf: &mut [u8; crate::services::rmmd::RMM_SHARED_BUFFER_SIZE]) {}
+
+    #[cfg(feature = "rme")]
+    fn read_attestation_key(_buf: &mut [u8], _curve: EccCurve) -> Result<usize, RmmCommandReturnCode> {
+        Ok(0)
+    }
 
     type LogSinkImpl = StdOutSink;
     type PsciPlatformImpl = TestPsciPlatformImpl;

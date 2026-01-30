@@ -16,7 +16,10 @@ use crate::{
     platform::{Platform, PlatformImpl, exception_free},
     services::{
         Service, owns,
-        rmmd::svc::{RmmCall, RmmEl3FeaturesResponse},
+        rmmd::svc::{
+            Error, RmmAttestGetRealmKeyResponse, RmmCall, RmmCommandReturnCode,
+            RmmEl3FeaturesResponse,
+        },
     },
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
@@ -31,18 +34,18 @@ pub const RMM_SHARED_BUFFER_SIZE: usize = 0x1000;
 ///
 /// Calling this function and using its return value is safe if all the conditions below are met:
 ///
-/// - It can only be called after the shared buffer is mapped into the page table.
-/// - After calling `get_shared_buffer`, the return reference must be dropped before any other call
-///   to it is made.
-/// - No PE is running in Realm World while the reference is held.
+/// 1. It can only be called after the shared buffer is mapped into the page table.
+/// 2. After calling `get_shared_buffer`, the return reference must be dropped before any other call
+///    to it is made.
+/// 3. No PE is running in Realm World while the reference is held, otherwise see [`get_shared_buffer_slice`].
 unsafe fn get_shared_buffer() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
     // Safety: (relative to [`slice::from_raw_parts_mut`][https://doc.rust-lang.org/stable/core/slice/fn.from_raw_parts_mut.html])
-    // - The first condition of `get_shared_buffer()` ensures that the location is valid, and as it
-    //   occupies exactly one page, it will always be aligned.
+    // - Condition #1 ensures that the location is valid, and as it occupies exactly one page, it
+    //   will always be aligned.
     // - `u8` is properly initialized regardless of the initial value.
-    // - The second condition ensures that the buffer is never accessed through multiple reference
-    //   within EL3. As it can only be accessed by EL3 and Realm World, it follows from the third
-    //   condition that no other pointers can be used to access the buffer while a reference exists.
+    // - Condition #2 ensures that the buffer is never accessed (read or written) within EL3. It
+    //   follows from condition #3 that Realm World cannot access it either. Since only EL3 and
+    //   Realm World can access the shared buffer, this requirement is upheld.
     // - Follows from the soundness of the layout defined in `layout.rs`.
     unsafe {
         from_raw_parts_mut(
@@ -51,6 +54,51 @@ unsafe fn get_shared_buffer() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
         )
         .try_into()
         .unwrap()
+    }
+}
+
+/// Returns a mutable reference to a slice of the shared buffer used for communication between R-EL2
+/// and EL3.
+///
+/// # Safety
+///
+/// Calling this function and using its return value is safe if all the conditions below are met:
+///
+/// 1. It can only be called after the shared buffer is mapped into the page table.
+/// 2. The `address` and `len` parameter must be provided by RMM.
+/// 3. The returned reference must be dropped before any other call is made with overlapping parameters.
+/// 4. The reference must be dropped before switching to Realm World.
+unsafe fn get_shared_buffer_slice(
+    address: usize,
+    len: usize,
+) -> Result<&'static mut [u8], RmmCommandReturnCode> {
+    check_shared_buffer_range(address, len)?;
+    // Safety: (relative to [`slice::from_raw_parts_mut`][https://doc.rust-lang.org/stable/core/slice/fn.from_raw_parts_mut.html])
+    // - Condition #1 of `get_shared_buffer()` ensures that the location is valid, and as it
+    //   occupies exactly one page, it will always be aligned.
+    // - `u8` is properly initialized regardless of the initial value.
+    // - Condition #2 ensures that the buffer is never accessed through multiple reference
+    //   by other PEs as RMM is responsible for handling concurrency over the shared buffer. As it
+    //   can only be accessed by EL3 and Realm World, it follows from the condition #3 that no
+    //   other pointers can be used to access the buffer while a reference exists. The condition #4
+    //   ensures that Realm World cannot access the buffer while the reference exists.
+    // - Follows from the soundness of the layout defined in `layout.rs`.
+    Ok(unsafe { from_raw_parts_mut(address as *mut u8, len) })
+}
+
+/// Checks that `buf_pa..buf_size` is a valid subrange of the shared buffer.
+fn check_shared_buffer_range(buf_pa: usize, buf_size: usize) -> Result<(), RmmCommandReturnCode> {
+    let shared_buffer_range = PlatformImpl::RMM_SHARED_BUFFER_START
+        ..PlatformImpl::RMM_SHARED_BUFFER_START + RMM_SHARED_BUFFER_SIZE;
+
+    if !shared_buffer_range.contains(&buf_pa) {
+        Err(RmmCommandReturnCode::BadAddress)
+    } else if !(buf_pa.checked_add(buf_size).and_then(|v| v.checked_sub(1)))
+        .is_some_and(|end| shared_buffer_range.contains(&end))
+    {
+        Err(RmmCommandReturnCode::InvalidValue)
+    } else {
+        Ok(())
     }
 }
 
@@ -84,10 +132,10 @@ enum RmiFuncId {
     RealmActivate = 0xC400_0157,
     RealmCreate = 0xC400_0158,
     RealmDestroy = 0xC400_0159,
-    RecAuxCount = 0xC400_0167,
-    RecCreate = 0xC400_015A,
-    RecDestroy = 0xC400_015B,
-    RecEnter = 0xC400_015C,
+    RmmAuxCount = 0xC400_0167,
+    RmmCreate = 0xC400_015A,
+    RmmDestroy = 0xC400_015B,
+    RmmEnter = 0xC400_015C,
     RttCreate = 0xC400_015D,
     RttDestroy = 0xC400_015E,
     RttFold = 0xC400_0166,
@@ -120,47 +168,12 @@ impl Service for Rmmd {
     }
 
     fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
-        let in_regs = regs.values();
-        let mut function = FunctionId(in_regs[0] as u32);
-        function.clear_sve_hint();
-
-        if function.0 == RMM_BOOT_COMPLETE {
-            info!("Realm boot completed with code 0x{:x}", regs.values()[1]);
-            return self.handle_boot_complete(regs);
-        }
-
-        let Ok(command) = RmmCall::from_regs(regs.values()) else {
-            regs.set_from(NOT_SUPPORTED);
-            return World::Realm;
-        };
-
-        match command {
-            RmmCall::RmiReqComplete { regs: req_regs } => {
-                // Only x1-x6 are used for RMI return values, the remaining ones MBZ.
-                regs.values_mut()[..6].copy_from_slice(&req_regs);
-                regs.values_mut()[6..].fill(0);
-
-                World::NonSecure
-            }
-            RmmCall::GtsiDelegate { .. } => todo!(),
-            RmmCall::GtsiUndelegate { .. } => todo!(),
-            RmmCall::AttestGetRealmKey { .. } => todo!(),
-            RmmCall::AttestGetPlatToken { .. } => todo!(),
-            RmmCall::El3Features { .. } => {
-                regs.set_from(RmmEl3FeaturesResponse { feat_reg: 0 });
+        match self.try_handle_realm_smc(regs) {
+            Ok(world) => world,
+            Err(rec) => {
+                regs.set_from(rec);
                 World::Realm
             }
-            RmmCall::El3TokenSign { .. } => todo!(),
-            // TODO: Hacky trick to avoid TF-RMM from enabling encryption (not implemented yet).
-            RmmCall::MecRefresh { .. } => {
-                regs.set_from(NOT_SUPPORTED);
-                World::Realm
-            }
-            RmmCall::IdeKeyProg { .. } => todo!(),
-            RmmCall::IdeKeySetGo { .. } => todo!(),
-            RmmCall::IdeKeySetStop { .. } => todo!(),
-            RmmCall::IdeKmPullResponse { .. } => todo!(),
-            RmmCall::ReserveMemory { .. } => todo!(),
         }
     }
 }
@@ -199,6 +212,77 @@ impl Rmmd {
         });
 
         [CoresImpl::core_index() as u64, activation_token, 0, 0]
+    }
+
+    /// Attempts to handle a SMC originating from Realm World, returning an appropriate code on
+    /// error.
+    fn try_handle_realm_smc(&self, regs: &mut SmcReturn) -> Result<World, RmmCommandReturnCode> {
+        let in_regs = regs.values();
+        let mut function = FunctionId(in_regs[0] as u32);
+        function.clear_sve_hint();
+
+        if function.0 == RMM_BOOT_COMPLETE {
+            info!("Realm boot completed with code 0x{:x}", regs.values()[1]);
+            return Ok(self.handle_boot_complete(regs));
+        }
+
+        let command = match RmmCall::from_regs(regs.values()) {
+            Ok(command) => command,
+            Err(Error::UnrecognisedFunctionId(_)) => {
+                regs.set_from(NOT_SUPPORTED);
+                return Ok(World::Realm);
+            }
+            Err(_) => return Err(RmmCommandReturnCode::InvalidValue),
+        };
+
+        match command {
+            RmmCall::RmiReqComplete { regs: req_regs } => {
+                // Only x1-x6 are used for RMI return values, the remaining ones MBZ.
+                regs.values_mut()[..6].copy_from_slice(&req_regs);
+                regs.values_mut()[6..].fill(0);
+
+                Ok(World::NonSecure)
+            }
+            RmmCall::GtsiDelegate { .. } => todo!(),
+            RmmCall::GtsiUndelegate { .. } => todo!(),
+            // TODO(firme): equivalent to FIRME_ATTEST_RAK_GET, will have to take into account the
+            // write offset and continued request.
+            RmmCall::AttestGetRealmKey {
+                buf_pa,
+                buf_size,
+                ecc_curve,
+            } => {
+                // Safety:
+                // - This function can only be reached after having setup the Realm World, which
+                //   requires the MMU and pagetables to be setup.
+                // - All parameters come from the SMC arguments provided by RMM.
+                // - This function never calls again `get_shared_buffer()`, thus the reference will
+                //   be dropped upon return, before another call is made.
+                // - Similarly to the above, this function does not switch to the Realm World.
+                let shared_buffer = unsafe { get_shared_buffer_slice(buf_pa, buf_size)? };
+
+                let key_size = PlatformImpl::read_attestation_key(shared_buffer, ecc_curve)?;
+
+                regs.set_from(RmmAttestGetRealmKeyResponse { key_size });
+                Ok(World::Realm)
+            }
+            RmmCall::AttestGetPlatToken { .. } => todo!(),
+            RmmCall::El3Features { .. } => {
+                regs.set_from(RmmEl3FeaturesResponse { feat_reg: 0 });
+                Ok(World::Realm)
+            }
+            RmmCall::El3TokenSign { .. } => todo!(),
+            // TODO: Hacky trick to avoid TF-RMM from enabling encryption (not implemented yet).
+            RmmCall::MecRefresh { .. } => {
+                regs.set_from(NOT_SUPPORTED);
+                Ok(World::Realm)
+            }
+            RmmCall::IdeKeyProg { .. } => todo!(),
+            RmmCall::IdeKeySetGo { .. } => todo!(),
+            RmmCall::IdeKeySetStop { .. } => todo!(),
+            RmmCall::IdeKmPullResponse { .. } => todo!(),
+            RmmCall::ReserveMemory { .. } => todo!(),
+        }
     }
 
     fn handle_boot_complete(&self, regs: &mut SmcReturn) -> World {

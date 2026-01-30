@@ -40,7 +40,10 @@ select_platform!(platform = "qemu", qemu::Qemu);
 select_platform!(test, test::TestPlatform);
 
 #[cfg(feature = "rme")]
-use crate::services::rmmd::RMM_SHARED_BUFFER_SIZE;
+use crate::services::rmmd::{
+    RMM_SHARED_BUFFER_SIZE,
+    svc::{EccCurve, RmmCommandReturnCode},
+};
 use crate::{
     context::EntryPointInfo,
     cpu_extensions::CpuExtension,
@@ -96,6 +99,10 @@ pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
 ///
 /// `NORMAL_MEMORY_MAIR_ATTRIBUTE` must be a normal memory type with cache enabled, so that atomic
 /// operations work correctly.
+///
+/// The implementations of all functions receiving the buffer shared between EL3 and R-EL2 (RMM) as
+/// parameter must never directly access that buffer other than through the reference provided and
+/// must not yield into R-EL2.
 ///
 /// (These requirements don't apply to the test platform, as it is only used in unit tests.)
 pub unsafe trait Platform {
@@ -297,6 +304,11 @@ pub unsafe trait Platform {
     /// platform independent data.
     #[cfg(feature = "rme")]
     fn rme_prepare_manifest(_buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]);
+
+    /// Reads the Realm Attestation Key into the given buffer, returning the key size on success.
+    #[cfg(feature = "rme")]
+    fn read_attestation_key(buf: &mut [u8], curve: EccCurve)
+    -> Result<usize, RmmCommandReturnCode>;
 }
 
 #[cfg(all(target_arch = "aarch64", not(test)))]

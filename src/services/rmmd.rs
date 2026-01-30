@@ -10,6 +10,8 @@ use num_enum::TryFromPrimitive;
 use percore::{Cores, ExceptionLock, PerCore};
 use spin::Once;
 
+use spin::mutex::SpinMutex;
+
 use crate::{
     context::{CoresImpl, PerCoreState, World},
     info,
@@ -17,8 +19,8 @@ use crate::{
     services::{
         Service, owns,
         rmmd::svc::{
-            Error, RmmAttestGetRealmKeyResponse, RmmCall, RmmCommandReturnCode,
-            RmmEl3FeaturesResponse,
+            Error, RmmAttestGetPlatTokenResponse, RmmAttestGetRealmKeyResponse, RmmCall,
+            RmmCommandReturnCode, RmmEl3FeaturesResponse,
         },
     },
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
@@ -117,6 +119,19 @@ impl RmmdLocal {
     }
 }
 
+// TODO: these should instead come from a SSL crate.
+/// Size in bytes of a SHA256 sum.
+const SHA256_DIGEST_SIZE: usize = 32;
+/// Size in bytes of a SHA384 sum.
+const SHA384_DIGEST_SIZE: usize = 48;
+/// Size in bytes of a SHA512 sum.
+const SHA512_DIGEST_SIZE: usize = 64;
+
+/// Valid digest sizes for SHA challenges.
+const VALID_HASH_SIZES: &[usize] = &[SHA256_DIGEST_SIZE, SHA384_DIGEST_SIZE, SHA512_DIGEST_SIZE];
+/// Maximum value of [`VALID_HASH_SIZES`].
+const MAX_HASH_SIZE: usize = SHA512_DIGEST_SIZE;
+
 pub static RMM_COLD_BOOT_DONE: Once<()> = Once::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
@@ -153,6 +168,7 @@ enum RmiFuncId {
 /// <https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html>
 pub struct Rmmd {
     core_local: PerCoreState<RmmdLocal>,
+    attestation_token_read_index: SpinMutex<usize>,
 }
 
 impl Service for Rmmd {
@@ -195,7 +211,10 @@ impl Rmmd {
         PlatformImpl::rme_prepare_manifest(buf);
         info!("RMM Boot Manifest ready");
 
-        Self { core_local }
+        Self {
+            core_local,
+            attestation_token_read_index: SpinMutex::new(0),
+        }
     }
 
     /// Initializes the set of registers to pass to R-EL2 after waking up from a suspend.
@@ -266,7 +285,55 @@ impl Rmmd {
                 regs.set_from(RmmAttestGetRealmKeyResponse { key_size });
                 Ok(World::Realm)
             }
-            RmmCall::AttestGetPlatToken { .. } => todo!(),
+            RmmCall::AttestGetPlatToken {
+                buf_pa,
+                buf_size,
+                c_size,
+            } => {
+                let mut idx = self.attestation_token_read_index.lock();
+
+                // Challenge size must either be a valid hash size or 0 in the case where we resume
+                // reading from an already generated token.
+                let is_first_chunk = *idx == 0;
+                if (is_first_chunk && !VALID_HASH_SIZES.contains(&c_size))
+                    || (!is_first_chunk && c_size != 0)
+                {
+                    return Err(RmmCommandReturnCode::InvalidValue);
+                }
+
+                // Safety:
+                // - This function can only be reached after having setup the Realm World, which
+                //   requires the MMU and pagetables to be setup.
+                // - All parameters come from the SMC arguments provided by RMM.
+                // - This function never calls again `get_shared_buffer()`, thus the reference will
+                //   be dropped upon return, before another call is made.
+                // - Similarly to the above, this function does not switch to the Realm World.
+                let shared_buffer =
+                    unsafe { get_shared_buffer_slice(buf_pa, buf_size.max(c_size))? };
+
+                // If not generating the first chunck, `c_size` will be zero and the hash will not
+                // written nor passed to `PlatformImpl::read_attestation_token`.
+                let mut hash = [0u8; MAX_HASH_SIZE];
+                hash[..c_size].copy_from_slice(&shared_buffer[..c_size]);
+
+                let (size, rem) = PlatformImpl::read_attestation_token(
+                    &mut shared_buffer[..buf_size],
+                    &hash[..c_size],
+                    *idx,
+                )?;
+
+                if rem > 0 {
+                    *idx += size;
+                } else {
+                    *idx = 0;
+                }
+
+                regs.set_from(RmmAttestGetPlatTokenResponse {
+                    token_hunk_size: size,
+                    remaining_size: rem,
+                });
+                Ok(World::Realm)
+            }
             RmmCall::El3Features { .. } => {
                 regs.set_from(RmmEl3FeaturesResponse { feat_reg: 0 });
                 Ok(World::Realm)

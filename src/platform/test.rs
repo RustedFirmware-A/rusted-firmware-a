@@ -96,6 +96,14 @@ unsafe impl Platform for TestPlatform {
     fn read_attestation_key(_buf: &mut [u8], _curve: EccCurve) -> Result<usize, RmmCommandReturnCode> {
         Ok(0)
     }
+    #[cfg(feature = "rme")]
+    fn read_attestation_token(
+        _buf: &mut [u8],
+        _hash: &[u8],
+        _start_index: usize,
+    ) -> Result<(usize, usize), RmmCommandReturnCode> {
+        Ok((0, 0))
+    }
 
     type LogSinkImpl = StdOutSink;
     type PsciPlatformImpl = TestPsciPlatformImpl;

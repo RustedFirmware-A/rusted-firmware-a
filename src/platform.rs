@@ -309,6 +309,16 @@ pub unsafe trait Platform {
     #[cfg(feature = "rme")]
     fn read_attestation_key(buf: &mut [u8], curve: EccCurve)
     -> Result<usize, RmmCommandReturnCode>;
+
+    /// Computes if needed and writes a slice of the Platform Attestation Token into the shared
+    /// buffer. The slice range within the Token is `start_index..`, clamped at either the end of
+    /// the Token or the end of the buffer, whichever is shorter.
+    #[cfg(feature = "rme")]
+    fn read_attestation_token(
+        buf: &mut [u8],
+        hash: &[u8],
+        start_index: usize,
+    ) -> Result<(usize, usize), RmmCommandReturnCode>;
 }
 
 #[cfg(all(target_arch = "aarch64", not(test)))]

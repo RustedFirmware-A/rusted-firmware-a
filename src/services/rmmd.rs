@@ -25,13 +25,12 @@ pub const RMM_SHARED_BUFFER_SIZE: usize = 0x1000;
 ///
 /// # Safety
 ///
-/// Calling this function is always safe, but using its return value is safe if all the conditions
-/// below are met:
+/// Calling this function and using its return value is safe if all the conditions below are met:
 ///
 /// - It can only be called after the shared buffer is mapped into the page table.
 /// - After calling `get_shared_buffer`, the return reference must be dropped before any other call
 ///   to it is made.
-/// - The reference must be dropped before switching to Realm World.
+/// - No PE is running in Realm World while the reference is held.
 unsafe fn get_shared_buffer() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
     // Safety: (relative to [`slice::from_raw_parts_mut`][https://doc.rust-lang.org/stable/core/slice/fn.from_raw_parts_mut.html])
     // - The first condition of `get_shared_buffer()` ensures that the location is valid, and as it
@@ -154,7 +153,8 @@ impl Rmmd {
         // - This function is called after initializing the MMU and pagetable.
         // - This function never calls again `get_shared_buffer()`, thus the reference will be dropped
         //   upon return, before another call is made.
-        // - Similarly to the above, this function does not switch to the Realm World.
+        // - This function is called before the first switch to Realm world and, similarly to above,
+        //   the reference is dropped before that switch.
         let buf = unsafe { get_shared_buffer() };
         PlatformImpl::rme_prepare_manifest(buf);
         info!("RMM Boot Manifest ready");

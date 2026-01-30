@@ -18,21 +18,19 @@ mod heap;
 mod logger;
 mod pagetable;
 mod platform;
+mod secondary;
 mod tests;
 mod util;
 
-use core::{
-    panic::PanicInfo,
-    slice::from_raw_parts_mut,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use core::{arch::naked_asm, panic::PanicInfo, ptr::read};
 
-use aarch64_rt::{enable_mmu, entry};
+use aarch64_rt::{enable_mmu, entry, set_exception_vector};
 use log::{error, info};
 use smccc::{psci, smc64};
 
 use crate::{
     platform::{Platform, PlatformImpl, RMM_IDMAP},
+    secondary::secondary_entry,
     util::current_el,
 };
 
@@ -235,22 +233,37 @@ fn validate_coldboot_args(pe_idx: u64, version: u64, core_count: u64, shared_buf
 
 /// Indicates whether the image already went through a cold boot.
 ///
-/// TODO: due to a bug likely in [`entry!`], the `.bss` segment is reinitialized each time the
-/// machine jumps to the entrypoint, hence overriding any changes done during coldboot. This
-/// variable is set to `true` to be stored in the `.data` segment, avoiding the issue.
-static NEEDS_COLD_BOOT: AtomicBool = AtomicBool::new(true);
+/// This variable must only be accessed by [`entrypoint`] while MMU and caches are disabled.
+static mut NEEDS_COLD_BOOT: bool = true;
 
-entry!(rmm_main, 4);
-fn rmm_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
-    if !NEEDS_COLD_BOOT.load(Ordering::Acquire) {
-        warmboot_main(x0, x1)
-    } else {
-        NEEDS_COLD_BOOT.store(false, Ordering::Release);
-        coldboot_main(x0, x1, x2, x3)
-    }
+#[unsafe(naked)]
+#[unsafe(link_section = ".init.entrypoint")]
+#[unsafe(export_name = "entrypoint")]
+unsafe extern "C" fn entrypoint() -> ! {
+    naked_asm!(
+        // Fetches NEEDS_COLD_BOOT.
+        "adrp x30, {marker}",
+        "add x30, x30, :lo12:{marker}",
+        "ldrb w29, [x30]",
+        "cmp w29, #0",
+        "b.eq 1f",
+
+        // If NEEDS_COLD_BOOT == true, set it to false and go to aarch64_rt::entry.
+        "mov w29, #0",
+        "strb w29, [x30]",
+        "b entry",
+
+        // Otherwise jump to [`crate::secondary::secondary_entry`].
+        "1:",
+        "b {warmboot_main}",
+        marker = sym NEEDS_COLD_BOOT,
+        warmboot_main = sym secondary_entry,
+    )
 }
 
-fn coldboot_main(pe_idx: u64, version: u64, core_count: u64, shared_buffer_addr: u64) -> ! {
+entry!(rmm_main, 4);
+
+fn rmm_main(pe_idx: u64, version: u64, core_count: u64, shared_buffer_addr: u64) -> ! {
     validate_coldboot_args(pe_idx, version, core_count, shared_buffer_addr);
 
     let log_sink = PlatformImpl::make_log_sink();
@@ -266,11 +279,11 @@ fn coldboot_main(pe_idx: u64, version: u64, core_count: u64, shared_buffer_addr:
     );
 
     // Safety: the specification states that the `x3` register of the RMM is a pointer to a 4KB
-    // page mapped into the Realm World.
-    let shared_buf =
-        unsafe { from_raw_parts_mut(shared_buffer_addr as *mut u32, 0x1000 / size_of::<u32>()) };
+    // page mapped into the Realm World. Since this is coldboot, no other PE is running hence no
+    // concurrent write can occur.
+    let manifest_version = unsafe { read(shared_buffer_addr as *mut u32) };
 
-    let Ok(manifest_version) = RmmBootManifestVersion::try_from(shared_buf[0]) else {
+    let Ok(manifest_version) = RmmBootManifestVersion::try_from(manifest_version) else {
         complete_boot(RmmBootReturn::VersionNotValid, &[]);
         unreachable!()
     };
@@ -289,9 +302,8 @@ fn coldboot_main(pe_idx: u64, version: u64, core_count: u64, shared_buffer_addr:
     handle_incoming_calls(regs)
 }
 
-fn warmboot_main(pe_idx: u64, activation_token: u64) -> ! {
-    let log_sink = PlatformImpl::make_log_sink();
-    logger::init(log_sink).unwrap();
+fn secondary_main(pe_idx: u64, activation_token: u64) -> ! {
+    set_exception_vector();
 
     info!(
         "Fake RMM warmboot at EL {} with args {:#x}, {:#x}",

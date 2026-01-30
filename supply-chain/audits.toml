@@ -369,6 +369,15 @@ Lots of new registers added, which is mostly generated code equivalent to what w
 AArch32 support is similar to existing AArch64 support.
 """
 
+[[audits.arm-sysregs]]
+who = "Jamie Fox <jamiefox@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.1 -> 0.2.3"
+notes = """
+Adds more generated registers, similar to existing code, and additional convenience functions that
+do not include any unsafe code.
+"""
+
 [[audits.arm-tzc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

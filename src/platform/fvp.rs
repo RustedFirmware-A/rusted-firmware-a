@@ -192,48 +192,6 @@ unsafe impl Platform for Fvp {
     #[cfg(feature = "rme")]
     const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
 
-    #[cfg(feature = "rme")]
-    fn rme_prepare_manifest(buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]) {
-        use crate::services::rmmd::manifest::{
-            RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION, RMM_BOOT_MANIFEST_VERSION,
-            RmmRootComplexInfoList,
-        };
-
-        let manifest = RmmBootManifest {
-            version: RMM_BOOT_MANIFEST_VERSION,
-            plat_data: &[],
-            plat_dram: &[
-                RmmMemoryBank {
-                    base: NT_FW_CONFIG_ADDRESS as usize,
-                    size: 0x7c00_0000,
-                },
-                RmmMemoryBank {
-                    base: *MemoryMap::DRAM1.start(),
-                    size: 0x8000_0000,
-                },
-            ],
-            plat_console: &[RmmConsoleInfo {
-                // Value from the pl011_uart crate.
-                base: UART_BASE,
-                // Values from TF-A.
-                map_pages: 0x1,
-                name: *b"pl011\0\0\0",
-                clk_in_hz: 0x00e1_0000,
-                baud_rate: 115_200,
-                flags: 0,
-            }],
-            plat_ncoh_region: &[],
-            plat_coh_region: &[],
-            plat_smmu: &[],
-            plat_root_complex: RmmRootComplexInfoList {
-                rc_info_version: RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION,
-                entries: &[],
-            },
-        };
-
-        manifest.pack(buf, buf.as_ptr() as usize);
-    }
-
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
     // TODO: Implement TRNG for FVP.
@@ -539,6 +497,48 @@ unsafe impl Platform for Fvp {
             BASE_GICD_BASE = const BASE_GICD_BASE,
             VE_GICD_BASE = const VE_GICD_BASE,
         );
+    }
+
+    #[cfg(feature = "rme")]
+    fn rme_prepare_manifest(buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]) {
+        use crate::services::rmmd::manifest::{
+            RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION, RMM_BOOT_MANIFEST_VERSION,
+            RmmRootComplexInfoList,
+        };
+
+        let manifest = RmmBootManifest {
+            version: RMM_BOOT_MANIFEST_VERSION,
+            plat_data: &[],
+            plat_dram: &[
+                RmmMemoryBank {
+                    base: NT_FW_CONFIG_ADDRESS as usize,
+                    size: 0x7c00_0000,
+                },
+                RmmMemoryBank {
+                    base: *MemoryMap::DRAM1.start(),
+                    size: 0x8000_0000,
+                },
+            ],
+            plat_console: &[RmmConsoleInfo {
+                // Value from the pl011_uart crate.
+                base: UART_BASE,
+                // Values from TF-A.
+                map_pages: 0x1,
+                name: *b"pl011\0\0\0",
+                clk_in_hz: 0x00e1_0000,
+                baud_rate: 115_200,
+                flags: 0,
+            }],
+            plat_ncoh_region: &[],
+            plat_coh_region: &[],
+            plat_smmu: &[],
+            plat_root_complex: RmmRootComplexInfoList {
+                rc_info_version: RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION,
+                entries: &[],
+            },
+        };
+
+        manifest.pack(buf, buf.as_ptr() as usize);
     }
 }
 

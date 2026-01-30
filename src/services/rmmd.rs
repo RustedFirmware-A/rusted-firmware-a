@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+pub mod manifest;
+
 use core::{cell::RefCell, slice::from_raw_parts_mut};
 use num_enum::TryFromPrimitive;
 use percore::{Cores, ExceptionLock, PerCore};
@@ -19,7 +21,6 @@ const RMM_BOOT_VERSION: u64 = 0x5;
 /// Size in bytes of the EL3 - RMM shared area.
 pub const RMM_SHARED_BUFFER_SIZE: usize = 0x1000;
 
-pub mod manifest;
 /// Returns a mutable reference to the shared buffer used for communication between R-EL2 and EL3.
 ///
 /// # Safety

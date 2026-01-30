@@ -124,11 +124,6 @@ pub unsafe trait Platform {
     /// Base address for the EL3 - RMM shared area.
     #[cfg(feature = "rme")]
     const RMM_SHARED_BUFFER_START: usize;
-    /// Platform dependent part of the RMM Boot Manifest. Entries within the range `0..RMM_<NAME>`
-    /// (see above) are allocated to be filled by this function. Any extra entry is reserved for
-    /// platform independent data.
-    #[cfg(feature = "rme")]
-    fn rme_prepare_manifest(_buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]);
 
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;
@@ -296,6 +291,12 @@ pub unsafe trait Platform {
     /// Should only be called from assembly as it doesn't follow the standard calling convention.
     #[cfg_attr(test, allow(unused))]
     unsafe extern "C" fn dump_registers();
+
+    /// Platform dependent part of the RMM Boot Manifest. Entries within the range `0..RMM_<NAME>`
+    /// (see above) are allocated to be filled by this function. Any extra entry is reserved for
+    /// platform independent data.
+    #[cfg(feature = "rme")]
+    fn rme_prepare_manifest(_buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]);
 }
 
 #[cfg(all(target_arch = "aarch64", not(test)))]

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 pub mod manifest;
+pub mod svc;
 
 use core::{cell::RefCell, slice::from_raw_parts_mut};
 use num_enum::TryFromPrimitive;
@@ -13,7 +14,10 @@ use crate::{
     context::{CoresImpl, PerCoreState, World},
     info,
     platform::{Platform, PlatformImpl, exception_free},
-    services::{Service, owns},
+    services::{
+        Service, owns,
+        rmmd::svc::{RmmCall, RmmEl3FeaturesResponse},
+    },
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
 
@@ -51,7 +55,6 @@ unsafe fn get_shared_buffer() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
 }
 
 const RMM_BOOT_COMPLETE: u32 = 0xC400_01CF;
-const RMM_RMI_REQ_COMPLETE: u32 = 0xC400_018F;
 
 #[derive(Debug)]
 struct RmmdLocal {
@@ -121,23 +124,43 @@ impl Service for Rmmd {
         let mut function = FunctionId(in_regs[0] as u32);
         function.clear_sve_hint();
 
-        match function.0 {
-            RMM_BOOT_COMPLETE => {
-                info!("Realm boot completed with code 0x{:x}", regs.values()[1]);
-                self.handle_boot_complete(regs)
-            }
+        if function.0 == RMM_BOOT_COMPLETE {
+            info!("Realm boot completed with code 0x{:x}", regs.values()[1]);
+            return self.handle_boot_complete(regs);
+        }
 
-            RMM_RMI_REQ_COMPLETE => {
+        let Ok(command) = RmmCall::from_regs(regs.values()) else {
+            regs.set_from(NOT_SUPPORTED);
+            return World::Realm;
+        };
+
+        match command {
+            RmmCall::RmiReqComplete { regs: req_regs } => {
                 // Only x1-x6 are used for RMI return values, the remaining ones MBZ.
-                regs.values_mut().copy_within(1..7, 0);
+                regs.values_mut()[..6].copy_from_slice(&req_regs);
                 regs.values_mut()[6..].fill(0);
 
                 World::NonSecure
             }
-            _ => {
+            RmmCall::GtsiDelegate { .. } => todo!(),
+            RmmCall::GtsiUndelegate { .. } => todo!(),
+            RmmCall::AttestGetRealmKey { .. } => todo!(),
+            RmmCall::AttestGetPlatToken { .. } => todo!(),
+            RmmCall::El3Features { .. } => {
+                regs.set_from(RmmEl3FeaturesResponse { feat_reg: 0 });
+                World::Realm
+            }
+            RmmCall::El3TokenSign { .. } => todo!(),
+            // TODO: Hacky trick to avoid TF-RMM from enabling encryption (not implemented yet).
+            RmmCall::MecRefresh { .. } => {
                 regs.set_from(NOT_SUPPORTED);
                 World::Realm
             }
+            RmmCall::IdeKeyProg { .. } => todo!(),
+            RmmCall::IdeKeySetGo { .. } => todo!(),
+            RmmCall::IdeKeySetStop { .. } => todo!(),
+            RmmCall::IdeKmPullResponse { .. } => todo!(),
+            RmmCall::ReserveMemory { .. } => todo!(),
         }
     }
 }
@@ -191,14 +214,22 @@ impl Rmmd {
             if state.activation_token.is_none() {
                 let activation_token = regs.values()[2];
                 info!("Received activation token {activation_token:#x?}");
-                state.activation_token = Some(activation_token)
+                state.activation_token = Some(activation_token);
+
+                RMM_COLD_BOOT_DONE.call_once(|| ());
+                regs.set_from(ret);
+
+                World::NonSecure
+            } else {
+                info!(
+                    "Received multiple `RMM_BOOT_COMPLETE` SMCs from core {}",
+                    CoresImpl::core_index()
+                );
+
+                regs.set_from(NOT_SUPPORTED);
+                World::Realm
             }
-        });
-
-        RMM_COLD_BOOT_DONE.call_once(|| ());
-        regs.set_from(ret);
-
-        World::NonSecure
+        })
     }
 
     pub fn entrypoint_args(&self) -> [u64; 8] {

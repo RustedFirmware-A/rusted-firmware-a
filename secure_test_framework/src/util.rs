@@ -12,6 +12,7 @@ use log::error;
 pub const NORMAL_WORLD_ID: u16 = 0;
 
 /// The partition ID of the secure world component.
+#[allow(unused)]
 pub const SECURE_WORLD_ID: u16 = 0x8001;
 
 /// Default ID for the SPMC

@@ -96,6 +96,7 @@ pub fn handle_group1_interrupt() {
 }
 
 /// Enables IRQ handling for the current EL.
+#[allow(unused)]
 pub fn init(secure: bool) {
     // Safety: This is the only place where PlatformImpl::create_gic is called.
     GIC.call_once(|| SpinMutex::new(unsafe { PlatformImpl::create_gic() }));

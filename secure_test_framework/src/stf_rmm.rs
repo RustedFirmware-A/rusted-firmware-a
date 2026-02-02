@@ -6,7 +6,6 @@
 
 #![no_main]
 #![no_std]
-#![allow(dead_code)]
 
 extern crate alloc;
 
@@ -24,6 +23,7 @@ mod util;
 
 use core::{arch::naked_asm, panic::PanicInfo, ptr::read};
 
+use aarch64_paging::paging::PAGE_SIZE;
 use aarch64_rt::{enable_mmu, entry, set_exception_vector};
 use log::{error, info};
 use smccc::{psci, smc64};
@@ -72,17 +72,30 @@ impl From<RmmBootManifestVersion> for u32 {
         (value.major as u32) << 16 | value.minor as u32
     }
 }
+impl From<RmmBootManifestVersion> for u64 {
+    fn from(value: RmmBootManifestVersion) -> Self {
+        u32::from(value) as u64
+    }
+}
 
+/// Value returned by RMM after a cold/warmboot.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[allow(missing_docs)]
 pub enum RmmBootReturn {
+    /// Boot successful.
     Success = 0,
+    /// Unknown error.
     Unknown = -1,
+    /// Boot Interface version reported by EL3 is not supported by RMM.
     VersionNotValid = -2,
+    /// Number of CPUs reported by EL3 larger than maximum supported by RMM.
     CpusOutOfRange = -3,
+    /// Current CPU Id is higher or equal than the number of CPUs supported by RMM.
     CpuIdOutOfRange = -4,
+    /// Invalid pointer to shared memory area.
     InvalidSharedBuffer = -5,
+    /// Version reported by the Boot Manifest not supported by RMM.
     ManifestVersionNotSupported = -6,
+    /// Error parsing core Boot Manifest.
     ManifestDataError = -7,
 }
 
@@ -92,6 +105,7 @@ enum RmiStatusCode {
     Success = 0,
     ErrorInput = 1,
     ErrorRealm = 2,
+    #[allow(unused)]
     ErrorRec = 3,
     ErrorRtt = 4,
 }
@@ -166,7 +180,7 @@ fn handle_incoming_calls(mut regs: [u64; 18]) -> ! {
 /// Handles a single RMI call from NS world.
 fn handle_rmi_call(regs: &[u64]) -> [u64; 17] {
     match regs[0] {
-        RMM_RMI_REQ_VERSION => rmi_version(regs),
+        RMM_RMI_REQ_VERSION => rmi_version(&regs[1..]),
         _ => {
             let mut ret = [0; 17];
             ret[0] = u64::MAX;
@@ -178,7 +192,7 @@ fn handle_rmi_call(regs: &[u64]) -> [u64; 17] {
 fn rmi_version(args: &[u64]) -> [u64; 17] {
     let mut ret = [0; 17];
 
-    let Ok(requested) = RmmBootManifestVersion::try_from(args[1] as u32) else {
+    let Ok(requested) = RmmBootManifestVersion::try_from(args[0] as u32) else {
         ret[0] = RmiCommandReturnCode::new(RmiStatusCode::ErrorInput, None).into();
         return ret;
     };
@@ -188,15 +202,13 @@ fn rmi_version(args: &[u64]) -> [u64; 17] {
         requested.major, requested.minor
     );
 
-    let supported = u32::from(SUPPORTED_RMM_VERSION) as u64;
-
-    ret[0] = if args[1] == supported {
+    ret[0] = if requested == SUPPORTED_RMM_VERSION {
         RmiCommandReturnCode::new(RmiStatusCode::Success, None).into()
     } else {
         RmiCommandReturnCode::new(RmiStatusCode::ErrorInput, None).into()
     };
-    ret[1] = supported;
-    ret[2] = supported;
+    ret[1] = SUPPORTED_RMM_VERSION.into();
+    ret[2] = SUPPORTED_RMM_VERSION.into();
 
     ret
 }
@@ -213,21 +225,25 @@ fn validate_coldboot_args(pe_idx: u64, version: u64, core_count: u64, shared_buf
 
     if version.major != SUPPORTED_RMM_VERSION.major {
         complete_boot(RmmBootReturn::VersionNotValid, &[]);
+        unreachable!()
     }
 
     if shared_buffer_addr == 0 {
         complete_boot(RmmBootReturn::InvalidSharedBuffer, &[]);
+        unreachable!()
     }
 
     // Shared buffer must be paged-aligned.
-    if !shared_buffer_addr.is_multiple_of(0x1000) {
+    if !shared_buffer_addr.is_multiple_of(PAGE_SIZE as u64) {
         complete_boot(RmmBootReturn::InvalidSharedBuffer, &[]);
+        unreachable!()
     }
 
     // TODO: map the shared buffer into memory.
 
     if core_count > PlatformImpl::CORE_COUNT as u64 {
         complete_boot(RmmBootReturn::CpusOutOfRange, &[]);
+        unreachable!()
     }
 }
 
@@ -296,6 +312,7 @@ fn rmm_main(pe_idx: u64, version: u64, core_count: u64, shared_buffer_addr: u64)
     if manifest_version.major != SUPPORTED_RMM_MANIFEST_VERSION.major {
         error!("Unsupported manifest version: 0x{manifest_version:x?}");
         complete_boot(RmmBootReturn::ManifestVersionNotSupported, &[]);
+        unreachable!()
     }
 
     let regs = complete_boot(RmmBootReturn::Success, &[0xdead_beef]);

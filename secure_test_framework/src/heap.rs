@@ -18,6 +18,7 @@ static HEAP: SpinMutex<[u8; HEAP_SIZE]> = SpinMutex::new([0; HEAP_SIZE]);
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::new();
 
 /// Initialises the heap allocator.
+#[allow(unused)]
 pub fn init() {
     // Give the allocator some memory to allocate.
     add_to_heap(

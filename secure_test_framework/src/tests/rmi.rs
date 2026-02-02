@@ -6,8 +6,14 @@ use smccc::smc64;
 
 use crate::{
     expect,
-    framework::{TestResult, expect::expect_eq, normal_world_test},
+    framework::{
+        TestResult,
+        expect::{expect_eq, fail},
+        normal_world_test,
+    },
 };
+
+const RMM_RMI_REQ_VERSION: u32 = 0xC400_0150;
 
 normal_world_test!(test_rmm_version);
 fn test_rmm_version() -> TestResult {
@@ -16,7 +22,7 @@ fn test_rmm_version() -> TestResult {
     let mut args = [0; 17];
     args[0] = REQUESTED_VERSION;
 
-    let ret = smc64(0xC400_0150u32, args);
+    let ret = smc64(RMM_RMI_REQ_VERSION, args);
 
     // Call not supported, i.e. there is no RMMD.
     if ret[0] == u64::MAX {
@@ -36,7 +42,7 @@ fn test_rmm_version() -> TestResult {
             expect_eq!(lower, REQUESTED_VERSION);
         }
         1 => expect!(lower != REQUESTED_VERSION),
-        _ => expect!(false),
+        v => fail!("Invalid return code from RMM_RMI_REQ_VERSION: {v}"),
     }
 
     Ok(())

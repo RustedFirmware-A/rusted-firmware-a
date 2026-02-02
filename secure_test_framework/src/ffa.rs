@@ -14,6 +14,7 @@ use smccc::{arch, error::positive_or_error_32, smc64};
 /// The FF-A version which we implement here.
 const FFA_VERSION: Version = Version(1, 2);
 
+#[allow(unused)]
 pub fn version(input_version: Version) -> Result<Version, arch::Error> {
     assert_eq!(input_version.0 & 0x8000, 0);
     let output_version = positive_or_error_32::<arch::Error>(

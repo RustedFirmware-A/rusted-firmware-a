@@ -223,6 +223,12 @@ do_crash_reporting:
 	/* Report x30 first from the crash buf */
 	ldr	x4, [x0, #{REGSZ} * 7]
 
+.if {ENABLE_PAUTH}
+	.arch_extension pauth
+	/* Strip the Pointer Authentication Code from the address */
+	xpaci	x4
+	.arch_extension nopauth
+.endif
 	bl	asm_print_hex
 	bl	asm_print_newline
 	/* Load the crash buf address */

@@ -47,6 +47,7 @@ mod asm {
         LOG_LEVEL_INFO = const LevelFilter::Info as u32,
         LOG_LEVEL = const build_time_log_level() as u32,
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
+        ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,
         MODE_SP_ELX = const 1,
         CPU_DATA_CRASH_BUFFER_OFFSET = const offset_of!(CpuData, crash_buffer),
         CRASH_BUFFER_SIZE = const size_of::<CrashBuffer>(),

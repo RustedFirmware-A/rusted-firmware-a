@@ -20,90 +20,25 @@ use arm_sysregs::{
 const FP_NOT_SUPPORTED: u8 = 0xf;
 const ADVSIMD_NOT_SUPPORTED: u8 = 0xf;
 
-/// Enables FP/SIMD register access for all worlds.
-///
-/// If `sel2` is enabled, S-EL2 is responsible for FP/SIMD context management.
-/// Otherwise, the context management is performed in EL3.
-pub struct Simd {
-    /// This extension will save / restore NS FP registers only if this flag is set and `sel2` is
-    /// disabled.
-    /// This flag is used to not duplicate context management when SVE extension is enabled,
-    /// as FP registers overlap with SVE state.
-    #[allow(dead_code)]
-    manage_ns_context: bool,
-}
-
-impl Simd {
-    /// `manage_ns_context` should be true iff the Sve extension is not enabled for the platform.
-    #[allow(unused)]
-    pub const fn new(manage_ns_context: bool) -> Self {
-        Self { manage_ns_context }
-    }
-}
-
-impl CpuExtension for Simd {
-    fn is_present(&self) -> bool {
-        let id_aa64pfr0_el1 = read_id_aa64pfr0_el1();
-        id_aa64pfr0_el1.fp() != FP_NOT_SUPPORTED
-            && id_aa64pfr0_el1.advsimd() != ADVSIMD_NOT_SUPPORTED
-    }
-
-    fn configure_per_world(&self, _world: World, ctx: &mut PerWorldContext) {
-        // Allow FP/SIMD register accesses in every World.
-        ctx.cptr_el3 -= CptrEl3::TFP;
-    }
-
-    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
-    fn save_context(&self, world: World) {
-        use crate::platform::exception_free;
-
-        if world == World::NonSecure && !self.manage_ns_context {
-            return;
-        }
-
-        exception_free(|token| {
-            simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].save();
-        })
-    }
-
-    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
-    fn restore_context(&self, world: World) {
-        use crate::platform::exception_free;
-
-        if world == World::NonSecure && !self.manage_ns_context {
-            return;
-        }
-
-        exception_free(|token| {
-            simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].restore();
-        })
-    }
-}
-
 /// FEAT_SVE support.
 ///
 /// Enables NS world SVE register access and configures the maximum SVE vector length.
-///
-/// TODO: Make it possible to enable SVE for SWd as well and handle SVE context switch if sel2 is
-/// not enabled.
-pub struct Sve {
+struct Sve {
     /// Limits the Effective Non-streaming SVE vector length to `vector_length` bits.
     vector_length: u64,
 }
 
 impl Sve {
     #[allow(unused)]
-    pub const fn new(vector_length: u64) -> Self {
+    const fn new(vector_length: u64) -> Self {
         assert!(
             vector_length % 128 == 0 && vector_length >= 128 && vector_length <= 2048,
             "Invalid SVE vector length"
         );
         Self { vector_length }
     }
-}
 
-impl CpuExtension for Sve {
-    fn is_present(&self) -> bool {
+    fn is_present() -> bool {
         read_id_aa64pfr0_el1().is_feat_sve_present()
     }
 
@@ -130,40 +65,10 @@ impl CpuExtension for Sve {
         }
     }
 
-    fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
+    fn configure_per_world(world: World, ctx: &mut PerWorldContext) {
         if (world == World::NonSecure) || (cfg!(feature = "sel2") && world == World::Secure) {
             // Allow SVE register access to normal world and secure world if S-EL2 compiled in.
             ctx.cptr_el3 |= CptrEl3::EZ;
-        }
-    }
-
-    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
-    fn save_context(&self, world: World) {
-        use crate::platform::exception_free;
-
-        if world == World::NonSecure {
-            exception_free(|token| {
-                if self.is_present() {
-                    simd_sel1::NS_SVE_CTX.get().borrow_mut(token).save();
-                } else {
-                    simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].save();
-                }
-            })
-        }
-    }
-
-    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
-    fn restore_context(&self, world: World) {
-        use crate::platform::exception_free;
-
-        if world == World::NonSecure {
-            exception_free(|token| {
-                if self.is_present() {
-                    simd_sel1::NS_SVE_CTX.get().borrow_mut(token).restore();
-                } else {
-                    simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].restore();
-                }
-            })
         }
     }
 }
@@ -172,24 +77,21 @@ impl CpuExtension for Sve {
 ///
 /// Enables NS world SME register access and configures the maximum Streaming SVE (SSVE) vector
 /// length.
-pub struct Sme {
+struct Sme {
     /// Limits the Effective Streaming SVE vector length to `vector_length` bits.
     vector_length: u64,
 }
 
 impl Sme {
-    #[allow(unused)]
-    pub const fn new(vector_length: u64) -> Self {
+    const fn new(vector_length: u64) -> Self {
         assert!(
             vector_length % 128 == 0 && vector_length >= 128 && vector_length <= 2048,
             "Invalid SSVE vector length"
         );
         Self { vector_length }
     }
-}
 
-impl CpuExtension for Sme {
-    fn is_present(&self) -> bool {
+    fn is_present() -> bool {
         read_id_aa64pfr1_el1().is_feat_sme_present()
     }
 
@@ -227,7 +129,7 @@ impl CpuExtension for Sme {
         }
     }
 
-    fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
+    fn configure_per_world(world: World, ctx: &mut PerWorldContext) {
         if (world == World::NonSecure) || (cfg!(feature = "sel2") && world == World::Secure) {
             // Allow SME register access to normal world and secure world if S-EL2 compiled in.
             ctx.cptr_el3 |= CptrEl3::ESM;
@@ -235,5 +137,145 @@ impl CpuExtension for Sme {
         if world == World::NonSecure {
             ctx.scr_el3 |= ScrEl3::ENTP2;
         }
+    }
+}
+
+/// Enables FP, SIMD, SVE and SME CPU extensions.
+pub struct Simd {
+    sve: Option<Sve>,
+    sme: Option<Sme>,
+}
+
+impl Simd {
+    /// Creates a new `Simd` extension with SVE and SME disabled.
+    #[allow(unused)]
+    #[allow(clippy::self_named_constructors)]
+    pub const fn simd() -> Self {
+        Self {
+            sve: None,
+            sme: None,
+        }
+    }
+
+    /// Creates a new `Simd` extension.
+    ///
+    /// Enables SVE. Configures the maximum vector length for SVE to `vector_length`.
+    ///
+    /// If `enable_sme` is set, SME extension is enabled as well and SSVE vector length is also set
+    /// to `vector_length`.
+    #[allow(unused)]
+    pub const fn sve(vector_length: u64, enable_sme: bool) -> Self {
+        Self {
+            sve: Some(Sve::new(vector_length)),
+            sme: if enable_sme {
+                Some(Sme::new(vector_length))
+            } else {
+                None
+            },
+        }
+    }
+}
+
+impl CpuExtension for Simd {
+    fn is_present(&self) -> bool {
+        // We assume that SVE or SME presence implies SIMD presence,
+        // so its sufficient to only check for the 'base' extension.
+        let id_aa64pfr0_el1 = read_id_aa64pfr0_el1();
+        id_aa64pfr0_el1.fp() != FP_NOT_SUPPORTED
+            && id_aa64pfr0_el1.advsimd() != ADVSIMD_NOT_SUPPORTED
+    }
+
+    fn init(&self) {
+        if let Some(sve) = &self.sve {
+            if Sve::is_present() {
+                sve.init();
+            }
+        }
+        if let Some(sme) = &self.sme {
+            if Sme::is_present() {
+                sme.init();
+            }
+        }
+    }
+
+    fn configure_per_world(&self, world: World, ctx: &mut PerWorldContext) {
+        // Allow FP/SIMD register accesses in every World.
+        ctx.cptr_el3 -= CptrEl3::TFP;
+
+        if self.sve.is_some() && Sve::is_present() {
+            Sve::configure_per_world(world, ctx);
+        }
+        if self.sme.is_some() && Sme::is_present() {
+            Sme::configure_per_world(world, ctx);
+        }
+    }
+
+    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+    fn save_context(&self, world: World) {
+        use crate::platform::exception_free;
+
+        let has_sve = self.sve.is_some() && Sve::is_present();
+        let has_sme = self.sme.is_some() && Sme::is_present();
+
+        // Temporarily allow access to save context
+        let cptr_el3 = read_cptr_el3();
+        // SAFETY: We only allowed SVE and SME instructions.
+        unsafe {
+            write_cptr_el3((cptr_el3 - CptrEl3::TFP) | CptrEl3::EZ | CptrEl3::ESM);
+        }
+        isb();
+
+        if world == World::NonSecure && has_sve {
+            exception_free(|token| {
+                simd_sel1::NS_SVE_CTX.get().borrow_mut(token).save(has_sme);
+            })
+        } else {
+            exception_free(|token| {
+                simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].save();
+            })
+        }
+
+        // Restore Architectural Feature Trap Register.
+        // SAFETY: We're restoring the value previously saved, so it must be valid.
+        unsafe {
+            write_cptr_el3(cptr_el3);
+        }
+        isb();
+    }
+
+    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+    fn restore_context(&self, world: World) {
+        use crate::platform::exception_free;
+
+        let has_sve = self.sve.is_some() && Sve::is_present();
+        let has_sme = self.sme.is_some() && Sme::is_present();
+
+        // Temporarily allow access to restore context
+        let cptr_el3 = read_cptr_el3();
+        // SAFETY: We only allowed SVE and SME instructions.
+        unsafe {
+            write_cptr_el3((cptr_el3 - CptrEl3::TFP) | CptrEl3::EZ | CptrEl3::ESM);
+        }
+        isb();
+
+        if world == World::NonSecure && has_sve {
+            exception_free(|token| {
+                simd_sel1::NS_SVE_CTX
+                    .get()
+                    .borrow_mut(token)
+                    .restore(has_sme);
+            })
+        } else {
+            exception_free(|token| {
+                simd_sel1::SIMD_CTX.get().borrow_mut(token)[world].restore();
+            })
+        }
+
+        // Restore Architectural Feature Trap Register.
+        // SAFETY: We're restoring the value previously saved, so it must be valid.
+        unsafe {
+            write_cptr_el3(cptr_el3);
+        }
+        isb();
     }
 }

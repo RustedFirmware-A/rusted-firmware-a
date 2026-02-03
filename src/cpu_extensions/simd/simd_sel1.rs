@@ -8,8 +8,11 @@ use crate::{
     context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld},
     platform::{Platform, PlatformImpl},
 };
+use arm_sysregs::{IdAa64smfr0El1, read_id_aa64smfr0_el1, read_write_sysreg};
 use core::{arch::asm, cell::RefCell};
 use percore::{ExceptionLock, PerCore};
+
+read_write_sysreg!(svcr: S3_3_C4_C2_2, u64, safe_read);
 
 pub static SIMD_CTX: PerCoreState<PerWorld<SimdCpuContext>> = PerCore::new(
     [const {
@@ -22,6 +25,8 @@ pub static SIMD_CTX: PerCoreState<PerWorld<SimdCpuContext>> = PerCore::new(
 pub static NS_SVE_CTX: PerCoreState<SveCpuContext> = PerCore::new(
     [const { ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY)) }; PlatformImpl::CORE_COUNT],
 );
+
+const SVCR_SM_BIT: u64 = 1 << 0;
 
 #[repr(C)]
 pub struct SimdCpuContext {
@@ -132,6 +137,7 @@ pub struct SveCpuContext {
     ffr: [u8; 256 / 8],        // TODO: Adjust to [u8; SVE_VECTOR_LEN_BYTES / 8]
     fpsr: u64,
     fpcr: u64,
+    svcr: u64, // This is unused if SME is not present.
 }
 
 impl SveCpuContext {
@@ -141,14 +147,32 @@ impl SveCpuContext {
         ffr: [0; 256 / 8],
         fpsr: 0,
         fpcr: 0,
+        svcr: 0,
     };
 
-    fn save_ffr(&mut self) {
+    fn should_save_restore_ffr(&self, has_sme: bool) -> bool {
+        if has_sme {
+            let streaming = (self.svcr & SVCR_SM_BIT) != 0;
+            if streaming && !read_id_aa64smfr0_el1().contains(IdAa64smfr0El1::FA64) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Saves the FFR state.
+    ///
+    /// # Safety
+    ///
+    /// This function reads the value of `ffr` into the first predicate register (p0), so it must
+    /// be called after saving the state of predicate registers.
+    unsafe fn save_ffr(&mut self) {
         // Get a mutable pointer to the start of the ffr storage.
         let dest = self.ffr.as_mut_ptr();
 
         // SAFETY: `dest` is a 16B aligned valid pointer to an array that can hold SVE ffr
-        // registers of maximum length.
+        // registers of maximum length. Caller guarantees that the predicate registers can be
+        // overwritten.
         unsafe {
             asm!(
                 ".arch_extension sve",
@@ -161,12 +185,20 @@ impl SveCpuContext {
         }
     }
 
-    fn restore_ffr(&self) {
+    /// Restores the FFR state.
+    ///
+    /// # Safety
+    ///
+    /// This function writes the value of `ffr` into the first predicate register (p0), and then
+    /// writes FFR state from p0, so it must be called before restoring the state of predicate
+    /// registers.
+    unsafe fn restore_ffr(&self) {
         // Get a pointer to the start of the ffr storage.
         let src = self.ffr.as_ptr();
 
         // SAFETY: `src` is a 16B aligned valid pointer to an array that can hold SVE predicate
-        // registers of maximum length.
+        // registers of maximum length. Caller guarantees that predicate registers can be
+        // overwritten at this point.
         unsafe {
             asm!(
                 ".arch_extension sve",
@@ -385,17 +417,56 @@ impl SveCpuContext {
         }
     }
 
-    pub fn save(&mut self) {
+    fn save_svcr(&mut self) {
+        self.svcr = read_svcr();
+    }
+
+    /// Restores the saved SVCR configuration.
+    ///
+    /// # Satety
+    ///
+    /// Enabling Streaming SVE (by restoring SVCR) can wipe out FP, SIMD and SVE
+    /// registers, so the caller must guarantee that this is the first step of the restoration
+    /// process.
+    unsafe fn restore_svcr(&self) {
+        // SAFETY: Caller guarantees that its safe to wipe out FP state now.
+        unsafe {
+            write_svcr(self.svcr);
+        }
+    }
+
+    pub fn save(&mut self, has_sme: bool) {
         self.save_predicates();
-        isb(); // Note: predicates must be saved before ffr.
-        self.save_ffr();
+
+        if has_sme {
+            self.save_svcr();
+        }
+
+        if self.should_save_restore_ffr(has_sme) {
+            isb();
+            // SAFETY: This is done after saving the state of predicate registers.
+            unsafe {
+                self.save_ffr();
+            }
+        }
+
         self.save_vectors();
         self.save_fp_state();
     }
 
-    pub fn restore(&self) {
-        self.restore_ffr();
-        isb(); // Note: predicates must be restored after ffr.
+    pub fn restore(&self, has_sme: bool) {
+        if has_sme {
+            // SAFETY: This is the first step of SVE state restoration.
+            unsafe { self.restore_svcr() };
+            isb();
+        }
+
+        if self.should_save_restore_ffr(has_sme) {
+            // SAFETY: This is done before restoring the state of predicate registers.
+            unsafe { self.restore_ffr() };
+            isb();
+        }
+
         self.restore_predicates();
         self.restore_vectors();
         self.restore_fp_state();

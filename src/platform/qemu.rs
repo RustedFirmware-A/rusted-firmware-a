@@ -126,9 +126,9 @@ define_errata_list!();
 
 // SAFETY: `SECURE_GPIO_ADDR` is the base address for the PL061 device and nothing else
 // accesses that address range.
-static SECURE_GPIO: SpinMutex<PL061> = SpinMutex::new(
-    PL061::new(unsafe { UniqueMmioPointer::new(NonNull::new(SECURE_GPIO_ADDR).unwrap()) })
-);
+static SECURE_GPIO: SpinMutex<PL061> = SpinMutex::new(PL061::new(unsafe {
+    UniqueMmioPointer::new(NonNull::new(SECURE_GPIO_ADDR).unwrap())
+}));
 
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
@@ -163,7 +163,7 @@ unsafe impl Platform for Qemu {
         interrupts_config: &[],
     };
 
-    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&Simd::new(true)];
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&Simd::simd()];
 
     fn init_with_early_mapping(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else
@@ -268,7 +268,7 @@ unsafe impl Platform for Qemu {
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
         Some(QemuPsciPlatformImpl {
             per_cpu_powerdown_kinds: [const { SpinMutex::new(PowerDownKind::Off) };
-                                      Qemu::CORE_COUNT],
+                Qemu::CORE_COUNT],
         })
     }
 

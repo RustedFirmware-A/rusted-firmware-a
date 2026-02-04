@@ -38,7 +38,7 @@ arm-gic = "0.7.2"
 arm-pl011-uart = { version = "0.4.0", default-features = false }
 arm-pl061 = { version = "0.1.1", default-features = false }
 arm-psci = "0.2.0"
-arm-sysregs = { version = "0.2.3", features = ["el3"] }
+arm-sysregs = { version = "0.2.4", features = ["el3"] }
 arrayvec = { version = "0.7.6", default-features = false }
 bitflags = "2.10.0"
 log = "0.4.29"
@@ -57,7 +57,7 @@ zerocopy = { version = "0.8.27", features = ["derive"] }
 
 [dev-dependencies]
 arm-gic = { version = "0.7.2", features = ["fakes"] }
-arm-sysregs = { version = "0.2.1", features = ["fakes"] }
+arm-sysregs = { version = "0.2.4", features = ["fakes"] }
 
 [features]
 default = ["sel2"]

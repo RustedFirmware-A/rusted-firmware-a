@@ -384,6 +384,12 @@ Adds more generated registers, similar to existing code, and additional convenie
 do not include any unsafe code.
 """
 
+[[audits.arm-sysregs]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.3 -> 0.2.4"
+notes = "Just changed assembly names for some registers."
+
 [[audits.arm-tzc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

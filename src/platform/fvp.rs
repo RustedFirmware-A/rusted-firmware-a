@@ -94,8 +94,9 @@ const DEVICE1_SIZE: usize = (BASE_GICR_BASE - BASE_GICD_BASE) + (PLATFORM_CORE_C
 const DEVICE2_BASE: usize = 0x2a00_0000;
 const DEVICE2_SIZE: usize = 0x10000;
 
-const ARM_TRUSTED_SRAM_BASE: usize = 0x0400_0000;
-const ARM_TRUSTED_SRAM_SIZE: usize = 0x0080_0000;
+const ARM_TRUSTED_SRAM_BASE: usize = *MemoryMap::TRUSTED_SRAM.start();
+const ARM_TRUSTED_SRAM_SIZE: usize =
+    *MemoryMap::TRUSTED_SRAM.end() - *MemoryMap::TRUSTED_SRAM.start() + 1;
 const ARM_SHARED_RAM_BASE: usize = ARM_TRUSTED_SRAM_BASE;
 const ARM_SHARED_RAM_SIZE: usize = 0x0000_1000; /* 4 KB */
 

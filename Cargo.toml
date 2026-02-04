@@ -34,7 +34,7 @@ codegen-units = 1
 aarch64-paging = { version = "0.11.0", default-features = false }
 arm-ffa = { version = "0.4.1", default-features = false }
 arm-fvp-base-pac = { version = "0.1.4", default-features = false }
-arm-gic = "0.7.1"
+arm-gic = "0.7.2"
 arm-pl011-uart = { version = "0.4.0", default-features = false }
 arm-pl061 = { version = "0.1.1", default-features = false }
 arm-psci = "0.2.0"
@@ -56,7 +56,7 @@ uuid = { version = "1.19.0", default-features = false }
 zerocopy = { version = "0.8.27", features = ["derive"] }
 
 [dev-dependencies]
-arm-gic = { version = "0.7.1", features = ["fakes"] }
+arm-gic = { version = "0.7.2", features = ["fakes"] }
 arm-sysregs = { version = "0.2.1", features = ["fakes"] }
 
 [features]

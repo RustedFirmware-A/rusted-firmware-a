@@ -280,6 +280,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.6.1 -> 0.7.1"
 
+[[audits.arm-gic]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.7.1 -> 0.7.2"
+notes = "Fixed a bug in Distributor:::set_routing, dependency bump."
+
 [[audits.arm-pl011-uart]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
@@ -755,6 +761,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.16 -> 2.0.17"
 notes = "Build script change should be safe."
 
+[[audits.thiserror]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.17 -> 2.0.18"
+notes = "Updated thiserror-impl."
+
 [[audits.thiserror-impl]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -782,6 +794,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.16 -> 2.0.17"
 notes = "Minor refactoring only."
+
+[[audits.thiserror-impl]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.17 -> 2.0.18"
+notes = "Fixed issue with clippy."
 
 [[audits.unicode-ident]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -849,6 +867,11 @@ strings has been added (hash_name in macro_util.rs) but it is not used for any c
 functionality and makes no attempt to be cryptographically robust.
 """
 
+[[audits.zerocopy]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "does-not-implement-crypto"
+delta = "0.8.34 -> 0.8.38"
+
 [[audits.zerocopy-derive]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"
@@ -865,3 +888,8 @@ who = "Jim Ray <jimray@google.com>"
 criteria = "does-not-implement-crypto"
 delta = "0.8.27 -> 0.8.34"
 notes = "The changes from 0.8.27 to 0.8.34 do not add any cryptographic functionality."
+
+[[audits.zerocopy-derive]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "does-not-implement-crypto"
+delta = "0.8.34 -> 0.8.38"

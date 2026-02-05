@@ -279,6 +279,7 @@ dependencies = [
  "arm-ffa",
  "arm-fvp-base-pac",
  "arm-gic",
+ "arm-gpt",
  "arm-pl011-uart",
  "arm-pl061",
  "arm-psci",

@@ -35,6 +35,7 @@ aarch64-paging = { version = "0.11.0", default-features = false }
 arm-ffa = { version = "0.4.1", default-features = false }
 arm-fvp-base-pac = { version = "0.1.4", default-features = false }
 arm-gic = "0.7.2"
+arm-gpt = { version = "0.1.0", path = "arm-gpt", optional = true }
 arm-pl011-uart = { version = "0.4.0", default-features = false }
 arm-pl061 = { version = "0.1.1", default-features = false }
 arm-psci = "0.2.0"
@@ -62,7 +63,7 @@ arm-sysregs = { version = "0.2.4", features = ["fakes"] }
 [features]
 default = ["sel2"]
 pauth = []
-rme = []
+rme = ["dep:arm-gpt"]
 sel2 = []
 max_log_error = ["log/max_level_error"]
 max_log_warn = ["log/max_level_warn"]

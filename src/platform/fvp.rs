@@ -100,6 +100,15 @@ const ARM_TRUSTED_SRAM_SIZE: usize =
 const ARM_SHARED_RAM_BASE: usize = ARM_TRUSTED_SRAM_BASE;
 const ARM_SHARED_RAM_SIZE: usize = 0x0000_1000; /* 4 KB */
 
+#[cfg(feature = "rme")]
+const ARM_GPT_L0_BASE: usize = ARM_TRUSTED_SRAM_BASE + ARM_TRUSTED_SRAM_SIZE - ARM_GPT_L0_SIZE;
+#[cfg(feature = "rme")]
+const ARM_GPT_L0_SIZE: usize = 0x0000_2000;
+#[cfg(feature = "rme")]
+const ARM_GPT_L1_BASE: usize = *MemoryMap::DRAM0.end() + 1 - ARM_GPT_L1_SIZE;
+#[cfg(feature = "rme")]
+const ARM_GPT_L1_SIZE: usize = 0x0010_0000;
+
 const UART_BASE: usize = 0x1c09_0000;
 const UART_SIZE: usize = 0x0001_0000;
 
@@ -112,6 +121,13 @@ const SHARED_RAM: MemoryRegion = MemoryRegion::new(
     ARM_SHARED_RAM_BASE,
     ARM_SHARED_RAM_BASE + ARM_SHARED_RAM_SIZE,
 );
+
+// Ideally these regions should be discovered along with the GPT using system-registers
+// ([`arm_gpt::GranuleProtection::discover`]) rather than hard-coded.
+#[cfg(feature = "rme")]
+const GPT_L0: MemoryRegion = MemoryRegion::new(ARM_GPT_L0_BASE, ARM_GPT_L0_BASE + ARM_GPT_L0_SIZE);
+#[cfg(feature = "rme")]
+const GPT_L1: MemoryRegion = MemoryRegion::new(ARM_GPT_L1_BASE, ARM_GPT_L1_BASE + ARM_GPT_L1_SIZE);
 
 const DEVICE_REGIONS: [MemoryRegion; 4] = [
     MemoryRegion::new(V2M_IOFPGA_BASE, V2M_IOFPGA_BASE + V2M_IOFPGA_SIZE),
@@ -375,6 +391,12 @@ unsafe impl Platform for Fvp {
         // attributes.
         unsafe {
             idmap.map_region(&SHARED_RAM, MT_DEVICE);
+
+            #[cfg(feature = "rme")]
+            idmap.map_region(&GPT_L0, MT_MEMORY_EL3);
+            #[cfg(feature = "rme")]
+            idmap.map_region(&GPT_L1, MT_MEMORY_EL3);
+
             for region in &DEVICE_REGIONS {
                 idmap.map_region(region, MT_DEVICE);
             }

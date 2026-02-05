@@ -5,6 +5,7 @@
 pub mod manifest;
 pub mod svc;
 
+use arm_gpt::GranuleProtection;
 use core::{cell::RefCell, slice::from_raw_parts_mut};
 use num_enum::TryFromPrimitive;
 use percore::{Cores, ExceptionLock, PerCore};
@@ -134,6 +135,8 @@ const MAX_HASH_SIZE: usize = SHA512_DIGEST_SIZE;
 
 pub static RMM_COLD_BOOT_DONE: Once<()> = Once::new();
 
+pub static GRANULE_PROTECTION_TABLE: Once<SpinMutex<GranuleProtection>> = Once::new();
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u32)]
 enum RmiFuncId {
@@ -210,6 +213,15 @@ impl Rmmd {
         let buf = unsafe { get_shared_buffer() };
         PlatformImpl::rme_prepare_manifest(buf);
         info!("RMM Boot Manifest ready");
+
+        #[cfg(all(target_arch = "aarch64", not(test)))]
+        GRANULE_PROTECTION_TABLE.call_once(|| {
+            // Safety: this code can only be executed once due to [`Once::call_once`]. The
+            // `discover()` function is not called anywhere else in the code.
+            let gpt = unsafe { GranuleProtection::discover() }.unwrap();
+            info!("GPT discovered: {gpt:x?}");
+            SpinMutex::new(gpt)
+        });
 
         Self {
             core_local,

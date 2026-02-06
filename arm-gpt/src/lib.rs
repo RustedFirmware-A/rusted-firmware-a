@@ -26,6 +26,8 @@ pub enum Error {
     GptNotInitialized,
     #[error("Existing GPT Config is invalid")]
     InvalidConfiguration,
+    #[error("L0 buffer must be aligned on its size")]
+    MisalignedL0Buffer,
 }
 
 /// Generates a bitmask:

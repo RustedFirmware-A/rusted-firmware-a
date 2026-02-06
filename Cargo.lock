@@ -86,6 +86,7 @@ dependencies = [
 name = "arm-gpt"
 version = "0.1.0"
 dependencies = [
+ "arm-sysregs",
  "num_enum",
  "paste",
  "thiserror",

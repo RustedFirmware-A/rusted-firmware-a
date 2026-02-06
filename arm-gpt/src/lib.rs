@@ -13,6 +13,8 @@ use thiserror::Error;
 pub use crate::table::GPIAccessType;
 use crate::table::Level0Table;
 
+#[cfg(all(target_arch = "aarch64", not(test)))]
+mod aarch64;
 mod table;
 
 pub type PA = usize;
@@ -20,6 +22,8 @@ pub type PA = usize;
 /// Errors returned when manipulating the [`GranuleProtection`] object.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
+    #[error("No existing GPT found")]
+    GptNotInitialized,
     #[error("Existing GPT Config is invalid")]
     InvalidConfiguration,
 }

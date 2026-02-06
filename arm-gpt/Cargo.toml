@@ -14,6 +14,7 @@ categories = ["hardware-support", "embedded", "no-std", "no-std::no-alloc"]
 
 
 [dependencies]
+arm-sysregs = { version = "0.2.3", features = ["el3"] }
 num_enum = { version = "0.7.4", default-features = false }
 paste = "1.0.14"
 thiserror = { version = "2.0", default-features = false }

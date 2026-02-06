@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "3"
-members = ["secure_test_framework"]
+members = ["secure_test_framework", "arm-gpt"]
 
 [package]
 name = "rf-a-bl31"

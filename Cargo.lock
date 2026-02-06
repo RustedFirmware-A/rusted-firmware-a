@@ -83,6 +83,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "arm-gpt"
+version = "0.1.0"
+dependencies = [
+ "num_enum",
+ "paste",
+ "thiserror",
+ "zerocopy",
+]
+
+[[package]]
 name = "arm-pl011-uart"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

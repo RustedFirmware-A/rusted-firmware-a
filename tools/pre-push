@@ -30,7 +30,7 @@ must() {
     fi
 }
 
-must cargo test
+must cargo test --workspace --exclude rf-a-secure-test-framework
 must make clippy-test
 
 declare -a all_platforms=($(make --silent list_platforms))

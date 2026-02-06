@@ -1,0 +1,20 @@
+# Copyright The Rusted Firmware-A Contributors.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[package]
+description = "Arm Granule Protection Library"
+name = "arm-gpt"
+version = "0.1.0"
+edition = "2024"
+authors = ["Ludovic Mermod <ludovic.mermod@arm.com>"]
+license = "MIT OR Apache-2.0"
+keywords = ["arm", "memory", "granule", "rme", "cca"]
+categories = ["hardware-support", "embedded", "no-std", "no-std::no-alloc"]
+
+
+[dependencies]
+num_enum = { version = "0.7.4", default-features = false }
+paste = "1.0.14"
+thiserror = { version = "2.0", default-features = false }
+zerocopy = { version = "0.8.26", features = ["derive"] }

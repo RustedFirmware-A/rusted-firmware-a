@@ -1,5 +1,419 @@
 # Changelog
 
+## v0.2.0 (2026-02-06)
+
+### Summary
+
+This release decouples the RF-A build system from TF-A, adds an early-boot mapping stage to enable
+MMU/caches before running Rust code, introduces CPU extension and errata frameworks, and expands
+runtime services (PSCI, FF-A/SPMD, TRNG, and RME/RMMD).
+
+#### Build and developer workflow
+
+- Decouple the Rust build from TF-A: `Makefile` builds BL31 and STF with Cargo, and `build-and-run.sh`
+  drives end-to-end FVP/QEMU runs by building TF-A BL1/BL2/FIP alongside the Rust BL31 image.
+- Support an alternate build output directory via `CARGO_TARGET_DIR`.
+- Add optional EL3 branch-protection configurations (Pointer Authentication and BTI) via build
+  variables; enabling these paths switches the build into a `-Zbuild-std` configuration (and thus
+  requires the nightly toolchain).
+
+<details>
+<summary>Commit list (11)</summary>
+
+- retarget .gitreview config file to RF-A's main branch ([116dead333](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/116dead333))
+- build STF with symbols ([c5305080fd](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c5305080fd))
+- decouple RF-A's build from TF-A's ([453fc459cc](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/453fc459cc))
+- support BTI ([6088e50d72](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6088e50d72))
+- naked_asm wrapper to insert prologue ([b3165ae536](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b3165ae536))
+- add ability to specify an alternate target directory ([0eb0d50420](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/0eb0d50420))
+- enable further optimizations ([691c8a055d](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/691c8a055d))
+- fix GDB=1 option for build-and-run.sh ([5b2bbe1350](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/5b2bbe1350))
+- treat warnings as errors ([646bb792bb](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/646bb792bb))
+- use TARGET_CARGO for cargo-doc ([aaa409a713](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/aaa409a713))
+- allow custom components in build-and-run.sh ([27b10be4a1](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/27b10be4a1))
+
+</details>
+
+#### Early boot, memory layout
+
+- Add an "early mapping" stage used to enable the MMU and caches before executing any of the Rust
+  code. This is required because Rust code might rely on operations for which the Arm architecture
+  only defines their required behavior with MMU and caches enabled.
+- Add an optional `.bss2.dram` region (zeroed during early boot and mapped as RW data in the main
+  EL3 translation regime); QEMU uses it for per-core in-memory logging buffers. Add the `dram`
+  module to support DRAM-backed statics without exposing `static mut` directly.
+
+<details>
+<summary>Commit list (22)</summary>
+
+- add safe abstraction for zeroed mutable statics in DRAM ([e233ebf345](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e233ebf345))
+- reduce page table logging noise ([3aba827f2f](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/3aba827f2f))
+- add aarch64 functionality to flush dcache ([d6c5400792](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d6c5400792))
+- add optional DRAM BSS2 section to linker script ([a7b48d946c](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a7b48d946c))
+- have MemoryLogger take reference to buffer rather than owning it ([73a963d693](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/73a963d693))
+- early MMU and caches during early boot ([78cfd08d98](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/78cfd08d98))
+- add safe abstraction for lazily-initialised statics in DRAM ([53d8f8522a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/53d8f8522a))
+- pass main function arguments to plat ([62d0f90fec](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/62d0f90fec))
+- enable pagetable in STF ([61d5e9a55a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/61d5e9a55a))
+- ensure early ttbr0 is page aligned ([9ba18203d3](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/9ba18203d3))
+- support deallocating page tables ([22080e8856](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/22080e8856))
+- allow logger to be initialised with early pagetable ([cbba171bd3](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/cbba171bd3))
+- update to aarch64-paging 0.11.0 ([8cd88c8077](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8cd88c8077))
+- add method to unmap memory region ([b9c294f49e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b9c294f49e))
+- pass bl31_main args to init ([fd8b787e61](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/fd8b787e61))
+- revert "feat: have MemoryLogger take reference to buffer rather than owning it" ([4d50d41f79](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/4d50d41f79))
+- more traits and methods for MemoryLogger ([221e0366a5](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/221e0366a5))
+- have PerCoreMemoryLogger borrow MemoryLogger rather than owning ([62a5a9b103](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/62a5a9b103))
+- add method to flush MemoryLogger ([7bdc4c5394](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7bdc4c5394))
+- add utility methods to print memory log ([0f7da5b6b8](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/0f7da5b6b8))
+- rename misc_helpers.S to zeromem.S ([b195d91f3c](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b195d91f3c))
+- move plat_set_my_stack and plat_get_my_stack to naked functions ([22d8c90e6d](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/22d8c90e6d))
+
+</details>
+
+#### CPU support, extensions, and errata
+
+- Add a `CpuExtension` framework for configuring Arm architecture extensions, with per-world/per-CPU
+  configuration and optional save/restore hooks for world switching.
+- Add a CPU errata framework and implement the Arm Errata Management Firmware Interface (DEN0100),
+  allowing `CPU_ERRATUM_FEATURES` queries.
+- Add `Cpu` implementations for Arm C1-Pro and C1-Ultra, including reset/runtime workarounds and
+  platform register dump support.
+- When built with the `pauth` Cargo feature, enable `FEAT_PAuth` at EL3 early in boot using
+  platform-provided key material; crash reporting strips PAC from LR before printing return
+  addresses.
+
+<details>
+<summary>Commit list (65)</summary>
+
+- implement a framework to configure cpu extensions ([20d3368b65](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/20d3368b65))
+- remove legacy CpuOps struct ([773e75e9c6](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/773e75e9c6))
+- implement cache flush functions for AEM CPU ([9d49b46a5e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/9d49b46a5e))
+- don't try to match MIDR surpassing CPU_OPS array ([4b76e1abf7](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/4b76e1abf7))
+- support ETE ([bca74cc067](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/bca74cc067))
+- add dump_registers method to Cpu trait ([0f1043d02a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/0f1043d02a))
+- extended hypervisor configuration (HCX) ([3f0b941163](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/3f0b941163))
+- privileged access never (PAN) ([c0f3413d5e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c0f3413d5e))
+- trace filtering control ([2970717554](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/2970717554))
+- trace buffer control ([8508d4bdd7](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8508d4bdd7))
+- add RAS ([93bff83339](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/93bff83339))
+- configure PMU ([ab4a556cfb](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/ab4a556cfb))
+- extended translation control (TCR2) ([8e79dcbf19](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8e79dcbf19))
+- configure MPAM ([f50f1a90d5](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/f50f1a90d5))
+- configure traps ([43b58fbf3b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/43b58fbf3b))
+- fix sys reg trace configuration ([2867f22a24](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/2867f22a24))
+- data independent timing (DIT) ([a370dc1c37](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a370dc1c37))
+- use sb after eret ([4a4965b10a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/4a4965b10a))
+- remove infeasible TODO ([260ea0cc86](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/260ea0cc86))
+- add remaining feats to create_spsr ([8cd04f7f56](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8cd04f7f56))
+- init extensions on secondary core boot ([617993a0cb](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/617993a0cb))
+- remove TRACE_FILT traps in bl31 mdcr_el3 ([1caaf88e84](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/1caaf88e84))
+- do not setup PMU in bl31_entrypoint ([70e4ecd310](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/70e4ecd310))
+- do not configure pmcr_el0 in bl31_entrypoint ([282adda50e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/282adda50e))
+- do not configure cptr_el3 in bl31_entrypoint ([d9f3f031d9](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d9f3f031d9))
+- do not enable MTPMU by default ([6a036021a4](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6a036021a4))
+- fix mdcr_el3 setup ([2e0f365ec4](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/2e0f365ec4))
+- enable FEAT_PAuth at lower ELs ([38878119ed](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/38878119ed))
+- implement MidrEl1 system register ([5b843d37fb](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/5b843d37fb))
+- use PAuth in STF ([2ed7c8cd27](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/2ed7c8cd27))
+- add Statistical Profiling ([2c84f1cc90](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/2c84f1cc90))
+- add Memory Tagging ([bba6ba3078](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/bba6ba3078))
+- implement SIMD context switch ([e51f40d756](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e51f40d756))
+- support NS world SVE ([328321c2f3](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/328321c2f3))
+- enable mandatory ECV feature ([c02ae61268](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c02ae61268))
+- add FGT2 cpu extension ([8395b1cf87](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8395b1cf87))
+- implement the errata framework ([437a903641](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/437a903641))
+- fix build warnings ([44a4aa0387](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/44a4aa0387))
+- add service for the Errata Management Firmware Interface ([750c45616b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/750c45616b))
+- disable NS FGT traps to EL3 ([928f0c1114](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/928f0c1114))
+- fix SIMD traps comment ([66d164b9f8](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/66d164b9f8))
+- enable NS AMU access ([69ccc22fb7](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/69ccc22fb7))
+- report mitigated errata ([4af4f03477](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/4af4f03477))
+- enable SME for NS ([2b288ef96e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/2b288ef96e))
+- enable CPU extensions on FVP ([e8b4c2cda6](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e8b4c2cda6))
+- fgt2 registers&enabling conditions ([cedd50f6f9](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/cedd50f6f9))
+- add erratum 3396010 for DSU ([9044c19729](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/9044c19729))
+- manage NS SVE context ([42ff908432](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/42ff908432))
+- implement reset errata 3619847 and 3694158 for C1 Pro ([6cfac76b7e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6cfac76b7e))
+- restore ich_vmcr_el2 ([37d08e37cf](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/37d08e37cf))
+- add Cpu implementation for C1 Pro ([6ea55eb523](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6ea55eb523))
+- implement erratum 3686597 for C1 Pro ([e9c79b4715](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e9c79b4715))
+- remove TFP bit clear from context mgt ([4d2d06523a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/4d2d06523a))
+- do not context switch zcr_el3 ([efebb62003](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/efebb62003))
+- grant SVE/SME access to S-EL2 firmware ([b47dec54b1](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b47dec54b1))
+- detect FP and Adv. SIMD extensions ([18394cc3b9](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/18394cc3b9))
+- support Pointer Authentication at EL3 ([9ac93e08db](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/9ac93e08db))
+- move scr_el3 from El3State to PerWorldContext ([7bc589df69](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7bc589df69))
+- implement errata 3300099 and 3773617 for C1 Pro ([d1f71e39ac](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d1f71e39ac))
+- implement dump_registers for C1 Pro ([0c6b57cead](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/0c6b57cead))
+- implement errata 3684268 and 3706576 for C1 Pro ([71ce73b7aa](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/71ce73b7aa))
+- implement Cpu trait for C1 Ultra ([e71c669a94](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e71c669a94))
+- implement errata for C1 Ultra ([7306d0d449](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7306d0d449))
+- add FEAT_FGT init & context switching ([b6bd7ffa88](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b6bd7ffa88))
+- strip PAC before printing LR on crash ([60a6802db2](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/60a6802db2))
+
+</details>
+
+#### System register accessors
+
+- Factor system register accessors out into the standalone `arm-sysregs` crate:
+  https://git.trustedfirmware.org/arm-firmware-crates/arm-sysregs.git
+
+<details>
+<summary>Commit list (20)</summary>
+
+- add cptr_el3 bits ([1186237b06](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/1186237b06))
+- fix cptr_el3 save/restore offsets ([eb78fa8959](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/eb78fa8959))
+- define CptrEl3 bitflags ([baaf9cb88e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/baaf9cb88e))
+- get rid of bitflagslike macro and just use bitflags ([d7ada28c7b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d7ada28c7b))
+- move sysregs macros to separate crate ([a054e401e0](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a054e401e0))
+- move mpidr_el1 type and read function to arm-sysregs crate ([f472f77acc](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/f472f77acc))
+- make MpidrEl1 FFI-safe ([ff7b32c58f](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/ff7b32c58f))
+- generate function names from sysreg name ([2c793ac238](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/2c793ac238))
+- allow different assembly sysreg name ([b75984dea3](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b75984dea3))
+- move all sysregs to arm-sysregs crate ([9d6bb3b5a0](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/9d6bb3b5a0))
+- use repr(transparent) for all sysregs bitflags types ([65705756bb](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/65705756bb))
+- force system register accessors to be inlined ([9039795009](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/9039795009))
+- mark system register reads and safe writes as nomem ([fbc7518048](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/fbc7518048))
+- move extra methods on system register types to a new module ([f722d5df17](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/f722d5df17))
+- sort sysregs alphabetically ([59653d6ab1](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/59653d6ab1))
+- sort sysregs alphabetically again ([e88cdf95f3](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e88cdf95f3))
+- don't shift field masks ([d109ed371a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d109ed371a))
+- use new autogenerated arm-sysregs crate ([71fbdf7484](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/71fbdf7484))
+- update to arm-sysregs 0.2.3 ([6b354e7af6](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6b354e7af6))
+- update arm-sysregs to 0.2.4 ([c7a17331ae](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c7a17331ae))
+
+</details>
+
+#### Runtime services
+
+##### PSCI
+- Implement OS-Initiated (OSI) mode and add support for the `PSCI_SET_SUSPEND_MODE` SMC to enable
+  switching between platform-coordinated mode and OS-initiated mode.
+- Extend `CPU_SUSPEND` (extended power-state encoding).
+- Add platform hooks and feature advertisement for `SYSTEM_OFF2`/`SYSTEM_RESET2` where applicable.
+- Update context handling on `CPU_ON` and on resume from suspend to reset lower-EL architectural
+  state to PSCI-required values.
+
+<details>
+<summary>Commit list (21)</summary>
+
+- implement warm boot entrypoint ([cc1cf9624c](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/cc1cf9624c))
+- implement FVP PSCI platform ([8bdc7c80de](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8bdc7c80de))
+- insert ISB after updating SCR_EL3 ([de51598a17](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/de51598a17))
+- return SUCCESS on PSCI_FEATURES ([73b3b80419](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/73b3b80419))
+- update arm-psci to 0.2.0 ([43b8591d4b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/43b8591d4b))
+- add SET_SUSPEND_MODE SMC and advertise OSI ([4466495566](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/4466495566))
+- implement OS-Initiated mode ([c17f805b2e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c17f805b2e))
+- add more unit tests to OSI mode ([e5536845ca](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e5536845ca))
+- add EL3 reg restore to set_initial_world ([398c6926cd](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/398c6926cd))
+- use correct max locking level ([450c677f81](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/450c677f81))
+- enable PSCI OSI mode ([6fad5a0288](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6fad5a0288))
+- move local_cpu_index() ([5d12c3ad10](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/5d12c3ad10))
+- remove highest_affected_level ([e0392a76fa](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e0392a76fa))
+- fix PowerDomainTree Debug implementation ([7e8284a850](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7e8284a850))
+- separate OSI suspend state requests ([b847686817](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b847686817))
+- fix type of bl31_warm_entrypoint ([997bed0c61](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/997bed0c61))
+- reset EL3 and normal world system registers on resume from suspend ([713f773a6d](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/713f773a6d))
+- use naked functions for assembly entrypoints ([69e75dfbc3](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/69e75dfbc3))
+- reset all lower EL system register context on CPU_ON ([dbd007006d](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/dbd007006d))
+- remove spsr from EntryPointInfo ([db16437c88](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/db16437c88))
+- set RES1 bits in lower EL system registers ([dc411d70c5](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/dc411d70c5))
+
+</details>
+
+##### FF-A / SPMD
+- Move the FF-A SPMD implementation into a dedicated module and extend it to handle additional
+  FF-A interfaces:
+  - `FFA_MSG_SEND2`
+  - `FFA_MSG_SEND_DIRECT_{REQ/RESP}2`
+  - `FFA_NOTIFICATION_*`
+  - `FFA_MEM_FRAG_{RX/TX}`
+  - `FFA_MEM_OP_{PAUSE/RESUME}`
+
+- Add PSCI callbacks used when SPMD is present.
+
+<details>
+<summary>Commit list (11)</summary>
+
+- add PSCI callbacks implementation for SPMD ([0ee1456710](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/0ee1456710))
+- relay notification bitmap create ([6c4081c36d](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6c4081c36d))
+- add {Notification,MsgSend2} interfaces and version checks ([a814355197](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a814355197))
+- use correct FUNCTION_NUMBER_MAX ([073e98e98a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/073e98e98a))
+- update arm-ffa to 0.4.0 ([53e67a8248](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/53e67a8248))
+- handle further FF-A interfaces ([91bc7413c4](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/91bc7413c4))
+- update arm-ffa to 0.4.1 ([7599290f75](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7599290f75))
+- avoid register copies on enter_world ([7e5e9c76e5](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7e5e9c76e5))
+- avoid register copies in service loops ([e9f35d978b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e9f35d978b))
+- avoid Interface copies in SPMD ([1f0dbdc8b5](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/1f0dbdc8b5))
+- move SPMD to a new module ([ce097b4f0a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/ce097b4f0a))
+
+</details>
+
+##### TRNG
+- Add a Trusted Random Number Generator service implementing the Arm TRNG Firmware Interface
+  (DEN0098), including version and feature discovery, UUID reporting, and RND32/RND64 calls backed
+  by a platform-defined entropy source and an internal entropy pool.
+
+<details>
+<summary>Commit list (2)</summary>
+
+- add TRNG service ([6368ec81fe](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6368ec81fe))
+- add tests for TRNG service ([d0358120ca](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d0358120ca))
+
+</details>
+
+##### RME / RMMD
+- Forward RMI function IDs to the Realm world and implement RMM-EL3 boot manifest packing.
+- Implement attestation-related calls such as `ATTEST_GET_REALM_KEY` and `ATTEST_GET_PLAT_TOKEN`.
+- Add warm-boot handling for `CPU_SUSPEND` by generating the register arguments expected by the RMM
+  EL3 interface; when built with RME enabled, discover the Granule Protection Table via `arm-gpt`.
+- Extend STF with an R-EL2 payload image and build/run documentation to exercise the RME path on FVP.
+
+<details>
+<summary>Commit list (11)</summary>
+
+- add payload for R-EL2 & build instructions ([20e36caf55](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/20e36caf55))
+- handle warmboots context for Realm World ([ee78281144](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/ee78281144))
+- allocate boot manifest for R-EL2 payload ([fb2ec360d7](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/fb2ec360d7))
+- forward RMI calls to R-EL2 ([114ba0972e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/114ba0972e))
+- use dedicated entrypoint for stf_rmm image ([23b6299aaf](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/23b6299aaf))
+- address coding convention mismatch in stf_rmm ([cbf862076b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/cbf862076b))
+- fix element ordering ([d0418b3ff5](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d0418b3ff5))
+- improve safety requirements for `get_shared_buffer` ([cd51ad320b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/cd51ad320b))
+- add data structures for EL3 to RMM SMCs ([8a14979b85](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8a14979b85))
+- implement `ATTEST_GET_REALM_KEY` SMC ([ae6a060abb](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/ae6a060abb))
+- implement `ATTEST_GET_PLAT_TOKEN` SMC ([b324ba30e1](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b324ba30e1))
+
+</details>
+
+#### Platform updates
+
+- Arm Base RevC AEM FVP: expand PSCI platform integration and fully integrate GIC handling into the
+  platform implementation; enable a wider set of architectural extension controls and add explicit
+  CCI-550 control.
+- QEMU: add `SYSTEM_OFF`/`SYSTEM_RESET` via the secure PL061 GPIO device model, and add
+  `CPU_SUSPEND` handling.
+
+<details>
+<summary>Commit list (30)</summary>
+
+- crash reporting on FVP ([8cbc62182b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8cbc62182b))
+- add capability to have nested platform organisation ([f96be8d65b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/f96be8d65b))
+- add Qemu Max CPU ([8fdb248a06](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8fdb248a06))
+- enable only the explicitly configured interrupts ([0e4d62d9d1](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/0e4d62d9d1))
+- move plat_calc_core_pos to Platform trait ([df48b69e59](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/df48b69e59))
+- move Qemu plat_secondary_cold_boot_setup to naked function ([add68b9e5b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/add68b9e5b))
+- qemu: power domain on finish ([70da5c7381](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/70da5c7381))
+- put in-memory log buffers in 'DRAM' on QEMU ([06c41b5f7e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/06c41b5f7e))
+- move plat_helpers.S and arm_helpers.S to naked functions ([66e8664be6](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/66e8664be6))
+- prevent system suspend on CPU_SUSPEND ([d7eaa3edf5](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d7eaa3edf5))
+- register usage in crash_console_flush ([1e9d1ccd0e](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/1e9d1ccd0e))
+- move GIC configuration into STF ([897ff9c459](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/897ff9c459))
+- use correct register for QEMU crash console flush ([52969985e2](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/52969985e2))
+- don't send QEMU into the background ([fa2721d81d](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/fa2721d81d))
+- rework GIC driver ([d9f3c88926](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d9f3c88926))
+- integrate GIC handling into FVP platform ([2267e35100](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/2267e35100))
+- control CCI-550 from hardware ([f1a7a68185](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/f1a7a68185))
+- switch FVP to use ARMv9 ([b0fec18266](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b0fec18266))
+- define early mapping for QEMU platform ([3e07ce75cd](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/3e07ce75cd))
+- move register dump functions to Platform trait ([b47f81cc8a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b47f81cc8a))
+- route UART1 output to stdout ([1cb6588bfd](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/1cb6588bfd))
+- fix build warnings for unit tests and all platforms ([c18e8839fd](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c18e8839fd))
+- fix clippy warning ([3e9342f08c](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/3e9342f08c))
+- move plat_panic_handler to Platform trait ([8f7e136ce8](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8f7e136ce8))
+- add support for CPU_SUSPEND to qemu ([a1d4b0e7ba](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a1d4b0e7ba))
+- format qemu platform impl ([6a9a653c8b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6a9a653c8b))
+- let platform set cache configuration for normal memory ([3cc78aeade](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/3cc78aeade))
+- add arm-pl061 crate and vet ([7756b46328](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7756b46328))
+- add support for system reset and off ([ae3caf211f](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/ae3caf211f))
+- update arm-gic to 0.7.2 ([0157d624d7](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/0157d624d7))
+
+</details>
+
+#### Tests, documentation, and supply-chain tracking
+
+- Extend unit and STF integration tests.
+- Update documentation (architecture overview, threat model refresh, getting-started and
+  requirements guides).
+- Add explicit `cargo vet` configuration and a growing audit set under `supply-chain/`, plus local
+  developer tooling updates (pre-push checks and clippy coverage for STF).
+
+<details>
+<summary>Commit list (42)</summary>
+
+- rename doc directory to docs ([d506d55f78](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d506d55f78))
+- audit new version of uuid ([52f97ae9ba](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/52f97ae9ba))
+- cargo vet is now in CI ([11ee2affa2](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/11ee2affa2))
+- handle PSCI request direct messages in STF ([6e92598b35](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6e92598b35))
+- remove unused imports ([4558f1d05c](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/4558f1d05c))
+- register secondary entrypoint for BL32 ([9268879065](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/9268879065))
+- handle FF-A messages on BL32 secondary cores ([459f8a068a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/459f8a068a))
+- distinguish between PSCI MPIDR values and real MPIDR_EL1 values ([f4c6907b35](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/f4c6907b35))
+- add tests for debug formatting of sysregs ([32d0d4c61f](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/32d0d4c61f))
+- audit paste crate ([0704e2b74b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/0704e2b74b))
+- remove unused imports and function ([acc6fa8874](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/acc6fa8874))
+- audit and update third-party dependencies ([cd527aec91](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/cd527aec91))
+- audit arm-fvp-base-pac 0.1.4 ([beda6b5d0a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/beda6b5d0a))
+- audit and update indirect dependencies ([911492ecaa](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/911492ecaa))
+- audit aarch64-rt 0.3.0 ([6fd332d90f](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6fd332d90f))
+- test PSCI CPU_ON and CPU_OFF in STF ([968f05464a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/968f05464a))
+- use RAII to reset sysregs during unit tests ([a4e2c52998](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a4e2c52998))
+- use arm-sysregs in STF timer driver and remove unused methods ([8c92a16f8b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/8c92a16f8b))
+- fix secondary core stack calculation ([94b5ef879c](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/94b5ef879c))
+- allow tests to be ignored in STF ([aa50d2b93a](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/aa50d2b93a))
+- improve output of STF ([c3ec029387](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c3ec029387))
+- audit bitflags 2.10.0 ([3418448d40](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/3418448d40))
+- audit aarch64-paging 0.11.0 ([6073b436a6](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6073b436a6))
+- list missing services in README.md ([1ced18ce06](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/1ced18ce06))
+- document level of support for SMC interfaces ([493dd8d1c9](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/493dd8d1c9))
+- restore NonSecureTimer::delay_us ([b59d7c58a8](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/b59d7c58a8))
+- initialize GICv3 on secondary entry ([60643291d0](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/60643291d0))
+- audit and update log and uuid ([d2031effe8](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/d2031effe8))
+- audit arm-pl011-uart update to 0.4.0 ([30c9411164](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/30c9411164))
+- audit percore update to 0.2.1 ([3c2e033675](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/3c2e033675))
+- audit aarch64-rt update to 0.4.2 ([6156339160](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6156339160))
+- update STF to aarch64-rt 0.4.2 ([9a9658afe6](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/9a9658afe6))
+- update to percore 0.2.1 ([1ddf4fde51](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/1ddf4fde51))
+- update arm-pl011-uart ([c03581c7a0](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c03581c7a0))
+- audit new version of num_enum and num_enum_derive ([770f3213ee](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/770f3213ee))
+- add clippy for STF ([34a585322f](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/34a585322f))
+- document RF-A code architecture ([5226f35290](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/5226f35290))
+- list RF-A's hardware & software requirements ([eca8d32cf9](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/eca8d32cf9))
+- update getting started guide to install rustup from apt ([7d7fad3f66](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7d7fad3f66))
+- add PSCI OSI mode tests ([90642073db](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/90642073db))
+- refresh threat model ([7f1bb2a681](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7f1bb2a681))
+- add missing dependencies in docs, and update shebang ([e492cdc41b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e492cdc41b))
+
+</details>
+
+#### Misc patches
+
+<details>
+<summary>Commit list (19)</summary>
+
+- correct variable names ([bc40c54609](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/bc40c54609))
+- add ability to define smc function id from components ([db03e0c3e0](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/db03e0c3e0))
+- avoid #[macro_export] ([7a551cf5ca](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/7a551cf5ca))
+- add constants for TOS and TAP OENs ([6e845229f0](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/6e845229f0))
+- pass PerWorldContext to el3_exit ([c5cb899ecf](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c5cb899ecf))
+- remove unused cpu_context field of CpuData ([77c23a5043](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/77c23a5043))
+- avoid register copies in Service implementations ([ae9119ebd9](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/ae9119ebd9))
+- stop using no_mangle ([cd0c299e03](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/cd0c299e03))
+- remove unused field El3State.is_in_el3 ([73987c3ed5](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/73987c3ed5))
+- add function to get PerWorldContext ([cd664a4646](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/cd664a4646))
+- move macros to where they are used ([a0fc929660](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a0fc929660))
+- build crash_reporting.S from debug module ([4f3ba09d2b](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/4f3ba09d2b))
+- remove unused elx_panic function ([f15f4e1d64](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/f15f4e1d64))
+- use the adr_l macro ([c5a5ef5b24](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/c5a5ef5b24))
+- inline plat_handle_el3_ea ([bdbae36e60](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/bdbae36e60))
+- format assembly files more consistently ([a9de3edb8f](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a9de3edb8f))
+- use adr_l macro rather than ldr xN, =symbol ([56996bdbd7](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/56996bdbd7))
+- move CrashBuffer to debug module and rename ([e89c501e12](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/e89c501e12))
+- don't use export_name for PERCPU_DATA ([a08059ff67](https://git.trustedfirmware.org/plugins/gitiles/RF-A/rusted-firmware-a/+/a08059ff67))
+
+</details>
+
 ## v0.1.0 (2025-08-18)
 
 This is the first tagged release of Rusted Firmware-A (RF-A). It introduces a Rust implementation

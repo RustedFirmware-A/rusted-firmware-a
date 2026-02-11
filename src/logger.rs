@@ -4,14 +4,14 @@
 
 pub mod inmemory;
 
-use crate::{debug::DEBUG, platform::LogSinkImpl};
+use crate::platform::LogSinkImpl;
+#[cfg(not(test))]
+use core::panic::PanicInfo;
 use core::{
     fmt::{Arguments, Write},
     sync::atomic::{AtomicBool, Ordering},
 };
-#[cfg(not(test))]
-use core::{option_env, panic::PanicInfo};
-use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
+use log::{Log, Metadata, Record, SetLoggerError};
 use spin::{Once, mutex::SpinMutex};
 
 static LOGGER: Once<Logger> = Once::new();
@@ -38,7 +38,9 @@ impl Log for Logger {
 pub fn init(sink: LogSinkImpl) -> Result<(), SetLoggerError> {
     let logger = LOGGER.call_once(|| Logger { sink });
     log::set_logger(logger)?;
-    log::set_max_level(build_time_log_level());
+    // Init the maximum log level to the statically configured maximum level controlled by the
+    // `max_log_<level>` Cargo feature flag.
+    log::set_max_level(log::STATIC_MAX_LEVEL);
     Ok(())
 }
 
@@ -55,33 +57,6 @@ fn panic(info: &PanicInfo) -> ! {
         writeln!(sink, "{info}");
     }
     loop {}
-}
-
-/// Returns the logging [`LevelFilter`] set by the build-time environment variable `LOG_LEVEL`.
-/// `LOG_LEVEL` can have the lower-case string values "off", "error", "warn", "info", "debug", or
-/// "trace", corresponding to the named values of [`LevelFilter`]. If `LOG_LEVEL` is absent or has
-/// some other value, this function returns `LevelFilter::Trace` if [`DEBUG`] is true, otherwise
-/// `LevelFilter::Info`.
-pub const fn build_time_log_level() -> LevelFilter {
-    let level = match option_env!("LOG_LEVEL") {
-        Some(level) => level,
-        None => "",
-    };
-    match level.as_bytes() {
-        b"off" => LevelFilter::Off,
-        b"error" => LevelFilter::Error,
-        b"warn" => LevelFilter::Warn,
-        b"info" => LevelFilter::Info,
-        b"debug" => LevelFilter::Debug,
-        b"trace" => LevelFilter::Trace,
-        _ => {
-            if DEBUG {
-                LevelFilter::Debug
-            } else {
-                LevelFilter::Info
-            }
-        }
-    }
 }
 
 /// Something to which logs can be sent.

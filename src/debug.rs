@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 /// True if the build is configured with debug assertions on.
+#[cfg(not(test))]
 pub const DEBUG: bool = cfg!(debug_assertions);
 
 #[cfg(not(test))]
@@ -31,7 +32,6 @@ mod asm {
         context::CpuData,
         cpu::cpu_dump_registers,
         debug::{CRASH_REPORTING, DEBUG},
-        logger::build_time_log_level,
         platform::{Platform, PlatformImpl},
     };
     use core::{arch::global_asm, mem::offset_of};
@@ -45,7 +45,7 @@ mod asm {
         CRASH_REPORTING = const CRASH_REPORTING as u32,
         DEBUG = const DEBUG as u32,
         LOG_LEVEL_INFO = const LevelFilter::Info as u32,
-        LOG_LEVEL = const build_time_log_level() as u32,
+        LOG_LEVEL = const log::STATIC_MAX_LEVEL as u32,
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,
         MODE_SP_ELX = const 1,

@@ -49,11 +49,19 @@ endif
 DEBUG ?= 0
 ifeq ($(DEBUG), 1)
 	BUILDTYPE := debug
+	# Use the debug max log level by default for debug builds.
+	LOG_LEVEL ?= debug
+	STF_LOG_LEVEL ?= debug
 else
 	BUILDTYPE := release
 	RFA_CARGO_FLAGS += --release
-	FEATURES += max_log_info
+	# Use the info max log level by default for release builds.
+	LOG_LEVEL ?= info
+	STF_LOG_LEVEL ?= info
 endif
+# Set the max_log_<level> feature of the log crate to remove disabled logs from the binary.
+FEATURES += max_log_$(LOG_LEVEL)
+STF_FEATURES += max_log_$(STF_LOG_LEVEL)
 
 TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS += --target $(TARGET)

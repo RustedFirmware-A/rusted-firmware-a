@@ -502,8 +502,9 @@ impl Spmd {
             src_id: Self::OWN_ID,
             dst_id: self.spmc_id,
             args: DirectMsgArgs::PowerWarmBootReq {
-                // TODO: what is the use case for WarmBootType::ExitFromLowPower?
-                boot_type: WarmBootType::ExitFromSuspend,
+                // TODO: Add handling for WarmBootType::ExitFromSuspend (which really should be
+                // ExitFromSuspendToRam). Note: C TF-A does not have any handling for this.
+                boot_type: WarmBootType::ExitFromLowPower,
             },
         };
 

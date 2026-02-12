@@ -17,7 +17,7 @@ use core::{
     cell::RefCell,
     sync::atomic::{AtomicUsize, Ordering::Relaxed},
 };
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 use percore::{ExceptionLock, PerCore};
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0060;
@@ -141,7 +141,7 @@ impl Spmd {
     /// This should be called exactly once, before any other SPMD methods are called or any
     /// secondary CPUs are started.
     pub fn new() -> Self {
-        info!("Initializing SPMD");
+        debug!("Initializing SPMD");
 
         // TODO: read these attributes from the SPMC manifest
         let spmc_id = 0x8000;

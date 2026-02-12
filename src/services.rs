@@ -23,7 +23,7 @@ use crate::{
     smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
 use arm_sysregs::EsrEl3;
-use log::info;
+use log::debug;
 use spin::Lazy;
 
 /// Helper macro to define the range of SMC function ID values covered by a service
@@ -244,7 +244,7 @@ impl Services {
         let mut current_world = World::Secure;
         let mut regs = SmcReturn::EMPTY;
 
-        info!("Booting Secure World");
+        debug!("Booting Secure World");
         set_initial_world(World::Secure);
         // TODO: implement separate boot loop for Secure World
         let next_world = self.per_world_loop(&mut regs, World::Secure);
@@ -252,7 +252,7 @@ impl Services {
 
         #[cfg(feature = "rme")]
         {
-            info!("Booting Realm World");
+            debug!("Booting Realm World");
             switch_world(current_world, World::Realm);
             current_world = World::Realm;
             // TODO: implement separate boot loop for Realm World
@@ -263,7 +263,7 @@ impl Services {
 
         regs.mark_empty();
         let mut next_world = World::NonSecure;
-        info!("Booting Normal World");
+        debug!("Booting Normal World");
 
         loop {
             switch_world(current_world, next_world);

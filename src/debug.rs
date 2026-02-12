@@ -44,7 +44,7 @@ mod asm {
         include_str!("asm_macros_common_purge.S"),
         CRASH_REPORTING = const CRASH_REPORTING as u32,
         DEBUG = const DEBUG as u32,
-        LOG_LEVEL_INFO = const LevelFilter::Info as u32,
+        LOG_LEVEL_DEBUG = const LevelFilter::Debug as u32,
         LOG_LEVEL = const log::STATIC_MAX_LEVEL as u32,
         ENABLE_ASSERTIONS = const ENABLE_ASSERTIONS as u32,
         ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,

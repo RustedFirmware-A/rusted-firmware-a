@@ -7,6 +7,7 @@ pub mod svc;
 
 use arm_gpt::GranuleProtection;
 use core::{cell::RefCell, slice::from_raw_parts_mut};
+use log::{debug, warn};
 use num_enum::TryFromPrimitive;
 use percore::{Cores, ExceptionLock, PerCore};
 use spin::Once;
@@ -15,7 +16,6 @@ use spin::mutex::SpinMutex;
 
 use crate::{
     context::{CoresImpl, PerCoreState, World},
-    info,
     platform::{Platform, PlatformImpl, exception_free},
     services::{
         Service, owns,
@@ -212,14 +212,14 @@ impl Rmmd {
         //   the reference is dropped before that switch.
         let buf = unsafe { get_shared_buffer() };
         PlatformImpl::rme_prepare_manifest(buf);
-        info!("RMM Boot Manifest ready");
+        debug!("RMM Boot Manifest ready");
 
         #[cfg(all(target_arch = "aarch64", not(test)))]
         GRANULE_PROTECTION_TABLE.call_once(|| {
             // Safety: this code can only be executed once due to [`Once::call_once`]. The
             // `discover()` function is not called anywhere else in the code.
             let gpt = unsafe { GranuleProtection::discover() }.unwrap();
-            info!("GPT discovered: {gpt:x?}");
+            debug!("GPT discovered: {gpt:x?}");
             SpinMutex::new(gpt)
         });
 
@@ -253,7 +253,7 @@ impl Rmmd {
         function.clear_sve_hint();
 
         if function.0 == RMM_BOOT_COMPLETE {
-            info!("Realm boot completed with code 0x{:x}", regs.values()[1]);
+            debug!("Realm boot completed with code 0x{:x}", regs.values()[1]);
             return Ok(self.handle_boot_complete(regs));
         }
 
@@ -376,7 +376,7 @@ impl Rmmd {
 
             if state.activation_token.is_none() {
                 let activation_token = regs.values()[2];
-                info!("Received activation token {activation_token:#x?}");
+                debug!("Received activation token {activation_token:#x?}");
                 state.activation_token = Some(activation_token);
 
                 RMM_COLD_BOOT_DONE.call_once(|| ());
@@ -384,7 +384,7 @@ impl Rmmd {
 
                 World::NonSecure
             } else {
-                info!(
+                warn!(
                     "Received multiple `RMM_BOOT_COMPLETE` SMCs from core {}",
                     CoresImpl::core_index()
                 );

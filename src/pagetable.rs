@@ -25,7 +25,7 @@ use core::{
     fmt::{self, Debug, Formatter},
     ptr::NonNull,
 };
-use log::{debug, info, trace};
+use log::{debug, trace};
 use spin::{
     Once,
     mutex::{SpinMutex, SpinMutexGuard},
@@ -218,7 +218,7 @@ pub fn init_runtime_mapping() {
             flush_dcache((&raw const PAGE_TABLE_ADDR).as_ref().unwrap());
         }
 
-        info!("Setting MMU config");
+        debug!("Setting MMU config");
 
         let mut sctlr = read_sctlr_el3();
         assert!(sctlr.contains(SctlrEl3::C | SctlrEl3::M));
@@ -251,7 +251,7 @@ pub fn init_runtime_mapping() {
         tlbi_alle3();
         isb();
 
-        info!("Marking page table as active");
+        debug!("Marking page table as active");
         idmap.mark_active();
 
         SpinMutex::new(idmap)

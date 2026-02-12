@@ -24,7 +24,7 @@ use arm_psci::{
 use arm_sysregs::{MpidrEl1, read_isr_el1};
 use bitflags::bitflags;
 use core::fmt::{self, Debug, Formatter};
-use log::info;
+use log::debug;
 use percore::Cores;
 use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
 use spin::mutex::SpinMutex;
@@ -514,7 +514,7 @@ impl Psci {
     /// This should be called exactly once, before any other PSCI methods are called or any
     /// secondary CPUs are started.
     pub(super) fn new(platform: PsciPlatformImpl) -> Self {
-        info!("Initializing PSCI");
+        debug!("Initializing PSCI");
 
         let power_domain_tree = PowerDomainTree::new(PsciPlatformImpl::topology());
 

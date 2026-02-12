@@ -50,9 +50,9 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
     PlatformImpl::init(arg0, arg1, arg2, arg3);
 
     info!("Rust BL31 starting");
-    info!("Parameters: {arg0:#0x} {arg1:#0x} {arg2:#0x} {arg3:#0x}");
+    debug!("Parameters: {arg0:#0x} {arg1:#0x} {arg2:#0x} {arg3:#0x}");
 
-    info!("Page table activated.");
+    debug!("Page table activated.");
 
     // SAFETY: This function never returns, so it is safe to enable PAuth part way through it.
     #[cfg(feature = "pauth")]
@@ -62,7 +62,7 @@ extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
 
     // Set up GIC.
     gicv3::init();
-    info!("GIC configured.");
+    debug!("GIC configured.");
 
     let non_secure_entry_point = PlatformImpl::non_secure_entry_point();
     let secure_entry_point = PlatformImpl::secure_entry_point();

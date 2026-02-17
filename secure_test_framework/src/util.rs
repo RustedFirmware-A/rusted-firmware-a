@@ -36,8 +36,16 @@ pub fn current_el() -> u8 {
     (current_el >> 2) as u8
 }
 
+/// Gets the key currently being used for PAuth.
+#[cfg(feature = "pauth")]
+pub fn get_pauth_key() -> u128 {
+    arm_sysregs::read_apiakeylo_el1().bits() as u128
+        | ((arm_sysregs::read_apiakeyhi_el1().bits() as u128) << 64)
+}
+
 /// Enables PAuth at the current exception level using the provided key.
 #[cfg(feature = "pauth")]
+#[inline(always)]
 pub fn enable_pauth(key: u128) {
     use arm_sysregs::{
         ApiakeyhiEl1, ApiakeyloEl1, SctlrEl1, SctlrEl2, read_sctlr_el1, read_sctlr_el2,

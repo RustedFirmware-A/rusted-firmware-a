@@ -49,6 +49,10 @@ const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 2);
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
 
+// Dummy PAuth key for Non-secure world.
+#[cfg(feature = "pauth")]
+const NS_PAUTH_KEY: u128 = 0xC0DED00D_C0DED00D_C0DED00D_C0DED00D;
+
 type Entrypoint = fn(u64) -> !;
 
 /// An entry point function may be set for each secondary core. When that core starts it will call
@@ -62,7 +66,7 @@ entry!(bl33_main, 4);
 fn bl33_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     // Enable PAuth with a dummy key.
     #[cfg(feature = "pauth")]
-    enable_pauth(0xC0DED00D_C0DED00D_C0DED00D_C0DED00D);
+    enable_pauth(NS_PAUTH_KEY);
 
     let log_sink = PlatformImpl::make_log_sink();
     logger::init(log_sink).unwrap();
@@ -192,6 +196,10 @@ struct TestResultCounts {
 }
 
 extern "C" fn secondary_main(arg: u64) -> ! {
+    // Enable PAuth with a dummy key.
+    #[cfg(feature = "pauth")]
+    enable_pauth(NS_PAUTH_KEY);
+
     set_exception_vector();
     gicv3::init_core();
 

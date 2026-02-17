@@ -54,6 +54,10 @@ const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 2);
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
 
+// Dummy PAuth key for Secure world.
+#[cfg(feature = "pauth")]
+const S_PAUTH_KEY: u128 = 0xCAFEF00D_CAFEF00D_CAFEF00D_CAFEF00D;
+
 /// The index of the currently-running test, or -1 if no test is active.
 static CURRENT_TEST_INDEX: AtomicIsize = AtomicIsize::new(-1);
 
@@ -68,7 +72,7 @@ entry!(bl32_main, 4);
 fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     // Enable PAuth with a dummy key.
     #[cfg(feature = "pauth")]
-    enable_pauth(0xCAFEF00D_CAFEF00D_CAFEF00D_CAFEF00D);
+    enable_pauth(S_PAUTH_KEY);
 
     let log_sink = PlatformImpl::make_log_sink();
     logger::init(log_sink).unwrap();
@@ -108,6 +112,10 @@ fn bl32_main(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 }
 
 extern "C" fn secondary_main() -> ! {
+    // Enable PAuth with a dummy key.
+    #[cfg(feature = "pauth")]
+    enable_pauth(S_PAUTH_KEY);
+
     set_exception_vector();
 
     info!("BL32 secondary core starting");

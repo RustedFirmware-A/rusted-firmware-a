@@ -4,6 +4,8 @@
 
 //! PSCI OSI tests for FVP platform.
 
+#[cfg(feature = "pauth")]
+use crate::util::{enable_pauth, get_pauth_key};
 use crate::{
     framework::{
         TestError, TestResult,
@@ -71,8 +73,15 @@ fn wait_for_core_off(mpidr: u64) -> TestResult {
 ///
 /// On resume, it restores the stack pointer from the `context_id` (returned in x0),
 /// re-enables the MMU, and restores exception vectors.
+///
+/// # Safety
+///
+/// This function is unsafe as it can cause CPU execution context to be lost. It manually saves
+/// and restores the stack pointer, callee-saved registers and timer registers, and reinitializes
+/// the MMU and vector table. The caller must ensure that any other required CPU state is saved to
+/// memory before calling this function and restored afterwards.
 #[unsafe(naked)]
-unsafe extern "C" fn cpu_suspend_save_context(function_id: u32, power_state: u32) -> i32 {
+unsafe extern "C" fn cpu_suspend_smc_wrapper(function_id: u32, power_state: u32) -> i32 {
     naked_asm!(
         // Argument x0: function_id
         // Argument x1: power_state
@@ -134,6 +143,24 @@ unsafe extern "C" fn cpu_suspend_save_context(function_id: u32, power_state: u32
         enable_mmu = sym enable_mmu,
         set_exception_vector = sym set_exception_vector,
     );
+}
+
+/// Save the current execution context and suspend, then resume, restore the context and return.
+fn cpu_suspend_save_context(function_id: u32, power_state: u32) -> i32 {
+    #[cfg(feature = "pauth")]
+    let key = get_pauth_key();
+
+    // SAFETY: Calling the SMC wrapper is safe in this context. The PAuth key has be stashed before
+    // calling and will be restored afterwards. All other necessary execution context is saved and
+    // restored by the SMC wrapper.
+    let res = unsafe { cpu_suspend_smc_wrapper(function_id, power_state) };
+
+    // Re-enable PAuth. Since PAuth was enabled on entry to this function, and the sysreg state is
+    // lost during suspend, it must be re-enabled with the original key before returning.
+    #[cfg(feature = "pauth")]
+    enable_pauth(key);
+
+    res
 }
 
 /// Synchronization primitives for OSI test coordination.
@@ -207,8 +234,7 @@ fn suspend_and_resume(core_idx: usize, retry_on_denied: bool) -> i32 {
 
     let mut result;
     loop {
-        // SAFETY: Calling the SMC wrapper is safe.
-        result = unsafe { cpu_suspend_save_context(u32::from(FunctionId::CpuSuspend64), pstate) };
+        result = cpu_suspend_save_context(u32::from(FunctionId::CpuSuspend64), pstate);
         if !retry_on_denied || result != ErrorCode::Denied as i32 {
             break;
         }
@@ -630,9 +656,7 @@ normal_world_test!(test_psci_suspend_osi_invalid_level);
 fn test_psci_suspend_osi_invalid_level() -> TestResult {
     with_osi_support(|| {
         for &pstate in PlatformImpl::osi_invalid_power_states() {
-            // SAFETY: It's safe to call the SMC wrapper in this context.
-            let ret =
-                unsafe { cpu_suspend_save_context(u32::from(FunctionId::CpuSuspend64), pstate) };
+            let ret = cpu_suspend_save_context(u32::from(FunctionId::CpuSuspend64), pstate);
             expect_eq!(ret, ErrorCode::InvalidParameters as i32);
         }
         Ok(())

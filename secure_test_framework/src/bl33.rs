@@ -17,6 +17,8 @@ mod heap;
 mod logger;
 mod pagetable;
 mod platform;
+#[cfg(feature = "rme")]
+mod rmi;
 mod secondary;
 mod tests;
 mod util;

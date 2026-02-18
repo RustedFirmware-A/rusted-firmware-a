@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
+#[cfg(feature = "rme")]
+use crate::platform::PasConfig;
 use crate::{
     pagetable::{DEVICE_ATTRIBUTES, MEMORY_ATTRIBUTES},
     util::naked_asm,
@@ -48,6 +50,17 @@ impl Fvp {
 // `FVP_MAX_PE_PER_CPU` are correct.
 unsafe impl Platform for Fvp {
     const CORE_COUNT: usize = FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU;
+
+    // Set by BL2 in
+    // trusted-firmware-a/plat/arm/board/fvp/include/fvp_pas_def.h
+    #[cfg(feature = "rme")]
+    const PAS_CONFIG: PasConfig = PasConfig {
+        any_start: 0x0,
+        non_secure_start: 0x8000_0000,
+        secure_start: 0xFC00_0000,
+        realm_start: 0xFDC0_0000,
+        root_start: 0xFFC0_0000,
+    };
 
     fn make_log_sink() -> &'static mut (dyn Write + Send) {
         let uart = UART.call_once(|| {

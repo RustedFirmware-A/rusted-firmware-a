@@ -17,6 +17,8 @@ mod heap;
 mod logger;
 mod pagetable;
 mod platform;
+mod rmi;
+mod rmm;
 mod secondary;
 mod tests;
 mod util;
@@ -28,10 +30,12 @@ use aarch64_paging::paging::PAGE_SIZE;
 use aarch64_rt::set_exception_vector;
 use aarch64_rt::{enable_mmu, entry};
 use log::{error, info};
-use smccc::{psci, smc64};
+use smccc::{arch::error::NOT_SUPPORTED, psci, smc64};
 
 use crate::{
     platform::{Platform, PlatformImpl, RMM_IDMAP},
+    rmi::{RMI_GRANULE_DELEGATE, RMI_GRANULE_UNDELEGATE, RMI_VERSION, RmiStatusCode},
+    rmm::{RMM_BOOT_COMPLETE, RMM_RMI_REQ_COMPLETE, RmmCommandReturnCode},
     secondary::secondary_entry,
     util::current_el,
 };
@@ -40,9 +44,8 @@ const SUPPORTED_RMM_VERSION: RmmBootManifestVersion = RmmBootManifestVersion { m
 const SUPPORTED_RMM_MANIFEST_VERSION: RmmBootManifestVersion =
     RmmBootManifestVersion { major: 0, minor: 5 };
 
-const RMM_BOOT_COMPLETE: u32 = 0xC400_01CF;
-const RMM_RMI_REQ_COMPLETE: u32 = 0xC400_018F;
-const RMM_RMI_REQ_VERSION: u64 = 0xC400_0150;
+const GTSI_DELEGATE: u32 = 0xC400_01B0;
+const GTSI_UNDELEGATE: u32 = 0xC400_01B1;
 
 enable_mmu!(RMM_IDMAP);
 
@@ -99,17 +102,6 @@ pub enum RmmBootReturn {
     ManifestVersionNotSupported = -6,
     /// Error parsing core Boot Manifest.
     ManifestDataError = -7,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(u8)]
-enum RmiStatusCode {
-    Success = 0,
-    ErrorInput = 1,
-    ErrorRealm = 2,
-    #[allow(unused)]
-    ErrorRec = 3,
-    ErrorRtt = 4,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -181,12 +173,22 @@ fn handle_incoming_calls(mut regs: [u64; 18]) -> ! {
 
 /// Handles a single RMI call from NS world.
 fn handle_rmi_call(regs: &[u64]) -> [u64; 17] {
-    match regs[0] {
-        RMM_RMI_REQ_VERSION => rmi_version(&regs[1..]),
+    let not_supported = || {
+        let mut ret = [0; 17];
+        ret[0] = (NOT_SUPPORTED as i64) as u64;
+        return ret;
+    };
+
+    let Ok(func_id): Result<u32, _> = regs[0].try_into() else {
+        return not_supported();
+    };
+
+    match func_id {
+        RMI_VERSION => rmi_version(&regs[1..]),
+        RMI_GRANULE_DELEGATE => rmi_granule_delegate(&regs[1..]),
+        RMI_GRANULE_UNDELEGATE => rmi_granule_undelegate(&regs[1..]),
         _ => {
-            let mut ret = [0; 17];
-            ret[0] = u64::MAX;
-            ret
+            return not_supported();
         }
     }
 }
@@ -200,7 +202,7 @@ fn rmi_version(args: &[u64]) -> [u64; 17] {
     };
 
     info!(
-        "Received RMM_RMI_REQ_VERSION for v{}.{}",
+        "Received RMI_VERSION for v{}.{}",
         requested.major, requested.minor
     );
 
@@ -212,6 +214,34 @@ fn rmi_version(args: &[u64]) -> [u64; 17] {
     ret[1] = SUPPORTED_RMM_VERSION.into();
     ret[2] = SUPPORTED_RMM_VERSION.into();
 
+    ret
+}
+
+fn rmi_granule_delegate(args: &[u64]) -> [u64; 17] {
+    let mut ret = [0; 17];
+    let base_pa = args[0];
+    let mut smc_args: [u64; 17] = [0; 17];
+    smc_args[0] = base_pa;
+    let el3_ret = smc64(GTSI_DELEGATE, smc_args);
+    if el3_ret[0] == u64::from(RmmCommandReturnCode::Ok) {
+        ret[0] = RmiCommandReturnCode::new(RmiStatusCode::Success, None).into()
+    } else {
+        ret[0] = RmiCommandReturnCode::new(RmiStatusCode::ErrorInput, None).into()
+    }
+    ret
+}
+
+fn rmi_granule_undelegate(args: &[u64]) -> [u64; 17] {
+    let mut ret = [0; 17];
+    let base_pa = args[0];
+    let mut smc_args: [u64; 17] = [0; 17];
+    smc_args[0] = base_pa;
+    let el3_ret = smc64(GTSI_UNDELEGATE, smc_args);
+    if el3_ret[0] == u64::from(RmmCommandReturnCode::Ok) {
+        ret[0] = RmiCommandReturnCode::new(RmiStatusCode::Success, None).into()
+    } else {
+        ret[0] = RmiCommandReturnCode::new(RmiStatusCode::ErrorInput, None).into()
+    }
     ret
 }
 

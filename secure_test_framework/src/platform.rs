@@ -23,6 +23,20 @@ pub type PlatformImpl = fvp::Fvp;
 #[cfg(platform = "qemu")]
 pub type PlatformImpl = qemu::Qemu;
 
+#[allow(unused)]
+pub struct PasConfig {
+    /// Start address of the PAS region with "any" GPI access.
+    pub any_start: usize,
+    /// Start address of the non-secure PAS region (DRAM).
+    pub non_secure_start: usize,
+    /// Start address of the secure PAS region.
+    pub secure_start: usize,
+    /// Start address of the root PAS region.
+    pub root_start: usize,
+    /// Start address of the realm PAS region.
+    pub realm_start: usize,
+}
+
 /// The hooks implemented by each platform.
 ///
 /// # Safety
@@ -32,6 +46,9 @@ pub type PlatformImpl = qemu::Qemu;
 pub unsafe trait Platform {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
+
+    #[cfg(feature = "rme")]
+    const PAS_CONFIG: PasConfig;
 
     /// Returns something to which logs should be sent.
     ///

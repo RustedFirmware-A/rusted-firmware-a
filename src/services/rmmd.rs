@@ -20,8 +20,10 @@ use spin::Once;
 use spin::mutex::SpinMutex;
 
 use crate::{
+    aarch64::dsb_osh,
     context::{CoresImpl, PerCoreState, World},
-    gpt::GranuleProtection,
+    gpt::{GPIAccessType, GranuleProtection},
+    pagetable::flush_dcache_to_popa_range,
     platform::{Platform, PlatformImpl, exception_free},
     services::{
         Service, owns,
@@ -32,6 +34,7 @@ use crate::{
     },
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
+use arm_sysregs::{SctlrEl3, read_sctlr_el3};
 
 const RMM_BOOT_VERSION: u64 = 0x5;
 /// Size in bytes of the EL3 - RMM shared area.
@@ -319,8 +322,148 @@ impl Rmmd {
 
                 Ok(World::NonSecure)
             }
-            RmmCall::GtsiDelegate { .. } => todo!(),
-            RmmCall::GtsiUndelegate { .. } => todo!(),
+            RmmCall::GtsiDelegate { base_pa } => {
+                let mut gpt = GRANULE_PROTECTION_TABLE
+                    .get()
+                    .expect("GPT not initialized")
+                    .lock();
+                let pgs = gpt.pgs();
+                // Check base_pa is aligned to granule size
+                if !base_pa.is_multiple_of(pgs) {
+                    regs.set_from(RmmCommandReturnCode::Unknown);
+                    return Ok(World::Realm);
+                }
+
+                // Ensure that caches are enabled
+                let sctlr = read_sctlr_el3();
+                assert!(sctlr.contains(SctlrEl3::C));
+
+                let gpi = match gpt.lookup(base_pa) {
+                    Ok(gpi) => gpi,
+                    Err(crate::gpt::GranuleError::InvalidRequest) => {
+                        regs.set_from(RmmCommandReturnCode::BadAddress);
+                        return Ok(World::Realm);
+                    }
+                    Err(
+                        crate::gpt::GranuleError::InvalidL0Entry
+                        | crate::gpt::GranuleError::InvalidL1Entry,
+                    ) => {
+                        panic!("Incorrectly programmed GPT.");
+                    }
+                };
+
+                // Only NonSecure granules can be delegated.
+                if gpi != GPIAccessType::NonSecure {
+                    regs.set_from(RmmCommandReturnCode::BadPas);
+                    return Ok(World::Realm);
+                }
+
+                // Delegate the NonSecure granule to become Realm
+
+                // In order to maintain mutual distrust between Realm and Secure
+                // states, remove any data speculatively fetched into the target
+                // physical address space (realm PAS in this case).
+                flush_dcache_to_popa_range(base_pa, pgs, GPIAccessType::Realm)
+                    .map_err(|_| RmmCommandReturnCode::BadAddress)?;
+                match gpt.set(base_pa, GPIAccessType::Realm) {
+                    Ok(_) => (),
+                    Err(crate::gpt::GranuleError::InvalidRequest) => {
+                        regs.set_from(RmmCommandReturnCode::BadAddress);
+                        return Ok(World::Realm);
+                    }
+                    Err(
+                        crate::gpt::GranuleError::InvalidL0Entry
+                        | crate::gpt::GranuleError::InvalidL1Entry,
+                    ) => {
+                        panic!("Incorrectly programmed GPT.");
+                    }
+                }
+                // Ensure that the scrubbed data has made it past the PoPA.
+                flush_dcache_to_popa_range(base_pa, pgs, GPIAccessType::NonSecure)
+                    .map_err(|_| RmmCommandReturnCode::BadAddress)?;
+                regs.set_from(RmmCommandReturnCode::Ok);
+                Ok(World::Realm)
+            }
+            RmmCall::GtsiUndelegate { base_pa } => {
+                let mut gpt = GRANULE_PROTECTION_TABLE
+                    .get()
+                    .expect("GPT not initialized")
+                    .lock();
+                let pgs = gpt.pgs();
+                // Check base_pa is aligned to granule size
+                if !base_pa.is_multiple_of(pgs) {
+                    regs.set_from(RmmCommandReturnCode::Unknown);
+                    return Ok(World::Realm);
+                }
+
+                // Ensure that caches are enabled
+                let sctlr = read_sctlr_el3();
+                assert!(sctlr.contains(SctlrEl3::C));
+
+                let gpi = match gpt.lookup(base_pa) {
+                    Ok(gpi) => gpi,
+                    Err(crate::gpt::GranuleError::InvalidRequest) => {
+                        regs.set_from(RmmCommandReturnCode::BadAddress);
+                        return Ok(World::Realm);
+                    }
+                    Err(
+                        crate::gpt::GranuleError::InvalidL0Entry
+                        | crate::gpt::GranuleError::InvalidL1Entry,
+                    ) => {
+                        panic!("Incorrectly programmed GPT.");
+                    }
+                };
+
+                // Only Realm granules can be undelegated.
+                if gpi != GPIAccessType::Realm {
+                    regs.set_from(RmmCommandReturnCode::BadPas);
+                    return Ok(World::Realm);
+                }
+
+                // Undelegate the Realm granule to become NonSecure.
+                // First, set granule to No access.
+                // In order to maintain mutual distrust between Realm and Secure
+                // states, remove access now, in order to guarantee that writes
+                // to the currently-accessible physical address space will not
+                // later become observable.
+                match gpt.set(base_pa, GPIAccessType::NoAccess) {
+                    Ok(_) => (),
+                    Err(crate::gpt::GranuleError::InvalidRequest) => {
+                        regs.set_from(RmmCommandReturnCode::BadAddress);
+                        return Ok(World::Realm);
+                    }
+                    Err(
+                        crate::gpt::GranuleError::InvalidL0Entry
+                        | crate::gpt::GranuleError::InvalidL1Entry,
+                    ) => {
+                        panic!("Incorrectly programmed GPT.");
+                    }
+                }
+                // Ensure that the scrubbed data has made it past the PoPA.
+                flush_dcache_to_popa_range(base_pa, pgs, GPIAccessType::Realm)
+                    .map_err(|_| RmmCommandReturnCode::BadAddress)?;
+                dsb_osh();
+
+                // Remove any data loaded speculatively in NS space from before the scrubbing.
+                flush_dcache_to_popa_range(base_pa, pgs, GPIAccessType::NonSecure)
+                    .map_err(|_| RmmCommandReturnCode::BadAddress)?;
+                dsb_osh();
+                match gpt.set(base_pa, GPIAccessType::NonSecure) {
+                    Ok(_) => (),
+                    Err(crate::gpt::GranuleError::InvalidRequest) => {
+                        regs.set_from(RmmCommandReturnCode::BadAddress);
+                        return Ok(World::Realm);
+                    }
+                    Err(
+                        crate::gpt::GranuleError::InvalidL0Entry
+                        | crate::gpt::GranuleError::InvalidL1Entry,
+                    ) => {
+                        panic!("Incorrectly programmed GPT.");
+                    }
+                }
+                regs.set_from(RmmCommandReturnCode::Ok);
+                Ok(World::Realm)
+            }
             // TODO(firme): equivalent to FIRME_ATTEST_RAK_GET, will have to take into account the
             // write offset and continued request.
             RmmCall::AttestGetRealmKey {

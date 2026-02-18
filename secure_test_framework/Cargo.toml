@@ -28,6 +28,7 @@ buddy_system_allocator = { version = "0.11.0", default-features = false, feature
 ] }
 linkme = "0.3.33"
 log = "0.4.19"
+num_enum = { version = "0.7.4", default-features = false }
 paste = "1.0.15"
 percore = { version = "0.2.1", default-features = false, features = [
   "zerocopy",

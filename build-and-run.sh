@@ -167,7 +167,9 @@ case "$PLAT" in
     if [[ "${RME:-}" == 1 ]]; then
         RMM=${RMM:-"$STF_RMM"}
         make PLAT=fvp RME=${RME} TEST_RMM_BOOT_FAIL=${TEST_RMM_BOOT_FAIL} ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all
-        make -C $TFA ${DEBUG} "${FVP_TFA_COMMON_ARGS[@]}" ENABLE_FEAT_RME=1 ENABLE_RMM=1 RMM="$RMM" all fip
+	# RME_GPT_MAX_BLOCK=0: disables Contiguous descriptors in TF-A's GPT setup, as RF-A doesn't
+	# support them yet.
+        make -C $TFA ${DEBUG} "${FVP_TFA_COMMON_ARGS[@]}" ENABLE_FEAT_RME=1 ENABLE_RMM=1 RME_GPT_MAX_BLOCK=0 RMM="$RMM" all fip
         FVP_Base_RevC-2xAEMvA \
             -C bp.dram_size=4 \
             -C bp.has_rme=1 \

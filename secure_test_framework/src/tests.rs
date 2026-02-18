@@ -8,7 +8,10 @@ mod ffa_spmd;
 mod interrupts;
 mod psci;
 mod psci_osi;
+#[cfg(feature = "rme")]
 mod rmi;
+#[cfg(any(not(feature = "rme"), feature = "test_rmm_fail"))]
+mod rmi_fail;
 mod simd;
 mod smccc_arch;
 mod sve;

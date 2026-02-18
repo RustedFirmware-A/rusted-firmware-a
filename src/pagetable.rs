@@ -6,8 +6,6 @@
 
 pub mod early_pagetable;
 
-#[cfg(feature = "rme")]
-use crate::services::rmmd::RMM_SHARED_BUFFER_SIZE;
 use crate::{
     aarch64::{dsb_sy, isb, tlbi_alle3},
     layout::{
@@ -15,6 +13,12 @@ use crate::{
         bss2_start,
     },
     platform::{Platform, PlatformImpl},
+};
+#[cfg(feature = "rme")]
+use crate::{
+    cpu_extensions::{CpuExtension, mte2::MemoryTagging},
+    gpt::GPIAccessType,
+    services::rmmd::RMM_SHARED_BUFFER_SIZE,
 };
 use aarch64_paging::{
     Mapping,
@@ -32,6 +36,14 @@ use spin::{
     Once,
     mutex::{SpinMutex, SpinMutexGuard},
 };
+
+#[cfg(feature = "rme")]
+pub enum Error {
+    /// The address is out of range.
+    AddressOutOfRange,
+    /// The [`GPIAccessType`] value cannot be mapped to a [`PhysicalAddressSpace`] value.
+    InvalidGPI,
+}
 
 const ROOT_LEVEL: usize = 1;
 
@@ -196,6 +208,83 @@ pub fn flush_dcache<T>(value: &T) {
     unsafe {
         asm::flush_dcache_range(ptr as usize, size_of::<T>());
     }
+}
+
+/// Represents the NS and NSE bits used by `flush_dcache_to_popa_range` to calculate the mask to add to pointers,
+/// based on the `GPIAccessType` of the `addr`.
+#[cfg(feature = "rme")]
+#[derive(Copy, Clone)]
+#[repr(u8)]
+enum PhysicalAddressSpace {
+    Secure = 0b00,
+    NonSecure = 0b01,
+    Root = 0b10,
+    Realm = 0b11,
+}
+
+#[cfg(feature = "rme")]
+impl PhysicalAddressSpace {
+    const PAS_SHIFT: u8 = 62;
+}
+
+#[cfg(feature = "rme")]
+impl From<PhysicalAddressSpace> for u64 {
+    fn from(bits: PhysicalAddressSpace) -> Self {
+        (bits as u64) << PhysicalAddressSpace::PAS_SHIFT
+    }
+}
+
+#[cfg(feature = "rme")]
+impl TryFrom<GPIAccessType> for PhysicalAddressSpace {
+    type Error = Error;
+    fn try_from(gpi: GPIAccessType) -> Result<Self, Self::Error> {
+        match gpi {
+            GPIAccessType::Secure => Ok(PhysicalAddressSpace::Secure),
+            GPIAccessType::NonSecure => Ok(PhysicalAddressSpace::NonSecure),
+            GPIAccessType::Root => Ok(PhysicalAddressSpace::Root),
+            GPIAccessType::Realm => Ok(PhysicalAddressSpace::Realm),
+            _ => Err(Error::InvalidGPI),
+        }
+    }
+}
+
+/// Flush dcache to PoPa (Point of Physical Aliasing).
+#[cfg(feature = "rme")]
+pub fn flush_dcache_to_popa_range(
+    addr: usize,
+    len: usize,
+    gpi: GPIAccessType,
+) -> Result<(), Error> {
+    trace!("Flushing {len:?} bytes at {addr:?} from dcache");
+    #[cfg(all(target_arch = "aarch64", not(test)))]
+    {
+        // Both `flush_dcache_to_popa_range` and `flush_dcache_to_popa_range_mte2` expect an
+        // address, that has at most 56 bits used for the physical address.
+        // Addresses with any value in the top byte are invalid.
+        let mask = 0xFF00_0000_0000_0000;
+        if addr & mask != 0 {
+            return Err(Error::AddressOutOfRange);
+        }
+        let bits = PhysicalAddressSpace::try_from(gpi)?;
+        let addr_masked = addr as u64 | u64::from(bits);
+
+        if MemoryTagging.is_present() {
+            // SAFETY:
+            // Flushing the dcache does not violate Rust safety guarantees.
+            // `addr` is not out of range, and contains the correct values for the NS and NSE bits.
+            unsafe {
+                asm::flush_dcache_to_popa_range_mte2(addr_masked as usize, len);
+            }
+        } else {
+            // SAFETY:
+            // Flushing the dcache does not violate Rust safety guarantees.
+            // `addr` is not out of range, and contains the correct values for the NS and NSE bits.
+            unsafe {
+                asm::flush_dcache_to_popa_range(addr_masked as usize, len);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Initialises and enables the runtime page tables.
@@ -502,6 +591,24 @@ mod asm {
         ///
         /// The address range from addr to addr+size must be valid.
         pub fn flush_dcache_range(addr: usize, size: usize);
+
+        /// Flushes the given range from the data cache using `dc_cipapa_x0`.
+        ///
+        /// # Safety
+        ///
+        /// The caller should make sure that `addr` contains the necessary values for the NS and
+        /// NSE bits.
+        #[allow(unused)]
+        pub fn flush_dcache_to_popa_range(addr: usize, size: usize);
+
+        /// Flushes the given range from the data cache using `dc_cigdpapa_x0`.
+        ///
+        /// # Safety
+        ///
+        /// The caller should make sure that `addr` contains the necessary values for the NS and
+        /// NSE bits.
+        #[allow(unused)]
+        pub fn flush_dcache_to_popa_range_mte2(addr: usize, size: usize);
     }
 }
 

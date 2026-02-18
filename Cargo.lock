@@ -300,6 +300,7 @@ dependencies = [
  "buddy_system_allocator",
  "linkme",
  "log",
+ "num_enum",
  "paste",
  "percore",
  "smccc",

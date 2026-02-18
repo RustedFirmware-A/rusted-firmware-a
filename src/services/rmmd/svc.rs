@@ -31,7 +31,7 @@ pub enum RmmCommandReturnCode {
     /// No errors detected.
     Ok = 0,
     /// Unknown/Generic error.
-    Unk = -1,
+    Unknown = -1,
     /// The value of an address used as argument was invalid.
     BadAddress = -2,
     /// Incorrect PAS.
@@ -46,9 +46,8 @@ pub enum RmmCommandReturnCode {
 
 impl From<RmmCommandReturnCode> for u64 {
     fn from(value: RmmCommandReturnCode) -> Self {
-        // Casts as i64 to sign extend, then as u64 which is a no-op.
-        // See https://doc.rust-lang.org/reference/expressions/operator-expr.html#semantics.
-        (value as i64) as u64
+        // Casting to a wider integer sign-extends.
+        value as u64
     }
 }
 

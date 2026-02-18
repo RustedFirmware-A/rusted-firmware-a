@@ -27,6 +27,28 @@ pub fn dsb_ish() {
     }
 }
 
+/// Issues a data synchronization barrier (`dsb`) instruction that applies to the outer shareable
+/// domain (`osh`), for read and write accesses.
+#[allow(unused)]
+pub fn dsb_osh() {
+    // SAFETY: `dsb` does not violate safe Rust guarantees.
+    #[cfg(all(target_arch = "aarch64", not(test)))]
+    unsafe {
+        asm!("dsb osh", options(nostack));
+    }
+}
+
+/// Issues a data synchronization barrier (`dsb`) instruction that applies to the outer shareable
+/// domain (`osh`), for write accesses (st).
+#[allow(unused)]
+pub fn dsb_oshst() {
+    // SAFETY: `dsb` does not violate safe Rust guarantees.
+    #[cfg(all(target_arch = "aarch64", not(test)))]
+    unsafe {
+        asm!("dsb oshst", options(nostack));
+    }
+}
+
 /// Issues an instruction synchronization barrier (`isb`) instruction.
 pub fn isb() {
     // SAFETY: `isb` does not violate safe Rust guarantees.
@@ -54,6 +76,39 @@ pub fn tlbi_alle3() {
     unsafe {
         asm!("tlbi alle3", options(nostack));
     }
+}
+
+#[cfg(feature = "rme")]
+const TLB_SZ_4K: usize = 0b0000;
+#[cfg(feature = "rme")]
+const TLB_SZ_16K: usize = 0b0001;
+#[cfg(feature = "rme")]
+const TLB_SZ_64K: usize = 0b0010;
+#[cfg(feature = "rme")]
+const TLBI_ADDR_SHIFT: usize = 12;
+#[cfg(feature = "rme")]
+const TLBI_SIZE_SHIFT: usize = 44;
+
+#[cfg(feature = "rme")]
+/// Wrapper around `tlbi_rpalos_sz`.
+pub fn tlbi_rpalos(addr: usize, size: usize) {
+    match size {
+        0x1000 => tlbi_rpalos_sz::<{ TLB_SZ_4K }>(addr),
+        0x4000 => tlbi_rpalos_sz::<{ TLB_SZ_16K }>(addr),
+        0x1_0000 => tlbi_rpalos_sz::<{ TLB_SZ_64K }>(addr),
+        _ => todo!("unsupported size"),
+    }
+}
+#[cfg(feature = "rme")]
+/// Issues a `tlbi_rpalos` instruction (TLB Range Invalidate GPT Information by PA, Last level, Outer Shareable).
+/// Only valid on systems with RME, otherwise undefined.
+fn tlbi_rpalos_sz<const SZ: usize>(addr: usize) {
+    let arg: usize = (addr >> TLBI_ADDR_SHIFT) | (SZ << TLBI_SIZE_SHIFT);
+    // Safety: TLB/Cache invalidation does not violate Rust safety.
+    #[cfg(all(target_arch = "aarch64", not(test)))]
+    unsafe {
+        asm!("sys #6, c8, c4, #7, {0}" , in(reg) arg)
+    };
 }
 
 /// Wait For Interrupt is a hint instruction that indicates that the PE can enter a low-power state

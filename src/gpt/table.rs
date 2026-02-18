@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use core::fmt::Debug;
-use core::slice::from_raw_parts_mut;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -148,6 +148,15 @@ impl Level0Descriptor {
     pub const fn block(gpi: GPIAccessType) -> Self {
         Self(Self::BLOCK_TAG | (gpi as u64 & GPIAccessType::MASK) << 4)
     }
+
+    /// Creates a Table Descriptor pointing to `addr`.
+    /// Used only for manually creating L1 tables in unittests.
+    #[allow(unused)]
+    pub const fn table(addr: u64) -> Self {
+        let mask = Self::TABLE_ADDR_MASK as u64;
+        assert!(addr & mask == addr);
+        Self(Self::TABLE_TAG | (addr & mask))
+    }
 }
 
 /// View of a [`Level0Descriptor`] as a Table Descriptor.
@@ -157,6 +166,48 @@ impl<'a> TableDescriptorRef<'a> {
     /// Returns the index of the table referenced by this descriptor within the provided L1 buffer.
     pub fn address(&self) -> usize {
         self.0.0 as usize & Level0Descriptor::TABLE_ADDR_MASK
+    }
+
+    /// Returns the `Level1Table` corresponding to this `TableDescriptorRef`.
+    ///
+    /// # Safety
+    /// Callers must ensure that `self` is a pointing to a valid L1 table.
+    /// `config` must be the [`GranuleProtectionConfig`] describing the system's Granule Protection
+    /// Table.
+    pub unsafe fn to_table_mut(&mut self, config: &GranuleProtectionConfig) -> &mut Level1Table {
+        // Safety:
+        // - A valid L1 table descriptor's size is given by the L0GPTSZ and PGS fields.
+        // - `address` is sufficiently aligned.
+        // - The max width for address is 56 bits, the max size of the L1 table is 0x80_0000,
+        // the sum of which cannot wrap over isize::MAX.
+        // - It is assumed that only one GranuleProtection object is created.
+        unsafe {
+            from_raw_parts_mut(
+                self.address() as *mut _,
+                1 << (config.l0gptsz.width() - (config.pgs.width() + 4)),
+            )
+        }
+    }
+
+    /// Returns the `Level1Table` corresponding to this `TableDescriptorRef`.
+    ///
+    /// # Safety
+    /// Callers must ensure that `self` is a pointing to a valid L1 table.
+    /// `config` must be the [`GranuleProtectionConfig`] describing the system's Granule Protection
+    /// Table.
+    pub unsafe fn to_table(&self, config: &GranuleProtectionConfig) -> &Level1Table {
+        // Safety:
+        // - A valid L1 table descriptor's size is given by the L0GPTSZ and PGS fields.
+        // - `address` is sufficiently aligned.
+        // - The max width for address is 56 bits, the max size of the L1 table is 0x80_0000,
+        // the sum of which cannot wrap over isize::MAX.
+        // - It is assumed that only one GranuleProtection object is created.
+        unsafe {
+            from_raw_parts(
+                self.address() as *const _,
+                1 << (config.l0gptsz.width() - (config.pgs.width() + 4)),
+            )
+        }
     }
 }
 
@@ -376,6 +427,13 @@ mod tests {
     #[test]
     fn as_table_valid() {
         assert!(Level0Descriptor(0x0001_dead_beef_0003).as_table().is_some());
+    }
+
+    #[test]
+    fn create_table() {
+        let table = Level0Descriptor::table(0x1234_0000);
+        assert!(table.as_table().is_some());
+        assert_eq!(table.as_table().unwrap().address(), 0x1234_0000);
     }
 
     #[test]

@@ -427,6 +427,8 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 
     type PlatformPowerState = QemuPowerState;
 
+    type NodeIndex = u8;
+
     fn topology() -> &'static [usize] {
         &[1, CLUSTER_COUNT, MAX_CPUS_PER_CLUSTER]
     }
@@ -548,7 +550,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 
     fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode> {
         let cpu_index = try_get_cpu_index_by_mpidr(mpidr).ok_or(ErrorCode::InvalidParameters)?;
-        debug_assert!(cpu_index < Qemu::CORE_COUNT);
+        debug_assert!(usize::from(cpu_index) < Qemu::CORE_COUNT);
         // SAFETY: HOLD_BASE is a valid address and adding cpu_index does not make it go out of
         // bounds of HOLD_BASE + HOLD_SIZE, since cpu_index is guaranteed to be smaller than
         // CORE_COUNT. Additionally, writing the warm boot entry point to the mailbox base address
@@ -556,7 +558,7 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         // Rust's safety guarantees, as this memory region is only used for the trusted mailbox.
         unsafe {
             *HOLD_ENTRYPOINT = bl31_warm_entrypoint::<Qemu>;
-            let cpu_hold_addr = (HOLD_BASE as *mut u64).add(cpu_index);
+            let cpu_hold_addr = (HOLD_BASE as *mut u64).add(cpu_index.into());
             *cpu_hold_addr = HOLD_STATE_GO;
         }
         sev();

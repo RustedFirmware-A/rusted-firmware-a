@@ -380,6 +380,8 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
 
     type PlatformPowerState = TestPowerState;
 
+    type NodeIndex = u8;
+
     fn topology() -> &'static [usize] {
         &[1, 2, 2, 2, 3, 3, 3, 4]
     }

@@ -31,6 +31,8 @@ use percore::Cores;
 use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
 use spin::mutex::SpinMutex;
 
+type NodeIndex = <PsciPlatformImpl as PsciPlatformInterface>::NodeIndex;
+
 const FUNCTION_NUMBER_MIN: u16 = 0x0000;
 const FUNCTION_NUMBER_MAX: u16 = 0x001F;
 const CPU_OFF_WFI_RETRY_COUNT: usize = 32;
@@ -59,6 +61,22 @@ bitflags! {
         /// OS-initiated suspend mode is supported.
         const OS_INITIATED_MODE = 1 << 8;
     }
+}
+
+/// Trait for defining node indices in the power domain tree. The type must support conversion to
+/// and from `usize`, and it must also define a maximum value. This limits the maximum number of CPU
+/// or non-CPU nodes in the tree. The trait is implemented for `u8` and `u16`, which realistically
+/// cover most use cases, but a platform can implement the trait for a custom type in special cases.
+pub trait NodeIndexInterface: TryFrom<usize> + Into<usize> {
+    const MAX: usize;
+}
+
+impl NodeIndexInterface for u8 {
+    const MAX: usize = u8::MAX as usize;
+}
+
+impl NodeIndexInterface for u16 {
+    const MAX: usize = u16::MAX as usize;
 }
 
 /// Platform-specific power state interface
@@ -96,6 +114,12 @@ pub trait PsciPlatformInterface {
 
     /// Platform-specific power state type
     type PlatformPowerState: PlatformPowerStateInterface;
+
+    /// Platform-specific power domain node index type
+    ///
+    /// The platform should select the smallest data type that can accommodate the maximum index
+    /// values.
+    type NodeIndex: NodeIndexInterface;
 
     /// Returns the power domain topology as the count of child nodes in a BFS traversal order.
     fn topology() -> &'static [usize];
@@ -399,7 +423,7 @@ impl PsciCompositePowerState {
         highest_affected_level: usize,
         cpu: &mut CpuPowerNode,
         ancestors: &mut AncestorPowerDomains,
-        cpu_index: usize,
+        cpu_index: NodeIndex,
         resolved_state: PsciCompositePowerState,
     ) {
         // suspend_states are used to coordinate the power mode. Use resolved_state.
@@ -420,7 +444,7 @@ impl PsciCompositePowerState {
     /// transition to a lower power state. Each non-CPU power node maintains a list of power states
     /// requested by its descendant nodes. This function sets the lowest power state permitted by
     /// the list of requested states.
-    pub fn coordinate_state(&mut self, cpu_index: usize, ancestors: &mut AncestorPowerDomains) {
+    pub fn coordinate_state(&mut self, cpu_index: NodeIndex, ancestors: &mut AncestorPowerDomains) {
         let mut higher_levels_are_run = false;
 
         let mut child_state = None;
@@ -477,7 +501,7 @@ impl PsciCompositePowerState {
     /// This is the OS-Initiated mode variant of coordinate_state.
     pub fn validate_state_coordination(
         &self,
-        cpu_index: usize,
+        cpu_index: NodeIndex,
         highest_affected_level: usize,
         ancestors: &AncestorPowerDomains,
     ) -> Result<(), ErrorCode> {
@@ -581,7 +605,7 @@ impl Psci {
 
         {
             // Init primary CPU
-            let cpu_index = CoresImpl::core_index();
+            let cpu_index = Self::cpu_index();
             let mut cpu = power_domain_tree.locked_cpu_node(cpu_index);
 
             power_domain_tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
@@ -610,7 +634,7 @@ impl Psci {
         power_state: PowerState,
         entry_point: EntryPoint,
     ) -> Result<(), ErrorCode> {
-        let cpu_index = CoresImpl::core_index();
+        let cpu_index = Self::cpu_index();
         let composite_state: PsciCompositePowerState =
             PsciPlatformImpl::try_parse_power_state(power_state)
                 .ok_or(ErrorCode::InvalidParameters)?;
@@ -676,7 +700,7 @@ impl Psci {
     /// * Following wake from the `WFI`, running state is restored.
     fn cpu_suspend_start(
         &self,
-        cpu_index: usize,
+        cpu_index: NodeIndex,
         power_state: Option<PowerState>,
         entry: EntryPoint,
         highest_affected_level: usize,
@@ -789,7 +813,7 @@ impl Psci {
     /// Handles `CPU_OFF` PSCI call.
     /// On success, turns off the current CPU and does not return.
     fn cpu_off(&self) -> Result<(), ErrorCode> {
-        let cpu_index = CoresImpl::core_index();
+        let cpu_index = Self::cpu_index();
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
         let mut composite_state = PsciCompositePowerState::OFF;
 
@@ -864,7 +888,7 @@ impl Psci {
     /// This function must be called when a CPU is powered up. It returns the non-secure entry
     /// point and the reason why the CPU was powered up.
     pub fn handle_cpu_boot(&self) -> WakeUpReason {
-        let cpu_index = CoresImpl::core_index();
+        let cpu_index = Self::cpu_index();
         let mut cpu = self.power_domain_tree.locked_cpu_node(cpu_index);
         let mut composite_state = PsciCompositePowerState::RUN;
         let mut wake_from_suspend = false;
@@ -1123,7 +1147,7 @@ impl Psci {
             return Err(ErrorCode::NotSupported);
         }
 
-        let cpu_index = CoresImpl::core_index();
+        let cpu_index = Self::cpu_index();
 
         if !self.power_domain_tree.is_last_cpu(cpu_index) {
             return Err(ErrorCode::Denied);
@@ -1163,13 +1187,13 @@ impl Psci {
         }
         match mode {
             SuspendMode::PlatformCoordinated => {
-                if !self.power_domain_tree.is_last_cpu(CoresImpl::core_index()) {
+                if !self.power_domain_tree.is_last_cpu(Self::cpu_index()) {
                     return Err(ErrorCode::Denied);
                 }
             }
             SuspendMode::OsInitiated => {
                 if !(self.power_domain_tree.are_all_cpus_on()
-                    || self.power_domain_tree.is_last_cpu(CoresImpl::core_index()))
+                    || self.power_domain_tree.is_last_cpu(Self::cpu_index()))
                 {
                     return Err(ErrorCode::Denied);
                 }
@@ -1285,6 +1309,10 @@ impl Psci {
             log::error!("SPMD return {error_code:?} on PSCI event {function:?}")
         }
     }
+
+    fn cpu_index() -> NodeIndex {
+        CoresImpl::core_index().try_into().unwrap()
+    }
 }
 
 impl Service for Psci {
@@ -1320,12 +1348,16 @@ impl Debug for Psci {
 ///
 /// For any valid MPIDR this will return a unique value less than `Platform::CORE_COUNT`.
 /// For any invalid MPIDR it will return `None`.
-pub fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<usize> {
+pub fn try_get_cpu_index_by_mpidr(psci_mpidr: Mpidr) -> Option<NodeIndex> {
     // The PSCI MPIDR value doesn't include the MT or U bits, but they might be important for how
     // the platform validates MPIDR values and calculates core position, so add them in.
     let mpidr = MpidrEl1::from_psci_mpidr(psci_mpidr.into());
     if PlatformImpl::mpidr_is_valid(mpidr) {
-        Some(PlatformImpl::core_position(mpidr.bits()))
+        Some(
+            PlatformImpl::core_position(mpidr.bits())
+                .try_into()
+                .unwrap(),
+        )
     } else {
         None
     }
@@ -1444,7 +1476,7 @@ mod tests {
 
     fn apply_coordinated_state_to_power_domain_tree_helper(
         power_domain_tree: &mut PowerDomainTree,
-        cpu_index: usize,
+        cpu_index: NodeIndex,
         state: PsciCompositePowerState,
     ) {
         let highest_affected_level = state.find_highest_non_run_level().unwrap();
@@ -2185,7 +2217,9 @@ mod tests {
     }
 
     fn check_ancestor_state(psci: &Psci, cpu_index: usize, expected_states: &[PlatformPowerState]) {
-        let mut cpu = psci.power_domain_tree.locked_cpu_node(cpu_index);
+        let mut cpu = psci
+            .power_domain_tree
+            .locked_cpu_node(cpu_index.try_into().unwrap());
         assert_eq!(expected_states[0], cpu.local_state());
         psci.power_domain_tree
             .with_ancestors_locked(&mut cpu, |_cpu, ancestors| {

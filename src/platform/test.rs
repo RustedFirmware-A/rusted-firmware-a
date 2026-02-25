@@ -581,12 +581,15 @@ impl
 /// Fake TRNG implementation for tests.
 pub struct TestTrngPlatformImpl;
 
-impl TrngPlatformInterface for TestTrngPlatformImpl {
+/// TRNG request size in words for fake test TRNG.
+pub const TRNG_REQ_WORDS: usize = 1;
+
+impl TrngPlatformInterface<TRNG_REQ_WORDS> for TestTrngPlatformImpl {
     const TRNG_UUID: Uuid = Uuid::from_bytes([
         0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
     ]);
 
-    fn get_entropy() -> Result<[u64; Self::REQ_WORDS], TrngError> {
+    fn get_entropy() -> Result<[u64; TRNG_REQ_WORDS], TrngError> {
         // For testing purposes, provide an all-ones entropy source.
         // A real platform would implement this using a hardware TRNG.
         Ok([0xFFFF_FFFF_FFFF_FFFF])

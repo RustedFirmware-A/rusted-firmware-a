@@ -427,6 +427,8 @@ unsafe impl Platform for Qemu {
     }
 }
 
+pub const TRNG_REQ_WORDS: usize = 1;
+
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
 pub enum QemuPowerState {
     On,

@@ -18,13 +18,16 @@ use crate::{
     context::{World, cpu_state, set_initial_world, switch_world},
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
-    platform::{PSCI_MAX_POWER_LEVEL, PSCI_STATE_COUNT, Platform, PlatformImpl, exception_free},
+    platform::{
+        PSCI_MAX_POWER_LEVEL, PSCI_STATE_COUNT, Platform, PlatformImpl, TRNG_REQ_WORDS,
+        exception_free,
+    },
     services::{
         arch::Arch,
         errata_management::ErrataManagement,
         ffa::spmd::Spmd,
         psci::{Psci, PsciPlatformInterface},
-        trng::Trng,
+        trng::{Trng, TrngPlatformInterface, words_in_pool},
     },
     smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
@@ -91,12 +94,15 @@ pub trait Service {
 
 const NON_CPU_DOMAIN_COUNT: usize =
     <PlatformImpl as Platform>::PsciPlatformImpl::POWER_DOMAIN_COUNT - PlatformImpl::CORE_COUNT;
+const TRNG_WORDS_IN_POOL: usize = words_in_pool(TRNG_REQ_WORDS);
 static SERVICES: Lazy<
     Services<
         { PlatformImpl::CORE_COUNT },
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
         NON_CPU_DOMAIN_COUNT,
+        TRNG_REQ_WORDS,
+        TRNG_WORDS_IN_POOL,
         PlatformImpl,
     >,
 > = Lazy::new(Services::new);
@@ -107,6 +113,8 @@ pub struct Services<
     const PSCI_STATE_COUNT: usize,
     const PSCI_MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
+    const TRNG_REQ_WORDS: usize,
+    const TRNG_WORDS_IN_POOL: usize,
     PlatformImpl: Platform + 'static,
 > where
     <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
@@ -115,6 +123,7 @@ pub struct Services<
             CORE_COUNT,
             NON_CPU_DOMAIN_COUNT,
         >,
+    <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<TRNG_REQ_WORDS>,
 {
     arch: Arch<PlatformImpl>,
     pub psci: Psci<
@@ -132,7 +141,7 @@ pub struct Services<
     /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
     pub rmmd: Rmmd<CORE_COUNT, PlatformImpl>,
-    trng: Trng,
+    trng: Trng<TRNG_REQ_WORDS, TRNG_WORDS_IN_POOL, PlatformImpl::TrngPlatformImpl>,
     errata_management: ErrataManagement,
 }
 
@@ -142,6 +151,8 @@ impl
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
         NON_CPU_DOMAIN_COUNT,
+        TRNG_REQ_WORDS,
+        TRNG_WORDS_IN_POOL,
         PlatformImpl,
     >
 {
@@ -172,11 +183,23 @@ impl<
     const STATE_COUNT: usize,
     const MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
+    const TRNG_REQ_WORDS: usize,
+    const TRNG_WORDS_IN_POOL: usize,
     PlatformImpl: Platform,
-> Services<CORE_COUNT, STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>
+>
+    Services<
+        CORE_COUNT,
+        STATE_COUNT,
+        MAX_POWER_LEVEL,
+        NON_CPU_DOMAIN_COUNT,
+        TRNG_REQ_WORDS,
+        TRNG_WORDS_IN_POOL,
+        PlatformImpl,
+    >
 where
     <PlatformImpl as Platform>::PsciPlatformImpl:
         PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, CORE_COUNT, NON_CPU_DOMAIN_COUNT>,
+    <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<TRNG_REQ_WORDS>,
 {
     fn handle_smc(&self, regs: &mut SmcReturn, world: World) -> World {
         let function = FunctionId(regs.values()[0] as u32);

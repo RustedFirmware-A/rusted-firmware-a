@@ -718,6 +718,8 @@ unsafe impl Platform for Fvp {
     }
 }
 
+pub const TRNG_REQ_WORDS: usize = 1;
+
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
 pub enum FvpPowerState {
     Run = 0,

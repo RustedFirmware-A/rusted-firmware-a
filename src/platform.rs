@@ -10,7 +10,7 @@ macro_rules! select_platform {
 
         #[cfg(platform = $condition)]
         pub use $mod::$sub::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL, TRNG_REQ_WORDS,
             $plat_impl as PlatformImpl,
         };
     };
@@ -20,7 +20,7 @@ macro_rules! select_platform {
 
         #[cfg(platform = $condition)]
         pub use $mod::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL, TRNG_REQ_WORDS,
             $plat_impl as PlatformImpl,
         };
     };
@@ -30,7 +30,7 @@ macro_rules! select_platform {
 
         #[cfg(test)]
         pub use $mod::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL,
+            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL, TRNG_REQ_WORDS,
             $plat_impl as PlatformImpl,
         };
     };
@@ -51,7 +51,7 @@ use crate::{
     gicv3,
     logger::LogSink,
     pagetable::MAIR_IWBRWA_OWBRWA_NTR,
-    services::{Service, arch::WorkaroundSupport, trng::TrngPlatformInterface},
+    services::{Service, arch::WorkaroundSupport},
     smccc::FunctionId,
 };
 use aarch64_paging::mair::MairAttribute;
@@ -73,8 +73,6 @@ impl Service for DummyService {
         false
     }
 }
-
-pub type TrngPlatformImpl = <PlatformImpl as Platform>::TrngPlatformImpl;
 
 pub const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 
@@ -134,11 +132,11 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// Should be `IdMap<Self::PAGE_HEAP_PAGE_COUNT>`.
     type IdMap: 'static;
 
-    /// Platform dependent PsciPlatformInterface implementation type.
+    /// Platform dependent `PsciPlatformInterface` implementation type.
     type PsciPlatformImpl;
 
-    /// Platform dependent TrngPlatformInterface implementation type.
-    type TrngPlatformImpl: TrngPlatformInterface;
+    /// Platform dependent `TrngPlatformInterface` implementation type.
+    type TrngPlatformImpl;
 
     /// Service that handles platform-specific SMC calls.
     type PlatformServiceImpl: Service;

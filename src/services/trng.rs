@@ -7,10 +7,10 @@
 
 use crate::{
     context::World,
-    platform::TrngPlatformImpl,
     services::{Service, owns},
     smccc::{FunctionId, OwningEntityNumber, SUCCESS, SetFrom, SmcReturn},
 };
+use core::marker::PhantomData;
 use spin::mutex::SpinMutex;
 use uuid::Uuid;
 
@@ -52,31 +52,35 @@ impl SetFrom<TrngError> for SmcReturn {
 
 const TRNG_RND32_ENTROPY_MAXBITS: usize = 96;
 const TRNG_RND64_ENTROPY_MAXBITS: usize = 192;
+const BITS_PER_WORD: usize = 64;
 
 /// The TRNG Firmware Interface can request up to `TRNG_RND64_ENTROPY_MAXBITS`
 /// bits of entropy per call, so the pool must hold at least that much, plus
 /// enough space for one extra TRNG request in the worst case where the pool is
 /// less than one word short of entropy.
-const WORDS_IN_POOL: usize =
-    TRNG_RND64_ENTROPY_MAXBITS / BITS_PER_WORD + TrngPlatformImpl::REQ_WORDS;
-const BITS_PER_WORD: usize = 64;
-const BITS_IN_POOL: usize = WORDS_IN_POOL * BITS_PER_WORD;
+pub const fn words_in_pool(req_words: usize) -> usize {
+    TRNG_RND64_ENTROPY_MAXBITS / BITS_PER_WORD + req_words
+}
+
+const fn bits_in_pool(words_in_pool: usize) -> usize {
+    words_in_pool * BITS_PER_WORD
+}
 
 /// Platform-specific TRNG interface.
 /// The platform must provide an implementation for this trait. If the platform
 /// does not have a TRNG source, then it can use the default implementation,
 /// `NotSupportedTrngPlatformImpl`
-pub trait TrngPlatformInterface {
+///
+/// `REQ_WORDS` is the number of 64-bit words per request from the TRNG.
+pub trait TrngPlatformInterface<const REQ_WORDS: usize> {
     /// A UUID for the entropy source, or nil (all-zero) if not implemented.
     const TRNG_UUID: Uuid = Uuid::nil();
-    /// The number of 64-bit words per request from the TRNG.
-    const REQ_WORDS: usize = 1;
 
     /// Perform any necessary platform-specific setup for the entropy source.
     fn entropy_setup() {}
 
     /// Get REQ_WORDS of 64-bit values from the platform's entropy source.
-    fn get_entropy() -> Result<[u64; TrngPlatformImpl::REQ_WORDS], TrngError> {
+    fn get_entropy() -> Result<[u64; REQ_WORDS], TrngError> {
         Err(TrngError::NotSupported)
     }
 }
@@ -85,23 +89,34 @@ pub trait TrngPlatformInterface {
 /// have a TRNG source.
 #[allow(dead_code)]
 pub struct NotSupportedTrngPlatformImpl;
-impl TrngPlatformInterface for NotSupportedTrngPlatformImpl {}
+impl TrngPlatformInterface<1> for NotSupportedTrngPlatformImpl {}
 
 /// Entropy pool is implemented with a ring buffer of bits, so that requests for
 /// abitrary numbers of bits of entropy can be handled without throwing away the
 /// leftover 1-63 bits of entropy.
-struct EntropyPool {
+struct EntropyPool<
+    const REQ_WORDS: usize,
+    const WORDS_IN_POOL: usize,
+    TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
+> {
     entropy: [u64; WORDS_IN_POOL],
     entropy_bit_index: usize,
     entropy_bit_size: usize,
+    _platform: PhantomData<TrngPlatformImpl>,
 }
 
-impl EntropyPool {
+impl<
+    const REQ_WORDS: usize,
+    const WORDS_IN_POOL: usize,
+    TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
+> EntropyPool<REQ_WORDS, WORDS_IN_POOL, TrngPlatformImpl>
+{
     const fn new() -> Self {
         Self {
             entropy: [0; WORDS_IN_POOL],
             entropy_bit_index: 0,
             entropy_bit_size: 0,
+            _platform: PhantomData,
         }
     }
 
@@ -118,7 +133,7 @@ impl EntropyPool {
                 free_word = (free_word + 1) % WORDS_IN_POOL;
                 self.entropy_bit_size += BITS_PER_WORD;
             }
-            assert!(self.entropy_bit_size <= BITS_IN_POOL);
+            assert!(self.entropy_bit_size <= bits_in_pool(WORDS_IN_POOL));
         }
         Ok(())
     }
@@ -262,7 +277,7 @@ impl EntropyPool {
             out[to_fill - 1] &= mask;
         }
 
-        self.entropy_bit_index = (self.entropy_bit_index + nbits) % BITS_IN_POOL;
+        self.entropy_bit_index = (self.entropy_bit_index + nbits) % bits_in_pool(WORDS_IN_POOL);
         self.entropy_bit_size -= nbits;
 
         Ok(())
@@ -271,11 +286,20 @@ impl EntropyPool {
 
 /// Service implementing the Arm True Random Number Generator Firmware Interface, as specified by
 /// Arm DEN 0098.
-pub struct Trng {
-    pool: SpinMutex<EntropyPool>,
+pub struct Trng<
+    const REQ_WORDS: usize,
+    const WORDS_IN_POOL: usize,
+    TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
+> {
+    pool: SpinMutex<EntropyPool<REQ_WORDS, WORDS_IN_POOL, TrngPlatformImpl>>,
 }
 
-impl Service for Trng {
+impl<
+    const REQ_WORDS: usize,
+    const WORDS_IN_POOL: usize,
+    TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
+> Service for Trng<REQ_WORDS, WORDS_IN_POOL, TrngPlatformImpl>
+{
     owns!(
         OwningEntityNumber::STANDARD_SECURE,
         TRNG_FN_NUM_MIN..=TRNG_FN_NUM_MAX
@@ -298,7 +322,12 @@ impl Service for Trng {
     }
 }
 
-impl Trng {
+impl<
+    const REQ_WORDS: usize,
+    const WORDS_IN_POOL: usize,
+    TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
+> Trng<REQ_WORDS, WORDS_IN_POOL, TrngPlatformImpl>
+{
     pub(super) fn new() -> Self {
         TrngPlatformImpl::entropy_setup();
         Self {
@@ -387,11 +416,17 @@ fn is_trng_fid(smc_fid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{platform::test::TestTrngPlatformImpl, smccc::SetFrom};
+    use crate::{
+        platform::test::{TRNG_REQ_WORDS, TestTrngPlatformImpl},
+        smccc::SetFrom,
+    };
+
+    const WORDS_IN_POOL: usize = words_in_pool(TRNG_REQ_WORDS);
+    const BITS_IN_POOL: usize = bits_in_pool(WORDS_IN_POOL);
 
     #[test]
     fn pack_entropy_less_than_word() {
-        let mut pool = EntropyPool::new();
+        let mut pool = EntropyPool::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut out = [0u64; 1];
 
         let nbits = 23;
@@ -403,7 +438,7 @@ mod tests {
 
     #[test]
     fn pack_entropy_one_word() {
-        let mut pool = EntropyPool::new();
+        let mut pool = EntropyPool::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut out = [0u64; 2];
 
         let nbits = 64;
@@ -416,7 +451,7 @@ mod tests {
 
     #[test]
     fn pack_entropy_multiple_words() {
-        let mut pool = EntropyPool::new();
+        let mut pool = EntropyPool::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut out = [0u64; 3];
 
         let nbits = 192;
@@ -430,7 +465,7 @@ mod tests {
 
     #[test]
     fn pack_entropy_unaligned_requests() {
-        let mut pool = EntropyPool::new();
+        let mut pool = EntropyPool::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut out = [0u64; 1];
 
         // Request 30 bits first.
@@ -451,10 +486,11 @@ mod tests {
 
     #[test]
     fn pack_entropy_wraps_around_pool() {
-        let mut pool = EntropyPool {
+        let mut pool = EntropyPool::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl> {
             entropy: [u64::MAX; WORDS_IN_POOL],
             entropy_bit_index: BITS_IN_POOL - 32, // Start 32 bits from the end
             entropy_bit_size: BITS_IN_POOL,
+            _platform: PhantomData,
         };
 
         let mut out = [0u64; 2];
@@ -472,7 +508,7 @@ mod tests {
 
     #[test]
     fn pack_entropy_all_bits() {
-        let mut pool = EntropyPool::new();
+        let mut pool = EntropyPool::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut out = [0u64; 4];
 
         let nbits = BITS_IN_POOL;
@@ -487,7 +523,7 @@ mod tests {
 
     #[test]
     fn trng_version() {
-        let trng = Trng::new();
+        let trng = Trng::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut regs = SmcReturn::EMPTY;
         let mut expected = SmcReturn::EMPTY;
 
@@ -499,7 +535,7 @@ mod tests {
 
     #[test]
     fn trng_features() {
-        let trng = Trng::new();
+        let trng = Trng::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut regs = SmcReturn::EMPTY;
         let mut expected = SmcReturn::EMPTY;
 
@@ -518,7 +554,7 @@ mod tests {
 
     #[test]
     fn trng_get_uuid() {
-        let trng = Trng::new();
+        let trng = Trng::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut regs = SmcReturn::EMPTY;
 
         regs.set_from(ARM_TRNG_GET_UUID);
@@ -535,7 +571,7 @@ mod tests {
 
     #[test]
     fn trng_rnd32_invalid_nbits() {
-        let trng = Trng::new();
+        let trng = Trng::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut regs = SmcReturn::EMPTY;
         let mut expected = SmcReturn::EMPTY;
 
@@ -558,7 +594,7 @@ mod tests {
 
     #[test]
     fn trng_rnd64_invalid_nbits() {
-        let trng = Trng::new();
+        let trng = Trng::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut regs = SmcReturn::EMPTY;
         let mut expected = SmcReturn::EMPTY;
 
@@ -580,7 +616,7 @@ mod tests {
 
     #[test]
     fn trng_rnd32_get_entropy() {
-        let trng = Trng::new();
+        let trng = Trng::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut regs = SmcReturn::EMPTY;
         let mut expected = SmcReturn::EMPTY;
         let nbits = 12;
@@ -604,7 +640,7 @@ mod tests {
 
     #[test]
     fn trng_rnd64_get_entropy() {
-        let trng = Trng::new();
+        let trng = Trng::<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>::new();
         let mut regs = SmcReturn::EMPTY;
         let mut expected = SmcReturn::EMPTY;
         let nbits = 51;

@@ -6,8 +6,12 @@ pub mod manifest;
 pub mod svc;
 
 use arm_gpt::GranuleProtection;
-use core::{cell::RefCell, slice::from_raw_parts_mut};
-use log::{debug, warn};
+use core::{
+    cell::RefCell,
+    slice::from_raw_parts_mut,
+    sync::atomic::{AtomicU8, Ordering},
+};
+use log::{debug, error, warn};
 use num_enum::TryFromPrimitive;
 use percore::{Cores, ExceptionLock, PerCore};
 use spin::Once;
@@ -133,7 +137,13 @@ const VALID_HASH_SIZES: &[usize] = &[SHA256_DIGEST_SIZE, SHA384_DIGEST_SIZE, SHA
 /// Maximum value of [`VALID_HASH_SIZES`].
 const MAX_HASH_SIZE: usize = SHA512_DIGEST_SIZE;
 
-pub static RMM_COLD_BOOT_DONE: Once<()> = Once::new();
+#[derive(Debug, PartialEq)]
+#[repr(u8)]
+enum RmmBootState {
+    Unknown,
+    ColdBootDone,
+    Error,
+}
 
 pub static GRANULE_PROTECTION_TABLE: Once<SpinMutex<GranuleProtection>> = Once::new();
 
@@ -172,21 +182,30 @@ enum RmiFuncId {
 pub struct Rmmd {
     core_local: PerCoreState<RmmdLocal>,
     attestation_token_read_index: SpinMutex<usize>,
+    // Boot status of RMM across all cores.
+    // If RMM fails to boot on any core then it is disabled for all cores.
+    rmm_boot_state: AtomicU8,
 }
 
 impl Service for Rmmd {
     owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x01CF}
 
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
-        if RmiFuncId::try_from(regs.values()[0] as u32).is_ok() {
+        // Only forward RMI calls, if the RMM successfully booted.
+        if RmiFuncId::try_from(regs.values()[0] as u32).is_ok() && self.boot_success() {
             World::Realm
         } else {
+            // Unsupported FuncId or RMM not booted yet or RMM boot failure
             regs.set_from(NOT_SUPPORTED);
             World::NonSecure
         }
     }
 
     fn handle_realm_smc(&self, regs: &mut SmcReturn) -> World {
+        if self.boot_failure() {
+            regs.set_from(NOT_SUPPORTED);
+            return World::NonSecure;
+        }
         match self.try_handle_realm_smc(regs) {
             Ok(world) => world,
             Err(rec) => {
@@ -226,6 +245,7 @@ impl Rmmd {
         Self {
             core_local,
             attestation_token_read_index: SpinMutex::new(0),
+            rmm_boot_state: AtomicU8::new(RmmBootState::Unknown as u8),
         }
     }
 
@@ -243,6 +263,29 @@ impl Rmmd {
         });
 
         [CoresImpl::core_index() as u64, activation_token, 0, 0]
+    }
+    pub(crate) fn boot_success(&self) -> bool {
+        self.rmm_boot_state.load(Ordering::Acquire) == RmmBootState::ColdBootDone as u8
+    }
+
+    pub(crate) fn boot_failure(&self) -> bool {
+        self.rmm_boot_state.load(Ordering::Acquire) == RmmBootState::Error as u8
+    }
+
+    pub(crate) fn set_boot_success(&self) -> Result<u8, u8> {
+        // only set ColdBootDone if state was Unknown. Otherwise a race condition between cores
+        // booting the RMM could result in overwriting the Error state.
+        self.rmm_boot_state.compare_exchange(
+            RmmBootState::Unknown as u8,
+            RmmBootState::ColdBootDone as u8,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        )
+    }
+
+    pub(crate) fn set_boot_failure(&self) {
+        self.rmm_boot_state
+            .store(RmmBootState::Error as u8, Ordering::Release);
     }
 
     /// Attempts to handle a SMC originating from Realm World, returning an appropriate code on
@@ -368,7 +411,9 @@ impl Rmmd {
         let ret = regs.values()[1] as i32;
 
         if ret != 0 {
-            panic!("RMM Boot failed (code: {ret})")
+            error!("RMM boot failed with code {ret}");
+            self.set_boot_failure();
+            return World::NonSecure;
         }
 
         exception_free(|token| {
@@ -379,7 +424,11 @@ impl Rmmd {
                 debug!("Received activation token {activation_token:#x?}");
                 state.activation_token = Some(activation_token);
 
-                RMM_COLD_BOOT_DONE.call_once(|| ());
+                // set_boot_success() can fail if RmmBootState is already at the Error state.
+                // This can happen if another core just failed booting the RMM.
+                // Not setting RmmBootState to success is the correct thing to do in this case,
+                // therefore the Result is ignored.
+                let _ = self.set_boot_success();
                 regs.set_from(ret);
 
                 World::NonSecure
@@ -397,7 +446,7 @@ impl Rmmd {
 
     pub fn entrypoint_args(&self) -> [u64; 8] {
         let core_linear_id = CoresImpl::core_index() as u64;
-        if RMM_COLD_BOOT_DONE.is_completed() {
+        if self.boot_success() {
             // When warmbooting a PE for the first time, it should only receive the core id as
             // per the RMM-EL3 warmboot interface. Activation token is set to 0 as it was not
             // generated for this core yet. Subsequent warmboot parameters on this PE will be
@@ -406,6 +455,9 @@ impl Rmmd {
             // https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html#warm-boot-interface
             [core_linear_id, 0, 0, 0, 0, 0, 0, 0]
         } else {
+            // In case of an unsuccessful RMM boot, we return the coldboot args.
+            // This choice is arbitrary, as no more RMM boots will be attempted using these
+            // args.
             [
                 core_linear_id,
                 RMM_BOOT_VERSION,
@@ -417,5 +469,50 @@ impl Rmmd {
                 0,
             ]
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use crate::{
+        context::World,
+        services::{
+            Rmmd, Service,
+            rmmd::{RMM_BOOT_COMPLETE, RmiFuncId, RmmBootState},
+        },
+        smccc::{SetFrom, SmcReturn},
+    };
+
+    fn setup() -> Rmmd {
+        Rmmd::new()
+    }
+
+    #[test]
+    fn boot_complete_test() {
+        let rmmd = setup();
+        let mut regs = SmcReturn::EMPTY;
+        regs.set_from(RMM_BOOT_COMPLETE);
+        regs.mark_all_used();
+        let world = rmmd.handle_realm_smc(&mut regs);
+        assert_eq!(world, World::NonSecure);
+        assert!(rmmd.boot_success());
+    }
+
+    #[test]
+    fn boot_complete_failure_test() {
+        let rmmd = setup();
+        let mut regs = SmcReturn::EMPTY;
+        // Test failing RMM boot
+        regs.set_args2(RMM_BOOT_COMPLETE.into(), u64::MAX);
+        regs.mark_all_used();
+        let world = rmmd.handle_realm_smc(&mut regs);
+        assert_eq!(world, World::NonSecure);
+        assert_eq!(rmmd.boot_failure(), true);
+        // Test returning -1 on RMI calls after failed boot
+        regs.mark_empty();
+        // Pass any existing RmiFuncId, to make sure the return value is because of the boot failure
+        regs.set_from(RmiFuncId::Version as u64);
+        let world = rmmd.handle_non_secure_smc(&mut regs);
+        assert_eq!(world, World::NonSecure);
+        assert_eq!(regs.values()[0], u64::MAX);
     }
 }

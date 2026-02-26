@@ -4,18 +4,33 @@
 
 use smccc::smc64;
 
-use crate::{
-    expect,
-    framework::{
-        TestResult,
-        expect::{expect_eq, fail},
-        normal_world_test,
-    },
-};
+use crate::framework::{TestResult, expect::expect_eq, normal_world_test};
+
+#[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]
+use crate::{expect, framework::expect::fail};
 
 const RMM_RMI_REQ_VERSION: u32 = 0xC400_0150;
 
+#[cfg(any(not(feature = "rme"), feature = "test_rmm_fail"))]
+normal_world_test!(test_no_rmm);
+#[cfg(any(not(feature = "rme"), feature = "test_rmm_fail"))]
+fn test_no_rmm() -> TestResult {
+    const REQUESTED_VERSION: u64 = 0x8;
+
+    let mut args = [0; 17];
+    args[0] = REQUESTED_VERSION;
+
+    let ret = smc64(RMM_RMI_REQ_VERSION, args);
+
+    // RME is unsupported, or RMM failed to boot
+    expect_eq!(ret[0], u64::MAX);
+
+    Ok(())
+}
+
+#[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]
 normal_world_test!(test_rmm_version);
+#[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]
 fn test_rmm_version() -> TestResult {
     const REQUESTED_VERSION: u64 = 0x8;
 
@@ -24,9 +39,8 @@ fn test_rmm_version() -> TestResult {
 
     let ret = smc64(RMM_RMI_REQ_VERSION, args);
 
-    // Call not supported, i.e. there is no RMMD.
     if ret[0] == u64::MAX {
-        return Ok(());
+        fail!("RMM_RMI_REQ_VERSION returned 0x{:x}", ret[0]);
     }
 
     let lower = ret[1];

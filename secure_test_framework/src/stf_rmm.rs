@@ -24,7 +24,9 @@ mod util;
 use core::{arch::naked_asm, panic::PanicInfo, ptr::read};
 
 use aarch64_paging::paging::PAGE_SIZE;
-use aarch64_rt::{enable_mmu, entry, set_exception_vector};
+#[cfg(not(feature = "test_rmm_fail"))]
+use aarch64_rt::set_exception_vector;
+use aarch64_rt::{enable_mmu, entry};
 use log::{error, info};
 use smccc::{psci, smc64};
 
@@ -319,6 +321,13 @@ fn rmm_main(pe_idx: u64, version: u64, core_count: u64, shared_buffer_addr: u64)
     handle_incoming_calls(regs)
 }
 
+#[cfg(feature = "test_rmm_fail")]
+fn secondary_main(_pe_idx: u64, _activation_token: u64) -> ! {
+    complete_boot(RmmBootReturn::Unknown, &[]);
+    unreachable!();
+}
+
+#[cfg(not(feature = "test_rmm_fail"))]
 fn secondary_main(pe_idx: u64, activation_token: u64) -> ! {
     set_exception_vector();
 

@@ -252,13 +252,16 @@ impl Services {
 
         #[cfg(feature = "rme")]
         {
-            debug!("Booting Realm World");
-            switch_world(current_world, World::Realm);
-            current_world = World::Realm;
-            // TODO: implement separate boot loop for Realm World
-            regs.mark_empty();
-            let next_world = self.per_world_loop(&mut regs, World::Realm);
-            assert_eq!(next_world, World::NonSecure);
+            // If the RMM boot failed, do not try to boot Realm world again.
+            if !self.rmmd.boot_failure() {
+                debug!("Booting Realm World");
+                switch_world(current_world, World::Realm);
+                current_world = World::Realm;
+                // TODO: implement separate boot loop for Realm World
+                regs.mark_empty();
+                let next_world = self.per_world_loop(&mut regs, World::Realm);
+                assert_eq!(next_world, World::NonSecure);
+            }
         }
 
         regs.mark_empty();

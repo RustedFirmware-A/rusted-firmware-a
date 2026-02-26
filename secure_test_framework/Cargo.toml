@@ -49,6 +49,7 @@ max_log_warn = ["log/max_level_warn"]
 max_log_info = ["log/max_level_info"]
 max_log_debug = ["log/max_level_debug"]
 max_log_trace = ["log/max_level_trace"]
+test_rmm_fail = ["rme"]
 
 [[bin]]
 name = "bl32"

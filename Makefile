@@ -47,6 +47,9 @@ ifeq (${RME}, 1)
 	STF_FEATURES += rme
 	STF_IMAGES += $(STF_RMM)
 endif
+ifeq (${TEST_RMM_BOOT_FAIL}, 1)
+	STF_FEATURES += test_rmm_fail
+endif
 
 # Make a release build by default.
 DEBUG ?= 0

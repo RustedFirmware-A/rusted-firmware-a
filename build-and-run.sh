@@ -160,7 +160,7 @@ case "$PLAT" in
 
     if [[ "${RME:-}" == 1 ]]; then
         RMM=${RMM:-"$STF_RMM"}
-        make PLAT=fvp FEATURES=sel2,rme ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all
+        make PLAT=fvp FEATURES=sel2,rme TEST_RMM_BOOT_FAIL=${TEST_RMM_BOOT_FAIL} ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all
         make -C $TFA ${DEBUG} "${FVP_TFA_COMMON_ARGS[@]}" ENABLE_RME=1 RMM="$RMM" all fip
         FVP_Base_RevC-2xAEMvA \
             -C bp.dram_size=4 \

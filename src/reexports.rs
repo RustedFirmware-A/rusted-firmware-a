@@ -6,4 +6,5 @@
 
 pub use arm_sysregs;
 pub use log;
+pub use percore;
 pub use spin;

@@ -62,6 +62,8 @@ use core::{
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
+#[cfg(all(target_arch = "aarch64", not(test)))]
+use include_first::include_first;
 use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
 use spin::Once;
 
@@ -678,12 +680,9 @@ pub struct CpuData {
     pub crash_buffer: CrashBuffer,
 }
 
-const _: () = assert!(size_of::<CpuData>().is_multiple_of(align_of::<CpuData>()));
-const _: () = assert!(size_of::<CpuData>().is_multiple_of(PlatformImpl::CACHE_WRITEBACK_GRANULE));
-
 impl CpuData {
     /// An empty instance of `CpuData`, all zeroes, for initialising it.
-    const EMPTY: Self = Self {
+    pub const EMPTY: Self = Self {
         #[cfg(feature = "pauth")]
         apiakey_lo: 0,
         #[cfg(feature = "pauth")]
@@ -701,18 +700,13 @@ pub fn world_context(world: World) -> &'static PerWorldContext {
     &PER_WORLD_CONTEXT.get().unwrap()[world]
 }
 
-#[cfg_attr(test, allow(dead_code))]
-static mut PERCPU_DATA: [CpuData; PlatformImpl::CORE_COUNT] =
-    [CpuData::EMPTY; PlatformImpl::CORE_COUNT];
-
 /// Sets the apkey fields of the current CPU's data.
 #[cfg(feature = "pauth")]
-pub fn cpu_data_set_apkey<PlatformImpl: Platform>(_token: ExceptionFree, apkey: u128) {
-    // SAFETY: Only the current CPU's data is ever accessed and exceptions are masked so the
-    // modification will not be interrupted part-way through.
-    let cpu_data = unsafe { &mut PERCPU_DATA[CoresImpl::<PlatformImpl>::core_index()] };
-    cpu_data.apiakey_lo = apkey as u64;
-    cpu_data.apiakey_hi = (apkey >> 64) as u64;
+pub fn cpu_data_set_apkey<PlatformImpl: CpuDataIndex>(token: ExceptionFree, apkey: u128) {
+    PlatformImpl::update_cpu_data(token, |cpu_data| {
+        cpu_data.apiakey_lo = apkey as u64;
+        cpu_data.apiakey_hi = (apkey >> 64) as u64;
+    });
 }
 
 /// An array with one `T` for each world.
@@ -1088,7 +1082,7 @@ mod asm {
     ///
     /// Clobbers x0-x5, x10.
     #[unsafe(naked)]
-    pub extern "C" fn init_cpu_data_ptr<PlatformImpl: Platform>() {
+    pub extern "C" fn init_cpu_data_ptr<PlatformImpl: CpuDataIndex + Platform>() {
         naked_asm!(
             "mov x10, x30",
             "bl {plat_my_core_pos}",
@@ -1096,28 +1090,7 @@ mod asm {
             "msr tpidr_el3, x0",
             "ret x10",
             plat_my_core_pos = sym my_core_pos::<PlatformImpl>,
-            cpu_data_by_index = sym cpu_data_by_index,
-        );
-    }
-
-    /// Returns the CpuData structure for the CPU with given linear index.
-    ///
-    /// This can be called without a valid stack.
-    ///
-    /// Clobbers x0-x1.
-    #[unsafe(naked)]
-    extern "C" fn cpu_data_by_index(cpu_index: usize) -> *mut CpuData {
-        naked_asm!(
-            include_str!("asm_macros_common.S"),
-            "mov_imm x1, {CPU_DATA_SIZE}",
-            "mul x0, x0, x1",
-            "adr_l x1, {percpu_data}",
-            "add x0, x0, x1",
-            "ret",
-            include_str!("asm_macros_common_purge.S"),
-            DEBUG = const DEBUG as u32,
-            CPU_DATA_SIZE = const size_of::<CpuData>(),
-            percpu_data = sym PERCPU_DATA,
+            cpu_data_by_index = sym PlatformImpl::cpu_data_by_index,
         );
     }
 
@@ -1178,3 +1151,65 @@ mod asm {
         ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,
     );
 }
+
+/// Trait automatically implemented for the platform by the `context_asm!` macro to provide the
+/// `cpu_data_by_index` naked function.
+///
+/// This shouldn't be implemented manually.
+///
+/// # Safety
+///
+/// Except in unit tests, `cpu_data_by_index` must be implemented as a naked function in assembly so
+/// that doesn't use the stack or clobber any registers other than x0 and x1. It must return a valid
+/// pointer to the `CpuData` instance for the given CPU index as long as the CPU index is valid.
+#[cfg_attr(test, allow(unused))]
+pub unsafe trait CpuDataIndex {
+    /// Calls the given closure with a mutable reference to the current CPU's data.
+    fn update_cpu_data(token: ExceptionFree, f: impl FnOnce(&mut CpuData));
+
+    /// Returns the CpuData structure for the CPU with given linear index.
+    ///
+    /// This can be called without a valid stack.
+    ///
+    /// Clobbers x0-x1.
+    extern "C" fn cpu_data_by_index(cpu_index: usize) -> *mut CpuData;
+}
+
+/// Generates some naked functions for context-related assembly code.
+#[cfg(all(target_arch = "aarch64", not(test)))]
+#[macro_export]
+#[include_first]
+macro_rules! context_asm {
+    ($platform:ty) => {
+        // SAFETY: `cpu_data_by_index` is a naked function that doesn't use the stack and only
+        // clobbers x0 and x1. For any valid index it will return a pointer to an element of
+        // `PERCPU_DATA` which must be valid.
+        unsafe impl $crate::context::CpuDataIndex for $platform {
+            fn update_cpu_data(_token: $crate::reexports::percore::ExceptionFree, f: impl FnOnce(&mut $crate::context::CpuData)) {
+                // SAFETY: Only the current CPU's data is ever accessed and exceptions are masked so the
+                // modification will not be interrupted part-way through.
+                let cpu_data = unsafe { &mut PERCPU_DATA[$crate::context::CoresImpl::<$platform>::core_index()] };
+                f(cpu_data);
+            }
+
+            #[unsafe(naked)]
+            extern "C" fn cpu_data_by_index(cpu_index: usize) -> *mut $crate::context::CpuData {
+                naked_asm!(
+                    include_str!("asm_macros_common.S"),
+                    "mov_imm x1, {CPU_DATA_SIZE}",
+                    "mul x0, x0, x1",
+                    "adr_l x1, {percpu_data}",
+                    "add x0, x0, x1",
+                    "ret",
+                    include_str!("asm_macros_common_purge.S"),
+                    DEBUG = const $crate::debug::DEBUG as u32,
+                    CPU_DATA_SIZE = const size_of::<$crate::context::CpuData>(),
+                    percpu_data = sym PERCPU_DATA,
+                );
+            }
+        }
+    };
+}
+#[allow(clippy::single_component_path_imports)]
+#[cfg(all(target_arch = "aarch64", not(test)))]
+pub use context_asm;

@@ -14,7 +14,7 @@
 
 use crate::{
     aarch64::isb,
-    context::cpu_data_set_apkey,
+    context::{CpuDataIndex, cpu_data_set_apkey},
     platform::{Platform, exception_free},
 };
 use arm_sysregs::{
@@ -39,7 +39,7 @@ fn is_feat_pauth_lr_present() -> bool {
 }
 
 /// Setup the PAuth registers and the CPU data with the PAuth key.
-fn set_apkey<PlatformImpl: Platform>() {
+fn set_apkey<PlatformImpl: CpuDataIndex + Platform>() {
     let key = PlatformImpl::init_apkey();
 
     // SAFETY: We haven't yet enabled PAuth, so it is safe to set the key.
@@ -59,7 +59,7 @@ fn set_apkey<PlatformImpl: Platform>() {
 /// never returns, otherwise authentication will fail when the caller's function returns. This
 /// function is always inlined to ensure that it does not introduce PAuth guards of its own.
 #[inline(always)]
-pub unsafe fn init<PlatformImpl: Platform>() {
+pub unsafe fn init<PlatformImpl: CpuDataIndex + Platform>() {
     set_apkey::<PlatformImpl>();
 
     // SAFETY: It is safe to enable pointer authentication here because this function is always

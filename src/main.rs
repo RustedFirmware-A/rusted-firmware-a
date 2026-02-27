@@ -35,7 +35,7 @@ mod stacks;
 #[cfg(feature = "pauth")]
 use crate::cpu_extensions::pauth;
 use crate::{
-    context::{CoresImpl, initialise_contexts, update_contexts_suspend},
+    context::{CoresImpl, CpuDataIndex, initialise_contexts, update_contexts_suspend},
     gicv3::Gic,
     pagetable::{IdMap, OncePageTable, PageHeap},
     platform::Platform,
@@ -53,7 +53,7 @@ use spin::Once;
 pub fn coldboot<
     const CORE_COUNT: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
-    PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
+    PlatformImpl: CpuDataIndex + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
 >(
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
@@ -100,7 +100,7 @@ pub fn coldboot<
 }
 
 #[cfg_attr(test, allow(unused))]
-extern "C" fn psci_warmboot_entrypoint<PlatformImpl: Platform>() -> ! {
+extern "C" fn psci_warmboot_entrypoint<PlatformImpl: CpuDataIndex + Platform>() -> ! {
     debug!(
         "Warmboot on core #{}",
         CoresImpl::<PlatformImpl>::core_index()
@@ -168,7 +168,7 @@ extern "C" fn psci_warmboot_entrypoint<PlatformImpl: Platform>() -> ! {
 mod asm {
     use super::*;
     use crate::{
-        context::init_cpu_data_ptr,
+        context::{CpuDataIndex, init_cpu_data_ptr},
         cpu::cpu_reset_handler,
         debug::{DEBUG, ENABLE_ASSERTIONS},
         pagetable::{PAGE_TABLE_ADDR, enable_mmu},
@@ -195,7 +195,7 @@ mod asm {
     ///
     /// This must be called with the MMU turned off.
     #[unsafe(naked)]
-    pub unsafe extern "C" fn bl31_warm_entrypoint<PlatformImpl: Platform>() -> ! {
+    pub unsafe extern "C" fn bl31_warm_entrypoint<PlatformImpl: CpuDataIndex + Platform>() -> ! {
         naked_asm!(
             include_str!("asm_macros_common.S"),
             include_str!("bl31_warm_entrypoint.S"),
@@ -291,6 +291,7 @@ pub(crate) use main_asm;
 #[macro_export]
 macro_rules! all_asm {
     ($platform:ty) => {
+        $crate::context::context_asm!($platform);
         $crate::debug::debug_asm!($platform);
         $crate::stacks::stacks_asm!($platform);
         $crate::main_asm!($platform);
@@ -300,11 +301,19 @@ macro_rules! all_asm {
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub(crate) use asm::naked_asm;
 
-/// Generates static variables `LOGGER`, `GIC`, `PAGE_HEAP` and `PAGE_TABLE` for the platform, and
-/// the `bl31_main` function.
+/// Generates static variables `LOGGER`, `GIC`, `PAGE_HEAP`, `PAGE_TABLE` and `PERCPU_DATA` for the
+/// platform, and the `bl31_main` function.
 #[macro_export]
 macro_rules! statics {
     ($platform:ty) => {
+        const _: () = assert!(
+            size_of::<$crate::context::CpuData>()
+                .is_multiple_of(align_of::<$crate::context::CpuData>())
+        );
+        const _: () = assert!(
+            size_of::<$crate::context::CpuData>()
+                .is_multiple_of(<$platform as $crate::platform::Platform>::CACHE_WRITEBACK_GRANULE)
+        );
         const _: () = assert!(
             EARLY_PAGE_TABLE_SIZE
                 <= (<$platform as $crate::platform::Platform>::CORE_COUNT - 1)
@@ -330,6 +339,12 @@ macro_rules! statics {
         static PAGE_TABLE: $crate::pagetable::OncePageTable<
             { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
         > = $crate::pagetable::OncePageTable::new();
+
+        #[cfg_attr(test, allow(dead_code))]
+        static mut PERCPU_DATA: [$crate::context::CpuData;
+            <$platform as $crate::platform::Platform>::CORE_COUNT] =
+            [$crate::context::CpuData::EMPTY;
+                <$platform as $crate::platform::Platform>::CORE_COUNT];
 
         #[cfg_attr(test, allow(unused))]
         extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {

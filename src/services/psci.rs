@@ -201,7 +201,7 @@ pub trait PsciSpmInterface {
     ///
     /// The request should be forwarded by the SPMD to the SPMC if it resides in a separate
     /// exception level, or forwarded by the SPMC in EL3 to the SPs.
-    fn forward_psci_request(&self, psci_request: &[u64; 4]) -> u64;
+    fn forward_psci_request(&self, function: Function) -> ReturnCode;
 
     /// Notify the SPM about a CPU_OFF event.
     ///
@@ -1236,20 +1236,11 @@ impl Psci {
 
     /// Forward a PSCI request to the SPM.
     fn forward_to_spm(&self, function: Function) {
-        let mut psci_request = [0; 4];
-        function.copy_to_array(&mut psci_request);
+        let result = Self::get_spm().forward_psci_request(function);
 
-        let result = Self::get_spm().forward_psci_request(&psci_request);
-
-        match ReturnCode::try_from(result as i32) {
-            Ok(ReturnCode::Success) => {
-                // Nothing to do
-            }
-            Ok(ReturnCode::Error(error_code)) => {
-                // The SPM cannot prevent the PSCI state change, so we only log the error.
-                log::warn!("SPMD return {error_code:?} on PSCI event {function:?}")
-            }
-            Err(error) => log::error!("Failed to parse PSCI event response: {error:?}"),
+        if let ReturnCode::Error(error_code) = result {
+            // The SPM cannot prevent the PSCI state change, so we only log the error.
+            log::error!("SPMD return {error_code:?} on PSCI event {function:?}")
         }
     }
 }

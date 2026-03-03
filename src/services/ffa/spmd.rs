@@ -13,6 +13,7 @@ use arm_ffa::{
     DirectMsgArgs, FfaError, Interface, SecondaryEpRegisterAddr, SuccessArgsIdGet,
     SuccessArgsSpmIdGet, TargetInfo, Version, VersionOut, WarmBootType,
 };
+use arm_psci::{ErrorCode, Function, ReturnCode};
 use core::{
     cell::RefCell,
     sync::atomic::{AtomicUsize, Ordering::Relaxed},
@@ -526,15 +527,18 @@ impl Spmd {
 }
 
 impl PsciSpmInterface for Spmd {
-    fn forward_psci_request(&self, psci_request: &[u64; 4]) -> u64 {
+    fn forward_psci_request(&self, function: Function) -> ReturnCode {
         let version = self.spmc_version;
         let mut regs = SmcReturn::EMPTY;
+
+        let mut psci_request = [0; 4];
+        function.copy_to_array(&mut psci_request);
 
         let msg = Interface::MsgSendDirectReq {
             src_id: Self::OWN_ID,
             dst_id: self.spmc_id,
             args: DirectMsgArgs::PowerPsciReq64 {
-                params: *psci_request,
+                params: psci_request,
             },
         };
 
@@ -562,7 +566,10 @@ impl PsciSpmInterface for Spmd {
 
         switch_world(World::Secure, World::NonSecure);
 
-        ret as u64
+        ReturnCode::try_from(ret).unwrap_or_else(|e| {
+            error!("SPMD returned unrecognised PSCI code {ret}: {e:?}");
+            ReturnCode::Error(ErrorCode::InternalFailure)
+        })
     }
 
     fn notify_cpu_off(&self) {
@@ -603,8 +610,8 @@ pub struct TestSpm;
 
 #[cfg(test)]
 impl PsciSpmInterface for TestSpm {
-    fn forward_psci_request(&self, _psci_request: &[u64; 4]) -> u64 {
-        0
+    fn forward_psci_request(&self, _function: Function) -> ReturnCode {
+        ReturnCode::Success
     }
 
     fn notify_cpu_off(&self) {}

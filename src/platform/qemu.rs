@@ -163,7 +163,7 @@ unsafe impl Platform for Qemu {
         interrupts_config: &[],
     };
 
-    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&Simd::simd()];
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&Simd::sve(512, false)];
 
     fn init_with_early_mapping(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else

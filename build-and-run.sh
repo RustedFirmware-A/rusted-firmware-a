@@ -56,7 +56,7 @@ pushd $CURRDIR
 
 QEMU=${QEMU:-qemu-system-aarch64}
 GDB_PORT=${GDB_PORT:-1234}
-QEMU_FLAGS=${QEMU_FLAGS:--machine virt,gic-version=3,secure=on,virtualization=on -cpu max -m 1204M \
+QEMU_FLAGS=${QEMU_FLAGS:--machine virt,gic-version=3,secure=on,virtualization=on -cpu max,sve=on -m 1204M \
     -chardev stdio,signal=off,mux=on,id=char0 -monitor chardev:char0 \
     -serial chardev:char0 -serial chardev:char0 -semihosting-config enable=on,target=native \
     -gdb tcp:localhost:${GDB_PORT} \

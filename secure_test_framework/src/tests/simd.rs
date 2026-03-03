@@ -4,9 +4,11 @@
 
 //! Tests SIMD context switch.
 
+pub mod util;
+
 use crate::{
     framework::{TestHelperProxy, TestResult, normal_world_test},
-    tests::simd_helper::{
+    tests::simd::util::{
         Phase, SimdVectors, overwrite_simd, read_simd, test_simd_context_switch_helper,
     },
 };

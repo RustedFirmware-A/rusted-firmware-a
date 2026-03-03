@@ -10,6 +10,5 @@ mod psci;
 mod psci_osi;
 mod rmi;
 mod simd;
-mod simd_helper;
 mod smccc_arch;
 mod sve;

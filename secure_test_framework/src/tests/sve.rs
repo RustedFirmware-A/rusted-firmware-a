@@ -6,7 +6,7 @@
 
 use crate::{
     framework::{TestHelperProxy, TestResult, normal_world_test},
-    tests::simd_helper::{
+    tests::simd::util::{
         Phase, READ_BUFFER_PREDICATES, READ_BUFFER_VECTORS, SvePredicates, SveVectors,
         get_vl_bytes, is_sve_present, overwrite_sve_predicates, overwrite_sve_vectors,
         read_sve_predicates, read_sve_vectors, test_simd_context_switch_helper,

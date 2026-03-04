@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    context::{World, cpu_state, world_context, world_cpu_context},
+    context::{CpuStateAccess, World, world_context},
     platform::exception_free,
     smccc::SmcReturn,
 };
@@ -28,9 +28,9 @@ const LOWER_EL_AARCH64: usize = 0x400;
 /// registers of which EL3 firmware is unaware.
 ///
 /// This is a safety net to avoid EL3 panics caused by system register access.
-pub fn inject_undef64(world: World) {
+pub fn inject_undef64<PlatformImpl: CpuStateAccess>(world: World) {
     exception_free(|token| {
-        let mut cpu_state = cpu_state(token);
+        let mut cpu_state = PlatformImpl::cpu_state(token);
         let el3_state = &mut cpu_state[world].el3_state;
 
         let elr_el3 = el3_state.elr_el3;
@@ -225,16 +225,18 @@ impl RunResult {
 /// in the `in_regs` parameter, those values will be copied into the lower EL's saved context before
 /// the ERET. After execution returns to EL3 by any exception, the reason for returning is checked
 /// and the appropriate result will be returned by this function.
-pub fn enter_world(regs: &mut SmcReturn, world: World) -> RunResult {
+pub fn enter_world<PlatformImpl: CpuStateAccess>(regs: &mut SmcReturn, world: World) -> RunResult {
     trace!("Entering world {world:?} with args {regs:x?}");
 
     if !regs.is_empty() {
         exception_free(|token| {
-            cpu_state(token)[world].gpregs.write_return_value(regs);
+            PlatformImpl::cpu_state(token)[world]
+                .gpregs
+                .write_return_value(regs);
         });
     }
 
-    let context = world_cpu_context(world);
+    let context = PlatformImpl::world_cpu_context(world);
     let per_world_context = world_context(world);
     let out_values = regs.mark_all_used();
     let return_reason: u64;

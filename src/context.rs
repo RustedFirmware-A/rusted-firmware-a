@@ -14,7 +14,7 @@ use crate::{
     },
     debug::CrashBuffer,
     gicv3,
-    platform::{Platform, PlatformImpl, exception_free},
+    platform::{Platform, exception_free},
     smccc::SmcReturn,
 };
 use arm_psci::EntryPoint;
@@ -735,17 +735,51 @@ impl CpuState {
     const EMPTY: Self = Self([CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM]);
 }
 
-static CPU_STATE: PerCoreState<{ PlatformImpl::CORE_COUNT }, PlatformImpl, CpuState> = PerCore::new(
-    [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; PlatformImpl::CORE_COUNT],
+/// An instance of `CpuState` for each CPU core on the platform.
+pub struct CpuStates<const CORE_COUNT: usize, PlatformImpl: Platform>(
+    PerCoreState<CORE_COUNT, PlatformImpl, CpuState>,
 );
 
-/// Returns a raw pointer to the CPU context of the given world on the current core.
-pub fn world_cpu_context(world: World) -> *mut CpuContext {
-    // SAFETY: Getting the `CpuContext` pointer from a `CpuState` pointer requires the `CpuState`
-    // pointer to be valid. We know that this is always true, because we get it from
-    // `CPU_STATE.get().as_ptr()`. We avoid creating any intermediate references by accessing the
-    // field of the `PerWorld` directly rather than using the `IndexMut` implementation.
-    unsafe { &raw mut (*CPU_STATE.get().as_ptr()).0[world.index()] }
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuStates<CORE_COUNT, PlatformImpl> {
+    /// Constructs a new empty `CpuStates`.
+    pub const fn new() -> Self {
+        Self(PerCore::new(
+            [const { ExceptionLock::new(RefCell::new(CpuState::EMPTY)) }; CORE_COUNT],
+        ))
+    }
+
+    /// Returns a reference to the `CpuState` for the current CPU.
+    ///
+    /// Panics if the `CpuState` is already borrowed.
+    pub fn cpu_state<'a>(&'a self, token: ExceptionFree<'a>) -> RefMut<'a, CpuState> {
+        self.0.get().borrow_mut(token)
+    }
+
+    /// Returns a raw pointer to the CPU context of the given world on the current core.
+    pub fn world_cpu_context(&'static self, world: World) -> *mut CpuContext {
+        // SAFETY: Getting the `CpuContext` pointer from a `CpuState` pointer requires the `CpuState`
+        // pointer to be valid. We know that this is always true, because we get it from
+        // `self.0.get().as_ptr()`. We avoid creating any intermediate references by accessing the
+        // field of the `PerWorld` directly rather than using the `IndexMut` implementation.
+        unsafe { &raw mut (*self.0.get().as_ptr()).0[world.index()] }
+    }
+}
+
+/// Methods to access the `CpuState` for the platform.
+///
+/// Implemented for the platform by the `statics!` macro, platforms shouldn't implement it manually.
+///
+/// # Safety
+///
+/// The `world_cpu_context` method must return a valid pointer to a `CpuContext`.
+pub unsafe trait CpuStateAccess {
+    /// Returns a reference to the `CpuState` for the current CPU.
+    ///
+    /// Panics if the `CpuState` is already borrowed.
+    fn cpu_state(token: ExceptionFree) -> RefMut<CpuState>;
+
+    /// Returns a raw pointer to the CPU context of the given world on the current core.
+    fn world_cpu_context(world: World) -> *mut CpuContext;
 }
 
 /// Restores the context for the given world.
@@ -764,10 +798,10 @@ fn restore_world<PlatformImpl: Platform>(world: World, context: &CpuContext) {
 
 /// Saves lower EL system registers from the current world, restores lower EL and some per-world
 /// EL3 system registers of the given world.
-pub fn switch_world<PlatformImpl: Platform>(old_world: World, new_world: World) {
+pub fn switch_world<PlatformImpl: CpuStateAccess + Platform>(old_world: World, new_world: World) {
     assert_ne!(old_world, new_world);
     exception_free(|token| {
-        let mut cpu_state = cpu_state(token);
+        let mut cpu_state = PlatformImpl::cpu_state(token);
         cpu_state[old_world].save_lower_el_sysregs();
         for ext in PlatformImpl::CPU_EXTENSIONS {
             ext.save_context(old_world);
@@ -781,9 +815,9 @@ pub fn switch_world<PlatformImpl: Platform>(old_world: World, new_world: World) 
 ///
 /// This doesn't save the current state of the lower EL system registers, so should only be used for
 /// initial boot where we don't care about their state.
-pub fn set_initial_world<PlatformImpl: Platform>(world: World) {
+pub fn set_initial_world<PlatformImpl: CpuStateAccess + Platform>(world: World) {
     exception_free(|token| {
-        let cpu_state = cpu_state(token);
+        let cpu_state = PlatformImpl::cpu_state(token);
         let context = &cpu_state[world];
 
         // This must be initialised before the EL2 system registers are written to, to avoid an
@@ -797,13 +831,6 @@ pub fn set_initial_world<PlatformImpl: Platform>(world: World) {
 
         restore_world::<PlatformImpl>(world, context);
     });
-}
-
-/// Returns a reference to the `CpuState` for the current CPU.
-///
-/// Panics if the `CpuState` is already borrowed.
-pub fn cpu_state(token: ExceptionFree) -> RefMut<CpuState> {
-    CPU_STATE.get().borrow_mut(token)
 }
 
 /// Initialises the per-world contexts.
@@ -852,7 +879,7 @@ fn initialise_per_world_contexts<PlatformImpl: Platform>() {
 }
 
 /// Initialises all CPU contexts for this CPU, ready for first boot.
-pub fn initialise_contexts<PlatformImpl: Platform>(
+pub fn initialise_contexts<PlatformImpl: CpuStateAccess + Platform>(
     non_secure_entry_point: &EntryPointInfo,
     secure_entry_point: &EntryPointInfo,
     #[cfg(feature = "rme")] realm_entry_point: &EntryPointInfo,
@@ -861,7 +888,7 @@ pub fn initialise_contexts<PlatformImpl: Platform>(
     initialise_per_world_contexts::<PlatformImpl>();
 
     exception_free(|token| {
-        let mut cpu_state = cpu_state(token);
+        let mut cpu_state = PlatformImpl::cpu_state(token);
         initialise_nonsecure::<PlatformImpl>(
             &mut cpu_state[World::NonSecure],
             non_secure_entry_point,
@@ -992,7 +1019,7 @@ fn initialise_realm<PlatformImpl: Platform>(
 /// When the CPU wakes up from a powerdown suspend state, lower ELs in each world expect a specific
 /// state for resuming their execution. This can be a different entry point or just arguments passed
 /// in registers.
-pub fn update_contexts_suspend<PlatformImpl: Platform>(
+pub fn update_contexts_suspend<PlatformImpl: CpuStateAccess + Platform>(
     psci_entrypoint: EntryPoint,
     secure_args: &SmcReturn,
     #[cfg(feature = "rme")] realm_args: &[u64],
@@ -1000,7 +1027,7 @@ pub fn update_contexts_suspend<PlatformImpl: Platform>(
     initialise_el3_sysregs::<PlatformImpl>();
 
     exception_free(|token| {
-        let mut cpu_state = cpu_state(token);
+        let mut cpu_state = PlatformImpl::cpu_state(token);
 
         let entry_point = EntryPointInfo {
             pc: psci_entrypoint.entry_point_address() as usize,

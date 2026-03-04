@@ -15,7 +15,7 @@ pub mod trng;
 #[cfg(feature = "rme")]
 use crate::services::rmmd::Rmmd;
 use crate::{
-    context::{World, cpu_state, set_initial_world, switch_world},
+    context::{CpuStateAccess, World, set_initial_world, switch_world},
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
     platform::{
@@ -115,7 +115,7 @@ pub struct Services<
     const NON_CPU_DOMAIN_COUNT: usize,
     const TRNG_REQ_WORDS: usize,
     const TRNG_WORDS_IN_POOL: usize,
-    PlatformImpl: Platform + 'static,
+    PlatformImpl: CpuStateAccess + Platform + 'static,
 > where
     <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
             PSCI_STATE_COUNT,
@@ -142,7 +142,7 @@ pub struct Services<
     #[cfg(feature = "rme")]
     pub rmmd: Rmmd<CORE_COUNT, PlatformImpl>,
     trng: Trng<TRNG_REQ_WORDS, TRNG_WORDS_IN_POOL, PlatformImpl::TrngPlatformImpl>,
-    errata_management: ErrataManagement,
+    errata_management: ErrataManagement<PlatformImpl>,
 }
 
 impl
@@ -185,7 +185,7 @@ impl<
     const NON_CPU_DOMAIN_COUNT: usize,
     const TRNG_REQ_WORDS: usize,
     const TRNG_WORDS_IN_POOL: usize,
-    PlatformImpl: Platform,
+    PlatformImpl: CpuStateAccess + Platform,
 >
     Services<
         CORE_COUNT,
@@ -281,7 +281,7 @@ where
         match esr & EsrEl3::ISS_SYSREG_OPCODE_MASK {
             // TODO: add trap handlers, should set step_to_next_instr as necessary
             _ => {
-                inject_undef64(world);
+                inject_undef64::<PlatformImpl>(world);
                 return;
             }
         }
@@ -289,7 +289,7 @@ where
         #[allow(unreachable_code)]
         if step_to_next_instr {
             exception_free(|token| {
-                cpu_state(token)[world].skip_lower_el_instruction();
+                PlatformImpl::cpu_state(token)[world].skip_lower_el_instruction();
             })
         }
     }
@@ -298,7 +298,7 @@ where
         let mut next_world;
 
         loop {
-            next_world = match enter_world(regs, world) {
+            next_world = match enter_world::<PlatformImpl>(regs, world) {
                 RunResult::Smc => self.handle_smc(regs, world),
                 RunResult::Interrupt => self.handle_interrupt(regs, world),
                 RunResult::SysregTrap { esr } => {

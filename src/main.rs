@@ -35,7 +35,9 @@ mod stacks;
 #[cfg(feature = "pauth")]
 use crate::cpu_extensions::pauth;
 use crate::{
-    context::{CoresImpl, CpuDataIndex, initialise_contexts, update_contexts_suspend},
+    context::{
+        CoresImpl, CpuDataIndex, CpuStateAccess, initialise_contexts, update_contexts_suspend,
+    },
     gicv3::Gic,
     pagetable::{IdMap, OncePageTable, PageHeap},
     platform::Platform,
@@ -53,7 +55,7 @@ use spin::Once;
 pub fn coldboot<
     const CORE_COUNT: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
-    PlatformImpl: CpuDataIndex + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
+    PlatformImpl: CpuDataIndex + CpuStateAccess + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
 >(
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
@@ -100,7 +102,8 @@ pub fn coldboot<
 }
 
 #[cfg_attr(test, allow(unused))]
-extern "C" fn psci_warmboot_entrypoint<PlatformImpl: CpuDataIndex + Platform>() -> ! {
+extern "C" fn psci_warmboot_entrypoint<PlatformImpl: CpuDataIndex + CpuStateAccess + Platform>() -> !
+{
     debug!(
         "Warmboot on core #{}",
         CoresImpl::<PlatformImpl>::core_index()
@@ -195,7 +198,9 @@ mod asm {
     ///
     /// This must be called with the MMU turned off.
     #[unsafe(naked)]
-    pub unsafe extern "C" fn bl31_warm_entrypoint<PlatformImpl: CpuDataIndex + Platform>() -> ! {
+    pub unsafe extern "C" fn bl31_warm_entrypoint<
+        PlatformImpl: CpuDataIndex + CpuStateAccess + Platform,
+    >() -> ! {
         naked_asm!(
             include_str!("asm_macros_common.S"),
             include_str!("bl31_warm_entrypoint.S"),
@@ -301,8 +306,8 @@ macro_rules! all_asm {
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub(crate) use asm::naked_asm;
 
-/// Generates static variables `LOGGER`, `GIC`, `PAGE_HEAP`, `PAGE_TABLE` and `PERCPU_DATA` for the
-/// platform, and the `bl31_main` function.
+/// Generates static variables `LOGGER`, `GIC`, `PAGE_HEAP`, `PAGE_TABLE`, `CPU_STATES` and
+/// `PERCPU_DATA` for the platform, the `bl31_main` function, and implements `CpuStateAccess`.
 #[macro_export]
 macro_rules! statics {
     ($platform:ty) => {
@@ -340,11 +345,32 @@ macro_rules! statics {
             { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
         > = $crate::pagetable::OncePageTable::new();
 
+        static CPU_STATES: $crate::context::CpuStates<
+            { <$platform as $crate::platform::Platform>::CORE_COUNT },
+            $platform,
+        > = $crate::context::CpuStates::new();
+
         #[cfg_attr(test, allow(dead_code))]
         static mut PERCPU_DATA: [$crate::context::CpuData;
             <$platform as $crate::platform::Platform>::CORE_COUNT] =
             [$crate::context::CpuData::EMPTY;
                 <$platform as $crate::platform::Platform>::CORE_COUNT];
+
+        // SAFETY: `world_cpu_context` just calls `CpuStates::world_cpu_context`, which is
+        // guaranteed to return a valid pointer.
+        unsafe impl $crate::context::CpuStateAccess for $platform {
+            fn cpu_state(
+                token: $crate::reexports::percore::ExceptionFree,
+            ) -> core::cell::RefMut<$crate::context::CpuState> {
+                CPU_STATES.cpu_state(token)
+            }
+
+            fn world_cpu_context(
+                world: $crate::context::World,
+            ) -> *mut $crate::context::CpuContext {
+                CPU_STATES.world_cpu_context(world)
+            }
+        }
 
         #[cfg_attr(test, allow(unused))]
         extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {

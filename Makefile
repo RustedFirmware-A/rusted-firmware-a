@@ -15,8 +15,11 @@ BL33 := $(OUT)/bl33.bin
 STF_RMM := $(OUT)/stf_rmm.bin
 FIP := $(OUT)/fip.bin
 BL31_ELF := $(OUT)/bl31.elf
+BL31_MAP := $(OUT)/bl31.map
+BL31_DUMP := $(OUT)/bl31.dump
 
 OBJCOPY ?= rust-objcopy
+OBJDUMP ?= rust-objdump
 
 # cargo features to enable. See Cargo.toml for available features.
 FEATURES ?= sel2
@@ -109,7 +112,7 @@ endif
 
 RFA_CARGO_FLAGS += --features "$(FEATURES)"
 STF_CARGO_FLAGS += --features "$(STF_FEATURES)"
-TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh" $(CARGO)
+TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh -C link-arg=-Map=$(BL31_MAP)" $(CARGO)
 STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" $(CARGO)
 
 all: images
@@ -118,6 +121,7 @@ build:
 	$(TARGET_CARGO) build $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
 	ln -fsr $(OUT)/$(TARGET)/$(BUILDTYPE)/rf-a-bl31 $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
+	$(OBJDUMP) -d $(BL31_ELF) > $(BL31_DUMP)
 
 build-stf:
 	$(STF_CARGO) build \

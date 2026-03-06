@@ -166,7 +166,7 @@ zeroed_mut! {
     MEMORY_LOGGERS, [MemoryLogger<LOG_BUFFER_SIZE>; Qemu::CORE_COUNT], unsafe(link_section = ".bss2.dram")
 }
 
-define_cpu_ops!(QemuMax);
+define_cpu_ops!(Qemu, [QemuMax]);
 define_errata_list!();
 
 // SAFETY: `SECURE_GPIO_ADDR` is the base address for the PL061 device and nothing else

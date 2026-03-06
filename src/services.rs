@@ -19,6 +19,7 @@ use crate::{
         CpuStateAccess, World, initialise_contexts, set_initial_world, switch_world,
         update_contexts_suspend,
     },
+    cpu::PlatformCpuOps,
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
     platform::{Platform, exception_free},
@@ -136,7 +137,7 @@ impl<
     const NON_CPU_DOMAIN_COUNT: usize,
     const TRNG_REQ_WORDS: usize,
     const TRNG_WORDS_IN_POOL: usize,
-    PlatformImpl: CpuStateAccess + Platform,
+    PlatformImpl: CpuStateAccess + Platform + PlatformCpuOps,
 >
     Services<
         CORE_COUNT,

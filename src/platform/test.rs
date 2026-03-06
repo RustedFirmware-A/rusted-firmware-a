@@ -627,7 +627,7 @@ unsafe impl Cpu for TestCpu {
     fn power_down_level1() {}
 }
 
-define_cpu_ops!(TestCpu);
+define_cpu_ops!(TestPlatform, [TestCpu]);
 
 /// A fake reset erratum which always applies.
 pub struct TestMitigatedErratum;

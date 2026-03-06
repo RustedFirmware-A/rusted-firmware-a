@@ -9,7 +9,7 @@ mod power_domain_tree;
 use crate::{
     aarch64::{dsb_sy, wfi},
     context::{CoresImpl, World},
-    cpu::{cpu_handle_power_down_abandon, cpu_power_down},
+    cpu::{PlatformCpuOps, cpu_handle_power_down_abandon, cpu_power_down},
     platform::Platform,
     services::{Service, owns},
     smccc::{FunctionId as SmcFunctionId, OwningEntityNumber, SetFrom, SmcReturn},
@@ -783,7 +783,7 @@ impl<
     const MAX_POWER_LEVEL: usize,
     const CPU_DOMAIN_COUNT: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
-    PlatformImpl: Platform,
+    PlatformImpl: Platform + PlatformCpuOps,
     PsciPlatformImpl: PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>,
     Spm: PsciSpmInterface,
 >
@@ -975,7 +975,9 @@ impl<
                     }
                     cpu.set_entry_point(entry);
 
-                    cpu_power_down(composite_state.find_highest_power_down_level().unwrap());
+                    cpu_power_down::<PlatformImpl>(
+                        composite_state.find_highest_power_down_level().unwrap(),
+                    );
                 }
 
                 self.platform.power_domain_suspend(&composite_state);
@@ -1005,7 +1007,7 @@ impl<
             //     always succeed.
             dsb_sy();
             wfi();
-            cpu_handle_power_down_abandon();
+            cpu_handle_power_down_abandon::<PlatformImpl>();
         } else {
             wfi();
         }
@@ -1046,7 +1048,9 @@ impl<
                 cpu.set_local_state(PsciPlatformImpl::PlatformPowerState::OFF);
                 composite_state.coordinate_state(cpu_index, &mut ancestors);
 
-                cpu_power_down(composite_state.find_highest_power_down_level().unwrap());
+                cpu_power_down::<PlatformImpl>(
+                    composite_state.find_highest_power_down_level().unwrap(),
+                );
 
                 self.platform.power_domain_off(&composite_state);
             });
@@ -1524,7 +1528,7 @@ impl<
     const MAX_POWER_LEVEL: usize,
     const CPU_DOMAIN_COUNT: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
-    PlatformImpl: Platform,
+    PlatformImpl: Platform + PlatformCpuOps,
     PsciPlatformImpl: PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>,
     Spm: PsciSpmInterface,
 > Service

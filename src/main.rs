@@ -36,6 +36,7 @@ mod stacks;
 use crate::cpu_extensions::pauth;
 use crate::{
     context::{CoresImpl, CpuDataIndex, CpuStateAccess, initialise_contexts},
+    cpu::PlatformCpuOps,
     gicv3::Gic,
     pagetable::{IdMap, OncePageTable, PageHeap},
     platform::Platform,
@@ -59,7 +60,7 @@ pub fn coldboot<
     const REQ_WORDS: usize,
     const WORDS_IN_POOL: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
-    PlatformImpl: CpuDataIndex + CpuStateAccess + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
+    PlatformImpl: CpuDataIndex + CpuStateAccess + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>> + PlatformCpuOps,
 >(
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
@@ -154,7 +155,7 @@ mod asm {
     use super::*;
     use crate::{
         context::{CpuDataIndex, init_cpu_data_ptr},
-        cpu::cpu_reset_handler,
+        cpu::{PlatformCpuOps, cpu_reset_handler},
         debug::{DEBUG, ENABLE_ASSERTIONS},
         pagetable::{PAGE_TABLE_ADDR, enable_mmu},
         stacks::set_my_stack,
@@ -181,7 +182,7 @@ mod asm {
     /// This must be called with the MMU turned off.
     #[unsafe(naked)]
     pub unsafe extern "C" fn bl31_warm_entrypoint<
-        PlatformImpl: CpuDataIndex + CpuStateAccess + Platform + WarmbootEntrypoint,
+        PlatformImpl: CpuDataIndex + CpuStateAccess + Platform + PlatformCpuOps + WarmbootEntrypoint,
     >() -> ! {
         naked_asm!(
             include_str!("asm_macros_common.S"),
@@ -198,7 +199,7 @@ mod asm {
             DAIF_ABT_BIT = const DAIF_ABT_BIT,
             DIT_BIT = const Dit::DIT.bits(),
             PAGE_TABLE_ADDR = sym PAGE_TABLE_ADDR,
-            cpu_reset_handler = sym cpu_reset_handler,
+            cpu_reset_handler = sym cpu_reset_handler::<PlatformImpl>,
             enable_mmu = sym enable_mmu::<PlatformImpl>,
             psci_warmboot_entrypoint = sym psci_warmboot_entrypoint::<PlatformImpl>,
             apply_reset_errata = sym errata_framework::apply_reset_errata,
@@ -256,7 +257,7 @@ macro_rules! main_asm {
                     DAIF_ABT_BIT = const DAIF_ABT_BIT,
                     DIT_BIT = const $crate::reexports::arm_sysregs::Dit::DIT.bits(),
                     plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
-                    cpu_reset_handler = sym $crate::cpu::cpu_reset_handler,
+                    cpu_reset_handler = sym $crate::cpu::cpu_reset_handler::<PlatformImpl>,
                     init_early_page_tables = sym $crate::pagetable::early_pagetable::init_early_page_tables,
                     enable_mmu = sym $crate::pagetable::enable_mmu::<PlatformImpl>,
                     bl31_main = sym super::bl31_main,

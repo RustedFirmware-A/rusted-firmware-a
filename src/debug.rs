@@ -65,7 +65,7 @@ macro_rules! debug_asm {
                 plat_crash_console_flush = sym PlatformImpl::crash_console_flush,
                 plat_crash_print_regs = sym PlatformImpl::dump_registers,
                 plat_panic_handler = sym PlatformImpl::panic_handler,
-                cpu_dump_registers = sym $crate::cpu::cpu_dump_registers,
+                cpu_dump_registers = sym $crate::cpu::cpu_dump_registers::<PlatformImpl>,
             );
         }
     };

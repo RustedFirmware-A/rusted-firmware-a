@@ -207,7 +207,7 @@ fn map_peripheral<T>(physical_instance: PhysicalInstance<T>) -> UniqueMmioPointe
 static FVP_PSCI_PLATFORM_IMPL: SpinMutex<Option<FvpPsciPlatformImpl>> = SpinMutex::new(None);
 
 define_cpu_ops!(Fvp, [AemGeneric]);
-define_errata_list!();
+define_errata_list!(Fvp, []);
 
 /// Fixed Virtual Platform
 pub struct Fvp;

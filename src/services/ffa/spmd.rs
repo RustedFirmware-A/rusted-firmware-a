@@ -6,6 +6,7 @@
 
 use crate::{
     context::{CpuStateAccess, PerCoreState, World, switch_world},
+    errata_framework::PlatformErrata,
     exceptions::{RunResult, enter_world},
     platform::{Platform, exception_free},
     services::{Service, owns, psci::PsciSpmInterface},
@@ -570,8 +571,8 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformI
     }
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: CpuStateAccess + Platform> PsciSpmInterface
-    for Spmd<CORE_COUNT, PlatformImpl>
+impl<const CORE_COUNT: usize, PlatformImpl: CpuStateAccess + Platform + PlatformErrata>
+    PsciSpmInterface for Spmd<CORE_COUNT, PlatformImpl>
 {
     fn forward_psci_request(&self, function: Function) -> ReturnCode {
         let version = self.spmc_version;

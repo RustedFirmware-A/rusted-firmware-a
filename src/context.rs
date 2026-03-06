@@ -5,6 +5,7 @@
 //! Handles initialising, saving and restoring register context when switching between EL3 and lower
 //! ELs.
 
+use crate::errata_framework::PlatformErrata;
 #[cfg(feature = "sel2")]
 use crate::errata_framework::erratum_applies;
 use crate::{
@@ -141,9 +142,9 @@ impl CpuContext {
         self.el1_sysregs.save();
     }
 
-    fn restore_lower_el_sysregs(&self, world: World) {
+    fn restore_lower_el_sysregs<PlatformImpl: PlatformErrata>(&self, world: World) {
         #[cfg(feature = "sel2")]
-        self.el2_sysregs.restore(world);
+        self.el2_sysregs.restore::<PlatformImpl>(world);
         #[cfg(not(feature = "sel2"))]
         self.el1_sysregs.restore();
         #[cfg(not(feature = "sel2"))]
@@ -493,7 +494,7 @@ impl El2Sysregs {
     }
 
     /// Writes the saved register values to the system registers.
-    fn restore(&self, world: World) {
+    fn restore<PlatformImpl: PlatformErrata>(&self, world: World) {
         // SAFETY: We're restoring the values previously saved, so they must be valid.
         unsafe {
             write_actlr_el2(self.actlr_el2);
@@ -513,7 +514,7 @@ impl El2Sysregs {
             write_icc_sre_el2(self.icc_sre_el2);
             write_ich_hcr_el2(self.ich_hcr_el2);
 
-            let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies();
+            let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies::<PlatformImpl>();
             if apply_ich_vmcr_el2_errata {
                 let scr_el3 = read_scr_el3();
                 if world == World::Secure {
@@ -562,8 +563,10 @@ impl El2Sysregs {
 }
 
 #[cfg(feature = "sel2")]
-fn errata_ich_vmcr_el2_applies() -> bool {
-    erratum_applies(3_300_099) || erratum_applies(3_658_374) || erratum_applies(3_773_617)
+fn errata_ich_vmcr_el2_applies<PlatformImpl: PlatformErrata>() -> bool {
+    erratum_applies::<PlatformImpl>(3_300_099)
+        || erratum_applies::<PlatformImpl>(3_658_374)
+        || erratum_applies::<PlatformImpl>(3_773_617)
 }
 
 /// Registers whose values can be shared across CPUs.
@@ -783,7 +786,7 @@ pub unsafe trait CpuStateAccess {
 }
 
 /// Restores the context for the given world.
-fn restore_world<PlatformImpl: Platform>(world: World, context: &CpuContext) {
+fn restore_world<PlatformImpl: PlatformErrata + Platform>(world: World, context: &CpuContext) {
     let world_context = world_context(world);
 
     // Restore EL3 sysregs first, e.g. to allow SVE register access before restoring SVE context.
@@ -793,12 +796,15 @@ fn restore_world<PlatformImpl: Platform>(world: World, context: &CpuContext) {
         ext.restore_context(world);
     }
 
-    context.restore_lower_el_sysregs(world);
+    context.restore_lower_el_sysregs::<PlatformImpl>(world);
 }
 
 /// Saves lower EL system registers from the current world, restores lower EL and some per-world
 /// EL3 system registers of the given world.
-pub fn switch_world<PlatformImpl: CpuStateAccess + Platform>(old_world: World, new_world: World) {
+pub fn switch_world<PlatformImpl: CpuStateAccess + PlatformErrata + Platform>(
+    old_world: World,
+    new_world: World,
+) {
     assert_ne!(old_world, new_world);
     exception_free(|token| {
         let mut cpu_state = PlatformImpl::cpu_state(token);
@@ -815,7 +821,7 @@ pub fn switch_world<PlatformImpl: CpuStateAccess + Platform>(old_world: World, n
 ///
 /// This doesn't save the current state of the lower EL system registers, so should only be used for
 /// initial boot where we don't care about their state.
-pub fn set_initial_world<PlatformImpl: CpuStateAccess + Platform>(world: World) {
+pub fn set_initial_world<PlatformImpl: CpuStateAccess + PlatformErrata + Platform>(world: World) {
     exception_free(|token| {
         let cpu_state = PlatformImpl::cpu_state(token);
         let context = &cpu_state[world];

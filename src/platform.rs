@@ -7,23 +7,14 @@ macro_rules! select_platform {
     (platform = $condition:literal, $mod:ident::$sub:ident::$plat_impl:ident) => {
         #[cfg(platform = $condition)]
         mod $mod;
-
-        #[cfg(platform = $condition)]
-        pub use $mod::$sub::ERRATA_LIST;
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
         #[cfg(platform = $condition)]
         mod $mod;
-
-        #[cfg(platform = $condition)]
-        pub use $mod::ERRATA_LIST;
     };
     (test, $mod:ident::$plat_impl:ident) => {
         #[cfg(test)]
         pub mod $mod;
-
-        #[cfg(test)]
-        pub use $mod::ERRATA_LIST;
     };
 }
 

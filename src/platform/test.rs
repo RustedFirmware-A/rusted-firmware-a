@@ -49,7 +49,7 @@ const CORES_PER_CLUSTER: usize = 3;
 const CORES_PER_CLUSTER_LAST: usize = 4;
 
 define_early_mapping!(TestPlatform, []);
-define_errata_list!(TestMitigatedErratum, TestUnneededErratum);
+define_errata_list!(TestPlatform, [TestMitigatedErratum, TestUnneededErratum]);
 
 /// A fake platform for unit tests.
 pub struct TestPlatform;

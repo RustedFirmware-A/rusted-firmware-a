@@ -7,8 +7,6 @@
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub mod dsu;
 
-use crate::platform::ERRATA_LIST;
-
 /// A unique identifier for an erratum.
 pub type ErratumId = u32;
 
@@ -108,10 +106,31 @@ impl ErratumEntry {
 /// Returns true if the platform has an erratum with the given ID, and it applies on the current
 /// CPU.
 #[allow(unused)]
-pub fn erratum_applies(id: ErratumId) -> bool {
-    ERRATA_LIST
+pub fn erratum_applies<PlatformImpl: PlatformErrata>(id: ErratumId) -> bool {
+    PlatformImpl::ERRATA_LIST
         .iter()
         .any(|erratum| erratum.id == id && (erratum.check)())
+}
+
+/// Methods to access the errata for the platform.
+///
+/// Implemented for the platform by the `define_errata_list!` macro, platforms shouldn't implement
+/// it manually.
+///
+/// # Safety
+///
+/// Other than in unit tests, the `apply_reset_errata` method must be implemented as a naked
+/// function which doesn't use the stack or clobber any registers other than x0-x11.
+pub unsafe trait PlatformErrata {
+    /// The list of all errata workarounds which may need to be applied on the platform.
+    const ERRATA_LIST: &'static [ErratumEntry];
+
+    /// Iterates over the ERRATA_LIST, calling the check function on each reset erratum and then
+    /// calling the workaround function if the check function returned true.
+    ///
+    /// Clobbers registers x0-x11.
+    #[cfg(not(test))]
+    extern "C" fn apply_reset_errata();
 }
 
 /// Calculates the count of specified Erratum types.
@@ -126,10 +145,65 @@ pub(crate) use errata_count;
 
 /// Declares the ERRATA_LIST array.
 macro_rules! define_errata_list {
-    ($($erratum:ty),*) => {
-        pub static ERRATA_LIST : [$crate::errata_framework::ErratumEntry; $crate::errata_framework::errata_count!($($erratum),*)] = [
+    ($platform:ty, [$($erratum:ty),*]) => {
+        static ERRATA_LIST : [$crate::errata_framework::ErratumEntry; $crate::errata_framework::errata_count!($($erratum),*)] = [
             $($crate::errata_framework::ErratumEntry::from_erratum::<$erratum>()),*
         ];
+
+        // SAFETY: apply_reset_errata is a naked function and only clobbers x0-x11.
+        unsafe impl $crate::errata_framework::PlatformErrata for $platform {
+            const ERRATA_LIST: &'static [$crate::errata_framework::ErratumEntry] = &ERRATA_LIST;
+
+            #[cfg(all(target_arch = "aarch64", not(test)))]
+            #[unsafe(naked)]
+            extern "C" fn apply_reset_errata() {
+                use core::mem::offset_of;
+                use $crate::errata_framework::{ErratumEntry, ErratumType};
+
+                $crate::naked_asm!(
+                    // Save LR
+                    "mov x8, x30",
+                    // Loop through the ERRATA slice.
+                    // Address of the beginning of ERRATA_LIST.
+                    "ldr x9, ={errata_list}",
+                    "ldr x10, =({errata_list} + {erratum_entry_size} * {errata_list_count})",
+                    "1:",
+                    "cmp  x9, x10",
+                    "b.eq 3f", // End of loop
+
+                    // Load apply_on field
+                    "ldr  w11, [x9, #{apply_on_offset}]",
+                    "cmp  w11, {reset_type}",
+                    "b.ne 2f", // Skip if not Reset type
+
+                    // Call check()
+                    "ldr  x11, [x9, #{check_offset}]",
+                    "blr  x11",
+                    "cbz  x0, 2f", // Skip if check() returns false
+
+                    // Call workaround()
+                    "ldr  x11, [x9, #{workaround_offset}]",
+                    "blr  x11",
+
+                    "2:",
+                    "add  x9, x9, #{erratum_entry_size}", // Next entry
+                    "b    1b",
+
+                    "3:",
+                    // Restore LR
+                    "mov x30, x8",
+                    "ret",
+
+                    errata_list = sym ERRATA_LIST,
+                    erratum_entry_size = const size_of::<ErratumEntry>(),
+                    errata_list_count = const ERRATA_LIST.len(),
+                    apply_on_offset = const offset_of!(ErratumEntry, apply_on),
+                    check_offset = const offset_of!(ErratumEntry, check),
+                    workaround_offset = const offset_of!(ErratumEntry, workaround),
+                    reset_type = const ErratumType::Reset as u32,
+                );
+            }
+        }
     }
 }
 pub(crate) use define_errata_list;
@@ -240,56 +314,3 @@ macro_rules! implement_erratum_check {
 }
 #[allow(unused)]
 pub(crate) use implement_erratum_check;
-
-/// This function iterates over the ERRATA_LIST, calling the check function on each Reset erratum
-/// and then calling the workaround function if the check function returned true.
-/// Clobbers registers x0-x11.
-#[cfg(all(target_arch = "aarch64", not(test)))]
-#[unsafe(naked)]
-pub extern "C" fn apply_reset_errata() {
-    use crate::{naked_asm, platform::ERRATA_LIST};
-    use core::mem::offset_of;
-
-    naked_asm!(
-        // Save LR
-        "mov x8, x30",
-        // Loop through the ERRATA slice.
-        // Address of the beginning of ERRATA_LIST.
-        "ldr x9, ={errata_list}",
-        "ldr x10, =({errata_list} + {erratum_entry_size} * {errata_list_count})",
-        "1:",
-        "cmp  x9, x10",
-        "b.eq 3f", // End of loop
-
-        // Load apply_on field
-        "ldr  w11, [x9, #{apply_on_offset}]",
-        "cmp  w11, {reset_type}",
-        "b.ne 2f", // Skip if not Reset type
-
-        // Call check()
-        "ldr  x11, [x9, #{check_offset}]",
-        "blr  x11",
-        "cbz  x0, 2f", // Skip if check() returns false
-
-        // Call workaround()
-        "ldr  x11, [x9, #{workaround_offset}]",
-        "blr  x11",
-
-        "2:",
-        "add  x9, x9, #{erratum_entry_size}", // Next entry
-        "b    1b",
-
-        "3:",
-        // Restore LR
-        "mov x30, x8",
-        "ret",
-
-        errata_list = sym ERRATA_LIST,
-        erratum_entry_size = const size_of::<ErratumEntry>(),
-        errata_list_count = const ERRATA_LIST.len(),
-        apply_on_offset = const offset_of!(ErratumEntry, apply_on),
-        check_offset = const offset_of!(ErratumEntry, check),
-        workaround_offset = const offset_of!(ErratumEntry, workaround),
-        reset_type = const ErratumType::Reset as u32,
-    );
-}

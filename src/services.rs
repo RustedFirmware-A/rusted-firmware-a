@@ -20,6 +20,7 @@ use crate::{
         update_contexts_suspend,
     },
     cpu::PlatformCpuOps,
+    errata_framework::PlatformErrata,
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
     platform::{Platform, exception_free},
@@ -100,7 +101,7 @@ pub struct Services<
     const NON_CPU_DOMAIN_COUNT: usize,
     const TRNG_REQ_WORDS: usize,
     const TRNG_WORDS_IN_POOL: usize,
-    PlatformImpl: CpuStateAccess + Platform + 'static,
+    PlatformImpl: CpuStateAccess + Platform + PlatformErrata + 'static,
 > where
     <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
             PSCI_STATE_COUNT,
@@ -137,7 +138,7 @@ impl<
     const NON_CPU_DOMAIN_COUNT: usize,
     const TRNG_REQ_WORDS: usize,
     const TRNG_WORDS_IN_POOL: usize,
-    PlatformImpl: CpuStateAccess + Platform + PlatformCpuOps,
+    PlatformImpl: CpuStateAccess + Platform + PlatformCpuOps + PlatformErrata,
 >
     Services<
         CORE_COUNT,

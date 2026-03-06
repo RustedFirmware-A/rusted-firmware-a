@@ -4,7 +4,8 @@
 
 use crate::{
     context::{CpuStateAccess, World},
-    platform::{ERRATA_LIST, exception_free},
+    errata_framework::PlatformErrata,
+    platform::exception_free,
     services::{Service, owns},
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
@@ -62,7 +63,7 @@ impl<PlatformImpl: CpuStateAccess> ErrataManagement<PlatformImpl> {
     }
 }
 
-impl<PlatformImpl: CpuStateAccess> Service for ErrataManagement<PlatformImpl> {
+impl<PlatformImpl: CpuStateAccess + PlatformErrata> Service for ErrataManagement<PlatformImpl> {
     owns!(
         OwningEntityNumber::STANDARD_SECURE,
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
@@ -94,7 +95,7 @@ fn features(em_func_id: u32) -> i32 {
     }
 }
 
-fn cpu_erratum_features<PlatformImpl: CpuStateAccess>(regs: &[u64]) -> Status {
+fn cpu_erratum_features<PlatformImpl: CpuStateAccess + PlatformErrata>(regs: &[u64]) -> Status {
     let cpu_erratum_id = regs[1] as u32;
     let forward_flag = regs[2] != 0;
 
@@ -119,7 +120,7 @@ fn cpu_erratum_features<PlatformImpl: CpuStateAccess>(regs: &[u64]) -> Status {
 
     trace!("Checking erratum {cpu_erratum_id} for {effective_originator:?}");
 
-    for erratum in ERRATA_LIST {
+    for erratum in PlatformImpl::ERRATA_LIST {
         if erratum.id == cpu_erratum_id {
             return if (erratum.check)() {
                 Status::HigherElMitigation

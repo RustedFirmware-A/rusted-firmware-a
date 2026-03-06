@@ -167,7 +167,7 @@ zeroed_mut! {
 }
 
 define_cpu_ops!(Qemu, [QemuMax]);
-define_errata_list!();
+define_errata_list!(Qemu, []);
 
 // SAFETY: `SECURE_GPIO_ADDR` is the base address for the PL061 device and nothing else
 // accesses that address range.

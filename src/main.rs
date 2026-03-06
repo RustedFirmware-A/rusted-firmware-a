@@ -37,6 +37,7 @@ use crate::cpu_extensions::pauth;
 use crate::{
     context::{CoresImpl, CpuDataIndex, CpuStateAccess, initialise_contexts},
     cpu::PlatformCpuOps,
+    errata_framework::PlatformErrata,
     gicv3::Gic,
     pagetable::{IdMap, OncePageTable, PageHeap},
     platform::Platform,
@@ -60,7 +61,11 @@ pub fn coldboot<
     const REQ_WORDS: usize,
     const WORDS_IN_POOL: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
-    PlatformImpl: CpuDataIndex + CpuStateAccess + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>> + PlatformCpuOps,
+    PlatformImpl: CpuDataIndex
+        + CpuStateAccess
+        + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>
+        + PlatformCpuOps
+        + PlatformErrata,
 >(
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
@@ -157,6 +162,7 @@ mod asm {
         context::{CpuDataIndex, init_cpu_data_ptr},
         cpu::{PlatformCpuOps, cpu_reset_handler},
         debug::{DEBUG, ENABLE_ASSERTIONS},
+        errata_framework::PlatformErrata,
         pagetable::{PAGE_TABLE_ADDR, enable_mmu},
         stacks::set_my_stack,
     };
@@ -182,7 +188,12 @@ mod asm {
     /// This must be called with the MMU turned off.
     #[unsafe(naked)]
     pub unsafe extern "C" fn bl31_warm_entrypoint<
-        PlatformImpl: CpuDataIndex + CpuStateAccess + Platform + PlatformCpuOps + WarmbootEntrypoint,
+        PlatformImpl: CpuDataIndex
+            + CpuStateAccess
+            + Platform
+            + PlatformCpuOps
+            + PlatformErrata
+            + WarmbootEntrypoint,
     >() -> ! {
         naked_asm!(
             include_str!("asm_macros_common.S"),
@@ -202,7 +213,7 @@ mod asm {
             cpu_reset_handler = sym cpu_reset_handler::<PlatformImpl>,
             enable_mmu = sym enable_mmu::<PlatformImpl>,
             psci_warmboot_entrypoint = sym psci_warmboot_entrypoint::<PlatformImpl>,
-            apply_reset_errata = sym errata_framework::apply_reset_errata,
+            apply_reset_errata = sym PlatformImpl::apply_reset_errata,
             plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
             init_cpu_data_ptr = sym init_cpu_data_ptr::<PlatformImpl>,
         );
@@ -261,7 +272,7 @@ macro_rules! main_asm {
                     init_early_page_tables = sym <PlatformImpl as $crate::pagetable::early_pagetable::PlatformEarlyPagetable>::init_early_page_tables,
                     enable_mmu = sym $crate::pagetable::enable_mmu::<PlatformImpl>,
                     bl31_main = sym super::bl31_main,
-                    apply_reset_errata = sym $crate::errata_framework::apply_reset_errata,
+                    apply_reset_errata = sym <PlatformImpl as $crate::errata_framework::PlatformErrata>::apply_reset_errata,
                     plat_set_my_stack = sym $crate::stacks::set_my_stack::<PlatformImpl>,
                     init_cpu_data_ptr = sym $crate::context::init_cpu_data_ptr::<PlatformImpl>,
                 );

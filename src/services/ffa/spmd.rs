@@ -161,6 +161,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformI
     ///
     /// This should be called exactly once, before any other SPMD methods are called or any
     /// secondary CPUs are started.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         debug!("Initializing SPMD");
 

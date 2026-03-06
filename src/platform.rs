@@ -9,30 +9,21 @@ macro_rules! select_platform {
         mod $mod;
 
         #[cfg(platform = $condition)]
-        pub use $mod::$sub::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL, TRNG_REQ_WORDS,
-            $plat_impl as PlatformImpl,
-        };
+        pub use $mod::$sub::{CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST};
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
         #[cfg(platform = $condition)]
         mod $mod;
 
         #[cfg(platform = $condition)]
-        pub use $mod::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL, TRNG_REQ_WORDS,
-            $plat_impl as PlatformImpl,
-        };
+        pub use $mod::{CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST};
     };
     (test, $mod:ident::$plat_impl:ident) => {
         #[cfg(test)]
         pub mod $mod;
 
         #[cfg(test)]
-        pub use $mod::{
-            CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST, PSCI_MAX_POWER_LEVEL, TRNG_REQ_WORDS,
-            $plat_impl as PlatformImpl,
-        };
+        pub use $mod::{CPU_OPS, EARLY_PAGE_TABLE_RANGES, ERRATA_LIST};
     };
 }
 
@@ -73,8 +64,6 @@ impl Service for DummyService {
         false
     }
 }
-
-pub const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 
 /// The hooks implemented by all platforms.
 ///

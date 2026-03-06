@@ -1609,9 +1609,8 @@ pub fn try_get_cpu_index_by_mpidr<PlatformImpl: Platform, NodeIndex: NodeIndexIn
 mod tests {
     use super::*;
     use crate::{
-        platform::{
-            PSCI_STATE_COUNT,
-            test::{PSCI_MAX_POWER_LEVEL, TestPlatform, TestPowerState, TestPsciPlatformImpl},
+        platform::test::{
+            PSCI_MAX_POWER_LEVEL, TestPlatform, TestPowerState, TestPsciPlatformImpl,
         },
         services::ffa::spmd::TestSpm,
     };
@@ -1620,6 +1619,7 @@ mod tests {
     use power_domain_tree::test_helpers::set_cpu_power_state_by_index;
     use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
+    const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
     const NON_CPU_DOMAIN_COUNT: usize =
         TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT;
 

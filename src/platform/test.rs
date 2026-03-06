@@ -6,10 +6,7 @@
 
 use super::{DummyService, Platform};
 #[cfg(feature = "rme")]
-use crate::{
-    Services,
-    services::rmmd::svc::{EccCurve, RmmCommandReturnCode},
-};
+use crate::services::rmmd::svc::{EccCurve, RmmCommandReturnCode};
 use crate::{
     aarch64::sev,
     context::{CoresImpl, CpuData, CpuDataIndex, EntryPointInfo},
@@ -164,7 +161,7 @@ unsafe impl Platform for TestPlatform {
     fn realm_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0xfdc0_0000,
-            args: Services::get().rmmd.entrypoint_args(),
+            args: SERVICES.rmmd.entrypoint_args(),
         }
     }
 

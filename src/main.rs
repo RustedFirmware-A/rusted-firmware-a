@@ -35,13 +35,11 @@ mod stacks;
 #[cfg(feature = "pauth")]
 use crate::cpu_extensions::pauth;
 use crate::{
-    context::{
-        CoresImpl, CpuDataIndex, CpuStateAccess, initialise_contexts, update_contexts_suspend,
-    },
+    context::{CoresImpl, CpuDataIndex, CpuStateAccess, initialise_contexts},
     gicv3::Gic,
     pagetable::{IdMap, OncePageTable, PageHeap},
     platform::Platform,
-    services::{Services, psci::WakeUpReason},
+    services::{Services, psci::PsciPlatformInterface, trng::TrngPlatformInterface},
 };
 #[cfg(not(test))]
 pub use asm::bl31_warm_entrypoint;
@@ -49,22 +47,48 @@ pub use asm::bl31_warm_entrypoint;
 use include_first::include_first;
 use log::{debug, info};
 use percore::Cores;
-use spin::Once;
+use spin::{Lazy, Once};
 
 /// Handles early initialisation at the start of a cold boot, and then runs the main loop.
+#[expect(clippy::too_many_arguments)]
 pub fn coldboot<
     const CORE_COUNT: usize,
+    const PSCI_STATE_COUNT: usize,
+    const PSCI_MAX_POWER_LEVEL: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    const REQ_WORDS: usize,
+    const WORDS_IN_POOL: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
     PlatformImpl: CpuDataIndex + CpuStateAccess + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
 >(
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
     gic: &'static Once<Gic<'static, CORE_COUNT, PlatformImpl>>,
+    services: &'static Lazy<
+        Services<
+            CORE_COUNT,
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            NON_CPU_DOMAIN_COUNT,
+            REQ_WORDS,
+            WORDS_IN_POOL,
+            PlatformImpl,
+        >,
+    >,
     arg0: u64,
     arg1: u64,
     arg2: u64,
     arg3: u64,
-) -> ! {
+) -> !
+where
+    <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            CORE_COUNT,
+            NON_CPU_DOMAIN_COUNT,
+        >,
+    <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
+{
     PlatformImpl::init_with_early_mapping(arg0, arg1, arg2, arg3);
 
     page_table.init_runtime_mapping::<PlatformImpl>(page_heap);
@@ -98,12 +122,19 @@ pub fn coldboot<
         &realm_entry_point,
     );
 
-    Services::get().run_loop()
+    services.run_loop()
+}
+
+/// Trait implemented for the platform to call the warmboot entrypoint of the services.
+pub trait WarmbootEntrypoint {
+    /// Calls `Services::warmboot` for the platform.
+    fn warmboot() -> !;
 }
 
 #[cfg_attr(test, allow(unused))]
-extern "C" fn psci_warmboot_entrypoint<PlatformImpl: CpuDataIndex + CpuStateAccess + Platform>() -> !
-{
+extern "C" fn psci_warmboot_entrypoint<
+    PlatformImpl: CpuDataIndex + CpuStateAccess + Platform + WarmbootEntrypoint,
+>() -> ! {
     debug!(
         "Warmboot on core #{}",
         CoresImpl::<PlatformImpl>::core_index()
@@ -115,56 +146,7 @@ extern "C" fn psci_warmboot_entrypoint<PlatformImpl: CpuDataIndex + CpuStateAcce
         pauth::init::<PlatformImpl>();
     }
 
-    let services = Services::get();
-
-    match services.psci.handle_cpu_boot() {
-        WakeUpReason::CpuOn(psci_entrypoint) => {
-            // Power on for the first time or after CPU_OFF
-            debug!("Wakeup from CPU_OFF");
-
-            // TODO: Refactor handling of entrypoints to provide the warm boot entrypoints as well.
-            // Also, at least some parts of the entrypoint should be provided by the service that
-            // is responsible for a specific world (i.e. PC and args for SPMC come from the SPMD).
-            let mut non_secure_entry_point = PlatformImpl::non_secure_entry_point();
-            non_secure_entry_point.pc = psci_entrypoint.entry_point_address() as usize;
-            non_secure_entry_point.args.fill(0);
-            non_secure_entry_point.args[0] = psci_entrypoint.context_id();
-
-            let mut secure_entry_point = PlatformImpl::secure_entry_point();
-            secure_entry_point.pc = services.spmd.secondary_ep();
-            secure_entry_point.args.fill(0);
-            services.spmd.handle_wake_from_cpu_off();
-
-            #[cfg(feature = "rme")]
-            let realm_entry_point = PlatformImpl::realm_entry_point();
-
-            initialise_contexts::<PlatformImpl>(
-                &non_secure_entry_point,
-                &secure_entry_point,
-                #[cfg(feature = "rme")]
-                &realm_entry_point,
-            );
-        }
-        WakeUpReason::SuspendFinished(psci_entrypoint) => {
-            debug!("Wakeup from CPU_SUSPEND");
-
-            let secure_args = services.spmd.handle_wake_from_cpu_suspend();
-
-            #[cfg(feature = "rme")]
-            let realm_args = services.rmmd.handle_wake_from_cpu_suspend();
-
-            // TODO: instead of modifying the context directly, should we rather pass the initial
-            // gpregs of each world as arguments to run_loop()?
-            update_contexts_suspend::<PlatformImpl>(
-                psci_entrypoint,
-                &secure_args,
-                #[cfg(feature = "rme")]
-                &realm_args,
-            );
-        }
-    }
-
-    services.run_loop()
+    PlatformImpl::warmboot()
 }
 
 #[cfg(all(target_arch = "aarch64", not(test)))]
@@ -199,7 +181,7 @@ mod asm {
     /// This must be called with the MMU turned off.
     #[unsafe(naked)]
     pub unsafe extern "C" fn bl31_warm_entrypoint<
-        PlatformImpl: CpuDataIndex + CpuStateAccess + Platform,
+        PlatformImpl: CpuDataIndex + CpuStateAccess + Platform + WarmbootEntrypoint,
     >() -> ! {
         naked_asm!(
             include_str!("asm_macros_common.S"),
@@ -306,8 +288,8 @@ macro_rules! all_asm {
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub(crate) use asm::naked_asm;
 
-/// Generates static variables `LOGGER`, `GIC`, `PAGE_HEAP`, `PAGE_TABLE`, `CPU_STATES` and
-/// `PERCPU_DATA` for the platform, the `bl31_main` function, and implements `CpuStateAccess`.
+/// Generates static variables for the platform, trait implementations to access them, and the cold
+/// boot entrypoint.
 #[macro_export]
 macro_rules! statics {
     ($platform:ty) => {
@@ -356,6 +338,27 @@ macro_rules! statics {
             [$crate::context::CpuData::EMPTY;
                 <$platform as $crate::platform::Platform>::CORE_COUNT];
 
+        const MAX_POWER_LEVEL_: usize = PSCI_STATE_COUNT - 1;
+        /// The number of PSCI power domains other than CPUs.
+        pub const NON_CPU_DOMAIN_COUNT: usize =
+            <$platform as $crate::platform::Platform>::PsciPlatformImpl::POWER_DOMAIN_COUNT
+                - <$platform as $crate::platform::Platform>::CORE_COUNT;
+        /// The number of 64-bit words to keep space for in the TRNG entropy pool.
+        pub const TRNG_WORDS_IN_POOL: usize = $crate::services::trng::words_in_pool(TRNG_REQ_WORDS);
+        static SERVICES: $crate::reexports::spin::Lazy<
+            $crate::services::Services<
+                { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                PSCI_STATE_COUNT,
+                MAX_POWER_LEVEL_,
+                NON_CPU_DOMAIN_COUNT,
+                TRNG_REQ_WORDS,
+                TRNG_WORDS_IN_POOL,
+                $platform,
+            >,
+        > = $crate::reexports::spin::Lazy::new(|| {
+            $crate::services::Services::new(|| &SERVICES.spmd)
+        });
+
         // SAFETY: `world_cpu_context` just calls `CpuStates::world_cpu_context`, which is
         // guaranteed to return a valid pointer.
         unsafe impl $crate::context::CpuStateAccess for $platform {
@@ -372,13 +375,33 @@ macro_rules! statics {
             }
         }
 
+        impl $crate::WarmbootEntrypoint for $platform {
+            fn warmboot() -> ! {
+                SERVICES.warmboot()
+            }
+        }
+
         #[cfg_attr(test, allow(unused))]
         extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
             $crate::coldboot::<
                 { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                PSCI_STATE_COUNT,
+                MAX_POWER_LEVEL_,
+                NON_CPU_DOMAIN_COUNT,
+                TRNG_REQ_WORDS,
+                TRNG_WORDS_IN_POOL,
                 { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
                 $platform,
-            >(&PAGE_TABLE, &PAGE_HEAP, &GIC, arg0, arg1, arg2, arg3)
+            >(
+                &PAGE_TABLE,
+                &PAGE_HEAP,
+                &GIC,
+                &SERVICES,
+                arg0,
+                arg1,
+                arg2,
+                arg3,
+            )
         }
     };
 }

@@ -7,13 +7,10 @@ mod config;
 use self::config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU};
 use super::{DummyService, Platform};
 #[cfg(feature = "rme")]
-use crate::{
-    Services,
-    services::rmmd::{
-        RMM_SHARED_BUFFER_SIZE,
-        manifest::{RmmBootManifest, RmmConsoleInfo, RmmMemoryBank},
-        svc::{EccCurve, RmmCommandReturnCode},
-    },
+use crate::services::rmmd::{
+    RMM_SHARED_BUFFER_SIZE,
+    manifest::{RmmBootManifest, RmmConsoleInfo, RmmMemoryBank},
+    svc::{EccCurve, RmmCommandReturnCode},
 };
 use crate::{
     aarch64::{dsb_ish, dsb_sy, wfi},
@@ -499,7 +496,7 @@ unsafe impl Platform for Fvp {
     fn realm_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0xfdc0_0000,
-            args: Services::get().rmmd.entrypoint_args(),
+            args: SERVICES.rmmd.entrypoint_args(),
         }
     }
 

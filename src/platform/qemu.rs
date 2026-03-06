@@ -178,16 +178,19 @@ static SECURE_GPIO: SpinMutex<PL061> = SpinMutex::new(PL061::new(unsafe {
 /// The aarch64 'virt' machine of the QEMU emulator.
 pub struct Qemu;
 
-define_early_mapping!([
-    EarlyRegion {
-        address_range: BL31_BASE..BL32_BASE,
-        attributes: MT_MEMORY_EL3
-    },
-    EarlyRegion {
-        address_range: DEVICE1_BASE..(DEVICE1_BASE + DEVICE1_SIZE),
-        attributes: MT_DEVICE
-    }
-]);
+define_early_mapping!(
+    Qemu,
+    [
+        EarlyRegion {
+            address_range: BL31_BASE..BL32_BASE,
+            attributes: MT_MEMORY_EL3
+        },
+        EarlyRegion {
+            address_range: DEVICE1_BASE..(DEVICE1_BASE + DEVICE1_SIZE),
+            attributes: MT_DEVICE
+        }
+    ]
+);
 
 static SIMD: Simd<{ Qemu::CORE_COUNT }, Qemu> = Simd::sve(512, false);
 

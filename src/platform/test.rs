@@ -48,7 +48,7 @@ const CLUSTERS_PER_SOC: usize = 2;
 const CORES_PER_CLUSTER: usize = 3;
 const CORES_PER_CLUSTER_LAST: usize = 4;
 
-define_early_mapping!([]);
+define_early_mapping!(TestPlatform, []);
 define_errata_list!(TestMitigatedErratum, TestUnneededErratum);
 
 /// A fake platform for unit tests.
@@ -673,5 +673,10 @@ mod tests {
     fn test_basic_logging() {
         let writer = StdOutSink;
         writeln!(writer, "hello");
+    }
+
+    #[test]
+    fn test_platform_early_mapping() {
+        assert_eq!(EARLY_PAGE_TABLE_RANGES, []);
     }
 }

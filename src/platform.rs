@@ -9,21 +9,21 @@ macro_rules! select_platform {
         mod $mod;
 
         #[cfg(platform = $condition)]
-        pub use $mod::$sub::{EARLY_PAGE_TABLE_RANGES, ERRATA_LIST};
+        pub use $mod::$sub::ERRATA_LIST;
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
         #[cfg(platform = $condition)]
         mod $mod;
 
         #[cfg(platform = $condition)]
-        pub use $mod::{EARLY_PAGE_TABLE_RANGES, ERRATA_LIST};
+        pub use $mod::ERRATA_LIST;
     };
     (test, $mod:ident::$plat_impl:ident) => {
         #[cfg(test)]
         pub mod $mod;
 
         #[cfg(test)]
-        pub use $mod::{EARLY_PAGE_TABLE_RANGES, ERRATA_LIST};
+        pub use $mod::ERRATA_LIST;
     };
 }
 

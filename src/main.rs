@@ -258,7 +258,7 @@ macro_rules! main_asm {
                     DIT_BIT = const $crate::reexports::arm_sysregs::Dit::DIT.bits(),
                     plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
                     cpu_reset_handler = sym $crate::cpu::cpu_reset_handler::<PlatformImpl>,
-                    init_early_page_tables = sym $crate::pagetable::early_pagetable::init_early_page_tables,
+                    init_early_page_tables = sym <PlatformImpl as $crate::pagetable::early_pagetable::PlatformEarlyPagetable>::init_early_page_tables,
                     enable_mmu = sym $crate::pagetable::enable_mmu::<PlatformImpl>,
                     bl31_main = sym super::bl31_main,
                     apply_reset_errata = sym $crate::errata_framework::apply_reset_errata,

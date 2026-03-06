@@ -4,10 +4,7 @@
 
 //! The early pagetable is built and enabled by assembly code before running any Rust code.
 
-use crate::{
-    pagetable::{GRANULE_SIZE, TOP_LEVEL_BLOCK_SIZE, TOP_LEVEL_DESCRIPTOR_COUNT},
-    platform::EARLY_PAGE_TABLE_RANGES,
-};
+use crate::pagetable::{GRANULE_SIZE, TOP_LEVEL_BLOCK_SIZE, TOP_LEVEL_DESCRIPTOR_COUNT};
 use aarch64_paging::descriptor::El23Attributes;
 use core::ops::Range;
 
@@ -27,7 +24,7 @@ pub struct EarlyRegion {
 #[repr(C)]
 pub struct DescriptorRange {
     /// Index of the descriptor in the flattened page table array.
-    index: usize,
+    pub index: usize,
     /// This field is split into two by the granule size mask. The upper part is the step value
     /// that is added to each descriptor value. The lower part is the count of the consecutive
     /// block descriptors.
@@ -35,7 +32,7 @@ pub struct DescriptorRange {
     step_count: usize,
     /// Descriptor base value. For table descriptor it contains the offset of the next level table
     /// in the page table array.
-    value: usize,
+    pub value: usize,
 }
 
 /// Converts a list of memory regions into a list of `DescriptorRange`. Returns the generated
@@ -263,8 +260,26 @@ const fn overlaps(a: &Range<usize>, b: &Range<usize>) -> bool {
     max(a.start, b.start) < min(a.end, b.end)
 }
 
+/// Provides an assembly function to initialise early page tables for the platform.
+///
+/// Implemented by the `define_early_mapping!` macro.
+///
+/// # Safety
+///
+/// `init_early_page_tables` must be implemented as a naked assembly function, not use any atomics
+/// or anything else with undefined behaviour before the MMU and caches are enabled, and must set up
+/// pagetables mapping everything that the next stage of boot needs.
+#[cfg(not(test))]
+pub unsafe trait PlatformEarlyPagetable {
+    /// Builds the early page tables from `EARLY_PAGE_TABLE_RANGES`.
+    extern "C" fn init_early_page_tables();
+}
+
+/// Implements the `PlatformEarlyPagetable` trait for the given platform, providing an early
+/// pagetable containing the given regions.
+#[macro_export]
 macro_rules! define_early_mapping {
-    ($regions:expr) => {
+    ($platform:ty, $regions:expr) => {
         const EARLY_PAGE_TABLE_RANGE_COUNT: usize =
             $crate::pagetable::early_pagetable::get_range_count(&$regions);
 
@@ -273,105 +288,102 @@ macro_rules! define_early_mapping {
             usize,
         ) = $crate::pagetable::early_pagetable::build_ranges(&$regions);
 
-        pub static EARLY_PAGE_TABLE_RANGES: [$crate::pagetable::early_pagetable::DescriptorRange;
+        static EARLY_PAGE_TABLE_RANGES: [$crate::pagetable::early_pagetable::DescriptorRange;
             EARLY_PAGE_TABLE_RANGE_COUNT] = RANGES_AND_COUNT.0;
-        pub const EARLY_PAGE_TABLE_SIZE: usize = RANGES_AND_COUNT.1;
+        const EARLY_PAGE_TABLE_SIZE: usize = RANGES_AND_COUNT.1;
+
+        #[cfg(all(target_arch = "aarch64", not(test)))]
+        // SAFETY: init_early_page_tables is a naked function, doesn't use atomics, and maps the
+        // ranges specified by the platform.
+        unsafe impl $crate::pagetable::early_pagetable::PlatformEarlyPagetable for $platform {
+            #[unsafe(naked)]
+            extern "C" fn init_early_page_tables() {
+                use core::mem::offset_of;
+                use $crate::pagetable::{GRANULE_SIZE, early_pagetable::DescriptorRange};
+
+                $crate::naked_asm!(
+                    "/* x0 = RANGES start */
+                    ldr	x0, ={ranges}
+
+                    /* x1 = RANGES end */
+                    ldr	x1, =({ranges} + ({ranges_size} * {ranges_count}))
+
+                    /* x2 = table base address */
+                    ldr	x2, =early_page_table_start
+
+                1:
+                    /* x3 = range.index and x4 = range.step_count, x5 = range.value */
+                    ldp	x3, x4, [x0, #{index_step_count_offset}];
+                    ldr	x5, [x0, #{value_offset}]
+
+                    /* If step_count is zero, the entry is a table descriptor. */
+                    cbz	x4, 3f
+
+                    /* Block descriptors */
+
+                    /* x4 = step, x6 = index + (count * 8) */
+                    and	x6, x4, #{count_mask}
+                    sub	x4, x4, x6
+                    lsl	x6, x6, #3
+                    add	x6, x3, x6
+
+                2:
+                    /* Block descriptor loop */
+
+                    /* *(table_base + index) = range.value */
+                    str	x5, [x2, x3]
+
+                    /* index += 8 */
+                    add	x3, x3, #8
+
+                    /* index != end_index */
+                    cmp	x3, x6
+                    b.eq	4f
+
+                    /* range.value += step */
+                    add	x5, x5, x4
+                    b	2b
+
+                3:
+                    /* Table descriptor */
+
+                    /* *(table_base + index) = table_base + range.value */
+                    add	x5, x2, x5
+                    str	x5, [x2, x3]
+
+                4:
+                    /* range += sizeof(DescriptorRange) */
+                    add	x0, x0, #{ranges_size}
+
+                    /* Check end of list */
+                    cmp	x0, x1
+                    b.ne	1b
+
+                    /* Instruction and data barrier */
+                    isb
+                    dsb	sy
+
+                    ret",
+                    ranges = sym EARLY_PAGE_TABLE_RANGES,
+                    ranges_size = const size_of::<DescriptorRange>(),
+                    ranges_count = const EARLY_PAGE_TABLE_RANGES.len(),
+                    index_step_count_offset = const offset_of!(DescriptorRange, index),
+                    value_offset = const offset_of!(DescriptorRange, value),
+                    count_mask = const (GRANULE_SIZE - 1),
+                );
+            }
+        }
     };
 }
-
-pub(crate) use define_early_mapping;
-
-#[cfg(all(target_arch = "aarch64", not(test)))]
-/// Builds the early page tables from `EARLY_PAGE_TABLE_RANGES`.
-#[unsafe(naked)]
-pub extern "C" fn init_early_page_tables() {
-    use crate::naked_asm;
-    use core::mem::offset_of;
-
-    naked_asm!(
-        "/* x0 = RANGES start */
-        ldr	x0, ={ranges}
-
-        /* x1 = RANGES end */
-        ldr	x1, =({ranges} + ({ranges_size} * {ranges_count}))
-
-        /* x2 = table base address */
-        ldr	x2, =early_page_table_start
-
-    1:
-        /* x3 = range.index and x4 = range.step_count, x5 = range.value */
-        ldp	x3, x4, [x0, #{index_step_count_offset}];
-        ldr	x5, [x0, #{value_offset}]
-
-        /* If step_count is zero, the entry is a table descriptor. */
-        cbz	x4, 3f
-
-        /* Block descriptors */
-
-        /* x4 = step, x6 = index + (count * 8) */
-        and	x6, x4, #{count_mask}
-        sub	x4, x4, x6
-        lsl	x6, x6, #3
-        add	x6, x3, x6
-
-    2:
-        /* Block descriptor loop */
-
-        /* *(table_base + index) = range.value */
-        str	x5, [x2, x3]
-
-        /* index += 8 */
-        add	x3, x3, #8
-
-        /* index != end_index */
-        cmp	x3, x6
-        b.eq	4f
-
-        /* range.value += step */
-        add	x5, x5, x4
-        b	2b
-
-    3:
-        /* Table descriptor */
-
-        /* *(table_base + index) = table_base + range.value */
-        add	x5, x2, x5
-        str	x5, [x2, x3]
-
-    4:
-        /* range += sizeof(DescriptorRange) */
-        add	x0, x0, #{ranges_size}
-
-        /* Check end of list */
-        cmp	x0, x1
-        b.ne	1b
-
-        /* Instruction and data barrier */
-        isb
-        dsb	sy
-
-        ret",
-        ranges = sym EARLY_PAGE_TABLE_RANGES,
-        ranges_size = const size_of::<DescriptorRange>(),
-        ranges_count = const EARLY_PAGE_TABLE_RANGES.len(),
-        index_step_count_offset = const offset_of!(DescriptorRange, index),
-        value_offset = const offset_of!(DescriptorRange, value),
-        count_mask = const (GRANULE_SIZE - 1),
-    );
-}
+pub use define_early_mapping;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_platform_early_mapping() {
-        assert_eq!(EARLY_PAGE_TABLE_RANGES, []);
-    }
-
-    #[test]
     fn map_empty() {
-        define_early_mapping!([]);
+        define_early_mapping!(TestPlatform, []);
 
         assert_eq!(EARLY_PAGE_TABLE_RANGES, []);
         assert_eq!(0x1000, EARLY_PAGE_TABLE_SIZE);
@@ -384,7 +396,7 @@ mod tests {
             attributes: El23Attributes::from_bits_retain(0x10),
         }];
 
-        define_early_mapping!(REGIONS);
+        define_early_mapping!(TestPlatform, REGIONS);
 
         assert_eq!(
             [DescriptorRange {
@@ -404,7 +416,7 @@ mod tests {
             attributes: El23Attributes::from_bits_retain(0x20),
         }];
 
-        define_early_mapping!(REGIONS);
+        define_early_mapping!(TestPlatform, REGIONS);
 
         assert_eq!(
             [
@@ -431,7 +443,7 @@ mod tests {
             attributes: El23Attributes::from_bits_retain(0x30),
         }];
 
-        define_early_mapping!(REGIONS);
+        define_early_mapping!(TestPlatform, REGIONS);
 
         assert_eq!(
             [
@@ -473,7 +485,7 @@ mod tests {
             },
         ];
 
-        define_early_mapping!(REGIONS);
+        define_early_mapping!(TestPlatform, REGIONS);
 
         assert_eq!(
             [

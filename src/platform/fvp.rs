@@ -170,7 +170,7 @@ const EARLY_REGIONS: [EarlyRegion; 2] = [
     },
 ];
 
-define_early_mapping!(EARLY_REGIONS);
+define_early_mapping!(Fvp, EARLY_REGIONS);
 
 const fn secure_sgi_configuration(index: u32) -> (IntId, InterruptConfig) {
     (

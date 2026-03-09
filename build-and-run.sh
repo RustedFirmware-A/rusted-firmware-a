@@ -132,6 +132,10 @@ case "$PLAT" in
         -C bp.secureflashloader.fname=${BL1} \
         -C bp.flashloader0.fname=${FIP}"
 
+    if [[ "${FVP_IRIS}" == 1 ]]; then
+        FVP_COMMON_ARGS+=" --iris-server --print-port-number"
+    fi
+
     if [ -z ${SP_LAYOUT_FILE} ]; then
         SPMD_SPM_AT_SEL2=${SPMD_SPM_AT_SEL2:-0}
     else

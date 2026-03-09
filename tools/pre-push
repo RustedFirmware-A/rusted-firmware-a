@@ -42,6 +42,12 @@ for platform in "${all_platforms[@]}"; do
         for features in "${all_features[@]}"; do
             features=$(echo $features | sed "s/'//g")
             echo "platform: $platform, debug: $debug, features: $features"
+
+            if [[ $debug == "1" && $platform == "fvp" && $features != *"sel2"* ]]; then
+                echo "Skipping"
+                continue
+            fi
+
             must make FEATURES=$features DEBUG="$debug" PLAT="$platform" build
         done
     done

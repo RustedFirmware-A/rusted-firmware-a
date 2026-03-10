@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! The early pagetable is built and enabled by assembly code before running any Rust code.
+
 use crate::{
     pagetable::{GRANULE_SIZE, TOP_LEVEL_BLOCK_SIZE, TOP_LEVEL_DESCRIPTOR_COUNT},
     platform::EARLY_PAGE_TABLE_RANGES,

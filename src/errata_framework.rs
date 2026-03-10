@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Framework for working around CPU and other errata.
+
 #[cfg(all(target_arch = "aarch64", not(test)))]
 pub mod dsu;
 
@@ -17,7 +19,9 @@ pub type Cve = u32;
 /// Represents a CPU revision and variant.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub struct RevisionVariant {
+    /// The CPU revision.
     pub revision: u8,
+    /// The CPU variant.
     pub variant: u8,
 }
 
@@ -55,13 +59,19 @@ pub enum ErratumType {
 /// stack and don't access memory. Check function may clobber x0-x4, workaround may clobber x0-x7.
 #[allow(unused)]
 pub unsafe trait Erratum {
+    /// The unique ID of the erratum workaround.
     const ID: ErratumId;
+
+    /// The CVE number of the erratum, or 0 if there is none.
     const CVE: Cve;
+
+    /// The time at which the erratum workaround should be applied.
     const APPLY_ON: ErratumType;
 
-    /// Returns true if the erratum is to be applied.
+    /// Returns true if the erratum should be applied.
     extern "C" fn check() -> bool;
-    /// Applies the workaround for a specific erratum.
+
+    /// Applies the workaround for the erratum.
     extern "C" fn workaround();
 }
 
@@ -69,9 +79,16 @@ pub unsafe trait Erratum {
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ErratumEntry {
+    /// The unique ID of the erratum workaround.
     pub id: ErratumId,
+
+    /// The time at which the erratum workaround should be applied.
     pub apply_on: ErratumType,
+
+    /// Returns true if the erratum should be applied.
     pub check: extern "C" fn() -> bool,
+
+    /// Applies the workaround for the erratum.
     pub workaround: extern "C" fn(),
 }
 
@@ -142,7 +159,9 @@ pub(crate) use define_errata_list;
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```compile_fail
+/// struct MyErratum;
+///
 /// unsafe impl Erratum for MyErratum {
 ///     // ...
 ///     #[unsafe(naked)]

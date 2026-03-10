@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Platform abstractions.
 macro_rules! select_platform {
     (platform = $condition:literal, $mod:ident::$sub:ident::$plat_impl:ident) => {
         #[cfg(platform = $condition)]

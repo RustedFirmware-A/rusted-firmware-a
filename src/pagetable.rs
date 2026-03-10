@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Constants, types and helpers for working with pagetables.
+
 pub mod early_pagetable;
 
 #[cfg(feature = "rme")]
@@ -62,6 +64,7 @@ const TCR: u64 = (0b101 << 16) // 48 bit physical address size (256 TiB).
 
 const TOP_LEVEL_BLOCK_SIZE: usize = 0x4000_0000; // 1GB block size at level 0
 const TOP_LEVEL_DESCRIPTOR_COUNT: usize = 512; // 512 descriptors in the level 0 table.
+/// The smallest unit of memory which can be mapped in the pagetable, a single page.
 pub const GRANULE_SIZE: usize = 4096; // Using 4k pages.
 
 // Attribute values corresponding to the above MAIR indices.
@@ -413,6 +416,7 @@ impl Translation<El23Attributes> for IdTranslation {
     }
 }
 
+/// A page table using identity mapping.
 #[derive(Debug)]
 pub struct IdMap {
     mapping: Mapping<IdTranslation, El3>,

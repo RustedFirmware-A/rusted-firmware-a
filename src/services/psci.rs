@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Service implementing the Arm Power State Coordination Interface.
+
 mod power_domain_tree;
 
 #[cfg(not(test))]
@@ -38,14 +40,23 @@ bitflags! {
     #[derive(Debug, Eq, PartialEq, Clone, Copy)]
     #[repr(transparent)]
     pub struct PsciPlatformOptionalFeatures: u64 {
+        /// The `SYSTEM_OFF2` PSCI function is supported.
         const SYSTEM_OFF2 = 1 << 0;
+        /// The `SYSTEM_RESET2` PSCI function is supported.
         const SYSTEM_RESET2 = 1 << 1;
+        /// The `MEM_PROTECT` PSCI function is supported.
         const MEM_PROTECT = 1 << 2;
+        /// The `MEM_PROTECT_CHECK_RANGE` PSCI function is supported.
         const MEM_PROTECT_CHECK_RANGE = 1 << 3;
+        /// The `CPU_FREEZE` PSCI function is supported.
         const CPU_FREEZE = 1 << 4;
+        /// The `CPU_DEFAULT_SUSPEND` PSCI function is supported.
         const CPU_DEFAULT_SUSPEND = 1 << 5;
+        /// The `NODE_HW_STATE` PSCI function is supported.
         const NODE_HW_STATE = 1 << 6;
+        /// The `SYSTEM_SUSPEND` PSCI function is supported.
         const SYSTEM_SUSPEND = 1 << 7;
+        /// OS-initiated suspend mode is supported.
         const OS_INITIATED_MODE = 1 << 8;
     }
 }
@@ -60,7 +71,9 @@ bitflags! {
 pub trait PlatformPowerStateInterface:
     Debug + Clone + Copy + PartialEq + Ord + Into<usize>
 {
+    /// The power state for a CPU turned off.
     const OFF: Self;
+    /// The power state for a running CPU.
     const RUN: Self;
 
     /// Returns the type of the platform-specific power state.
@@ -218,16 +231,23 @@ pub trait PsciSpmInterface {
     fn notify_cpu_suspend_powerdown_abandoned(&self);
 }
 
+/// Categories of power states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerStateType {
+    /// The power domain is powered off entirely.
     PowerDown,
+    /// The power domain is in standby, or state is retained.
     StandbyOrRetention,
+    /// The power domain is running normally.
     Run,
 }
 
+/// The reason for a CPU waking up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WakeUpReason {
+    /// There was a PSCI `CPU_ON` call to turn the CPU on.
     CpuOn(EntryPoint),
+    /// The CPU previously called `CPU_SUSPEND` and is now resuming.
     SuspendFinished(EntryPoint),
 }
 
@@ -248,6 +268,7 @@ pub struct PsciCompositePowerState {
 }
 
 impl PsciCompositePowerState {
+    /// The lowest power level, for a single CPU core.
     pub const CPU_POWER_LEVEL: usize = 0;
 
     /// States set to OFF on all levels.
@@ -262,6 +283,8 @@ impl PsciCompositePowerState {
         last_at_power_level: None,
     };
 
+    /// Constructs a new composite power state with the given set of power states and no last power
+    /// level.
     #[allow(unused)]
     pub fn new(states: [PlatformPowerState; PsciPlatformImpl::MAX_POWER_LEVEL + 1]) -> Self {
         Self {
@@ -270,6 +293,8 @@ impl PsciCompositePowerState {
         }
     }
 
+    /// Constructs a new composite power state with the given set of power states and last power
+    /// level.
     #[allow(unused)]
     pub const fn new_with_last_power_level(
         states: [PlatformPowerState; PsciPlatformImpl::MAX_POWER_LEVEL + 1],

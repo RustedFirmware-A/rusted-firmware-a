@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Definitions for the RMM-EL3 interface.
+
 // This module contains definitions for the RMM-EL3 interface, which are not yet all used by RF-A.
 #![allow(dead_code)]
 
@@ -9,23 +11,36 @@ use num_enum::TryFromPrimitive;
 
 use crate::smccc::{SetFrom, SmcReturn};
 
+/// A function ID or parameter value was invalid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
+    /// The function ID was not recognised.
     UnrecognisedFunctionId(u32),
+    /// The ECC curve was not recognised.
     InvalidEccCurve(u64),
+    /// The RMM_EL3_TOKEN_SIGN opcode was not recognised.
     InvalidEl3TokenSignOpcode(u64),
+    /// The RMM_MEC_REFRESH reason was not recognised.
     InvalidMecRefreshReason(u64),
 }
 
+/// The status returned by an RMM command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive)]
 #[repr(i32)]
 pub enum RmmCommandReturnCode {
+    /// No errors detected.
     Ok = 0,
+    /// Unknown/Generic error.
     Unk = -1,
+    /// The value of an address used as argument was invalid.
     BadAddress = -2,
+    /// Incorrect PAS.
     BadPas = -3,
+    /// Not enough memory to perform an operation.
     NoMemory = -4,
+    /// The value of an argument was invalid.
     InvalidValue = -5,
+    /// The resource is busy. Try again.
     Again = -6,
 }
 
@@ -37,30 +52,40 @@ impl From<RmmCommandReturnCode> for u64 {
     }
 }
 
+/// Which ECC curve to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive)]
 #[num_enum(error_type(name = Error, constructor = Error::InvalidEccCurve))]
 #[repr(u64)]
 pub enum EccCurve {
+    /// The ECC P384 curve.
     EccSecp384r1 = 0,
 }
 
+/// Opcode for the RMM_EL3_TOKEN_SIGN command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive)]
 #[num_enum(error_type(name = Error, constructor = Error::InvalidEl3TokenSignOpcode))]
 #[repr(u64)]
 pub enum El3TokenSignOpcode {
+    /// RMM_EL3_TOKEN_SIGN_PUSH_REQ_OP
     Push = 0x1,
+    /// RMM_EL3_TOKEN_SIGN_PULL_RESP_OP
     Pull = 0x2,
+    /// RMM_EL3_TOKEN_SIGN_GET_RAK_PUB_OP
     GetRak = 0x3,
 }
 
+/// Reason for an RMM_MEC_REFRESH command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive)]
 #[num_enum(error_type(name = Error, constructor = Error::InvalidMecRefreshReason))]
 #[repr(u64)]
 pub enum MecRefreshReason {
+    /// Realm creation.
     RealmCreation = 0,
+    /// Realm destruction.
     RealmDestruction = 1,
 }
 
+/// IDE selective stream information.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamSelector {
     pub keyset: bool,
@@ -99,75 +124,139 @@ pub enum RmmFuncId {
     ReserveMemory = 0xC400_01BB,
 }
 
+/// A call to an RMM function.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RmmCall {
+    /// Notifies the completion of an RMI call to the Non-Secure world.
     RmiReqComplete {
+        /// Register values.
         regs: [u64; 6],
     },
+    /// Delegates a memory granule by changing its PAS from Non-Secure to Realm.
     GtsiDelegate {
+        /// Physical address of the start of the granule to be delegated.
         base_pa: usize,
     },
+    /// Undelegates a memory granule by changing its PAS from Realm to Non-Secure.
     GtsiUndelegate {
+        /// Physical address of the start of the granule to be undelegated.
         base_pa: usize,
     },
+    /// Retrieves the Realm Attestation Token Signing key from EL3.
     AttestGetRealmKey {
+        /// Physical address where the Realm Attestation Key must be stored by EL3. The PA must
+        /// belong to the shared buffer.
         buf_pa: usize,
+        /// Size in bytes of the Realm Attestation Key buffer. `buf_pa` + `buf_size` must lie within
+        /// the shared buffer.
         buf_size: usize,
+        /// Type of the elliptic curve to which the requested attestation key belongs.
         ecc_curve: EccCurve,
     },
+    /// Retrieves the Platform Token from EL3.
     AttestGetPlatToken {
+        /// Physical address of the platform attestation token.
         buf_pa: usize,
+        /// Size in bytes of the platform attestation token buffer. `buf_pa` + `buf_size` must lie
+        /// within the shared buffer.
         buf_size: usize,
+        /// Size in bytes of the challenge object. It corresponds to the size of one of the defined
+        /// SHA algorithms. Any subsequent calls, if required to retrieve the full token, should set
+        /// this size to 0.
         c_size: usize,
     },
+    /// Provides a mechanism to discover features and ABIs supported by the RMM-EL3 interface, for a
+    /// given version.
     El3Features {
+        /// Feature register index.
         feat_reg_idx: u64,
     },
+    /// Sends requests related to realm attestation token signing requests to EL3.
     El3TokenSign {
+        /// The operation to send.
         opcode: El3TokenSignOpcode,
+        /// Physical address for the request or response, depending on the opcode.
         buf_pa: usize,
+        /// Size in bytes of the buffer in `buf_pa`. `buf_pa` + `buf_size` must lie within the
+        /// shared buffer.
         buf_size: usize,
+        /// Type of the elliptic curve to which the requested attestation key belongs.
         ecc_curve: EccCurve,
     },
+    /// Updates the tweak for the encryption key/programs a new encryption key associated with a
+    /// given MECID.
     MecRefresh {
+        /// Identifies the MECID for which the encryption key is to be updated.
         mecid: u16,
+        /// The reason for the MEC refresh.
         reason: MecRefreshReason,
     },
+    /// Sets the key/IV info at Root port for an IDE stream as part of Device Assignment flow.
     IdeKeyProg {
+        /// Used to identify the root complex.
         ecam_address: u64,
+        /// Used to identify the root port within the root complex.
         rp_id: u64,
+        /// IDE selective stream information.
         stream: StreamSelector,
+        /// Quad words of key.
         keq_qw: [u64; 4],
+        /// Quad words of IV.
         ifv_qw: [u64; 2],
+        /// Used only in non-blocking mode. Ignored in blocking mode.
         request_id: u64,
+        /// Used only in non-blocking mode. Ignored in blocking mode.
         cookie: u64,
     },
+    /// Activates the IDE stream at Root Port once the keys have been programmed as part of Device
+    /// Assignment flow.
     IdeKeySetGo {
+        /// Used to identify the root complex.
         ecam_address: u64,
+        /// Used to identify the root port within the root complex.
         rp_id: u64,
+        /// IDE selective stream information.
         stream: StreamSelector,
+        /// Used only in non-blocking mode. Ignored in blocking mode.
         request_id: u64,
+        /// Used only in non-blocking mode. Ignored in blocking mode.
         cookie: u64,
     },
+    /// Deactivates the IDE stream at Root Port as part of Device Assignment flow.
     IdeKeySetStop {
+        /// Used to identify the root complex.
         ecam_address: u64,
+        /// Used to identify the root port within the root complex.
         rp_id: u64,
+        /// IDE selective stream information.
         stream: StreamSelector,
+        /// Used only in non-blocking mode. Ignored in blocking mode.
         request_id: u64,
+        /// Used only in non-blocking mode. Ignored in blocking mode.
         cookie: u64,
     },
+    /// Retrieves the response from Root Port to a previous non-blocking IDE-KM SMC request as part
+    /// of Device Assignment flow.
     IdeKmPullResponse {
+        /// Used to identify the root complex.
         ecam_address: u64,
+        /// Used to identify the root port within the root complex.
         rp_id: u64,
     },
+    /// Reserves memory for the RMM, during RMM boot time.
     ReserveMemory {
+        /// Required size of the memory region, in bytes.
         size: usize,
+        /// Alignment requirement, in bits. A value of 16 would return a 64 KB aligned base address.
         alignment: u8,
+        /// Determines whether the reservation should be taken from a pool close to the calling CPU.
         local_cpu: bool,
     },
 }
 
 impl RmmCall {
+    /// Parses the given register values as an RMM call, or returns an error if the function ID is
+    /// not recognised.
     pub fn from_regs(regs: &[u64]) -> Result<Self, Error> {
         let fid = RmmFuncId::try_from(regs[0] as u32)?;
 
@@ -277,15 +366,20 @@ impl SetFrom<RmmCommandReturnCode> for SmcReturn {
 pub struct RmmEmptyResponse;
 derive_setfrom!(RmmEmptyResponse);
 
+/// The response to an RMM ATTEST_GET_REALM_KEY request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RmmAttestGetRealmKeyResponse {
+    /// Size in bytes of the Realm Attestation Key.
     pub key_size: usize,
 }
 derive_setfrom!(RmmAttestGetRealmKeyResponse, key_size);
 
+/// The response to an RMM ATTEST_GET_PLAT_TOKEN request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RmmAttestGetPlatTokenResponse {
+    /// Size of the platform token hunk retrieved.
     pub token_hunk_size: usize,
+    /// Remaining bytes of the token that are pending retrieval.
     pub remaining_size: usize,
 }
 derive_setfrom!(
@@ -294,28 +388,38 @@ derive_setfrom!(
     remaining_size
 );
 
+/// The response to an RMM EL3_FEATURES request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RmmEl3FeaturesResponse {
+    /// Value of the requested feature register.
     pub feat_reg: u64,
 }
 derive_setfrom!(RmmEl3FeaturesResponse, feat_reg);
 
+/// The response to an RMM EL3_TOKEN_SIGN_GET_RAK request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RmmEl3TokenSignGetRakResponse {
+    /// The length of public key returned.
     pub key_size: u64,
 }
 derive_setfrom!(RmmEl3TokenSignGetRakResponse, key_size);
 
+/// The response to an RMM IDE_KM_PULL request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RmmIdeKmPullResponse {
+    /// Retrieved response corresponding to previous IDE_KM requests.
     pub previous: RmmCommandReturnCode,
+    /// Passthrough from requested SMC.
     pub r1: u64,
+    /// Passthrough from requested SMC.
     pub r2: u64,
 }
 derive_setfrom!(RmmIdeKmPullResponse, previous, r1, r2);
 
+/// The response to an RMM RESERVE_MEMORY request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RmmReserveMemoryResponse {
+    /// Physical address of the reserved memory area.
     pub address: usize,
 }
 derive_setfrom!(RmmReserveMemoryResponse, address);

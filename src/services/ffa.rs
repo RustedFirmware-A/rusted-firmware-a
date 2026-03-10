@@ -2,4 +2,6 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Firmware Framework for A-Profile.
+
 pub mod spmd;

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Framework for CPU specific operations.
+
 macro_rules! add_cpu_mod {
     ($module:ident) => {
         #[cfg(all(target_arch = "aarch64", not(test)))]
@@ -58,6 +60,9 @@ pub unsafe trait Cpu {
 #[repr(C)]
 #[derive(Debug)]
 pub struct CpuOps {
+    /// The MIDR value to identify the CPU.
+    ///
+    /// Note that only the bits included in [`Self::MIDR_MASK`] will be compared.
     midr: MidrEl1,
     reset_handler: extern "C" fn(),
     dump_registers: extern "C" fn(),
@@ -119,6 +124,7 @@ fn find_cpu_ops() -> &'static CpuOps {
     }
 }
 
+/// Finds the CPU operations for the current CPU and calls the reset handler for it.
 #[cfg(test)]
 pub extern "C" fn cpu_reset_handler() {
     let ops = find_cpu_ops();
@@ -176,6 +182,7 @@ extern "C" fn get_cpu_ops() -> *const CpuOps {
     );
 }
 
+/// Finds the CPU operations for the current CPU and calls the reset handler for it.
 #[cfg(not(test))]
 #[unsafe(naked)]
 pub extern "C" fn cpu_reset_handler() {
@@ -230,6 +237,7 @@ pub unsafe extern "C" fn cpu_dump_registers() {
     );
 }
 
+/// Finds the CPU operations for the current CPU and calls the power down hook for the given level.
 pub fn cpu_power_down(level: usize) {
     let ops = find_cpu_ops();
 
@@ -240,6 +248,7 @@ pub fn cpu_power_down(level: usize) {
     };
 }
 
+/// Finds the CPU operations for the current CPU and calls the power down abandon hook for it.
 pub fn cpu_handle_power_down_abandon() {
     let ops = find_cpu_ops();
     (ops.handle_power_down_abandon)()

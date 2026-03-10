@@ -2,10 +2,13 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! CPU operations for the QEMU 'max' virtual CPU.
+
 use super::Cpu;
 use crate::naked_asm;
 use arm_sysregs::MidrEl1;
 
+/// CPU operations for the QEMU 'max' virtual CPU.
 #[allow(unused)]
 pub struct QemuMax;
 

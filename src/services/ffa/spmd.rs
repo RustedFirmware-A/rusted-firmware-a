@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! FF-A Secure Partition Manager Dispatcher.
+
 use crate::{
     context::{PerCoreState, World, switch_world},
     exceptions::{RunResult, enter_world},
@@ -190,11 +192,14 @@ impl Spmd {
         spmd
     }
 
+    /// Returns the primary entrypoint of the SPMC.
     #[allow(unused)]
     pub fn primary_ep(&self) -> usize {
         self.spmc_primary_ep
     }
 
+    /// Returns the secondary entrypoint set by the SPMC, or the primary entrypoint if it hasn't yet
+    /// set a secondary entrypoint.
     pub fn secondary_ep(&self) -> usize {
         self.spmc_secondary_ep.load(Relaxed)
     }
@@ -512,6 +517,7 @@ impl Spmd {
         next_world
     }
 
+    /// Forwards a secure interrupt to secure world.
     pub fn forward_secure_interrupt(&self, regs: &mut SmcReturn) -> World {
         let msg = Interface::Interrupt {
             // The endpoint and vCPU ID fields MBZ in this case
@@ -643,6 +649,7 @@ impl PsciSpmInterface for Spmd {
     }
 }
 
+/// Fake SPM implementation for tests.
 #[cfg(test)]
 pub struct TestSpm;
 

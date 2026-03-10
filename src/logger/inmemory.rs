@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Logger implementations which log to an in-memory buffer.
+
 use crate::{
     context::PerCoreState,
     logger::LogSink,
@@ -137,6 +139,7 @@ pub struct PerCoreMemoryLogger<'a, const BUFFER_SIZE: usize> {
 }
 
 impl<'a, const BUFFER_SIZE: usize> PerCoreMemoryLogger<'a, BUFFER_SIZE> {
+    /// Constructs a new per-core in-memory logger wrapping the given array of in-memory loggers.
     #[allow(unused)]
     pub fn new(loggers: [&'a mut MemoryLogger<BUFFER_SIZE>; PlatformImpl::CORE_COUNT]) -> Self {
         Self {

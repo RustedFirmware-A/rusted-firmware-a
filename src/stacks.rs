@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Stacks for EL3.
+
 use crate::platform::{EARLY_PAGE_TABLE_SIZE, Platform, PlatformImpl};
 #[cfg(not(test))]
 pub use asm::set_my_stack;

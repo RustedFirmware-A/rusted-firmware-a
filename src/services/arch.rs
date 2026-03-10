@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Service for Arm architecture SMCs.
+
 use crate::{
     context::World,
     services::{Service, owns},
@@ -83,10 +85,13 @@ impl Arch {
     }
 }
 
+/// Whether a particular arch workaround SMC is required or not.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(i32)]
 pub enum WorkaroundSupport {
+    /// The workaround call is required.
     Required = 0,
+    /// The workaround is safe to call but not required.
     SafeButNotRequired = 1,
 }
 

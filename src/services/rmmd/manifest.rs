@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! The manifest structure contains platform boot information passed from EL3 to the RMM.
+
 use core::fmt::{Debug, Display};
 
 use aarch64_paging::paging::PAGE_SIZE;
@@ -9,14 +11,23 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 use crate::services::rmmd::RMM_SHARED_BUFFER_SIZE;
 
+/// Platform boot information passed from EL3 to the RMM.
 pub struct RmmBootManifest<'a> {
+    /// Boot Manifest version.
     pub version: RmmBootManifestVersion,
+    /// Platform Data section.
     pub plat_data: &'a [u8],
+    /// NS DRAM Layout Info.
     pub plat_dram: &'a [RmmMemoryBank],
+    /// List of consoles available to RMM.
     pub plat_console: &'a [RmmConsoleInfo],
+    /// Device non-coherent ranges Info structure.
     pub plat_ncoh_region: &'a [RmmMemoryBank],
+    /// Device coherent ranges Info structure.
     pub plat_coh_region: &'a [RmmMemoryBank],
+    /// List of SMMUs available to RMM.
     pub plat_smmu: &'a [RmmSmmuInfo],
+    /// List of PCIe root complexes available to RMM.
     pub plat_root_complex: RmmRootComplexInfoList<'a>,
 }
 
@@ -131,10 +142,10 @@ impl<'a> RmmBootManifest<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
-#[repr(C)]
 /// The RMM-EL3 Boot Manifest v0.5 structure contains platform boot information passed from EL3 to
 /// RMM.
+#[derive(Debug, Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
+#[repr(C)]
 struct RmmBootManifestHeader {
     /// Boot Manifest version.
     version: u32,
@@ -156,6 +167,7 @@ struct RmmBootManifestHeader {
     plat_root_complex: RmmRootComplexListInternal,
 }
 
+/// Boot Manifest version number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Immutable, FromBytes, IntoBytes)]
 pub struct RmmBootManifestVersion {
     pub(crate) minor: u16,
@@ -194,6 +206,7 @@ impl Display for RmmBootManifestVersion {
 /// Current version of the `RmmBootManifest` struct.
 pub const RMM_BOOT_MANIFEST_VERSION: RmmBootManifestVersion =
     RmmBootManifestVersion { major: 0, minor: 5 };
+/// Current version of the `RmmRootComplexInfoList` struct.
 pub const RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION: RmmBootManifestVersion =
     RmmBootManifestVersion { major: 0, minor: 1 };
 
@@ -205,9 +218,9 @@ struct ChecksummedList {
     checksum: u64,
 }
 
+/// Memory Bank structure contains information about each memory bank/device region.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
 #[repr(C)]
-/// Memory Bank structure contains information about each memory bank/device region.
 pub struct RmmMemoryBank {
     /// Base address.
     pub base: usize,
@@ -215,9 +228,9 @@ pub struct RmmMemoryBank {
     pub size: usize,
 }
 
+/// Console Info structure contains information about each Console available to RMM.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
 #[repr(C)]
-/// Console Info structure contains information about each Console available to RMM.
 pub struct RmmConsoleInfo {
     /// Console Base address.
     pub base: usize,
@@ -233,9 +246,9 @@ pub struct RmmConsoleInfo {
     pub flags: u64,
 }
 
+/// SMMU Info structure contains information about each SMMU available to RMM.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
 #[repr(C)]
-/// SMMU Info structure contains information about each SMMU available to RMM.
 pub struct RmmSmmuInfo {
     /// SMMU Base address.
     pub smmu_base: usize,
@@ -243,14 +256,21 @@ pub struct RmmSmmuInfo {
     pub smmu_r_base: usize,
 }
 
+/// Information about the PCIe root complexes available to RMM.
 pub struct RmmRootComplexInfoList<'a> {
+    /// Root Complex Info structure version.
     pub rc_info_version: RmmBootManifestVersion,
+    /// Information about each root complex.
     pub entries: &'a [RmmRootComplexInfo<'a>],
 }
 
+/// Information about a PCIe root complex available to RMM.
 pub struct RmmRootComplexInfo<'a> {
+    /// PCIe ECAM Base address.
     pub ecam_base: u64,
+    /// PCIe segment identifier.
     pub segment: u8,
+    /// Information about root ports.
     pub entries: &'a [RmmRootPortInfo<'a>],
 }
 
@@ -266,9 +286,9 @@ struct RmmRootComplexListInternal {
     checksum: u64,
 }
 
+/// Root Complex Info structure contains information about each PCIe root complex available to RMM.
 #[derive(Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
 #[repr(C)]
-/// Root Complex Info structure contains information about each PCIe root complex available to RMM.
 struct RmmRootComplexInfoInternal {
     /// PCIe ECAM Base address.
     ecam_base: u64,
@@ -284,12 +304,13 @@ struct RmmRootComplexInfoInternal {
 pub struct RmmRootPortInfo<'a> {
     /// Root Port identifier.
     pub root_port_id: u16,
+    /// The BDF mappings.
     pub entries: &'a [BdfMappingInfo],
 }
 
+/// Root Complex Info structure contains information about each root port in PCIe root complex.
 #[derive(Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
 #[repr(C)]
-/// Root Complex Info structure contains information about each root port in PCIe root complex.
 struct RmmRootPortInfoInternal {
     /// Root Port identifier.
     root_port_id: u16,
@@ -299,10 +320,10 @@ struct RmmRootPortInfoInternal {
     entries_ptr: u64,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
-#[repr(C)]
 /// BDF Mapping Info structure contains information about each Device-Bus-Function (BDF) mapping for
 /// PCIe root port.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Immutable, FromBytes, IntoBytes, KnownLayout)]
+#[repr(C)]
 pub struct BdfMappingInfo {
     /// Base of BDF mapping (inclusive).
     pub mapping_base: u16,

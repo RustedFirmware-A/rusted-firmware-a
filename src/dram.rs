@@ -18,13 +18,15 @@ pub const fn const_zeroed<T: FromZeros>() -> T {
 /// Declares a static zero-initialised `$t`, and a SpinMutex initialised with a mutable reference to
 /// it. E.g.,
 ///
-/// ```
+/// ```compile_fail
+/// use rf_a_bl31::dram::zeroed_mut;
+///
 /// zeroed_mut!(FOO, u64);
 /// ```
 ///
 /// will create
 ///
-/// ```
+/// ```compile_fail
 /// static FOO: SpinMutex<&'static mut u64> = ...;
 /// ```
 ///
@@ -33,7 +35,9 @@ pub const fn const_zeroed<T: FromZeros>() -> T {
 /// Attributes can optionally be provided both for the underlying static and for the `SpinMutex`
 /// wrapper, e.g.:
 ///
-/// ```
+/// ```compile_fail
+/// use rf_a_bl31::dram::zeroed_mut;
+///
 /// zeroed_mut! {
 ///     /// Rustdoc comment for FOO.
 ///     pub FOO, u64, unsafe(link_section = ".bss.dram")
@@ -59,13 +63,15 @@ pub(crate) use zeroed_mut;
 ///
 /// For example:
 ///
-/// ```
+/// ```compile_fail
+/// use rf_a_bl31::dram::lazy_indirect;
+///
 /// lazy_indirect!(FOO, u64, 42);
 /// ```
 ///
 /// will create
 ///
-/// ```
+/// ```compile_fail
 /// static FOO: Lazy<&u64> = ...;
 /// ```
 ///
@@ -73,7 +79,9 @@ pub(crate) use zeroed_mut;
 /// a different section of memory. Attributes can optionally be provided both for the underlying
 /// static and for the `Lazy` wrapper, e.g.:
 ///
-/// ```
+/// ```compile_fail
+/// use rf_a_bl31::dram::lazy_indirect;
+///
 /// lazy_indirect! {
 ///     /// Rustdoc comment for FOO.
 ///     pub FOO, u64, 42, unsafe(link_section = ".bss.dram")

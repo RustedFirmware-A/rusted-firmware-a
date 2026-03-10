@@ -76,23 +76,41 @@ unsafe fn semihosting_call(operation: Operation, system_block_address: *const u6
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum AdpStopped {
+    /// Hardware event: branch through zero
     BranchThroughZero = 0x20000,
+    /// Hardware event: undefined instruction
     UndefinedInstr = 0x20001,
+    /// Hardware event: software interrupt
     SoftwareInterrupt = 0x20002,
+    /// Hardware event: prefetch abort
     PrefetchAbort = 0x20003,
+    /// Hardware event: data abort
     DataAbort = 0x20004,
+    /// Hardware event: address exception
     AddressException = 0x20005,
+    /// Hardware event: IRQ
     Irq = 0x20006,
+    /// Hardware event: FIQ
     Fiq = 0x20007,
+    /// Software event: breakpoint
     BreakPoint = 0x20020,
+    /// Software event: watchpoint
     WatchPoint = 0x20021,
+    /// Software event: step complete
     StepComplete = 0x20022,
+    /// Software event: unknown runtime error
     RunTimeErrorUnknown = 0x20023,
+    /// Software event: internal error
     InternalError = 0x20024,
+    /// Software event: user interruption
     UserInterruption = 0x20025,
+    /// Software event: application exit
     ApplicationExit = 0x20026,
+    /// Software event: stack overflow
     StackOverflow = 0x20027,
+    /// Software event: division by zero
     DivisionByZero = 0x20028,
+    /// Software event: operating system specific
     OSSpecific = 0x20029,
 }
 

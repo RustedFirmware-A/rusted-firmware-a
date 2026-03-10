@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! AArch64 assembly instructions.
+
 #[cfg(all(target_arch = "aarch64", not(test)))]
 use core::arch::asm;
 

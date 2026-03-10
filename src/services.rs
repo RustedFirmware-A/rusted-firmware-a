@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Runtime services which handle SMCs from lower ELs.
+
 pub mod arch;
 mod errata_management;
 pub mod ffa;
@@ -90,7 +92,9 @@ pub struct Services {
     pub arch: Arch,
     pub psci: Psci,
     pub platform: PlatformServiceImpl,
+    /// The FF-A SPMD service.
     pub spmd: Spmd,
+    /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
     pub rmmd: Rmmd,
     pub trng: Trng,
@@ -105,6 +109,7 @@ impl Services {
         &SERVICES
     }
 
+    /// Constructs a new instance of the services.
     fn new() -> Self {
         Self {
             arch: Arch::new(),

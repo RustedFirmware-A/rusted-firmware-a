@@ -2,13 +2,17 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Debug output.
+
 /// True if the build is configured with debug assertions on.
 #[cfg(not(test))]
 pub const DEBUG: bool = cfg!(debug_assertions);
 
+/// Whether to enable assertions in assembly code.
 #[cfg(not(test))]
 pub const ENABLE_ASSERTIONS: bool = DEBUG;
 
+/// Whether to enable crash reporting in assembly code.
 // TODO: Should this be configurable separately from `DEBUG`?
 #[cfg(not(test))]
 pub const CRASH_REPORTING: bool = DEBUG;
@@ -22,6 +26,7 @@ const CRASH_BUFFER_REGISTER_COUNT: usize = 8;
 pub struct CrashBuffer([u64; CRASH_BUFFER_REGISTER_COUNT]);
 
 impl CrashBuffer {
+    /// An empty instance of the crash buffer, for initialising statics.
     pub const EMPTY: Self = Self([0; CRASH_BUFFER_REGISTER_COUNT]);
 }
 

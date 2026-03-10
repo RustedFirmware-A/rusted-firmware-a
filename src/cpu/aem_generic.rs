@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! CPU operations for the AEM FVP virtual CPU.
+
 use super::Cpu;
 use crate::{
     aarch64::{dsb_sy, isb},
@@ -13,6 +15,7 @@ use arm_sysregs::{
 };
 use core::{arch::asm, ops::RangeInclusive};
 
+/// CPU operations for the AEM FVP virtual CPU.
 #[allow(unused)]
 pub struct AemGeneric;
 

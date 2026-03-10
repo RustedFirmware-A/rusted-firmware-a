@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Traits and implementations for loggers.
+
 pub mod inmemory;
 
 use crate::platform::LogSinkImpl;
@@ -21,6 +23,7 @@ pub struct OnceLogger<LogSinkImpl> {
 }
 
 impl<LogSinkImpl: LogSink> OnceLogger<LogSinkImpl> {
+    /// Constructs a new uninitialised `OnceLogger`.
     pub const fn new() -> Self {
         Self {
             logger: Once::new(),

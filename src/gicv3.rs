@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use core::{panic, ptr::NonNull};
+//! Code to initialise and configure the GIC, and to save and restore its state if necessary when
+//! powering cores on and off.
 
 use crate::{
     aarch64::{dsb_sy, isb},
@@ -19,6 +20,7 @@ use arm_gic::{
     },
 };
 use arm_sysregs::{MpidrEl1, ScrEl3, read_mpidr_el1};
+use core::{panic, ptr::NonNull};
 use log::debug;
 use percore::Cores;
 use spin::{Once, mutex::SpinMutex};
@@ -54,6 +56,8 @@ impl Default for InterruptConfig {
     }
 }
 
+/// An entry in the platform's GIC configuration; an interrupt ID and the configuration associated
+/// with it.
 pub type InterruptConfigEntry = (IntId, InterruptConfig);
 
 /// The configuration of platform's GIC.
@@ -79,9 +83,13 @@ impl GicConfig {
 /// Specifies where an interrupt should be handled.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum InterruptType {
+    /// The interrupt should be handled in RF-A itself.
     El3,
+    /// The interrupt should be handled by a lower EL component in secure world.
     Secure,
+    /// The interrupt should be handled by a lower EL component in normal world.
     NonSecure,
+    /// The interrupt is spurious or otherwise invalid.
     Invalid,
 }
 

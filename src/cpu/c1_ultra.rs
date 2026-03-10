@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! CPU operations and errata workarounds for the Arm C1-Ultra CPU.
+
 use crate::{
     aarch64::isb,
     cpu::Cpu,
@@ -15,6 +17,7 @@ use arm_sysregs::{MidrEl1, read_write_sysreg};
 read_write_sysreg!(imp_cpupwrctlr_el1: s3_0_c15_c2_7, u64, safe_read, safe_write);
 const IMP_CPUPWRCTLR_EL1_CORE_PWRDN_EN_BIT: u64 = 0x1;
 
+/// CPU operations for the Arm C1-Ultra CPU.
 pub struct C1Ultra;
 
 #[allow(unused)]
@@ -64,6 +67,7 @@ unsafe impl Cpu for C1Ultra {
     }
 }
 
+/// Workaround for CPU erratum 3658374.
 #[allow(unused)]
 pub struct Erratum3658374;
 
@@ -89,6 +93,7 @@ unsafe impl Erratum for Erratum3658374 {
     }
 }
 
+/// Workaround for CPU erratum 3705939.
 #[allow(unused)]
 pub struct Erratum3705939;
 
@@ -120,6 +125,7 @@ unsafe impl Erratum for Erratum3705939 {
     }
 }
 
+/// Workaround for CPU erratum 3815514.
 #[allow(unused)]
 pub struct Erratum3815514;
 
@@ -151,6 +157,7 @@ unsafe impl Erratum for Erratum3815514 {
     }
 }
 
+/// Workaround for CPU erratum 3865171.
 #[allow(unused)]
 pub struct Erratum3865171;
 
@@ -182,6 +189,7 @@ unsafe impl Erratum for Erratum3865171 {
     }
 }
 
+/// Workaround for CPU erratum 3926381.
 #[allow(unused)]
 pub struct Erratum3926381;
 
@@ -236,6 +244,7 @@ unsafe impl Erratum for Erratum3926381 {
     }
 }
 
+/// Workaround for CPU erratum 4102704.
 #[allow(unused)]
 pub struct Erratum4102704;
 

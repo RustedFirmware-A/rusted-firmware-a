@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Arm CCA SMCs, for communication between RF-A and TF-RMM.
+
 pub mod manifest;
 pub mod svc;
 
@@ -444,6 +446,7 @@ impl Rmmd {
         })
     }
 
+    /// Returns arguments to pass to the RMM entrypoint.
     pub fn entrypoint_args(&self) -> [u64; 8] {
         let core_linear_id = CoresImpl::core_index() as u64;
         if self.boot_success() {

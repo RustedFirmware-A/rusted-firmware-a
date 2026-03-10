@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Service implementing the Arm True Random Number Generator Firmware Interface, as specified by
+//! Arm DEN 0098.
+
 use crate::{
     context::World,
     platform::TrngPlatformImpl,
@@ -32,8 +35,11 @@ const TRNG_VERSION: u32 = (TRNG_VERSION_MAJOR << 16) | TRNG_VERSION_MINOR;
 #[repr(i32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TrngError {
+    /// The function is not implemented.
     NotSupported = -1,
+    /// An invalid parameter was passed.
     InvalidParams = -2,
+    /// Insufficient entropy is available, or the call was rate limited.
     #[allow(unused)]
     NoEntropy = -3,
 }
@@ -263,6 +269,8 @@ impl EntropyPool {
     }
 }
 
+/// Service implementing the Arm True Random Number Generator Firmware Interface, as specified by
+/// Arm DEN 0098.
 pub struct Trng {
     pool: SpinMutex<EntropyPool>,
 }

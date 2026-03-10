@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Fake platform for testing.
+
 use super::{DummyService, Platform};
 #[cfg(feature = "rme")]
 use crate::{
@@ -306,12 +308,18 @@ impl LogSink for StdOutSink {
     }
 }
 
+/// Power states for the fake test platform.
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
 pub enum TestPowerState {
+    /// CPU is running normally.
     On,
+    /// CPU is in standby level 0.
     Standby0,
+    /// CPU is in standby level 1.
     Standby1,
+    /// CPU is in standby level 2.
     Standby2,
+    /// CPU is powered off entirely.
     PowerDown,
 }
 
@@ -336,6 +344,7 @@ impl From<TestPowerState> for usize {
     }
 }
 
+/// Fake PSCI platform implementation for tests.
 pub struct TestPsciPlatformImpl;
 
 impl TestPsciPlatformImpl {
@@ -343,13 +352,20 @@ impl TestPsciPlatformImpl {
     // these functions. The test platform calls panic with the following magic strings that can be
     // caught by `catch_unwind`. This way the test can expect unwind the calls on power down
     // testing.
+    /// Special string for panic message to indicate that `power_domain_power_down` was called.
     pub const POWER_DOWN_WFI_MAGIC: &str = "POWER_DOWN_WFI_MAGIC";
+    /// Special string for panic message to indicate that `system_off` was called.
     pub const SYSTEM_OFF_MAGIC: &str = "SYSTEM_OFF_MAGIC";
+    /// Special string for panic message to indicate that `system_off2` was called.
     pub const SYSTEM_OFF2_MAGIC: &str = "SYSTEM_OFF2_MAGIC";
+    /// Special string for panic message to indicate that `system_reset` was called.
     pub const SYSTEM_RESET_MAGIC: &str = "SYSTEM_RESET_MAGIC";
+    /// Special string for panic message to indicate that `system_reset2` was called.
     pub const SYSTEM_RESET2_MAGIC: &str = "SYSTEM_RESET2_MAGIC";
+    /// Special string for panic message to indicate that `cpu_freeze` was called.
     pub const CPU_FREEZE_MAGIC: &str = "CPU_FREEZE_MAGIC";
 
+    /// Returns a new instance of the fake PSCI platform.
     pub fn new() -> Self {
         Self
     }
@@ -505,6 +521,7 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
     }
 }
 
+/// Fake TRNG implementation for tests.
 pub struct TestTrngPlatformImpl;
 
 impl TrngPlatformInterface for TestTrngPlatformImpl {
@@ -538,6 +555,7 @@ unsafe impl Cpu for TestCpu {
 
 define_cpu_ops!(TestCpu);
 
+/// A fake reset erratum which always applies.
 pub struct TestMitigatedErratum;
 
 // SAFETY: This erratum is only used in unit tests, so the usual requirements on `check` and
@@ -554,6 +572,7 @@ unsafe impl Erratum for TestMitigatedErratum {
     extern "C" fn workaround() {}
 }
 
+/// A fake reset erratum which never applies.
 pub struct TestUnneededErratum;
 
 // SAFETY: This erratum is only used in unit tests, so the usual requirements on `check` and

@@ -2,9 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! FEAT_HCX introduces the Extended Hypervisor Configuration Register, HCRX_EL2, that provides
-//! configuration controls for virtualization in addition to those provided by HCR_EL2, including
-//! defining whether various operations are trapped to EL2.
+//! The Extended Hypervisor Configuration CPU extension.
 
 #[cfg(feature = "sel2")]
 mod hcx_sel2;
@@ -13,6 +11,9 @@ use super::CpuExtension;
 use crate::context::{PerWorldContext, World};
 use arm_sysregs::{HcrxEl2, ScrEl3, read_id_aa64mmfr1_el1, write_hcrx_el2};
 
+/// FEAT_HCX introduces the Extended Hypervisor Configuration Register, HCRX_EL2, that provides
+/// configuration controls for virtualization in addition to those provided by HCR_EL2, including
+/// defining whether various operations are trapped to EL2.
 #[allow(dead_code)]
 pub struct Hcx;
 

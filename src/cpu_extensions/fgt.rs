@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! FEAT_FGT CPU extension.
+
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use crate::context::World;
 use crate::cpu_extensions::CpuExtension;

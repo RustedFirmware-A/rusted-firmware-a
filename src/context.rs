@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Handles initialising, saving and restoring register context when switching between EL3 and lower
+//! ELs.
+
 #[cfg(feature = "sel2")]
 use crate::errata_framework::erratum_applies;
 use crate::{
@@ -68,12 +71,16 @@ pub const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 
 pub type PerCoreState<T> =
     PerCore<[ExceptionLock<RefCell<T>>; PlatformImpl::CORE_COUNT], CoresImpl>;
 
+/// A world which a CPU may be in.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum World {
     // The enum values must match those used by the `get_security_state` assembly function.
+    /// Secure world.
     Secure = 0,
+    /// Non-Secure world.
     NonSecure = 1,
+    /// Realm world.
     #[cfg(feature = "rme")]
     Realm = 2,
 }
@@ -99,11 +106,15 @@ unsafe impl Cores for CoresImpl {
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct CpuContext {
+    /// General-purpose registers.
     pub gpregs: GpRegs,
     pauth_regs: PAuthRegs,
+    /// EL3 system registers and other state associated with EL3.
     pub el3_state: El3State,
+    /// EL2 system registers.
     #[cfg(feature = "sel2")]
     pub el2_sysregs: El2Sysregs,
+    /// EL1 system registers.
     #[cfg(not(feature = "sel2"))]
     el1_sysregs: El1Sysregs,
 }
@@ -153,6 +164,7 @@ impl CpuContext {
 #[derive(Clone, Debug)]
 #[repr(C, align(16))]
 pub struct GpRegs {
+    /// The general-purpose registers, x0-x30 and sp_el0.
     pub registers: [u64; Self::COUNT],
 }
 
@@ -215,11 +227,14 @@ pub struct El3State {
     // instructions to load/store these together.
     runtime_sp: u64,
     runtime_lr: u64,
+    /// The EL3 saved program status register.
     pub spsr_el3: SpsrEl3,
+    /// The EL3 exception link register.
     pub elr_el3: usize,
     pmcr_el0: u64,
     saved_elr_el3: u64,
     nested_ea_flag: u64,
+    /// The EL3 monitor debug configuration register.
     pub mdcr_el3: MdcrEl3,
 }
 
@@ -381,6 +396,7 @@ pub struct El2Sysregs {
     ich_hcr_el2: IchHcrEl2,
     ich_vmcr_el2: IchVmcrEl2,
     mair_el2: MairEl2,
+    /// The EL2 monitor debug configuration register.
     pub mdcr_el2: MdcrEl2,
     sctlr_el2: SctlrEl2,
     spsr_el2: SpsrEl2,
@@ -550,12 +566,14 @@ fn errata_ich_vmcr_el2_applies() -> bool {
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct PerWorldContext {
+    /// The EL3 architectural feature trap register.
     pub cptr_el3: CptrEl3,
     /// MPAM3_EL3 belongs to the global `PerWorldContext`
     /// (instead of an additional extension specific context)
     /// because we should trap MPAM register access
     /// if a platform does not support MPAM.
     pub mpam3_el3: Mpam3El3,
+    /// The secure configuration register.
     pub scr_el3: ScrEl3,
 }
 
@@ -646,6 +664,7 @@ impl PerWorldContext {
     }
 }
 
+/// Per-CPU but not per-world data.
 #[derive(Clone, Debug)]
 #[repr(C, align(64))]
 pub struct CpuData {
@@ -653,6 +672,7 @@ pub struct CpuData {
     apiakey_lo: u64,
     #[cfg(feature = "pauth")]
     apiakey_hi: u64,
+    /// Buffer used to store register values during the crash dump process.
     pub crash_buffer: CrashBuffer,
 }
 
@@ -660,6 +680,7 @@ const _: () = assert!(size_of::<CpuData>().is_multiple_of(align_of::<CpuData>())
 const _: () = assert!(size_of::<CpuData>().is_multiple_of(PlatformImpl::CACHE_WRITEBACK_GRANULE));
 
 impl CpuData {
+    /// An empty instance of `CpuData`, all zeroes, for initialising it.
     const EMPTY: Self = Self {
         #[cfg(feature = "pauth")]
         apiakey_lo: 0,
@@ -711,6 +732,7 @@ impl<T> IndexMut<World> for PerWorld<T> {
     }
 }
 
+/// A `CpuContext` for each world.
 pub type CpuState = PerWorld<CpuContext>;
 
 impl CpuState {

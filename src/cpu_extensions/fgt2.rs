@@ -2,8 +2,13 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use core::cell::RefCell;
+//! FEAT_FGT2 CPU extension.
 
+use crate::{
+    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, PerWorldContext, World},
+    cpu_extensions::CpuExtension,
+    platform::{Platform, PlatformImpl},
+};
 use arm_sysregs::{
     Hdfgrtr2El2, Hdfgwtr2El2, Hfgitr2El2, Hfgrtr2El2, Hfgwtr2El2, ScrEl3, read_id_aa64mmfr0_el1,
 };
@@ -13,13 +18,8 @@ use arm_sysregs::{
     write_hdfgrtr2_el2, write_hdfgwtr2_el2, write_hfgitr2_el2, write_hfgrtr2_el2,
     write_hfgwtr2_el2,
 };
+use core::cell::RefCell;
 use percore::{ExceptionLock, PerCore};
-
-use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, PerWorldContext, World},
-    cpu_extensions::CpuExtension,
-    platform::{Platform, PlatformImpl},
-};
 
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use crate::platform::exception_free;

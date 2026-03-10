@@ -57,6 +57,11 @@ unsafe impl Cpu for C1Ultra {
     fn power_down_level1() {
         Self::power_down_level0();
     }
+
+    fn handle_power_down_abandon() {
+        write_imp_cpupwrctlr_el1(read_imp_cpupwrctlr_el1() & !IMP_CPUPWRCTLR_EL1_CORE_PWRDN_EN_BIT);
+        isb();
+    }
 }
 
 #[allow(unused)]

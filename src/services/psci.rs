@@ -733,6 +733,7 @@ impl Psci {
 
                 for node in ancestors.iter_mut() {
                     node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
+                    node.clear_suspend_state(cpu_index);
                     node.set_local_state(PlatformPowerState::RUN);
                 }
             });

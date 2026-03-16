@@ -136,24 +136,28 @@ case "$PLAT" in
         FVP_COMMON_ARGS+=" --iris-server --print-port-number"
     fi
 
-    if [ -z ${SP_LAYOUT_FILE} ]; then
-        SPMD_SPM_AT_SEL2=${SPMD_SPM_AT_SEL2:-0}
-    else
-        SPMD_SPM_AT_SEL2=1
-    fi
-
     # Note: By default, TF-A considers that the Base FVP platform has 256 kB of Trusted SRAM.
     # Actually it can simulate up to 512 kB of Trusted SRAM, which is the configuration we use for RF-A
     # (because a debug build of RF-A is too big to fit in 256 kB). The `FVP_TRUSTED_SRAM_SIZE=512` TF-A
     # build flag is required to stop TF-A from complaining that RF-A does not fit.
+    FVP_TFA_COMMON_ARGS=(PLAT=fvp \
+        FVP_TRUSTED_SRAM_SIZE=512 \
+        SPD=spmd \
+        CTX_INCLUDE_AARCH32_REGS=0 \
+        BL31="${OUT}/bl31.bin" \
+        BL32="${BL32}" \
+        BL33="${BL33}")
+
+    if [ -n "${SP_LAYOUT_FILE}" ]; then
+        FVP_TFA_COMMON_ARGS+=(SPMD_SPM_AT_SEL2=1 SP_LAYOUT_FILE="${SP_LAYOUT_FILE}")
+    else
+        FVP_TFA_COMMON_ARGS+=(SPMD_SPM_AT_SEL2=0)
+    fi
+
     if [[ "${RME:-}" == 1 ]]; then
         RMM=${RMM:-"$STF_RMM"}
         make PLAT=fvp FEATURES=sel2,rme ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all
-        make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 ENABLE_RME=1 RMM="$RMM" SPD=spmd SPMD_SPM_AT_SEL2=0 CTX_INCLUDE_AARCH32_REGS=0 \
-            BL31=${OUT}/bl31.bin \
-            BL32=${BL32} \
-            BL33=${BL33} \
-            all fip
+        make -C $TFA ${DEBUG} "${FVP_TFA_COMMON_ARGS[@]}" ENABLE_RME=1 RMM="$RMM" all fip
         FVP_Base_RevC-2xAEMvA \
             -C bp.dram_size=4 \
             -C bp.has_rme=1 \
@@ -197,12 +201,7 @@ case "$PLAT" in
 
     else
         make PLAT=fvp ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all
-        make -C $TFA PLAT=fvp ${DEBUG} FVP_TRUSTED_SRAM_SIZE=512 SPD=spmd SPMD_SPM_AT_SEL2=${SPMD_SPM_AT_SEL2} CTX_INCLUDE_AARCH32_REGS=0 \
-            BL31=${OUT}/bl31.bin \
-            BL32=${BL32} \
-            BL33=${BL33} \
-            SP_LAYOUT_FILE=${SP_LAYOUT_FILE} \
-            all fip
+        make -C $TFA ${DEBUG} "${FVP_TFA_COMMON_ARGS[@]}" all fip
         FVP_Base_RevC-2xAEMvA \
             -C cluster0.has_arm_v9-0=1 \
             -C cluster1.has_arm_v9-0=1 \

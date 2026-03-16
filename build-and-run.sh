@@ -154,6 +154,10 @@ case "$PLAT" in
         FVP_TFA_COMMON_ARGS+=(SPMD_SPM_AT_SEL2=0)
     fi
 
+    if [ -n "${TFA_OPENSSL_DIR}" ]; then
+        FVP_TFA_COMMON_ARGS+=(OPENSSL_DIR="${TFA_OPENSSL_DIR}")
+    fi
+
     if [[ "${RME:-}" == 1 ]]; then
         RMM=${RMM:-"$STF_RMM"}
         make PLAT=fvp FEATURES=sel2,rme ${DEBUG} CARGO="${CARGO}" PAUTH_EL3=${PAUTH_EL3} PAUTH_LR_EL3=${PAUTH_LR_EL3} BTI_EL3=${BTI_EL3} all

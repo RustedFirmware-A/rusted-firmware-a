@@ -624,12 +624,12 @@ unsafe impl Platform for Fvp {
     unsafe extern "C" fn dump_registers() {
         naked_asm!(
             include_str!("../asm_macros_common.S"),
-            include_str!("../arm_macros.S"),
+            include_str!("../gic_debug_macros.S"),
             "mov_imm	x16, {GICD_BASE}",
             "arm_print_gic_regs",
             "ret",
 
-            include_str!("../arm_macros_purge.S"),
+            include_str!("../gic_debug_macros_purge.S"),
             include_str!("../asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,
             ICC_SRE_SRE_BIT = const IccSreEl3::SRE.bits(),
@@ -1088,4 +1088,4 @@ impl PsciPlatformInterface for FvpPsciPlatformImpl<'_> {
     }
 }
 
-global_asm!(include_str!("../arm_macros_data.S"));
+global_asm!(include_str!("../gic_debug_macros_data.S"));

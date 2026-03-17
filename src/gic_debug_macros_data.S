@@ -5,6 +5,12 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+.global icc_regs
+.global gicd_pend_reg
+.global newline
+.global spacer
+.global prefix
+
 .section .rodata.gic_reg_name, "aS"
 /* Applicable only to GICv3 with SRE enabled */
 icc_regs:
@@ -19,4 +25,3 @@ spacer:
 	.asciz ":\t\t 0x"
 prefix:
 	.asciz "0x"
-

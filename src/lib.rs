@@ -23,7 +23,7 @@ mod gpt;
 mod layout;
 pub mod logger;
 pub mod pagetable;
-mod platform;
+pub mod platform;
 pub mod reexports;
 pub mod semihosting;
 pub mod services;
@@ -44,6 +44,8 @@ use crate::{
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::bl31_warm_entrypoint;
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+use core::arch::global_asm;
+#[cfg(not(any(test, feature = "fakes")))]
 use include_first::include_first;
 use log::{debug, info};
 use percore::Cores;
@@ -222,16 +224,17 @@ mod asm {
     ///
     /// Use this over `core::arch::naked_asm` by default, otherwise you may
     /// need to ensure that e.g. `bti` landing pads are in place yourself.
+    #[macro_export]
     macro_rules! naked_asm {
         ($($inner:tt)*) => {
            ::core::arch::naked_asm!("bti c", $($inner)*)
         }
     }
-    pub(crate) use naked_asm;
 }
 
 /// Generates a naked function for the cold boot entrypoint assembly code.
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+#[macro_export]
 #[include_first]
 macro_rules! main_asm {
     ($platform:ty) => {
@@ -279,9 +282,6 @@ macro_rules! main_asm {
         }
     };
 }
-#[allow(clippy::single_component_path_imports)]
-#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
-pub(crate) use main_asm;
 
 /// Generates `global_asm!` blocks for the given platform.
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
@@ -295,8 +295,48 @@ macro_rules! all_asm {
     };
 }
 
+/// Includes the common assembly macros.
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
-pub(crate) use asm::naked_asm;
+#[macro_export]
+#[include_first]
+macro_rules! asm_macros_common {
+    () => {
+        include_str!("asm_macros_common.S")
+    };
+}
+
+/// Purges the common assembly macros.
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+#[macro_export]
+#[include_first]
+macro_rules! asm_macros_common_purge {
+    () => {
+        include_str!("asm_macros_common_purge.S")
+    };
+}
+
+/// Includes the common assembly macros.
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+#[macro_export]
+#[include_first]
+macro_rules! gic_debug_macros {
+    () => {
+        include_str!("gic_debug_macros.S")
+    };
+}
+
+/// Purges the common assembly macros.
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+#[macro_export]
+#[include_first]
+macro_rules! gic_debug_macros_purge {
+    () => {
+        include_str!("gic_debug_macros_purge.S")
+    };
+}
+
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+global_asm!(include_str!("gic_debug_macros_data.S"));
 
 /// Generates static variables for the platform, trait implementations to access them, and the cold
 /// boot entrypoint.

@@ -12,6 +12,11 @@ license = "BSD-3-Clause"
 description = "RF-A BL31 for the Arm Fixed Virtual Platform"
 
 [dependencies]
+arm-fvp-base-pac = { version = "0.2.0", default-features = false, features = [
+  "base-revc",
+  "el3",
+] }
+arm-pl011-uart = { version = "0.5.0", default-features = false }
 rf-a-bl31 = { version = "0.1.0", default-features = false, path = ".." }
 
 [build-dependencies]

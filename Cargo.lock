@@ -177,6 +177,8 @@ dependencies = [
 name = "fvp-rf-a-bl31"
 version = "0.1.0"
 dependencies = [
+ "arm-fvp-base-pac",
+ "arm-pl011-uart",
  "rf-a-bl31",
  "rf-a-bl31-build",
 ]
@@ -271,6 +273,8 @@ dependencies = [
 name = "qemu-rf-a-bl31"
 version = "0.1.0"
 dependencies = [
+ "arm-pl011-uart",
+ "arm-pl061",
  "rf-a-bl31",
  "rf-a-bl31-build",
 ]
@@ -290,10 +294,7 @@ version = "0.1.0"
 dependencies = [
  "aarch64-paging",
  "arm-ffa",
- "arm-fvp-base-pac",
  "arm-gic",
- "arm-pl011-uart",
- "arm-pl061",
  "arm-psci",
  "arm-sysregs",
  "arrayvec",

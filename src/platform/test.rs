@@ -308,6 +308,7 @@ impl From<TestPowerState> for usize {
 }
 
 /// Fake PSCI platform implementation for tests.
+#[derive(Debug, Default)]
 pub struct TestPsciPlatformImpl;
 
 impl TestPsciPlatformImpl {

@@ -5,12 +5,8 @@
 //! Build script for RF-A on FVP.
 
 use rf_a_bl31_build::{Builder, configure_build};
-use std::env;
 
 fn main() {
-    let platform = env::var("CARGO_CFG_PLATFORM").expect("Missing platform name");
-    assert_eq!(platform, "fvp");
-
     configure_build(&FvpBuilder);
 }
 

@@ -3,24 +3,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 //! Platform abstractions.
-macro_rules! select_platform {
-    (platform = $condition:literal, $mod:ident::$sub:ident::$plat_impl:ident) => {
-        #[cfg(platform = $condition)]
-        mod $mod;
-    };
-    (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
-        #[cfg(platform = $condition)]
-        mod $mod;
-    };
-    (test, $mod:ident::$plat_impl:ident) => {
-        #[cfg(test)]
-        pub mod $mod;
-    };
-}
 
-select_platform!(platform = "fvp", fvp::Fvp);
-select_platform!(platform = "qemu", qemu::Qemu);
-select_platform!(test, test::TestPlatform);
+#[cfg(test)]
+pub mod test;
 
 #[cfg(feature = "rme")]
 use crate::services::rmmd::{

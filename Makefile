@@ -30,7 +30,7 @@ STF_FEATURES ?=
 PLATFORMS_AVAILABLE := fvp qemu
 
 ifndef PLAT
-  ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),clean clippy-test help list_platforms list_test_features))
+  ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),cargo-doc clean clippy-test help list_platforms list_test_features))
     $(info error: environment variable PLAT=<xxx> is required. Options are:)
     $(foreach p, $(PLATFORMS_AVAILABLE), $(info * $(p)))
     $(error Please run `make PLAT=...`)
@@ -73,7 +73,7 @@ STF_FEATURES += max_log_$(STF_LOG_LEVEL)
 TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS += --target $(TARGET)
 
-TARGET_RUSTFLAGS = --cfg platform=\"${PLAT}\" -D warnings
+TARGET_RUSTFLAGS = -D warnings
 
 # Whether to build core + friends. Primarily needed for special sanitizers or
 # optimizations. Requires a nightly Cargo.
@@ -117,7 +117,7 @@ endif
 RFA_CARGO_FLAGS += --features "$(FEATURES)"
 STF_CARGO_FLAGS += --features "$(STF_FEATURES)"
 TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh -C link-arg=-Map=$(BL31_MAP)" $(CARGO)
-STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C link-args=-znostart-stop-gc" $(CARGO)
+STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) --cfg platform=\"${PLAT}\" -C link-args=-znostart-stop-gc" $(CARGO)
 
 all: images
 
@@ -145,7 +145,7 @@ clippy-test:
 	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --package rf-a-bl31-build
 
 cargo-doc:
-	RUSTDOCFLAGS="-D warnings --cfg platform=\"${PLAT}\"" $(TARGET_CARGO) doc --target $(TARGET) --no-deps  \
+	RUSTDOCFLAGS="-D warnings" $(TARGET_CARGO) doc --target $(TARGET) --no-deps  \
 	--features "$(FEATURES)"
 
 clippy:

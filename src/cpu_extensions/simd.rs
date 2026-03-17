@@ -54,7 +54,6 @@ struct Sve<const CORE_COUNT: usize, PlatformImpl: Platform> {
 }
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> Sve<CORE_COUNT, PlatformImpl> {
-    #[allow(unused)]
     const fn new(vector_length: u64) -> Self {
         assert!(
             vector_length.is_multiple_of(128) && vector_length >= 128 && vector_length <= 2048,
@@ -182,7 +181,6 @@ pub struct Simd<const CORE_COUNT: usize, PlatformImpl: Platform> {
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> Simd<CORE_COUNT, PlatformImpl> {
     /// Creates a new `Simd` extension with SVE and SME disabled.
-    #[allow(unused)]
     #[allow(clippy::self_named_constructors)]
     pub const fn simd() -> Self {
         Self {
@@ -205,7 +203,6 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Simd<CORE_COUNT, PlatformI
     ///
     /// If `enable_sme` is set, SME extension is enabled as well and SSVE vector length is also set
     /// to `vector_length`.
-    #[allow(unused)]
     pub const fn sve(vector_length: u64, enable_sme: bool) -> Self {
         Self {
             sve: Some(Sve::new(vector_length)),

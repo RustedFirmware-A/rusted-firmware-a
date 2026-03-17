@@ -20,7 +20,6 @@ const IMP_CPUPWRCTLR_EL1_CORE_PWRDN_EN_BIT: u64 = 0x1;
 /// CPU operations for the Arm C1-Ultra CPU.
 pub struct C1Ultra;
 
-#[allow(unused)]
 /// SAFETY: `reset_handler` and `dump_registers` are implemented as naked functions and only clobber
 /// x1.
 unsafe impl Cpu for C1Ultra {
@@ -68,7 +67,6 @@ unsafe impl Cpu for C1Ultra {
 }
 
 /// Workaround for CPU erratum 3658374.
-#[allow(unused)]
 pub struct Erratum3658374;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -94,7 +92,6 @@ unsafe impl Erratum for Erratum3658374 {
 }
 
 /// Workaround for CPU erratum 3705939.
-#[allow(unused)]
 pub struct Erratum3705939;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -126,7 +123,6 @@ unsafe impl Erratum for Erratum3705939 {
 }
 
 /// Workaround for CPU erratum 3815514.
-#[allow(unused)]
 pub struct Erratum3815514;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -158,7 +154,6 @@ unsafe impl Erratum for Erratum3815514 {
 }
 
 /// Workaround for CPU erratum 3865171.
-#[allow(unused)]
 pub struct Erratum3865171;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -190,7 +185,6 @@ unsafe impl Erratum for Erratum3865171 {
 }
 
 /// Workaround for CPU erratum 3926381.
-#[allow(unused)]
 pub struct Erratum3926381;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -245,7 +239,6 @@ unsafe impl Erratum for Erratum3926381 {
 }
 
 /// Workaround for CPU erratum 4102704.
-#[allow(unused)]
 pub struct Erratum4102704;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or

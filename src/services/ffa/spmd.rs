@@ -194,7 +194,6 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformI
     }
 
     /// Returns the primary entrypoint of the SPMC.
-    #[allow(unused)]
     pub fn primary_ep(&self) -> usize {
         self.spmc_primary_ep
     }

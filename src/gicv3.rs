@@ -212,7 +212,6 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, Pl
     }
 
     /// Saves the distributor context.
-    #[allow(unused)]
     pub fn distributor_save<const IREG_COUNT: usize, const IREG_E_COUNT: usize>(
         &self,
         context: &mut GicDistributorContext<IREG_COUNT, IREG_E_COUNT>,
@@ -221,7 +220,6 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, Pl
     }
 
     /// Restores the distributor context.
-    #[allow(unused)]
     pub fn distributor_restore<const IREG_COUNT: usize, const IREG_E_COUNT: usize>(
         &self,
         context: &GicDistributorContext<IREG_COUNT, IREG_E_COUNT>,
@@ -254,13 +252,11 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, Pl
     }
 
     /// Turns off the local core's redistributor.
-    #[allow(unused)]
     pub fn redistributor_off(&self) {
         self.redistributors.local_redistributor().lock().power_off();
     }
 
     /// Saves the context of the local core's redistributor.
-    #[allow(unused)]
     pub fn redistributor_save<const IREG_COUNT: usize>(
         &self,
         context: &mut GicRedistributorContext<IREG_COUNT>,
@@ -273,7 +269,6 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, Pl
     }
 
     /// Restores the context of the local core's redistributor.
-    #[allow(unused)]
     pub fn redistributor_restore<const IREG_COUNT: usize>(
         &self,
         context: &GicRedistributorContext<IREG_COUNT>,
@@ -309,7 +304,6 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, Pl
     }
 
     /// Disables the GIC CPU interface.
-    #[allow(unused)]
     pub fn cpu_interface_disable(&self) {
         GicCpuInterface::enable_group0(false);
         GicCpuInterface::enable_group1_secure(false);

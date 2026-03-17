@@ -36,7 +36,6 @@ pub struct MemoryTagging<const CORE_COUNT: usize, PlatformImpl: Platform> {
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> MemoryTagging<CORE_COUNT, PlatformImpl> {
     /// Constructs a new instance of the MTE CPU extension.
-    #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
             context: PerCore::new(
@@ -73,7 +72,6 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
         }
     }
 
-    #[allow(unused)]
     fn save_context(&self, world: World) {
         if self.is_present() {
             self.save_context_internal(world);

@@ -128,13 +128,11 @@ macro_rules! make_memory_attributes {
             #[doc = "Attributes used for non-cacheable memory mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
-            #[allow(unused)]
             pub const [<MT_NON_CACHEABLE_ $name>]: El23Attributes = NON_CACHEABLE.union($base);
 
             #[doc = "Attributes used for all memory mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
-            #[allow(unused)]
             pub const [<MT_MEMORY_ $name>]: El23Attributes = NORMAL_MEMORY
                 .union($base)
                 .union(El23Attributes::INNER_SHAREABLE);
@@ -143,7 +141,6 @@ macro_rules! make_memory_attributes {
             #[doc = "Attributes used for read-only data mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
-            #[allow(unused)]
             pub const [<MT_RO_DATA_ $name>]: El23Attributes = [<MT_MEMORY_ $name>]
                 .union(El23Attributes::READ_ONLY)
                 .union(El23Attributes::XN);
@@ -151,14 +148,12 @@ macro_rules! make_memory_attributes {
             #[doc = "Attributes used for read-write data mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
-            #[allow(unused)]
             pub const [<MT_RW_DATA_ $name>]: El23Attributes = [<MT_MEMORY_ $name>].union(El23Attributes::XN);
 
 
             #[doc = "Attributes used for code (i.e. text) mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
-            #[allow(unused)]
             pub const [<MT_CODE_ $name>]: El23Attributes = {
                 let attrs = [<MT_MEMORY_ $name>].union(El23Attributes::READ_ONLY);
                 if cfg!(bti) {
@@ -485,7 +480,6 @@ fn init_page_table<
 /// # Safety
 ///
 /// Caller must guarantee that it is safe to disable the MMU at the time of calling this function.
-#[allow(unused)]
 pub unsafe fn disable_mmu_el3() {
     let mut sctlr_el3 = read_sctlr_el3();
     sctlr_el3.remove(SctlrEl3::C | SctlrEl3::M);

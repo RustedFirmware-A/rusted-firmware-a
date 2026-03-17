@@ -40,7 +40,6 @@ pub enum TrngError {
     /// An invalid parameter was passed.
     InvalidParams = -2,
     /// Insufficient entropy is available, or the call was rate limited.
-    #[allow(unused)]
     NoEntropy = -3,
 }
 
@@ -87,7 +86,6 @@ pub trait TrngPlatformInterface<const REQ_WORDS: usize> {
 
 /// Default implementation of TrngPlatformInterface for platforms that do not
 /// have a TRNG source.
-#[allow(dead_code)]
 pub struct NotSupportedTrngPlatformImpl;
 impl TrngPlatformInterface<1> for NotSupportedTrngPlatformImpl {}
 

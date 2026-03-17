@@ -72,13 +72,10 @@ impl OwningEntityNumber {
     const TRUSTED_APPLICATIONS_END_VAL: u8 = 49;
     const TRUSTED_OS_START_VAL: u8 = 50;
     const TRUSTED_OS_END_VAL: u8 = 63;
-    #[allow(unused)]
+
     pub const TRUSTED_APPLICATIONS_START: Self = Self(Self::TRUSTED_APPLICATIONS_START_VAL);
-    #[allow(unused)]
     pub const TRUSTED_APPLICATIONS_END: Self = Self(Self::TRUSTED_APPLICATIONS_END_VAL);
-    #[allow(unused)]
     pub const TRUSTED_OS_START: Self = Self(Self::TRUSTED_OS_START_VAL);
-    #[allow(unused)]
     pub const TRUSTED_OS_END: Self = Self(Self::TRUSTED_OS_END_VAL);
 
     pub fn oe(self) -> OwningEntity {
@@ -139,13 +136,11 @@ impl FunctionId {
     ///
     /// If this is true, the caller asserts that P0-P15, FFR and the bits with index greater than
     /// 127 in the Z0-Z31 registers do not contain any live state.
-    #[allow(unused)]
     pub fn sve_hint(self) -> bool {
         self.0 & SVE_HINT != 0
     }
 
     /// Sets the SVE hint bit.
-    #[allow(unused)]
     pub fn set_sve_hint(&mut self) {
         self.0 |= SVE_HINT
     }
@@ -194,7 +189,6 @@ pub struct SmcReturn {
 macro_rules! define_set_args {
     ($name:ident, $($args:ident),+) => {
         #[doc = "Sets the specified number of values."]
-        #[allow(unused)]
         #[inline(always)]
         pub fn $name(&mut self, $($args: u64),*,) {
             let mut i = 0;

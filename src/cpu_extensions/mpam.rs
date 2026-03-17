@@ -44,7 +44,6 @@ pub struct Mpam<const CORE_COUNT: usize, PlatformImpl: Platform> {
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> Mpam<CORE_COUNT, PlatformImpl> {
     /// Constructs a new instance of the MPAM CPU extension.
-    #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
             #[cfg(feature = "sel2")]

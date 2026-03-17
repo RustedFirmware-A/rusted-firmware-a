@@ -62,7 +62,6 @@ pub struct Fgt2<const CORE_COUNT: usize, PlatformImpl: Platform> {
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> Fgt2<CORE_COUNT, PlatformImpl> {
     /// Constructs a new instance of the FGT2 CPU extension.
-    #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
             #[cfg(any(feature = "sel2", feature = "rme"))]

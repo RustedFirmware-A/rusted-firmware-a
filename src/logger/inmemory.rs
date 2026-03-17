@@ -32,7 +32,6 @@ pub struct MemoryLogger<const BUFFER_SIZE: usize> {
 
 impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
     /// Creates a new in-memory logger with a zeroed-out circular buffer.
-    #[allow(unused)]
     pub const fn new() -> Self {
         Self {
             next_offset: 0,
@@ -42,7 +41,6 @@ impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
     }
 
     /// Resets the logger to an empty state.
-    #[allow(unused)]
     pub fn reset(&mut self) {
         self.next_offset = 0;
         self.logged_bytes_count = 0;
@@ -85,7 +83,6 @@ impl<const BUFFER_SIZE: usize> MemoryLogger<BUFFER_SIZE> {
     }
 
     /// Finds a valid UTF-8 suffix and returns a reference to it.
-    #[allow(unused)]
     pub fn as_str(&mut self) -> &str {
         self.shift_to_start();
 
@@ -147,7 +144,6 @@ impl<'a, const CORE_COUNT: usize, const BUFFER_SIZE: usize, PlatformImpl: Platfo
     PerCoreMemoryLogger<'a, CORE_COUNT, BUFFER_SIZE, PlatformImpl>
 {
     /// Constructs a new per-core in-memory logger wrapping the given array of in-memory loggers.
-    #[allow(unused)]
     pub fn new(loggers: [&'a mut MemoryLogger<BUFFER_SIZE>; CORE_COUNT]) -> Self {
         Self {
             logs: PerCore::new(loggers.map(|logger| ExceptionLock::new(RefCell::new(logger)))),

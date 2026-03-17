@@ -440,7 +440,6 @@ impl<
 
     /// Constructs a new composite power state with the given set of power states and no last power
     /// level.
-    #[allow(unused)]
     pub fn new(states: [PlatformPowerState; STATE_COUNT]) -> Self {
         const {
             assert!(STATE_COUNT == MAX_POWER_LEVEL + 1);
@@ -454,7 +453,6 @@ impl<
 
     /// Constructs a new composite power state with the given set of power states and last power
     /// level.
-    #[allow(unused)]
     pub const fn new_with_last_power_level(
         states: [PlatformPowerState; STATE_COUNT],
         last_at_power_level: usize,

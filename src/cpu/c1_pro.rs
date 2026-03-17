@@ -17,7 +17,6 @@ use arm_sysregs::{MidrEl1, read_write_sysreg};
 /// CPU operations for the Arm C1-Pro CPU.
 pub struct C1Pro;
 
-#[allow(unused)]
 /// SAFETY: `reset_handler` and `dump_registers` are implemented as naked functions and only clobber
 /// x1.
 unsafe impl Cpu for C1Pro {
@@ -71,7 +70,6 @@ unsafe impl Cpu for C1Pro {
 }
 
 /// Workaround for CPU erratum 3300099.
-#[allow(unused)]
 pub struct Erratum3300099;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -97,7 +95,6 @@ unsafe impl Erratum for Erratum3300099 {
 }
 
 /// Workaround for CPU erratum 3773617.
-#[allow(unused)]
 pub struct Erratum3773617;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -123,7 +120,6 @@ unsafe impl Erratum for Erratum3773617 {
 }
 
 /// Workaround for CPU erratum 3619847.
-#[allow(unused)]
 pub struct Erratum3619847;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -187,7 +183,6 @@ unsafe impl Erratum for Erratum3686597 {
 }
 
 /// Workaround for CPU erratum 3694158.
-#[allow(unused)]
 pub struct Erratum3694158;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -227,7 +222,6 @@ unsafe impl Erratum for Erratum3694158 {
 }
 
 /// Workaround for CPU erratum 3684268.
-#[allow(unused)]
 pub struct Erratum3684268;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
@@ -260,7 +254,6 @@ unsafe impl Erratum for Erratum3684268 {
 }
 
 /// Workaround for CPU erratum 3706576.
-#[allow(unused)]
 pub struct Erratum3706576;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or

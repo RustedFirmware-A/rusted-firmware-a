@@ -30,7 +30,6 @@ pub struct Ras<const CORE_COUNT: usize, PlatformImpl: Platform> {
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> Ras<CORE_COUNT, PlatformImpl> {
     /// Constructs a new instance of the RAS CPU extension.
-    #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
             context: PerCore::new(

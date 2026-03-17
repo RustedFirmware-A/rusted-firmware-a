@@ -124,7 +124,6 @@ pub struct Fgt<const CORE_COUNT: usize, PlatformImpl: Platform> {
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> Fgt<CORE_COUNT, PlatformImpl> {
     /// Constructs a new instance of the FGT CPU extension.
-    #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
             #[cfg(any(feature = "sel2", feature = "rme"))]
@@ -167,7 +166,6 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
     }
 
     #[cfg(any(feature = "sel2", feature = "rme"))]
-    #[allow(dead_code)]
     fn save_context(&self, world: World) {
         if self.is_present() {
             fgt_el2::save_context(&self.context, world);

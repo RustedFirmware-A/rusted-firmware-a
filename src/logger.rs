@@ -38,7 +38,6 @@ impl<LogSinkImpl: LogSink> OnceLogger<LogSinkImpl> {
     }
 
     /// Gets a reference to the log sink, if it has been set.
-    #[allow(unused)]
     pub fn log_sink(&self) -> Option<&LogSinkImpl> {
         self.logger.get().map(|logger| &logger.sink)
     }
@@ -86,7 +85,6 @@ pub struct LockedWriter<W: Write> {
 
 impl<W: Write> LockedWriter<W> {
     /// Creates a new `LockedWriter` wrapping the given [`Write`] implementation.
-    #[allow(unused)]
     pub const fn new(writer: W) -> Self {
         Self {
             writer: SpinMutex::new(writer),
@@ -118,7 +116,6 @@ impl<P: LogSink, S: LogSink> HybridLogger<P, S> {
     /// Creates a new logger with the given primary and secondary log sinks.
     ///
     /// Logging to the secondary sink will initially be enabled.
-    #[allow(unused)]
     pub const fn new(primary: P, secondary: S) -> Self {
         Self {
             primary,
@@ -128,7 +125,6 @@ impl<P: LogSink, S: LogSink> HybridLogger<P, S> {
     }
 
     /// Enables or disables writing logs to the secondary logger.
-    #[allow(unused)]
     pub fn enable_secondary(&self, enable: bool) {
         self.secondary_enabled.store(enable, Ordering::Release);
     }

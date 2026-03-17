@@ -34,7 +34,6 @@ pub struct Hcx<const CORE_COUNT: usize, PlatformImpl: Platform> {
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> Hcx<CORE_COUNT, PlatformImpl> {
     /// Constructs a new instance of the HCX CPU extension.
-    #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
             #[cfg(feature = "sel2")]

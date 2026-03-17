@@ -9,7 +9,6 @@ use zerocopy::FromZeros;
 /// Creates a zeroed instance of the given type.
 ///
 /// This is equivalent to `FromZeroes::new_zeroed()` but const.
-#[allow(unused)]
 pub const fn const_zeroed<T: FromZeros>() -> T {
     // SAFETY: T implements `FromZeros` so it must be safe to initialise with zeros.
     unsafe { core::mem::zeroed() }

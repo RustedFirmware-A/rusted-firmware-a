@@ -13,7 +13,6 @@ use crate::{
 ///
 /// This is relevant for both C1 Ultra and C1 Pro, so just checks the DSU version rather than the
 /// CPU MIDR.
-#[allow(unused)]
 pub struct DsuErratum3396010;
 
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or

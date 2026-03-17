@@ -11,7 +11,6 @@ pub mod dsu;
 pub type ErratumId = u32;
 
 /// The CVE number associated with an erratum, or 0 if none.
-#[allow(unused)]
 pub type Cve = u32;
 
 /// Represents a CPU revision and variant.
@@ -25,13 +24,11 @@ pub struct RevisionVariant {
 
 impl RevisionVariant {
     /// Creates a new RevisionVariant.
-    #[allow(unused)]
     pub const fn new(revision: u8, variant: u8) -> Self {
         Self { revision, variant }
     }
 
     /// A sentinel value for errata that are not yet fixed.
-    #[allow(unused)]
     pub const NOT_FIXED: Self = Self::new(u8::MAX, u8::MAX);
 }
 
@@ -43,7 +40,6 @@ pub enum ErratumType {
     Reset,
     /// Apply the workaround at runtime by calling the function directly in the Platform
     /// implementation.
-    #[allow(unused)]
     Runtime,
 }
 
@@ -55,7 +51,6 @@ pub enum ErratumType {
 ///
 /// Check and workaround function implementations should be naked functions that don't require a
 /// stack and don't access memory. Check function may clobber x0-x4, workaround may clobber x0-x7.
-#[allow(unused)]
 pub unsafe trait Erratum {
     /// The unique ID of the erratum workaround.
     const ID: ErratumId;
@@ -92,7 +87,6 @@ pub struct ErratumEntry {
 
 impl ErratumEntry {
     /// Creates an ErratumEntry struct from an implementation of the Erratum trait.
-    #[allow(unused)]
     pub const fn from_erratum<T: Erratum>() -> Self {
         Self {
             id: T::ID,
@@ -105,7 +99,6 @@ impl ErratumEntry {
 
 /// Returns true if the platform has an erratum with the given ID, and it applies on the current
 /// CPU.
-#[allow(unused)]
 pub fn erratum_applies<PlatformImpl: PlatformErrata>(id: ErratumId) -> bool {
     PlatformImpl::ERRATA_LIST
         .iter()

@@ -16,7 +16,6 @@ use arm_sysregs::{
 use core::{arch::asm, ops::RangeInclusive};
 
 /// CPU operations for the AEM FVP virtual CPU.
-#[allow(unused)]
 pub struct AemGeneric;
 
 /// The cache size descriptor.
@@ -134,7 +133,6 @@ unsafe impl Cpu for AemGeneric {
     }
 
     /// Flushes level 1 and also flushes level 2 cache if level 3 cache is present.
-    #[allow(unused)]
     fn power_down_level0() {
         // Safety: The exclusive memory accesses are predictable with AEM FVP's cache
         // implementation.

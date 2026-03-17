@@ -217,7 +217,6 @@ pub struct Amu<const CORE_COUNT: usize, PlatformImpl: Platform> {
 
 impl<const CORE_COUNT: usize, PlatformImpl: Platform> Amu<CORE_COUNT, PlatformImpl> {
     /// Constructs a new instance of the AMU CPU extension.
-    #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
             context: PerCore::new(

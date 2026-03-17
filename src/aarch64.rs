@@ -18,7 +18,6 @@ pub fn dsb_sy() {
 
 /// Issues a data synchronization barrier (`dsb`) instruction that applies to the inner shareable
 /// domain (`ish`).
-#[allow(unused)]
 pub fn dsb_ish() {
     // SAFETY: `dsb` does not violate safe Rust guarantees.
     #[cfg(all(target_arch = "aarch64", not(test)))]
@@ -29,7 +28,6 @@ pub fn dsb_ish() {
 
 /// Issues a data synchronization barrier (`dsb`) instruction that applies to the outer shareable
 /// domain (`osh`), for read and write accesses.
-#[allow(unused)]
 pub fn dsb_osh() {
     // SAFETY: `dsb` does not violate safe Rust guarantees.
     #[cfg(all(target_arch = "aarch64", not(test)))]
@@ -40,7 +38,6 @@ pub fn dsb_osh() {
 
 /// Issues a data synchronization barrier (`dsb`) instruction that applies to the outer shareable
 /// domain (`osh`), for write accesses (st).
-#[allow(unused)]
 pub fn dsb_oshst() {
     // SAFETY: `dsb` does not violate safe Rust guarantees.
     #[cfg(all(target_arch = "aarch64", not(test)))]
@@ -59,7 +56,6 @@ pub fn isb() {
 }
 
 /// Causes an event to be signaled to all cores within a multiprocessor system.
-#[allow(unused)]
 pub fn sev() {
     // SAFETY: `sev` does not violate safe Rust guarantees.
     #[cfg(all(target_arch = "aarch64", not(test)))]

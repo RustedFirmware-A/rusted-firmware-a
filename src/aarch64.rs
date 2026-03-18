@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", not(test)))]
 use core::arch::asm;
 
 /// Issues a full system (`sy`) data synchronization barrier (`dsb`) instruction.
 pub fn dsb_sy() {
     // SAFETY: `dsb` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(test)))]
     unsafe {
         asm!("dsb sy", options(nostack));
     }
@@ -19,7 +19,7 @@ pub fn dsb_sy() {
 #[allow(unused)]
 pub fn dsb_ish() {
     // SAFETY: `dsb` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(test)))]
     unsafe {
         asm!("dsb ish", options(nostack));
     }
@@ -28,7 +28,7 @@ pub fn dsb_ish() {
 /// Issues an instruction synchronization barrier (`isb`) instruction.
 pub fn isb() {
     // SAFETY: `isb` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(test)))]
     unsafe {
         asm!("isb", options(nostack));
     }
@@ -38,7 +38,7 @@ pub fn isb() {
 #[allow(unused)]
 pub fn sev() {
     // SAFETY: `sev` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(test)))]
     unsafe {
         asm!("sev", options(nostack));
     }
@@ -48,7 +48,7 @@ pub fn sev() {
 /// entries for EL3 (`alle3`).
 pub fn tlbi_alle3() {
     // SAFETY: `tlbi` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(test)))]
     unsafe {
         asm!("tlbi alle3", options(nostack));
     }
@@ -58,7 +58,7 @@ pub fn tlbi_alle3() {
 /// and remain there until a wakeup event occurs.
 pub fn wfi() {
     // SAFETY: `wfi` does not violate safe Rust guarantees.
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_arch = "aarch64", not(test)))]
     unsafe {
         asm!("wfi", options(nostack));
     }

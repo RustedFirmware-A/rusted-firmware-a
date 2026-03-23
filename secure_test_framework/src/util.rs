@@ -4,7 +4,7 @@
 
 pub mod timer;
 
-use arm_ffa::{Interface, SuccessArgs};
+use arm_ffa::{Interface, interface_args::SuccessArgs};
 use core::{arch::asm, fmt::Display};
 use log::error;
 

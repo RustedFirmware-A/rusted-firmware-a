@@ -38,7 +38,10 @@ use crate::{
     },
 };
 use aarch64_rt::{enable_mmu, entry, set_exception_vector};
-use arm_ffa::{DirectMsgArgs, FfaError, Interface, SuccessArgsIdGet, Version, WarmBootType};
+use arm_ffa::{
+    FfaError, Interface, Version,
+    interface_args::{DirectMsgArgs, MsgWaitFlags, SuccessArgsIdGet, WarmBootType},
+};
 use arm_psci::ReturnCode;
 use core::{
     panic::PanicInfo,
@@ -49,7 +52,7 @@ use percore::Cores;
 use smccc::psci;
 
 /// The version of FF-A which we support.
-const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 2);
+const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 3);
 
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
@@ -131,7 +134,7 @@ fn message_loop() -> ! {
     let spmd_id = get_spmd_id();
 
     // Wait for the first message.
-    let mut message = msg_wait(None).unwrap();
+    let mut message = msg_wait(MsgWaitFlags::default()).unwrap();
 
     loop {
         let response = match message {
@@ -231,7 +234,7 @@ fn handle_direct_message(
         }
     } else if src_id == spmd_id && dst_id == spmc_id {
         match args {
-            DirectMsgArgs::VersionReq { version } if core_index == 0 => {
+            DirectMsgArgs::VersionReq { version, flags: _ } if core_index == 0 => {
                 handle_version_request(version)
             }
             DirectMsgArgs::PowerPsciReq32 { params } => handle_psci_request32(params),
@@ -247,7 +250,7 @@ fn handle_direct_message(
 }
 
 fn handle_version_request(version: Version) -> DirectMsgArgs {
-    let out_version = if version.is_compatible_to(&FFA_VERSION) {
+    let out_version = if version.is_compatible_to(FFA_VERSION) {
         // If NWd queries a version that we're compatible with, return the same
         let nwd_supported_ffa_version = version;
         info!("Normal World supports FF-A version {nwd_supported_ffa_version}");

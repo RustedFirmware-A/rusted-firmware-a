@@ -177,7 +177,7 @@ fn ffa_interrupt_request_handler(interface: Interface) -> Option<Interface> {
     };
 
     // The interrupt should have already been handled asynchronously at this point.
-    Some(Interface::NormalWorldResume)
+    Some(Interface::NormalWorldResume { is_32bit: true })
 }
 
 normal_world_test!(

@@ -16,7 +16,7 @@ aarch64-rt = { version = "0.4.2", default-features = false, features = [
   "initial-pagetable",
 ] }
 aarch64-paging = { version = "0.12.0", default-features = false }
-arm-ffa = "0.4.1"
+arm-ffa = "0.5.0"
 arm-psci = "0.2.0"
 arm-gic = "0.7.2"
 arm-pl011-uart = { version = "0.4.0", default-features = false }

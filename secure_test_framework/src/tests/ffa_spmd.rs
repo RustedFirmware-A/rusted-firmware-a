@@ -19,23 +19,30 @@ use crate::{
     },
 };
 use arm_ffa::{
-    Feature, FfaError, FuncId, Interface, MemAddr, MsgSend2Flags, NotificationBindFlags,
-    NotificationGetFlags, NotificationSetFlags, PartitionInfoGetFlags, RxTxAddr, SuccessArgs,
-    SuccessArgsFeatures, SuccessArgsIdGet, SuccessArgsNotificationGet,
-    SuccessArgsNotificationInfoGet, SuccessArgsNotificationInfoGet32, SuccessArgsSpmIdGet,
-    TargetInfo, Uuid,
+    FfaError, FuncId, Interface, Uuid,
+    interface_args::{
+        Feature, MemAddr, MsgSend2Flags, MsgWaitFlags, RxTxAddr, SuccessArgs, SuccessArgsFeatures,
+        SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo,
+    },
     memory_management::{
         DataAccessPermGetSet, Handle, InstructionAccessPermGetSet, MemPermissionsGetSet,
         MemReclaimFlags,
     },
-    partition_info::{SuccessArgsPartitionInfoGet, SuccessArgsPartitionInfoGetRegs},
+    notification::{
+        NotificationBindFlags, NotificationGetFlags, NotificationSetFlags,
+        SuccessArgsNotificationGet, SuccessArgsNotificationInfoGet,
+        SuccessArgsNotificationInfoGet32,
+    },
+    partition_info::{
+        PartitionInfoGetFlags, SuccessArgsPartitionInfoGet, SuccessArgsPartitionInfoGetRegs,
+    },
 };
 
 normal_world_test!(test_ffa_no_msg_wait);
 /// Check that FFA_MSG_WAIT returns NOT_SUPPORTED as normal world isn't allowed to call FFA_MSG_WAIT.
 fn test_ffa_no_msg_wait() -> TestResult {
     // Normal world isn't allowed to call FFA_MSG_WAIT.
-    let error = log_error("MSG_WAIT failed", ffa::msg_wait(None))?;
+    let error = log_error("MSG_WAIT failed", ffa::msg_wait(MsgWaitFlags::default()))?;
 
     expect_eq!(
         error,
@@ -45,7 +52,8 @@ fn test_ffa_no_msg_wait() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -381,6 +389,7 @@ fn error_handler(interface: Interface) -> Option<Interface> {
         error_arg,
         error_code,
         target_info,
+        is_32bit,
     } = interface
     else {
         return None;
@@ -395,6 +404,7 @@ fn error_handler(interface: Interface) -> Option<Interface> {
             endpoint_id: 0
         }
     );
+    assert!(is_32bit);
 
     Some(Interface::Success {
         target_info: TargetInfo {
@@ -463,7 +473,11 @@ fn test_ffa_run() -> TestResult {
 
 /// Check that the interface values forwarded from normal world match the expected ones.
 fn run_handler(interface: Interface) -> Option<Interface> {
-    let Interface::Run { target_info } = interface else {
+    let Interface::Run {
+        target_info,
+        is_32bit,
+    } = interface
+    else {
         return None;
     };
 
@@ -474,6 +488,7 @@ fn run_handler(interface: Interface) -> Option<Interface> {
             vcpu_id: 7,
         }
     );
+    assert!(is_32bit);
 
     Some(Interface::Success {
         args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
@@ -1065,7 +1080,8 @@ fn test_ffa_no_mem_perm_get() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1094,7 +1110,8 @@ fn test_ffa_no_mem_perm_set() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1113,7 +1130,8 @@ fn test_ffa_no_el3_intr_handle() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1132,7 +1150,8 @@ fn test_ffa_no_mem_relinquish() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1155,7 +1174,8 @@ fn test_ffa_no_secondary_ep_register() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1174,7 +1194,8 @@ fn test_ffa_no_normal_world_resume() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1193,7 +1214,8 @@ fn test_ffa_normal_world_resume() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::Denied
+            error_code: FfaError::Denied,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1227,7 +1249,8 @@ fn test_ffa_no_yield() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1256,7 +1279,8 @@ fn test_ffa_no_interrupt() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1267,7 +1291,7 @@ fn test_ffa_no_rxtx_map_secure() -> TestResult {
     // Secure world isn't allowed to call FFA_RXTX_MAP.
     let error = log_error(
         "RXTX_MAP failed",
-        ffa::rxtx_map(arm_ffa::RxTxAddr::Addr64 { rx: 0x3, tx: 0x4 }, 1),
+        ffa::rxtx_map(RxTxAddr::Addr64 { rx: 0x3, tx: 0x4 }, 1),
     )?;
 
     expect_eq!(
@@ -1278,7 +1302,8 @@ fn test_ffa_no_rxtx_map_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1297,7 +1322,8 @@ fn test_ffa_no_rxtx_unmap_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1316,7 +1342,8 @@ fn test_ffa_no_rx_release_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1335,7 +1362,8 @@ fn test_ffa_no_rx_acquire_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1360,7 +1388,8 @@ fn test_ffa_no_partition_info_get_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1382,7 +1411,8 @@ fn test_ffa_no_notification_bitmap_create_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1404,7 +1434,8 @@ fn test_ffa_no_notification_bitmap_destroy_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1433,7 +1464,8 @@ fn test_ffa_no_notification_bind_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1455,7 +1487,8 @@ fn test_ffa_no_notification_unbind_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1486,7 +1519,8 @@ fn test_ffa_no_notification_get_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1516,7 +1550,8 @@ fn test_ffa_no_notification_set_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1538,7 +1573,8 @@ fn test_ffa_no_notification_info_get_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())
@@ -1563,7 +1599,8 @@ fn test_ffa_no_run_secure() -> TestResult {
                 endpoint_id: 0,
                 vcpu_id: 0
             },
-            error_code: FfaError::NotSupported
+            error_code: FfaError::NotSupported,
+            is_32bit: true,
         }
     );
     Ok(())

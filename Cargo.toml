@@ -32,7 +32,7 @@ codegen-units = 1
 
 [dependencies]
 aarch64-paging = { version = "0.12.1", default-features = false }
-arm-ffa = { version = "0.4.1", default-features = false }
+arm-ffa = "0.5.0"
 arm-fvp-base-pac = { version = "0.1.4", default-features = false }
 arm-gic = "0.7.2"
 arm-gpt = { version = "0.1.0", path = "arm-gpt", optional = true }

@@ -3,22 +3,31 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use arm_ffa::{
-    DirectMsgArgs, Error, Feature, FfaError, Interface, MemAddr, MemOpBuf, MsgSend2Flags,
-    MsgWaitFlags, NotificationBindFlags, NotificationGetFlags, NotificationSetFlags,
-    PartitionInfoGetFlags, RxTxAddr, SecondaryEpRegisterAddr, SuccessArgs, TargetInfo, Uuid,
-    Version,
+    Error, FfaError, Interface, Uuid, Version,
+    interface_args::{
+        DirectMsgArgs, Feature, MemAddr, MemOpBuf, MsgSend2Flags, MsgWaitFlags, RxTxAddr,
+        SecondaryEpRegisterAddr, SuccessArgs, TargetInfo, VersionFlags, VersionQueryType,
+    },
     memory_management::{Handle, MemPermissionsGetSet, MemReclaimFlags},
+    notification::{NotificationBindFlags, NotificationGetFlags, NotificationSetFlags},
+    partition_info::PartitionInfoGetFlags,
 };
 use smccc::{arch, error::positive_or_error_32, smc64};
 
 /// The FF-A version which we implement here.
-const FFA_VERSION: Version = Version(1, 2);
+const FFA_VERSION: Version = Version(1, 3);
 
 #[allow(unused)]
 pub fn version(input_version: Version) -> Result<Version, arch::Error> {
     assert_eq!(input_version.0 & 0x8000, 0);
+    let flags = VersionFlags {
+        query_type: VersionQueryType::Negotiate,
+    };
     let output_version = positive_or_error_32::<arch::Error>(
-        call_raw(Interface::Version { input_version })[0] as u32,
+        call_raw(Interface::Version {
+            input_version,
+            flags,
+        })[0] as u32,
     )?;
     Ok(Version::try_from(output_version).unwrap())
 }
@@ -58,12 +67,18 @@ pub fn partition_info_get(uuid: Uuid, flags: PartitionInfoGetFlags) -> Result<In
     call(Interface::PartitionInfoGet { uuid, flags })
 }
 
-pub fn msg_wait(flags: Option<MsgWaitFlags>) -> Result<Interface, Error> {
-    call(Interface::MsgWait { flags })
+pub fn msg_wait(flags: MsgWaitFlags) -> Result<Interface, Error> {
+    call(Interface::MsgWait {
+        flags,
+        is_32bit: true,
+    })
 }
 
 pub fn run(target_info: TargetInfo) -> Result<Interface, Error> {
-    call(Interface::Run { target_info })
+    call(Interface::Run {
+        target_info,
+        is_32bit: true,
+    })
 }
 
 /// Sends a direct message request.
@@ -150,15 +165,16 @@ pub fn error(target_info: u32, error_code: FfaError, error_arg: u32) -> Result<I
         target_info: target_info.into(),
         error_code,
         error_arg,
+        is_32bit: true,
     })
 }
 
 pub fn normal_world_resume() -> Result<Interface, Error> {
-    call(Interface::NormalWorldResume {})
+    call(Interface::NormalWorldResume { is_32bit: true })
 }
 
 pub fn yield_ffa() -> Result<Interface, Error> {
-    call(Interface::Yield)
+    call(Interface::Yield { is_32bit: true })
 }
 
 pub fn msg_send2(sender_vm_id: u16, flags: MsgSend2Flags) -> Result<Interface, Error> {
@@ -172,6 +188,7 @@ pub fn interrupt(target_info: TargetInfo, interrupt_id: u32) -> Result<Interface
     call(Interface::Interrupt {
         target_info,
         interrupt_id,
+        is_32bit: true,
     })
 }
 

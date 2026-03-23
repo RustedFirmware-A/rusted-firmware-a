@@ -44,7 +44,7 @@ use smccc::{Smc, psci};
 use spin::mutex::SpinMutex;
 
 /// The version of FF-A which we support.
-const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 2);
+const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 3);
 
 /// An unreasonably high FF-A version number.
 const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);

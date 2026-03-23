@@ -7,11 +7,14 @@ use crate::{
     exceptions::{RunResult, enter_world},
     platform::{Platform, PlatformImpl, exception_free},
     services::{Service, owns, psci::PsciSpmInterface},
-    smccc::{OwningEntityNumber, SmcReturn},
+    smccc::{FunctionId, OwningEntityNumber, SmcReturn, SmcccCallType},
 };
 use arm_ffa::{
-    DirectMsgArgs, FfaError, Interface, SecondaryEpRegisterAddr, SuccessArgsIdGet,
-    SuccessArgsSpmIdGet, TargetInfo, Version, VersionOut, WarmBootType,
+    FfaError, Interface, Version, VersionOut,
+    interface_args::{
+        DirectMsgArgs, SecondaryEpRegisterAddr, SuccessArgsIdGet, SuccessArgsSpmIdGet, TargetInfo,
+        VersionQueryType, WarmBootType,
+    },
 };
 use arm_psci::{ErrorCode, Function, ReturnCode};
 use core::{
@@ -67,7 +70,9 @@ impl Service for Spmd {
         // TODO: should we use a different version for NWd?
         let version = self.spmc_version;
 
-        match &mut Interface::from_regs(version, regs.values()) {
+        let smc_regs = get_smc_regs(regs);
+
+        match &mut Interface::from_regs(version, smc_regs) {
             Ok(msg) => {
                 trace!("Handle FF-A call from NWd {msg:x?}");
 
@@ -78,20 +83,23 @@ impl Service for Spmd {
 
                 let next_world = self.handle_non_secure_call(msg);
 
-                msg.to_regs(version, regs.mark_all_used());
+                msg.to_regs(version, smc_regs);
 
                 next_world
             }
             Err(error) => {
                 error!("Invalid FF-A call from Normal World {error}");
                 let response = match error {
-                    arm_ffa::Error::InvalidVersion(_) => Interface::VersionOut {
+                    // If the FFA_VERSION decoding failed, we have to use a different error encoding
+                    arm_ffa::Error::InvalidVersion(_)
+                    | arm_ffa::Error::InvalidVersionFlags(_)
+                    | arm_ffa::Error::InvalidVersionQueryType(_) => Interface::VersionOut {
                         output_version: VersionOut::NotSupported,
                     },
-                    error => Interface::error((*error).into()),
+                    error => Interface::error((*error).into(), true),
                 };
 
-                response.to_regs(version, regs.mark_all_used());
+                response.to_regs(version, smc_regs);
                 World::NonSecure
             }
         }
@@ -100,7 +108,9 @@ impl Service for Spmd {
     fn handle_secure_smc(&self, regs: &mut SmcReturn) -> World {
         let version = self.spmc_version;
 
-        match &mut Interface::from_regs(version, regs.values()) {
+        let smc_regs = get_smc_regs(regs);
+
+        match &mut Interface::from_regs(version, smc_regs) {
             Ok(msg) => {
                 trace!("Handle FF-A call from SWd {msg:x?}");
 
@@ -116,7 +126,7 @@ impl Service for Spmd {
                 };
 
                 if has_msg {
-                    msg.to_regs(version, regs.mark_all_used());
+                    msg.to_regs(version, smc_regs);
                 } else {
                     regs.mark_empty();
                 }
@@ -125,16 +135,24 @@ impl Service for Spmd {
             }
             Err(error) => {
                 error!("Invalid FF-A call from Secure World: {error} ");
-                Interface::error((*error).into()).to_regs(version, regs.mark_all_used());
+                Interface::error((*error).into(), true).to_regs(version, smc_regs);
                 World::Secure
             }
         }
     }
 }
 
+fn get_smc_regs(regs: &mut SmcReturn) -> &mut [u64] {
+    match FunctionId(regs.values_mut()[0] as u32).call_type() {
+        SmcccCallType::Fast32 => &mut regs.mark_used::<8>()[..],
+        SmcccCallType::Fast64 => &mut regs.mark_used::<18>()[..],
+        SmcccCallType::Yielding => panic!("Yielding calls cannot be FF-A calls"),
+    }
+}
+
 impl Spmd {
     const OWN_ID: u16 = 0xffff;
-    const VERSION: Version = Version(1, 2);
+    const VERSION: Version = Version(1, 3);
     const NS_EP_ID: u16 = 0; // TODO: this should come from arm_ffa
 
     /// Initialises the SPMD state.
@@ -146,10 +164,10 @@ impl Spmd {
 
         // TODO: read these attributes from the SPMC manifest
         let spmc_id = 0x8000;
-        let spmc_version = Version(1, 2);
+        let spmc_version = Version(1, 3);
         let spmc_primary_ep = 0x0600_0000;
 
-        assert!(spmc_version.is_compatible_to(&Spmd::VERSION));
+        assert!(spmc_version.is_compatible_to(Spmd::VERSION));
 
         let core_local = PerCore::new(
             [const { ExceptionLock::new(RefCell::new(SpmdLocal::new())) };
@@ -211,7 +229,7 @@ impl Spmd {
             },
             _ => {
                 warn!("Unsupported FF-A call from Secure World: {msg:x?}");
-                Interface::error(FfaError::NotSupported)
+                Interface::error(FfaError::NotSupported, true)
             }
         };
 
@@ -227,9 +245,24 @@ impl Spmd {
                 // TODO: should we return an error instead of panic?
                 panic!("SPMC init failed with error {error_code}");
             }
-            Interface::Version { input_version } => {
-                *msg = Interface::VersionOut {
-                    output_version: VersionOut::Version(Self::VERSION.min(*input_version)),
+            Interface::Version {
+                input_version: _,
+                flags,
+            } => {
+                *msg = match flags.query_type {
+                    // The negotiated version is the SPMC version, discovered from the SPMC manifest
+                    // at boot time. The request to negotiate a version from the SPMC is a NOP.
+                    VersionQueryType::Negotiate | VersionQueryType::QueryNegotiated => {
+                        Interface::VersionOut {
+                            output_version: VersionOut::Version(self.spmc_version),
+                        }
+                    }
+
+                    // The SPMD only supports a single version, this should be returned regardless
+                    // of being compatible with the input version.
+                    VersionQueryType::QueryCompatibility => Interface::VersionOut {
+                        output_version: VersionOut::Version(Self::VERSION),
+                    },
                 };
             }
             Interface::MsgWait { .. } => {
@@ -258,7 +291,7 @@ impl Spmd {
             }
             _ => {
                 warn!("Denied FF-A call from Secure World: {msg:x?}");
-                *msg = Interface::error(FfaError::Denied)
+                *msg = Interface::error(FfaError::Denied, true)
             }
         };
 
@@ -273,9 +306,9 @@ impl Spmd {
         let mut next_world = World::Secure;
 
         match msg {
-            Interface::NormalWorldResume => {
+            Interface::NormalWorldResume { .. } => {
                 // Normal world execution was not preempted
-                *msg = Interface::error(FfaError::Denied);
+                *msg = Interface::error(FfaError::Denied, true);
             }
             Interface::MsgSendDirectResp {
                 src_id,
@@ -285,7 +318,7 @@ impl Spmd {
                 if !Self::is_secure_id(*src_id)
                     || (Self::is_secure_id(*dst_id) && *dst_id != Self::OWN_ID)
                 {
-                    *msg = Interface::error(FfaError::InvalidParameters);
+                    *msg = Interface::error(FfaError::InvalidParameters, true);
                 } else if *dst_id == Self::OWN_ID {
                     *msg = match *args {
                         DirectMsgArgs::VersionResp { version } if *src_id == self.spmc_id => {
@@ -297,7 +330,7 @@ impl Spmd {
                                 },
                             }
                         }
-                        _ => Interface::error(FfaError::InvalidParameters),
+                        _ => Interface::error(FfaError::InvalidParameters, true),
                     };
                 } else {
                     // Forward to NWd
@@ -306,7 +339,7 @@ impl Spmd {
             }
             Interface::MsgSendDirectResp2 { src_id, dst_id, .. } => {
                 if !Self::is_secure_id(*src_id) || Self::is_secure_id(*dst_id) {
-                    *msg = Interface::error(FfaError::InvalidParameters)
+                    *msg = Interface::error(FfaError::InvalidParameters, true);
                 } else {
                     // Forward to NWd
                     next_world = World::NonSecure;
@@ -322,7 +355,7 @@ impl Spmd {
             | Interface::Success { .. }
             | Interface::Interrupt { .. }
             | Interface::MsgWait { .. }
-            | Interface::Yield
+            | Interface::Yield { .. }
             | Interface::MemRetrieveResp { .. }
             | Interface::MemOpPause { .. }
             | Interface::MemFragRx { .. }
@@ -332,7 +365,7 @@ impl Spmd {
             }
             _ => {
                 warn!("Unsupported FF-A call from Secure World: {msg:x?}");
-                *msg = Interface::error(FfaError::NotSupported)
+                *msg = Interface::error(FfaError::NotSupported, true);
             }
         };
 
@@ -344,7 +377,7 @@ impl Spmd {
     /// the registers. The second return value specifies the next world to be called.
     fn handle_secure_call_interrupt(&self, msg: &mut Interface) -> (bool, World) {
         match msg {
-            Interface::NormalWorldResume => {
+            Interface::NormalWorldResume { .. } => {
                 self.switch_spmc_local_state(SpmcState::SecureInterrupt, SpmcState::Runtime);
 
                 // Interrupt was handled, return to NWd which was preempted by a secure interrupt.
@@ -356,7 +389,7 @@ impl Spmd {
             }
             _ => {
                 warn!("Denied FF-A call from Secure World: {msg:x?}");
-                *msg = Interface::error(FfaError::Denied);
+                *msg = Interface::error(FfaError::Denied, true);
                 (true, World::Secure)
             }
         }
@@ -382,7 +415,7 @@ impl Spmd {
             }
             _ => {
                 warn!("Denied FF-A call from Secure World: {msg:x?}");
-                *msg = Interface::error(FfaError::Denied);
+                *msg = Interface::error(FfaError::Denied, true);
                 (true, World::Secure)
             }
         }
@@ -396,7 +429,10 @@ impl Spmd {
         let mut next_world = World::NonSecure;
 
         match msg {
-            Interface::Version { input_version } => {
+            Interface::Version {
+                input_version,
+                flags,
+            } => {
                 // Forward version call to the SPMC
                 next_world = World::Secure;
                 *msg = Interface::MsgSendDirectReq {
@@ -404,6 +440,7 @@ impl Spmd {
                     dst_id: self.spmc_id,
                     args: DirectMsgArgs::VersionReq {
                         version: *input_version,
+                        flags: *flags,
                     },
                 };
             }
@@ -423,7 +460,7 @@ impl Spmd {
             Interface::MsgSendDirectReq { src_id, dst_id, .. }
             | Interface::MsgSendDirectReq2 { src_id, dst_id, .. } => {
                 if Self::is_secure_id(*src_id) || !Self::is_secure_id(*dst_id) {
-                    *msg = Interface::error(FfaError::InvalidParameters)
+                    *msg = Interface::error(FfaError::InvalidParameters, true);
                 } else {
                     next_world = World::Secure;
                 }
@@ -433,7 +470,7 @@ impl Spmd {
                 ..
             } => {
                 if Self::is_secure_id(*src_id) {
-                    *msg = Interface::error(FfaError::InvalidParameters)
+                    *msg = Interface::error(FfaError::InvalidParameters, true);
                 } else {
                     next_world = World::Secure;
                 }
@@ -468,7 +505,7 @@ impl Spmd {
             }
             _ => {
                 warn!("Unsupported FF-A call from Normal World: {msg:x?}");
-                *msg = Interface::error(FfaError::NotSupported)
+                *msg = Interface::error(FfaError::NotSupported, true);
             }
         };
 
@@ -484,6 +521,7 @@ impl Spmd {
             },
             // The SPMD shouldn't query the GIC
             interrupt_id: 0,
+            is_32bit: true,
         };
 
         self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::SecureInterrupt);

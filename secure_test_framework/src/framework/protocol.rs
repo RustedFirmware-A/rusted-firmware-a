@@ -4,7 +4,7 @@
 
 //! The protocol used for the BL32 and BL33 parts of STF to communicate over FF-A direct messages.
 
-use arm_ffa::DirectMsgArgs;
+use arm_ffa::interface_args::DirectMsgArgs;
 use thiserror::Error;
 
 /// Value sent by a direct message to run a secure test.
@@ -48,18 +48,30 @@ pub enum Request {
 
 impl From<Request> for DirectMsgArgs {
     fn from(request: Request) -> Self {
-        DirectMsgArgs::Args64(match request {
-            Request::RunSecureTest { test_index } => [RUN_SECURE_TEST, test_index as u64, 0, 0, 0],
-            Request::RunTestHelper { test_index, args } => [
-                RUN_TEST_HELPER,
-                test_index as u64,
-                args[0],
-                args[1],
-                args[2],
-            ],
-            Request::StartTest { test_index } => [START_TEST, test_index as u64, 0, 0, 0],
-            Request::StopTest => [STOP_TEST, 0, 0, 0, 0],
-        })
+        let mut msg_args = [0u64; 15];
+
+        match request {
+            Request::RunSecureTest { test_index } => {
+                msg_args[0] = RUN_SECURE_TEST;
+                msg_args[1] = test_index as u64;
+            }
+            Request::RunTestHelper { test_index, args } => {
+                msg_args[0] = RUN_TEST_HELPER;
+                msg_args[1] = test_index as u64;
+                msg_args[2] = args[0];
+                msg_args[3] = args[1];
+                msg_args[4] = args[2];
+            }
+            Request::StartTest { test_index } => {
+                msg_args[0] = START_TEST;
+                msg_args[1] = test_index as u64;
+            }
+            Request::StopTest => {
+                msg_args[0] = STOP_TEST;
+            }
+        };
+
+        DirectMsgArgs::Args64(msg_args)
     }
 }
 
@@ -111,18 +123,28 @@ pub enum Response {
 
 impl From<Response> for DirectMsgArgs {
     fn from(response: Response) -> Self {
-        DirectMsgArgs::Args64(match response {
-            Response::Success { return_value } => [
-                TEST_SUCCESS,
-                return_value[0],
-                return_value[1],
-                return_value[2],
-                return_value[3],
-            ],
-            Response::Ignored => [TEST_IGNORED, 0, 0, 0, 0],
-            Response::Failure => [TEST_FAILURE, 0, 0, 0, 0],
-            Response::Panic => [TEST_PANIC, 0, 0, 0, 0],
-        })
+        let mut msg_args = [0u64; 15];
+
+        match response {
+            Response::Success { return_value } => {
+                msg_args[0] = TEST_SUCCESS;
+                msg_args[1] = return_value[0];
+                msg_args[2] = return_value[1];
+                msg_args[3] = return_value[2];
+                msg_args[4] = return_value[3];
+            }
+            Response::Ignored => {
+                msg_args[0] = TEST_IGNORED;
+            }
+            Response::Failure => {
+                msg_args[0] = TEST_FAILURE;
+            }
+            Response::Panic => {
+                msg_args[0] = TEST_PANIC;
+            }
+        };
+
+        DirectMsgArgs::Args64(msg_args)
     }
 }
 

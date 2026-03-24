@@ -37,13 +37,14 @@ ifndef PLAT
   endif
 endif
 
-STF_CARGO_FLAGS = --release  --features "$(STF_FEATURES)"
+STF_CARGO_FLAGS = --release
 STF_IMAGES_FLAGS = $(patsubst target/%.bin, "--bin" "%", $(STF_IMAGES))
 RFA_CARGO_FLAGS := --no-default-features
 
 # List of test images that can be built for that platform.
 STF_IMAGES := $(BL32) $(BL33)
 ifeq (${RME}, 1)
+	FEATURES += rme
 	STF_FEATURES += rme
 	STF_IMAGES += $(STF_RMM)
 endif

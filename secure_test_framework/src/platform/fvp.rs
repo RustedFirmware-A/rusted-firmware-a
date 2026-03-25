@@ -171,7 +171,7 @@ unsafe impl Platform for Fvp {
     }
 
     fn osi_suspend_entry_delay_us() -> u64 {
-        100
+        200
     }
 
     fn osi_should_wake_core(core_index: usize) -> bool {

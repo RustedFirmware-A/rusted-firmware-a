@@ -89,16 +89,16 @@ static SERVICES: Lazy<Services> = Lazy::new(Services::new);
 
 /// Contains an instance of all of the currently implemented services.
 pub struct Services {
-    pub arch: Arch,
+    arch: Arch,
     pub psci: Psci,
-    pub platform: PlatformServiceImpl,
+    platform: PlatformServiceImpl,
     /// The FF-A SPMD service.
     pub spmd: Spmd,
     /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
     pub rmmd: Rmmd,
-    pub trng: Trng,
-    pub errata_management: ErrataManagement,
+    trng: Trng,
+    errata_management: ErrataManagement,
 }
 
 impl Services {

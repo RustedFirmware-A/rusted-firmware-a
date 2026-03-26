@@ -88,10 +88,10 @@ pub enum MecRefreshReason {
 /// IDE selective stream information.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamSelector {
-    pub keyset: bool,
-    pub dir: bool,
-    pub substream: u8,
-    pub stream_id: u8,
+    keyset: bool,
+    dir: bool,
+    substream: u8,
+    stream_id: u8,
 }
 
 impl From<u64> for StreamSelector {
@@ -108,7 +108,7 @@ impl From<u64> for StreamSelector {
 #[derive(Debug, Clone, PartialEq, Eq, TryFromPrimitive)]
 #[num_enum(error_type(name = Error, constructor = Error::UnrecognisedFunctionId))]
 #[repr(u32)]
-pub enum RmmFuncId {
+enum RmmFuncId {
     RmiReqComplete = 0xC400_018F,
     GtsiDelegate = 0xC400_01B0,
     GtsiUndelegate = 0xC400_01B1,
@@ -363,7 +363,7 @@ impl SetFrom<RmmCommandReturnCode> for SmcReturn {
     }
 }
 
-pub struct RmmEmptyResponse;
+struct RmmEmptyResponse;
 derive_setfrom!(RmmEmptyResponse);
 
 /// The response to an RMM ATTEST_GET_REALM_KEY request.
@@ -398,7 +398,7 @@ derive_setfrom!(RmmEl3FeaturesResponse, feat_reg);
 
 /// The response to an RMM EL3_TOKEN_SIGN_GET_RAK request.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RmmEl3TokenSignGetRakResponse {
+struct RmmEl3TokenSignGetRakResponse {
     /// The length of public key returned.
     pub key_size: u64,
 }
@@ -406,7 +406,7 @@ derive_setfrom!(RmmEl3TokenSignGetRakResponse, key_size);
 
 /// The response to an RMM IDE_KM_PULL request.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RmmIdeKmPullResponse {
+struct RmmIdeKmPullResponse {
     /// Retrieved response corresponding to previous IDE_KM requests.
     pub previous: RmmCommandReturnCode,
     /// Passthrough from requested SMC.
@@ -418,7 +418,7 @@ derive_setfrom!(RmmIdeKmPullResponse, previous, r1, r2);
 
 /// The response to an RMM RESERVE_MEMORY request.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RmmReserveMemoryResponse {
+struct RmmReserveMemoryResponse {
     /// Physical address of the reserved memory area.
     pub address: usize,
 }

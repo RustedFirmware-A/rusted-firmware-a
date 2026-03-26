@@ -147,7 +147,7 @@ enum RmmBootState {
     Error,
 }
 
-pub static GRANULE_PROTECTION_TABLE: Once<SpinMutex<GranuleProtection>> = Once::new();
+static GRANULE_PROTECTION_TABLE: Once<SpinMutex<GranuleProtection>> = Once::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u32)]

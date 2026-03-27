@@ -18,8 +18,8 @@ Tests are registered with the framework via macro. For a secure world only test:
 ```rust
 secure_world_test!(test_foo);
 fn test_foo() -> Result<(), ()> {
-   expect_eq!(42, 66);
-   Ok(())
+    expect_eq!(42, 66);
+    Ok(())
 }
 ```
 
@@ -28,8 +28,8 @@ For a normal world only test:
 ```rust
 normal_world_test!(test_foo);
 fn test_foo() -> Result<(), ()> {
-   expect_eq!(42, 66);
-   Ok(())
+    expect_eq!(42, 66);
+    Ok(())
 }
 ```
 
@@ -38,18 +38,18 @@ For a normal world test with a secure world helper component:
 ```rust
 normal_world_test!(test_foo, helper = foo_helper);
 fn test_foo(helper: &TestHelperProxy) -> Result<(), ()> {
-   let result = helper([41, 22, 0]);
-   expect_eq!(result[0], 42);
+    let result = helper([41, 22, 0]);
+    expect_eq!(result[0], 42);
 
-   let result = helper([41, 5, 0]);
-   expect_eq!(result[0], 25);
+    let result = helper([41, 5, 0]);
+    expect_eq!(result[0], 25);
 
-Ok(())
+    Ok(())
 }
 
 fn foo_helper(args: [u64; 3]) -> Result<[u64; 4], ()> {
-   expect_eq!(args[0], 41);
-   Ok([args[1] + 20, 0, 0, 0])
+    expect_eq!(args[0], 41);
+    Ok([args[1] + 20, 0, 0, 0])
 }
 ```
 
@@ -66,41 +66,40 @@ normal world tests.
 ```rust
 normal_world_test!(test_ffa_foo, handler = foo_handler);
 fn test_ffa_foo() -> Result<(), ()> {
+    // Make a FF-A SMC call with Interface::Foo, expecting that it will be forwarded to Secure
+    // World. In case of an FF-A call error, log the message "FOO fail" and return an error.
+    // Check that the interface that is returned from secure world is "Success"
+    let args = expect_ffa_interface!(
+        expect_ffa_success,
+        "FOO failed",
+        ffa::foo(foo_parameter)
+    );
 
-   // Make a FF-A SMC call with Interface::Foo, expecting that it will be forwarded to Secure World.
-   // In case of an FF-A call error, log the message "FOO fail" and return an error.
-   // Check that the interface that is returned from secure world is "Success"
-   let args = expect_ffa_interface!(
-      expect_ffa_success,
-      "FOO failed",
-      ffa::foo(foo_parameter)
-   );
-
-   // Check that the arguments of that "Success" interface are what we'd expected.
-   expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
-   Ok(())
+    // Check that the arguments of that "Success" interface are what we'd expected.
+    expect_eq!(args, SuccessArgs::Args32([0, 0, 0, 0, 0, 0]));
+    Ok(())
 }
 
 fn foo_handler(interface: Interface) -> Option<Interface> {
-   // Interface the `foo_handler` is expecting.
-   let Interface::Foo { foo_parameter } = interface else {
-      return None;
-   };
+    // Interface the `foo_handler` is expecting.
+    let Interface::Foo { foo_parameter } = interface else {
+        return None;
+    };
 
-   // Check that the interface's parameters are the expected ones (forwarding to secure world has
-   // happened correctly).
-   assert_eq!(foo_parameter, 102);
+    // Check that the interface's parameters are the expected ones (forwarding to secure world has
+    // happened correctly).
+    assert_eq!(foo_parameter, 102);
 
-   // Return the interface that the secure world is expected to respond to normal world with.
-   // This will not always be the "Success" interface and will depend on the actual interface the
-   // `foo_handler` is expecting.
-   Some(Interface::Success {
-      args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
-      target_info: TargetInfo {
-         endpoint_id: 0,
-         vcpu_id: 0,
-      },
-   })
+    // Return the interface that the secure world is expected to respond to normal world with.
+    // This will not always be the "Success" interface and will depend on the actual interface the
+    // `foo_handler` is expecting.
+    Some(Interface::Success {
+        args: SuccessArgs::Args32([0, 0, 0, 0, 0, 0]),
+        target_info: TargetInfo {
+            endpoint_id: 0,
+            vcpu_id: 0,
+        },
+    })
 }
 ```
 

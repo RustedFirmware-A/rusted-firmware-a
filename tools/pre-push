@@ -33,6 +33,13 @@ must() {
 must cargo test --workspace --exclude rf-a-secure-test-framework
 must make clippy-test
 
+IFS=" " read -a all_features <<< "$(make PLAT="fvp" --silent list_features)"
+for features in "${all_features[@]}"; do
+    features=$(echo $features | sed "s/'//g")
+
+    must cargo test --features=$features
+done
+
 declare -a all_platforms=($(make --silent list_platforms))
 for platform in "${all_platforms[@]}"; do
     for debug in 1 0; do

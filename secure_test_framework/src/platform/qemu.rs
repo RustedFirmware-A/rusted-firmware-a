@@ -7,7 +7,7 @@ use crate::{
     pagetable::{DEVICE_ATTRIBUTES, MEMORY_ATTRIBUTES},
     util::naked_asm,
 };
-use aarch64_paging::descriptor::Attributes;
+use aarch64_paging::descriptor::El23Attributes;
 use aarch64_rt::InitialPagetable;
 use arm_gic::gicv3::{
     GicV3,
@@ -169,7 +169,7 @@ BL32_IDMAP:
 ",
     DEVICE_ATTRIBUTES = const DEVICE_ATTRIBUTES.bits(),
     MEMORY_ATTRIBUTES = const MEMORY_ATTRIBUTES.bits(),
-    TABLE_ATTRIBUTES = const Attributes::VALID.union(Attributes::TABLE_OR_PAGE).bits(),
+    TABLE_ATTRIBUTES = const El23Attributes::VALID.union(El23Attributes::TABLE_OR_PAGE).bits(),
 );
 
 unsafe extern "C" {

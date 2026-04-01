@@ -16,9 +16,9 @@ use crate::{
 };
 use aarch64_paging::{
     Mapping,
-    descriptor::{Attributes, PhysicalAddress, VirtualAddress},
+    descriptor::{El23Attributes, PhysicalAddress, VirtualAddress},
     mair::{Mair, MairAttribute, NormalMemory},
-    paging::{Constraints, MemoryRegion, PageTable, Translation, TranslationRegime, VaRange},
+    paging::{Constraints, El3, MemoryRegion, PageTable, Translation},
 };
 use arm_sysregs::{SctlrEl3, Ttbr0El3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
 use core::{
@@ -65,32 +65,32 @@ const TOP_LEVEL_DESCRIPTOR_COUNT: usize = 512; // 512 descriptors in the level 0
 pub const GRANULE_SIZE: usize = 4096; // Using 4k pages.
 
 // Attribute values corresponding to the above MAIR indices.
-const NORMAL_MEMORY: Attributes = Attributes::ATTRIBUTE_INDEX_0;
-const DEVICE: Attributes = Attributes::ATTRIBUTE_INDEX_1;
-const NON_CACHEABLE: Attributes = Attributes::ATTRIBUTE_INDEX_2;
+const NORMAL_MEMORY: El23Attributes = El23Attributes::ATTRIBUTE_INDEX_0;
+const DEVICE: El23Attributes = El23Attributes::ATTRIBUTE_INDEX_1;
+const NON_CACHEABLE: El23Attributes = El23Attributes::ATTRIBUTE_INDEX_2;
 
 /// Attribute bits which are RES1 for the EL3 translation regime, as we configure it.
 ///
 /// From Arm ARM K.a, D8.3.1.2 Fig. D8-16: lower attributes AP\[1\] bit 6
 /// and D8.4.1.2.1 Stage 1 data accesses using Direct permissions:
 /// "For a stage 1 translation that supports one Exception level, AP\[1\] is RES1."
-const EL3_RES1: Attributes = Attributes::USER;
+const EL3_RES1: El23Attributes = El23Attributes::USER_RES1;
 
 /// Attribute bit for NSE aka Root state for FEAT_RME
 ///
 /// From ARM DDI 0487K.a, D8-49 Stage 1 VMSAv8-64 Block and Page descriptor fields,
 /// the NSE bit is aliased with the Not-global (nG) flag (bit 11).
-const NSE: Attributes = Attributes::NON_GLOBAL;
+const NSE: El23Attributes = El23Attributes::NON_GLOBAL;
 
 /// Attributes used for all mappings.
 ///
 /// We always set the access flag, as we don't manage access flag faults.
-const BASE: Attributes = EL3_RES1
-    .union(Attributes::ACCESSED)
-    .union(Attributes::VALID);
+const BASE: El23Attributes = EL3_RES1
+    .union(El23Attributes::ACCESSED)
+    .union(El23Attributes::VALID);
 
 /// Attributes used for all mappings in EL3.
-const BASE_EL3: Attributes = if cfg!(feature = "rme") {
+const BASE_EL3: El23Attributes = if cfg!(feature = "rme") {
     BASE.union(NSE)
 } else {
     BASE
@@ -106,7 +106,7 @@ const BASE_EL3: Attributes = if cfg!(feature = "rme") {
 /// region has an effective Shareability attribute of Outer Shareable."
 /// Arm ARM K.a D8.4.1.2.3 bit 54 UXN/PXN/XN is the XN field at EL3:
 /// "If the Effective value of XN is 1, then PrivExecute is removed."
-pub const MT_DEVICE: Attributes = DEVICE.union(BASE_EL3).union(Attributes::UXN);
+pub const MT_DEVICE: El23Attributes = DEVICE.union(BASE_EL3).union(El23Attributes::XN);
 
 /// Generates memory attributes for all available worlds.
 ///
@@ -123,40 +123,40 @@ macro_rules! make_memory_attributes {
             #[doc = stringify!($name)]
             #[doc = " world."]
             #[allow(unused)]
-            pub const [<MT_NON_CACHEABLE_ $name>]: Attributes = NON_CACHEABLE.union($base);
+            pub const [<MT_NON_CACHEABLE_ $name>]: El23Attributes = NON_CACHEABLE.union($base);
 
             #[doc = "Attributes used for all memory mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
             #[allow(unused)]
-            pub const [<MT_MEMORY_ $name>]: Attributes = NORMAL_MEMORY
+            pub const [<MT_MEMORY_ $name>]: El23Attributes = NORMAL_MEMORY
                 .union($base)
-                .union(Attributes::INNER_SHAREABLE);
+                .union(El23Attributes::INNER_SHAREABLE);
 
 
             #[doc = "Attributes used for read-only data mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
             #[allow(unused)]
-            pub const [<MT_RO_DATA_ $name>]: Attributes = [<MT_MEMORY_ $name>]
-                .union(Attributes::READ_ONLY)
-                .union(Attributes::UXN);
+            pub const [<MT_RO_DATA_ $name>]: El23Attributes = [<MT_MEMORY_ $name>]
+                .union(El23Attributes::READ_ONLY)
+                .union(El23Attributes::XN);
 
             #[doc = "Attributes used for read-write data mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
             #[allow(unused)]
-            pub const [<MT_RW_DATA_ $name>]: Attributes = [<MT_MEMORY_ $name>].union(Attributes::UXN);
+            pub const [<MT_RW_DATA_ $name>]: El23Attributes = [<MT_MEMORY_ $name>].union(El23Attributes::XN);
 
 
             #[doc = "Attributes used for code (i.e. text) mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]
             #[allow(unused)]
-            pub const [<MT_CODE_ $name>]: Attributes = {
-                let attrs = [<MT_MEMORY_ $name>].union(Attributes::READ_ONLY);
+            pub const [<MT_CODE_ $name>]: El23Attributes = {
+                let attrs = [<MT_MEMORY_ $name>].union(El23Attributes::READ_ONLY);
                 if cfg!(bti) {
-                    attrs.union(Attributes::GP)
+                    attrs.union(El23Attributes::GP)
                 } else {
                     attrs
                 }
@@ -167,11 +167,11 @@ macro_rules! make_memory_attributes {
 
 make_memory_attributes!(EL3, BASE_EL3);
 make_memory_attributes!(SECURE, BASE);
-make_memory_attributes!(NS, BASE.union(Attributes::NS));
+make_memory_attributes!(NS, BASE.union(El23Attributes::NS));
 #[cfg(feature = "rme")]
-make_memory_attributes!(REALM, BASE.union(Attributes::NS).union(NSE));
+make_memory_attributes!(REALM, BASE.union(El23Attributes::NS).union(NSE));
 
-static PAGE_HEAP: SpinMutex<[PageTable; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
+static PAGE_HEAP: SpinMutex<[PageTable<El23Attributes>; PlatformImpl::PAGE_HEAP_PAGE_COUNT]> =
     SpinMutex::new([PageTable::EMPTY; PlatformImpl::PAGE_HEAP_PAGE_COUNT]);
 static PAGE_TABLE: Once<SpinMutex<IdMap>> = Once::new();
 
@@ -299,7 +299,7 @@ pub extern "C" fn enable_mmu(ttbr: usize, sctlr_set: u64, sctlr_clear: u64) {
 
 /// Creates the page table and maps initial regions needed for boot, including any platform-specific
 /// regions.
-fn init_page_table(pages: &'static mut [PageTable]) -> IdMap {
+fn init_page_table(pages: &'static mut [PageTable<El23Attributes>]) -> IdMap {
     let mut idmap = IdMap::new(pages);
 
     // If the BL32 entry point is in the middle of our memory range then something is misconfigured.
@@ -361,7 +361,7 @@ pub unsafe fn disable_mmu_el3() {
 
 struct IdTranslation {
     /// Pages which can be allocated for page tables.
-    pages: &'static mut [PageTable],
+    pages: &'static mut [PageTable<El23Attributes>],
     /// Record of which `pages` are currently allocated.
     allocated: [bool; PlatformImpl::PAGE_HEAP_PAGE_COUNT],
 }
@@ -383,8 +383,8 @@ impl IdTranslation {
     }
 }
 
-impl Translation for IdTranslation {
-    fn allocate_table(&mut self) -> (NonNull<PageTable>, PhysicalAddress) {
+impl Translation<El23Attributes> for IdTranslation {
+    fn allocate_table(&mut self) -> (NonNull<PageTable<El23Attributes>>, PhysicalAddress) {
         let index = self
             .allocated
             .iter()
@@ -398,35 +398,36 @@ impl Translation for IdTranslation {
         )
     }
 
-    unsafe fn deallocate_table(&mut self, page_table: NonNull<PageTable>) {
-        let index =
-            (page_table.addr().get() - &raw const self.pages[0] as usize) / size_of::<PageTable>();
+    unsafe fn deallocate_table(&mut self, page_table: NonNull<PageTable<El23Attributes>>) {
+        let index = (page_table.addr().get() - &raw const self.pages[0] as usize)
+            / size_of::<PageTable<El23Attributes>>();
         self.allocated[index] = false;
     }
 
-    fn physical_to_virtual(&self, page_table_pa: PhysicalAddress) -> NonNull<PageTable> {
-        NonNull::new(page_table_pa.0 as *mut PageTable)
+    fn physical_to_virtual(
+        &self,
+        page_table_pa: PhysicalAddress,
+    ) -> NonNull<PageTable<El23Attributes>> {
+        NonNull::new(page_table_pa.0 as *mut PageTable<El23Attributes>)
             .expect("Got physical address 0 for pagetable")
     }
 }
 
 #[derive(Debug)]
 pub struct IdMap {
-    mapping: Mapping<IdTranslation>,
+    mapping: Mapping<IdTranslation, El3>,
 }
 
 impl IdMap {
-    fn new(pages: &'static mut [PageTable]) -> Self {
+    fn new(pages: &'static mut [PageTable<El23Attributes>]) -> Self {
         Self {
             mapping: Mapping::new(
                 IdTranslation {
                     pages,
                     allocated: [false; PlatformImpl::PAGE_HEAP_PAGE_COUNT],
                 },
-                0,
                 ROOT_LEVEL,
-                TranslationRegime::El3,
-                VaRange::Lower,
+                El3,
             ),
         }
     }
@@ -445,9 +446,9 @@ impl IdMap {
     ///
     /// Memory which is still used by RF-A must not be unmapped, or mapped with incorrect
     /// attributes.
-    pub unsafe fn map_region(&mut self, region: &MemoryRegion, attributes: Attributes) {
+    pub unsafe fn map_region(&mut self, region: &MemoryRegion, attributes: El23Attributes) {
         debug!("Mapping {region} as {attributes:?}.");
-        assert!(attributes.contains(Attributes::VALID));
+        assert!(attributes.contains(El23Attributes::VALID));
         let pa = IdTranslation::virtual_to_physical(region.start());
         self.mapping
             .map_range(region, pa, attributes, Constraints::empty())
@@ -469,7 +470,7 @@ impl IdMap {
                 .map_range(
                     region,
                     PhysicalAddress(0),
-                    Attributes::empty(),
+                    El23Attributes::empty(),
                     Constraints::empty(),
                 )
                 .expect("Error unmapping memory range");

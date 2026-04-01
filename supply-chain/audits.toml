@@ -142,6 +142,12 @@ who = "Mateusz Sulimowicz <matsul@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.10.0 -> 0.11.0"
 
+[[audits.aarch64-paging]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.11.0 -> 0.12.1"
+notes = "Substantial changes to support different translation regimes, but well documented and reviewed."
+
 [[audits.aarch64-rt]]
 who = "Pranjal Shrivastava <praan@google.com>"
 criteria = "safe-to-run"
@@ -418,6 +424,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.9.4 -> 2.10.0"
 notes = "No new unsafe code, just some refactoring and a new iterator."
+
+[[audits.bitflags]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.10.0 -> 2.11.0"
+notes = "No unsafe code. Only substantial non-test change is adding some trivial methods."
 
 [[audits.buddy_system_allocator]]
 who = "Andrew Walbran <qwandor@google.com>"

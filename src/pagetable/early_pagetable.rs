@@ -6,7 +6,7 @@ use crate::{
     pagetable::{GRANULE_SIZE, TOP_LEVEL_BLOCK_SIZE, TOP_LEVEL_DESCRIPTOR_COUNT},
     platform::EARLY_PAGE_TABLE_RANGES,
 };
-use aarch64_paging::descriptor::Attributes;
+use aarch64_paging::descriptor::El23Attributes;
 use core::ops::Range;
 
 /// Structure for storing early page table regions.
@@ -14,7 +14,7 @@ pub struct EarlyRegion {
     /// Physical address range.
     pub address_range: Range<usize>,
     /// Attributes of the mapped memory.
-    pub attributes: Attributes,
+    pub attributes: El23Attributes,
 }
 
 /// The early page is stored as an array of `DescriptorRange`. Each item describes one or more
@@ -379,7 +379,7 @@ mod tests {
     fn map_level0() {
         const REGIONS: [EarlyRegion; 1] = [EarlyRegion {
             address_range: 0x8000_0000..0xC000_0000,
-            attributes: Attributes::from_bits_retain(0x10),
+            attributes: El23Attributes::from_bits_retain(0x10),
         }];
 
         define_early_mapping!(REGIONS);
@@ -399,7 +399,7 @@ mod tests {
     fn map_level1() {
         const REGIONS: [EarlyRegion; 1] = [EarlyRegion {
             address_range: 0x8000_0000..0x8040_0000,
-            attributes: Attributes::from_bits_retain(0x20),
+            attributes: El23Attributes::from_bits_retain(0x20),
         }];
 
         define_early_mapping!(REGIONS);
@@ -426,7 +426,7 @@ mod tests {
     fn map_level2() {
         const REGIONS: [EarlyRegion; 1] = [EarlyRegion {
             address_range: 0x8000_0000..0x8000_3000,
-            attributes: Attributes::from_bits_retain(0x30),
+            attributes: El23Attributes::from_bits_retain(0x30),
         }];
 
         define_early_mapping!(REGIONS);
@@ -459,15 +459,15 @@ mod tests {
         const REGIONS: [EarlyRegion; 3] = [
             EarlyRegion {
                 address_range: 0x0000_0000..0x4000_0000,
-                attributes: Attributes::from_bits_retain(0x10),
+                attributes: El23Attributes::from_bits_retain(0x10),
             },
             EarlyRegion {
                 address_range: 0x4000_0000..0x4040_0000,
-                attributes: Attributes::from_bits_retain(0x20),
+                attributes: El23Attributes::from_bits_retain(0x20),
             },
             EarlyRegion {
                 address_range: 0x8000_0000..0x8000_3000,
-                attributes: Attributes::from_bits_retain(0x30),
+                attributes: El23Attributes::from_bits_retain(0x30),
             },
         ];
 

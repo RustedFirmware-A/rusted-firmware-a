@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "aarch64-paging"
-version = "0.11.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fcde4fe4e43dff9326a54f5137de608f2b7f69e5a5f86fa8657f0db60a6ba2a"
+checksum = "5fa1efb593234d49cfb0af667985fa9c7d9f1fb21a5e338d9b30dd3382111f45"
 dependencies = [
  "bitflags",
  "thiserror",
@@ -169,9 +169,9 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "bitflags"
-version = "2.10.0"
+version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
+checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
 
 [[package]]
 name = "buddy_system_allocator"

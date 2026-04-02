@@ -7,7 +7,7 @@ Inspection reveals that the crate in question does not attempt to implement any
 cryptographic algorithms on its own.
 
 Note that certification of this does not require an expert on all forms of
-cryptography: it's expected for crates we import to be \"good enough\" citizens,
+cryptography: it's expected for crates we import to be "good enough" citizens,
 so they'll at least be forthcoming if they try to implement something
 cryptographic. When in doubt, please ask an expert."""
 
@@ -88,7 +88,7 @@ who = "Pranjal Shrivastava <praan@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.8.0 -> 0.9.1"
 notes = """
-\"safe-to-deploy\"
+"safe-to-deploy"
 
 The crate introduces no new side effects like network or filesystem access.
 Its functionality remains tightly sandboxed to memory management operations.
@@ -98,7 +98,7 @@ The unsafe code is contained and justified by the need to interface directly
 with hardware-level architecture, a standard practice for these kinds of utilities.
 The changes do not introduce any new security vulnerabilities.
 
-\"does-not-implement-crypto\"
+"does-not-implement-crypto"
 
 Inspection reveals that the crate in question does not attempt to implement any
 cryptographic algorithms on its own.
@@ -107,7 +107,7 @@ Inspection confirms that no new functionality related to cryptographic algorithm
 has been introduced to the crate. The crate's scope remains strictly focused on
 low-level AArch64 page table manipulation.
 
-\"ub-risk-2\"
+"ub-risk-2"
 
 Negligible unsoundness
 
@@ -314,7 +314,7 @@ who = "Jim Ray <jimray@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.1.1"
 notes = """
-\"safe-to-deploy\"
+"safe-to-deploy"
 
 This crate implements a pl061 driver. It does not perform any ambient related capabilities
 (filesystem, network, OS, etc). It also does not use any particularly powerful imports. The
@@ -322,11 +322,11 @@ functionality is soley limited to interacting with the PL061 hardware itself and
 for interacting with that hardware in a safe manner. There is a single unsafe block. The unsafe
 block is paired with a safety comment that explains why the particular usage of this code is safe.
 
-\"does-not-implement-crypto\"
+"does-not-implement-crypto"
 
 This crate does not implement any crypto functionality.
 
-\"ub-risk-2\"
+"ub-risk-2"
 
 Negligible unsoundness.
 
@@ -522,8 +522,8 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.7.3"
 notes = """
 ub-risk-2: unsafe in asserts, tests, and doc tests. `unchecked_transmute_from`:
-unexplained use of `transmute`; caller is required to check that \"`number` must
-represent a valid discriminant of `Self`.\"
+unexplained use of `transmute`; caller is required to check that "`number` must
+represent a valid discriminant of `Self`."
 """
 
 [[audits.num_enum_derive]]
@@ -637,7 +637,7 @@ who = "Pranjal Shrivastava <praan@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.1.0 -> 0.2.5"
 notes = """
-\"safe-to-deploy\"
+"safe-to-deploy"
 
 The crate has no functionality related to filesystems, networking, or other ambient capabilities.
 Its scope is strictly limited to MMIO.
@@ -650,13 +650,13 @@ An attacker cannot manipulate the runtime behavior of the unsafe sections. The i
 and the pointers are controlled by the user of the crate, who is already operating in a privileged context
 where they can provide raw memory addresses. The crate provides the tools to do this more safely.
 
-\"does-not-implement-crypto\"
+"does-not-implement-crypto"
 
 The purpose of the crate is to provide safe, low-level access to Memory-Mapped I/O (MMIO).
 A review of all changes confirms that no cryptographic algorithms have been added. The crate's
 functionality is strictly limited to hardware register access patterns.
 
-\"ub-risk-2\"
+"ub-risk-2"
 
 Negligible unsoundness
 
@@ -680,7 +680,7 @@ who = "Jim Ray <jimray@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.2.5 -> 0.2.7"
 notes = """
-\"safe-to-deploy\"
+"safe-to-deploy"
 This crate is only related to MMIO. It does not use the filesystem, network, or other OS related
 capabilities.
 
@@ -692,10 +692,10 @@ general, this crate only allows the user to manipulate memory regions provided b
 themselves. This crate helps deal with those memory regions in a more safe manner. This new function
 is in line with that goal by improving the flexbility of the library.
 
-\"does-not-implement-crypto\"
+"does-not-implement-crypto"
 This crate does not implement any crypto related code. It is soley related to MMIO.
 
-\"ub-risk-2\"
+"ub-risk-2"
 
 Negligible unsoundness. The changes from 0.2.5->0.2.7 add a small amount of unsafe code. The unsafe
 blocks are paired with safety comments that are well justified. The risk of UB remains negligible

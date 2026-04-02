@@ -7,7 +7,7 @@ Inspection reveals that the crate in question does not attempt to implement any
 cryptographic algorithms on its own.
 
 Note that certification of this does not require an expert on all forms of
-cryptography: it's expected for crates we import to be \"good enough\" citizens,
+cryptography: it's expected for crates we import to be "good enough" citizens,
 so they'll at least be forthcoming if they try to implement something
 cryptographic. When in doubt, please ask an expert."""
 aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
@@ -175,8 +175,8 @@ who = "Lukasz Anforowicz <lukasza@chromium.org>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "1.0.78"
 notes = """
-Grepped for \"crypt\", \"cipher\", \"fs\", \"net\" - there were no hits
-(except for a benign \"fs\" hit in a doc comment)
+Grepped for "crypt", "cipher", "fs", "net" - there were no hits
+(except for a benign "fs" hit in a doc comment)
 
 Notes from the `unsafe` review can be found in https://crrev.com/c/5385745.
 """
@@ -300,8 +300,8 @@ who = "Lukasz Anforowicz <lukasza@chromium.org>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "1.0.35"
 notes = """
-Grepped for \"unsafe\", \"crypt\", \"cipher\", \"fs\", \"net\" - there were no hits
-(except for benign \"net\" hit in tests and \"fs\" hit in README.md)
+Grepped for "unsafe", "crypt", "cipher", "fs", "net" - there were no hits
+(except for benign "net" hit in tests and "fs" hit in README.md)
 """
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
@@ -369,7 +369,7 @@ and there were no hits except for:
 * Using `unsafe` in a string:
 
     ```
-    src/constfn.rs:            \"unsafe\" => Qualifiers::Unsafe,
+    src/constfn.rs:            "unsafe" => Qualifiers::Unsafe,
     ```
 
 * Using `std::fs` in `build/build.rs` to write `${OUT_DIR}/version.expr`

@@ -8,8 +8,8 @@ use crate::{
     util::current_el,
 };
 use arm_gic::{
-    IntId, Trigger,
-    gicv3::{GicCpuInterface, GicV3, Group, HIGHEST_NS_PRIORITY, InterruptGroup, SecureIntGroup},
+    IntId, InterruptGroup, Trigger,
+    gicv3::{GicCpuInterface, GicV3, Group, HIGHEST_NS_PRIORITY, SecureIntGroup},
 };
 use arm_sysregs::read_mpidr_el1;
 use log::debug;
@@ -117,9 +117,9 @@ pub fn init(secure: bool) {
 pub fn init_core() {
     if current_el() == 2 {
         enable_irq_trapping_to_el2();
-        GicCpuInterface::enable_system_register_el2(true, true);
+        GicCpuInterface::enable_system_register_el2(true);
     } else {
-        GicCpuInterface::enable_system_register_el1(true);
+        GicCpuInterface::enable_system_register_el1();
     }
 
     GicCpuInterface::enable_group1(true);

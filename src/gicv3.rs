@@ -10,11 +10,11 @@ use crate::{
     platform::{Platform, PlatformImpl},
 };
 use arm_gic::{
-    IntId, Trigger, UniqueMmioPointer,
+    IntId, InterruptGroup, Trigger, UniqueMmioPointer,
     gicv3::{
         GicCpuInterface, GicDistributor, GicDistributorContext, GicRedistributor,
         GicRedistributorContext, GicRedistributorIterator, Group, HIGHEST_NS_PRIORITY,
-        InterruptGroup, SecureIntGroup,
+        SecureIntGroup,
         registers::{Gicd, GicdCtlr, GicrSgi},
     },
 };
@@ -282,10 +282,10 @@ impl<'a> Gic<'a> {
         // Enable system register access for EL3 and allow lower exception
         // levels to configure the same for themselves. If the legacy mode is
         // not supported, the SRE bit is RAO/WI
-        GicCpuInterface::enable_system_register_el3(true, true);
+        GicCpuInterface::enable_system_register_el3(true);
 
         // Prevent the selection of legacy mode where Secure Group 1 interrupts are treated as Group 0.
-        GicCpuInterface::enable_system_register_el1(true);
+        GicCpuInterface::enable_system_register_el1();
         isb();
 
         GicCpuInterface::set_priority_mask(GIC_PRI_MASK);

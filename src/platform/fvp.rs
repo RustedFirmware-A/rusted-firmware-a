@@ -51,7 +51,9 @@ use aarch64_paging::{
 };
 use arm_fvp_base_pac::{
     MemoryMap, Peripherals, PhysicalInstance,
-    arm_generic_timer::{CntAcr, CntControlBase, CntCtlBase, GenericTimerControl, GenericTimerCtl},
+    arm_generic_timer::memory_mapped::{
+        CntAcr, CntControlBase, CntCtlBase, GenericTimerControl, GenericTimerCtl,
+    },
     power_controller::{FvpPowerController, FvpPowerControllerRegisters, SystemStatus},
     system::{FvpSystemPeripheral, FvpSystemRegisters, SystemConfigFunction},
 };

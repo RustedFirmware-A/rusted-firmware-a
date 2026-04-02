@@ -20,9 +20,9 @@ checksum = "4969245b57b2aef286e6f507cd3fd1b9be7c6df1f0341141ab42226e3e6c52ae"
 
 [[package]]
 name = "arm-cci"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4882288a1394ae52c13ea81362a4f8b9dfac57ee2cb7df2ba1e7becd19ca2de"
+checksum = "3caf7c9089f0aa62f78768e897cc7e0ee624f42c99fd434a3ed263caa2d69e70"
 dependencies = [
  "bitflags",
  "safe-mmio",
@@ -43,9 +43,9 @@ dependencies = [
 
 [[package]]
 name = "arm-fvp-base-pac"
-version = "0.1.4"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ffa3c0b93a5d9c08bf71b278c85e8632ec9a3e0620226015d7936e8d0d6eb5c"
+checksum = "37459343bcbc38cace97288f75cfd1e481d932711ec5a42959f3022aaacaa733"
 dependencies = [
  "arm-cci",
  "arm-generic-timer",
@@ -61,10 +61,11 @@ dependencies = [
 
 [[package]]
 name = "arm-generic-timer"
-version = "0.1.1"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eebe26eb90fa301b9bd2c44206bf867930fe1a3008b5e01939916908202a52c5"
+checksum = "c3824e9440c3f0345bc802b539062d38b6cb720821a6fabb1299ef87689c9f58"
 dependencies = [
+ "arm-sysregs",
  "bitflags",
  "safe-mmio",
  "zerocopy",
@@ -72,10 +73,11 @@ dependencies = [
 
 [[package]]
 name = "arm-gic"
-version = "0.7.2"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c044ecf8760dd8ee5aa92c49cf7534942d289fb1f0247af92b5fbab8ab18a912"
+checksum = "84372c6068152f635a04870779f0fa0d1b0273dd09dbe1c6747688693d061f06"
 dependencies = [
+ "arm-sysregs",
  "bitflags",
  "safe-mmio",
  "thiserror",
@@ -95,9 +97,9 @@ dependencies = [
 
 [[package]]
 name = "arm-pl011-uart"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62040eef329ede76c8b2af149362b0fd42ec9d8c436d9eb9d47db35b71cb300"
+checksum = "1b24c708955a2b308f2ef06b78c1e676d69870773f78ccf78aff6ffdd6136d90"
 dependencies = [
  "bitflags",
  "safe-mmio",
@@ -107,9 +109,9 @@ dependencies = [
 
 [[package]]
 name = "arm-pl061"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c610446b8f2ab9ae10d8f2f9ba92a27042d58fd2b525a8d9992373de7945df28"
+checksum = "3e299f201a1f49c272567babfc979a763441410059253b6ace7fa76c367577d5"
 dependencies = [
  "bitflags",
  "safe-mmio",
@@ -130,9 +132,9 @@ dependencies = [
 
 [[package]]
 name = "arm-sp805"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "952e2661eff687e263d0bb6acef282092ee729eaea3586f904046f74b49bbe8d"
+checksum = "8dc3f6873cd65bb78ce3a1dac3aebf1cd323d96f396f9ac28bf454ae58195e63"
 dependencies = [
  "bitflags",
  "safe-mmio",
@@ -152,9 +154,9 @@ dependencies = [
 
 [[package]]
 name = "arm-tzc"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "832ef75000f5bad7a50f10d0e3a1ee95ac37988e68f25329157b5aff8dd0842b"
+checksum = "53c658412e6afc6f4871684b7e82ed1984bd28658639435b39a2d08627c96d6b"
 dependencies = [
  "bitflags",
  "safe-mmio",
@@ -325,9 +327,9 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "safe-mmio"
-version = "0.2.7"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0a69f884a1511aa811aa94e04559414a66b18ca63f50f84ca31e304f38bad0d"
+checksum = "4813ee49326057f105d6d8ca3d8f9265095f26aa7b42094e487028403a594f4c"
 dependencies = [
  "zerocopy",
 ]

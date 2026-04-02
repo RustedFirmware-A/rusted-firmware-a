@@ -33,11 +33,14 @@ codegen-units = 1
 [dependencies]
 aarch64-paging = { version = "0.12.1", default-features = false }
 arm-ffa = "0.5.0"
-arm-fvp-base-pac = { version = "0.1.4", default-features = false }
-arm-gic = "0.7.2"
+arm-fvp-base-pac = { version = "0.2.0", default-features = false, features = [
+  "base-revc",
+  "el3",
+] }
+arm-gic = { version = "0.8.1", features = ["el3"] }
 arm-gpt = { version = "0.1.0", path = "arm-gpt", optional = true }
-arm-pl011-uart = { version = "0.4.0", default-features = false }
-arm-pl061 = { version = "0.1.1", default-features = false }
+arm-pl011-uart = { version = "0.5.0", default-features = false }
+arm-pl061 = { version = "0.2.0", default-features = false }
 arm-psci = "0.2.0"
 arm-sysregs = { version = "0.2.7", features = ["el3"] }
 arrayvec = { version = "0.7.6", default-features = false }
@@ -57,8 +60,8 @@ uuid = { version = "1.19.0", default-features = false }
 zerocopy = { version = "0.8.27", features = ["derive"] }
 
 [dev-dependencies]
-arm-gic = { version = "0.7.2", features = ["fakes"] }
-arm-sysregs = { version = "0.2.4", features = ["fakes"] }
+arm-gic = { version = "0.8.1", features = ["fakes"] }
+arm-sysregs = { version = "0.2.7", features = ["fakes"] }
 
 [features]
 default = ["sel2"]

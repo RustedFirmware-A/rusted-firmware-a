@@ -71,39 +71,61 @@ use arm_sysregs::read_cntpct_el0;
 use arm_sysregs::{CntfrqEl0, IccSreEl3, MpidrEl1, read_mpidr_el1, write_cntfrq_el0};
 #[cfg(feature = "pauth")]
 use core::arch::asm;
-use core::{arch::global_asm, mem::offset_of, ptr::NonNull};
+use core::{
+    arch::global_asm,
+    mem::offset_of,
+    ops::{Range, RangeInclusive},
+    ptr::NonNull,
+};
 use percore::Cores;
 use spin::mutex::SpinMutex;
 
-const BLD_GIC_VE_MMAP: u32 = 0x0;
+/// Converts `RangeInclusive` into `Range`.
+const fn from_inclusive_range(range_inclusive: &RangeInclusive<usize>) -> Range<usize> {
+    *range_inclusive.start()..range_inclusive.end().checked_add(1).unwrap()
+}
 
-/// Base address of GICv3 distributor.
-const BASE_GICD_BASE: usize = 0x2f00_0000;
-/// Base address of GICv3 redistributor frame.
-const BASE_GICR_BASE: usize = 0x2f10_0000;
-const VE_GICD_BASE: usize = 0x2c00_1000;
+/// Returns a 2MB aligned `Range` that covers the `start` and `end` ranges.
+const fn aligned_range_covering(
+    start: &RangeInclusive<usize>,
+    end: &RangeInclusive<usize>,
+) -> Range<usize> {
+    const ALIGN_2MB: usize = 1 << 21;
 
-const V2M_SYSREGS_BASE: usize = 0x1c01_0000;
-const V2M_SYS_ID: usize = 0x0;
-const V2M_SYS_ID_BLD_SHIFT: u32 = 12;
+    assert!(*start.end() < *end.start(), "end must be after start");
 
-const DEVICE0_BASE: usize = 0x2000_0000;
-const DEVICE0_SIZE: usize = 0x0c20_0000;
-const DEVICE1_BASE: usize = BASE_GICD_BASE;
+    let start_address = *start.start() & !(ALIGN_2MB - 1);
+    let end_address = (*end.end() + 1).next_multiple_of(ALIGN_2MB);
+
+    start_address..end_address
+}
+
+const UART_RANGE: Range<usize> = from_inclusive_range(&MemoryMap::UART0);
+
+const CRASH_UART_BASE: usize = *MemoryMap::UART1.start();
+
+/// Peripheral range from VE_SYSTEM to POWER_CONTROLLER.
+const DEVICE0_RANGE: Range<usize> =
+    aligned_range_covering(&MemoryMap::VE_SYSTEM, &MemoryMap::POWER_CONTROLLER);
+
+/// Peripheral range from REFCLK_CNTCONTROL to AP_REFCLK_CNTBASE1.
+const DEVICE1_RANGE: Range<usize> = aligned_range_covering(
+    &MemoryMap::REFCLK_CNTCONTROL,
+    &MemoryMap::AP_REFCLK_CNTBASE1,
+);
+
+/// Peripherals range that covers the GIC.
+const DEVICE2_RANGE: Range<usize> = aligned_range_covering(&MemoryMap::GICD, &MemoryMap::GICR);
+
 const PLATFORM_CORE_COUNT: usize =
     FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU;
-const DEVICE1_SIZE: usize = (BASE_GICR_BASE - BASE_GICD_BASE) + (PLATFORM_CORE_COUNT * 0x2_0000);
-const DEVICE2_BASE: usize = 0x2a00_0000;
-const DEVICE2_SIZE: usize = 0x10000;
 
-const ARM_TRUSTED_SRAM_BASE: usize = *MemoryMap::TRUSTED_SRAM.start();
-const ARM_TRUSTED_SRAM_SIZE: usize =
-    *MemoryMap::TRUSTED_SRAM.end() - *MemoryMap::TRUSTED_SRAM.start() + 1;
-const ARM_SHARED_RAM_BASE: usize = ARM_TRUSTED_SRAM_BASE;
+const ARM_TRUSTED_SRAM_RANGE: Range<usize> = from_inclusive_range(&MemoryMap::TRUSTED_SRAM);
+const ARM_SHARED_RAM_BASE: usize = ARM_TRUSTED_SRAM_RANGE.start;
 const ARM_SHARED_RAM_SIZE: usize = 0x0000_1000; /* 4 KB */
 
 #[cfg(feature = "rme")]
-const ARM_GPT_L0_BASE: usize = ARM_TRUSTED_SRAM_BASE + ARM_TRUSTED_SRAM_SIZE - ARM_GPT_L0_SIZE;
+const ARM_GPT_L0_BASE: usize = ARM_TRUSTED_SRAM_RANGE.end - ARM_GPT_L0_SIZE;
 #[cfg(feature = "rme")]
 const ARM_GPT_L0_SIZE: usize = 0x0000_2000;
 #[cfg(feature = "rme")]
@@ -111,13 +133,7 @@ const ARM_GPT_L1_BASE: usize = *MemoryMap::DRAM0.end() + 1 - ARM_GPT_L1_SIZE;
 #[cfg(feature = "rme")]
 const ARM_GPT_L1_SIZE: usize = 0x0010_0000;
 
-const UART_BASE: usize = 0x1c09_0000;
-const UART_SIZE: usize = 0x0001_0000;
-
 const WARM_ENTRYPOINT_FIELD: *mut unsafe extern "C" fn() -> ! = ARM_SHARED_RAM_BASE as _;
-
-const V2M_IOFPGA_BASE: usize = 0x1c00_0000;
-const V2M_IOFPGA_SIZE: usize = 0x0300_0000;
 
 const SHARED_RAM: MemoryRegion = MemoryRegion::new(
     ARM_SHARED_RAM_BASE,
@@ -131,14 +147,11 @@ const GPT_L0: MemoryRegion = MemoryRegion::new(ARM_GPT_L0_BASE, ARM_GPT_L0_BASE 
 #[cfg(feature = "rme")]
 const GPT_L1: MemoryRegion = MemoryRegion::new(ARM_GPT_L1_BASE, ARM_GPT_L1_BASE + ARM_GPT_L1_SIZE);
 
-const DEVICE_REGIONS: [MemoryRegion; 4] = [
-    MemoryRegion::new(V2M_IOFPGA_BASE, V2M_IOFPGA_BASE + V2M_IOFPGA_SIZE),
-    MemoryRegion::new(DEVICE0_BASE, DEVICE0_BASE + DEVICE0_SIZE),
-    MemoryRegion::new(DEVICE1_BASE, DEVICE1_BASE + DEVICE1_SIZE),
-    MemoryRegion::new(DEVICE2_BASE, DEVICE2_BASE + DEVICE2_SIZE),
+const DEVICE_REGIONS: [MemoryRegion; 3] = [
+    MemoryRegion::new(DEVICE0_RANGE.start, DEVICE0_RANGE.end),
+    MemoryRegion::new(DEVICE1_RANGE.start, DEVICE1_RANGE.end),
+    MemoryRegion::new(DEVICE2_RANGE.start, DEVICE2_RANGE.end),
 ];
-
-const V2M_IOFPGA_UART1_BASE: usize = 0x1c0a_0000;
 
 // TODO: These addresses should be parsed from FW_CONFIG
 /// The physical address of the SPMC manifest blob.
@@ -149,11 +162,11 @@ const HW_CONFIG_ADDRESS_NS: u64 = 0x8200_0000;
 
 const EARLY_REGIONS: [EarlyRegion; 2] = [
     EarlyRegion {
-        address_range: ARM_TRUSTED_SRAM_BASE..(ARM_TRUSTED_SRAM_BASE + ARM_TRUSTED_SRAM_SIZE),
+        address_range: ARM_TRUSTED_SRAM_RANGE,
         attributes: MT_MEMORY_EL3,
     },
     EarlyRegion {
-        address_range: UART_BASE..(UART_BASE + UART_SIZE),
+        address_range: UART_RANGE,
         attributes: MT_DEVICE,
     },
 ];
@@ -192,7 +205,13 @@ fn map_peripheral<T>(physical_instance: PhysicalInstance<T>) -> UniqueMmioPointe
     unsafe { UniqueMmioPointer::new(NonNull::new(physical_instance.pa() as *mut T).unwrap()) }
 }
 
+struct GicPeripherals {
+    gicd: PhysicalInstance<Gicd>,
+    gicr: PhysicalInstance<GicrSgi>,
+}
+
 static FVP_PSCI_PLATFORM_IMPL: SpinMutex<Option<FvpPsciPlatformImpl>> = SpinMutex::new(None);
+static GIC_PERIPHERALS: SpinMutex<Option<GicPeripherals>> = SpinMutex::new(None);
 
 define_cpu_ops!(AemGeneric);
 define_errata_list!();
@@ -380,6 +399,11 @@ unsafe impl Platform for Fvp {
 
         *FVP_PSCI_PLATFORM_IMPL.lock() = Some(psci_platform);
 
+        *GIC_PERIPHERALS.lock() = Some(GicPeripherals {
+            gicd: peripherals.gicd,
+            gicr: peripherals.gicr,
+        });
+
         // Write warm boot entry point the shared memory, so secondary cores can pick it up during
         // boot.
         // Safety: WARM_ENTRYPOINT_FIELD points to a valid, writable address.
@@ -407,14 +431,14 @@ unsafe impl Platform for Fvp {
     }
 
     unsafe fn create_gic() -> Gic<'static> {
-        // Safety: `BASE_GICD_BASE` is a unique pointer to the FVP's GICD register block.
-        let gicd =
-            unsafe { UniqueMmioPointer::new(NonNull::new(BASE_GICD_BASE as *mut Gicd).unwrap()) };
-        let gicr_base = NonNull::new(BASE_GICR_BASE as *mut GicrSgi).unwrap();
+        let peripherals = GIC_PERIPHERALS.lock().take().unwrap();
 
-        // Safety: `gicr_base` points to a continuously mapped GIC redistributor memory area until
-        // the last redistributor block. There are no other references to this address range.
-        unsafe { Gic::new(gicd, gicr_base, false) }
+        let gicd = map_peripheral(peripherals.gicd);
+        let mut gicr = map_peripheral(peripherals.gicr);
+
+        // Safety: `gicr` points to a continuously mapped GIC redistributor memory area until the
+        // last redistributor block. There are no other references to this address range.
+        unsafe { Gic::new(gicd, gicr.ptr_nonnull(), false) }
     }
 
     // This is only a toy implementation to generate a seemingly random 128-bit key from FP, LR and
@@ -563,7 +587,7 @@ unsafe impl Platform for Fvp {
             "b	console_pl011_core_init",
             include_str!("../asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,
-            PLAT_ARM_CRASH_UART_BASE = const V2M_IOFPGA_UART1_BASE,
+            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
             PLAT_ARM_CRASH_UART_CLK_IN_HZ = const 24_000_000,
             ARM_CONSOLE_BAUDRATE = const 115_200,
         );
@@ -577,7 +601,7 @@ unsafe impl Platform for Fvp {
             "b	console_pl011_core_putc",
             include_str!("../asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,
-            PLAT_ARM_CRASH_UART_BASE = const V2M_IOFPGA_UART1_BASE,
+            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
         );
     }
 
@@ -589,7 +613,7 @@ unsafe impl Platform for Fvp {
             "b	console_pl011_core_flush",
             include_str!("../asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,
-            PLAT_ARM_CRASH_UART_BASE = const V2M_IOFPGA_UART1_BASE,
+            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
         );
     }
 
@@ -601,20 +625,7 @@ unsafe impl Platform for Fvp {
         naked_asm!(
             include_str!("../asm_macros_common.S"),
             include_str!("../arm_macros.S"),
-            // Detect if we're using the base memory map or the legacy VE memory map.
-            "mov_imm	x0, ({V2M_SYSREGS_BASE} + {V2M_SYS_ID})",
-            "ldr	w16, [x0]",
-            // Extract BLD (12th - 15th bits) from the SYS_ID.
-            "ubfx	x16, x16, #{V2M_SYS_ID_BLD_SHIFT}, #4",
-            // Check if VE mmap.
-            "cmp	w16, #{BLD_GIC_VE_MMAP}",
-            "b.eq	0f",
-            // Assume Base Cortex mmap.
-            "mov_imm	x16, {BASE_GICD_BASE}",
-            "b	1f",
-        "0:",
-            "mov_imm	x16, {VE_GICD_BASE}",
-        "1:",
+            "mov_imm	x16, {GICD_BASE}",
             "arm_print_gic_regs",
             "ret",
 
@@ -623,12 +634,8 @@ unsafe impl Platform for Fvp {
             DEBUG = const DEBUG as i32,
             ICC_SRE_SRE_BIT = const IccSreEl3::SRE.bits(),
             GICD_ISPENDR = const offset_of!(Gicd, ispendr),
-            V2M_SYSREGS_BASE = const V2M_SYSREGS_BASE,
-            V2M_SYS_ID = const V2M_SYS_ID,
-            V2M_SYS_ID_BLD_SHIFT = const V2M_SYS_ID_BLD_SHIFT,
-            BLD_GIC_VE_MMAP = const BLD_GIC_VE_MMAP,
-            BASE_GICD_BASE = const BASE_GICD_BASE,
-            VE_GICD_BASE = const VE_GICD_BASE,
+            GICD_BASE = const *MemoryMap::GICD.start()
+
         );
     }
 
@@ -654,7 +661,7 @@ unsafe impl Platform for Fvp {
             ],
             plat_console: &[RmmConsoleInfo {
                 // Value from the pl011_uart crate.
-                base: UART_BASE,
+                base: UART_RANGE.start,
                 // Values from TF-A.
                 map_pages: 0x1,
                 name: *b"pl011\0\0\0",

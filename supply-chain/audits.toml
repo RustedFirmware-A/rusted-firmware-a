@@ -186,6 +186,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.0 -> 0.1.1"
 notes = "No code changes, only metadata."
 
+[[audits.arm-cci]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.1.1 -> 0.2.0"
+notes = "Depedency update only."
+
 [[audits.arm-ffa]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -239,6 +245,15 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.1.3 -> 0.1.4"
 notes = "Just updates dependencies and adds new TrustZone controller device with some constants."
+
+[[audits.arm-fvp-base-pac]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.1.4 -> 0.2.0"
+notes = """
+Updates the dependencies and delegates dependency feature selection to the crate user. It also adds support for the base-r FVPs.
+The only unsafe-related change is the addition of an unsafe block, required by the mandatory unsafe_op_in_unsafe_fn rule in Rust 2024.
+"""
 
 [[audits.arm-generic-timer]]
 who = "Imre Kis <imre.kis@arm.com>"
@@ -315,6 +330,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.3.2 -> 0.4.0"
 notes = "Dependency version bump only."
 
+[[audits.arm-pl011-uart]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.4.0 -> 0.5.0"
+notes = "Dependency update only."
+
 [[audits.arm-pl061]]
 who = "Jim Ray <jimray@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -340,6 +361,12 @@ The crate relies on a single unsafe block. The unsafe block is paired with a com
 that the code is safe because it does not violate the preconditions of the macro. This is an
 informal justification, but is trivial to verify.
 """
+
+[[audits.arm-pl061]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.1.1 -> 0.2.0"
+notes = "Dependency update only."
 
 [[audits.arm-psci]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -368,6 +395,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.1 -> 0.1.2"
 notes = "No substantial changes, only a lint fix."
+
+[[audits.arm-sp805]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.1.2 -> 0.2.0"
+notes = "Dependency update only."
 
 [[audits.arm-sysregs]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -407,6 +440,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 version = "0.1.0"
 notes = "Code seems well structured, has plenty of tests, and uses safe-mmio to avoid unsafe code."
+
+[[audits.arm-tzc]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.1.0 -> 0.2.0"
+notes = "Dependency update only."
 
 [[audits.autocfg]]
 who = "Andrew Walbran <qwandor@google.com>"

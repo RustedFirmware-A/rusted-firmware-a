@@ -561,6 +561,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.7.4 -> 0.7.5"
 notes = "Only dependency updates and minor test changes. No unsafe code."
 
+[[audits.num_enum]]
+who = "Balint Dobszay <balint.dobszay@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.7.5 -> 0.7.6"
+notes = "A small increase in test coverage and updates the expected output for trybuild tests."
+
 [[audits.num_enum_derive]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -582,6 +588,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.7.4 -> 0.7.5"
 notes = "Some changes to proc macro but no unsafe code and nothing that looks dangerous."
+
+[[audits.num_enum_derive]]
+who = "Balint Dobszay <balint.dobszay@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.7.5 -> 0.7.6"
+notes = "Minor change to allow byte literals in TryFromPrimitive alternatives, no new unsafe code."
 
 [[audits.paste]]
 who = "Andrew Walbran <qwandor@google.com>"

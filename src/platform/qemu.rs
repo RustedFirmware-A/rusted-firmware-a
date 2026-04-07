@@ -101,6 +101,12 @@ const SECURE_GPIO_ADDR: *mut PL061Registers = 0x090b_0000 as _;
 const SECURE_GPIO_SYSTEM_OFF: usize = 0;
 const SECURE_GPIO_SYSTEM_RESET: usize = 1;
 
+/// The address of the Flattened Device Tree Blob (DTB) in RAM.
+///
+/// The QEMU virt platform
+/// [loads it at the start of RAM](https://www.qemu.org/docs/master/system/arm/virt.html#hardware-configuration-information-for-bare-metal-programming).
+const DTB_ADDRESS: u64 = 0x4000_0000;
+
 // TODO: Use the correct addresses here.
 /// The physical address of the SPMC manifest blob.
 const TOS_FW_CONFIG_ADDRESS: u64 = 0;
@@ -255,7 +261,7 @@ unsafe impl Platform for Qemu {
     fn non_secure_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0x6000_0000,
-            args: Default::default(),
+            args: [DTB_ADDRESS, 0, 0, 0, 0, 0, 0, 0],
         }
     }
 

@@ -890,6 +890,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = "does-not-implement-crypto"
 delta = "0.8.34 -> 0.8.38"
 
+[[audits.zerocopy]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.8.38 -> 0.8.48"
+notes = "Improved aligned access, added zerocopy_inline_always config option."
+
 [[audits.zerocopy-derive]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"
@@ -911,3 +917,9 @@ notes = "The changes from 0.8.27 to 0.8.34 do not add any cryptographic function
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = "does-not-implement-crypto"
 delta = "0.8.34 -> 0.8.38"
+
+[[audits.zerocopy-derive]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.8.38 -> 0.8.48"
+notes = "Preferring aligned access, added on_error = skip/fail feature and conversions between sized and unsized types."

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::{GranuleProtectionConfig, PA, mask};
+use super::{GranuleError, GranuleProtectionConfig, PA, mask};
 use core::fmt::Debug;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -134,6 +134,20 @@ impl ContigSize {
     pub const fn size(&self) -> usize {
         1 << self.shift()
     }
+
+    /// Aligns `addr` to ContigSize.
+    pub const fn align_pa(&self, addr: usize) -> usize {
+        addr / self.size() * self.size()
+    }
+
+    /// Returns the `ContigSize` smaller than `self`, or None if `self` is 2 MB.
+    pub const fn next_smaller(&self) -> Option<ContigSize> {
+        match self {
+            Self::MB2 => None,
+            Self::MB32 => Some(ContigSize::MB2),
+            Self::MB512 => Some(ContigSize::MB32),
+        }
+    }
 }
 
 /// Possible views of a [`Level0Descriptor`].
@@ -216,6 +230,7 @@ impl<'a> TableDescriptorRef<'a> {
     /// Callers must ensure that `self` is a pointing to a valid L1 table.
     /// `config` must be the [`GranuleProtectionConfig`] describing the system's Granule Protection
     /// Table.
+    /// Callers must ensure that no other reference is created from the same L1 table.
     pub unsafe fn to_table_mut(&mut self, config: &GranuleProtectionConfig) -> &mut Level1Table {
         // Safety:
         // - A valid L1 table descriptor's size is given by the L0GPTSZ and PGS fields.
@@ -237,6 +252,7 @@ impl<'a> TableDescriptorRef<'a> {
     /// Callers must ensure that `self` is a pointing to a valid L1 table.
     /// `config` must be the [`GranuleProtectionConfig`] describing the system's Granule Protection
     /// Table.
+    /// Callers must ensure that no mutable reference is created from the same L1 table.
     pub unsafe fn to_table(&self, config: &GranuleProtectionConfig) -> &Level1Table {
         // Safety:
         // - A valid L1 table descriptor's size is given by the L0GPTSZ and PGS fields.
@@ -368,6 +384,18 @@ impl Level1Descriptor {
 
         s
     }
+
+    /// Returns if a `Level1Descriptor`'s `GPIAccessType` is the same as `gpi`. Returns an Error if
+    /// the current `Level1Descriptor` is invalid.
+    pub fn matches_gpi(&self, gpi: GPIAccessType) -> Result<bool, GranuleError> {
+        match self.try_into() {
+            Ok(Level1DescriptorRef::Granule(granule)) => {
+                Ok((0..16).all(|idx| granule.gpi(idx).is_some_and(|g| g == gpi)))
+            }
+            Ok(Level1DescriptorRef::Contiguous(contig)) => Ok(contig.gpi() == gpi),
+            Err(_) => Err(GranuleError::InvalidL1Entry),
+        }
+    }
 }
 
 /// View of a [`Level1Descriptor`] as a Contiguous Descriptor.
@@ -433,35 +461,6 @@ impl GranuleDescriptorRefMut<'_> {
 }
 
 pub(crate) struct Level0Table<'a>(pub(crate) &'a mut [Level0Descriptor]);
-
-impl<'a> Level0Table<'a> {
-    /// Get the Level 1 table corresponding to the given PA. The PA must resolve to an Level 1 table.
-    ///
-    /// # Safety
-    ///
-    /// `self` must be part of a correctly programmed GPT and `config` must be its configuration.
-    pub(crate) unsafe fn get_l1(
-        &mut self,
-        pa: PA,
-        config: &GranuleProtectionConfig,
-    ) -> Option<&mut Level1Table> {
-        let l0_idx = config.l0_resolve(pa);
-        let l0_desc = &self.0[l0_idx];
-
-        let Ok(Level0DescriptorRef::Table(l0_table)) = l0_desc.try_into() else {
-            return None;
-        };
-
-        // Safety: since the GPT is correctly programmed, all Table Descriptors point to Level1Table
-        // whose size is given by the L0GPTSZ and PGS fields.
-        Some(unsafe {
-            from_raw_parts_mut(
-                l0_table.address() as *mut _,
-                1 << (config.l0gptsz.width() - (config.pgs.width() + 4)),
-            )
-        })
-    }
-}
 
 pub(crate) type Level1Table = [Level1Descriptor];
 

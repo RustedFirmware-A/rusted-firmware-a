@@ -74,32 +74,42 @@ pub fn tlbi_alle3() {
     }
 }
 
+/// Supported sizes for [`tlbi_rpalos`].
 #[cfg(feature = "rme")]
-const TLB_SZ_4K: usize = 0b0000;
-#[cfg(feature = "rme")]
-const TLB_SZ_16K: usize = 0b0001;
-#[cfg(feature = "rme")]
-const TLB_SZ_64K: usize = 0b0010;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(usize)]
+pub enum TlbiSize {
+    /// 4 KB.
+    KB4 = 0b0000,
+    /// 16 KB.
+    KB16 = 0b0001,
+    /// 64 KB.
+    KB64 = 0b0010,
+    /// 2 MB.
+    MB2 = 0b0011,
+    /// 32 MB.
+    MB32 = 0b0100,
+    /// 512 MB.
+    MB512 = 0b0101,
+    /// 1 GB.
+    GB1 = 0b0110,
+    /// 16 GB.
+    GB16 = 0b0111,
+    /// 64 GB.
+    GB64 = 0b1000,
+    /// 512 GB.
+    GB512 = 0b1001,
+}
 #[cfg(feature = "rme")]
 const TLBI_ADDR_SHIFT: usize = 12;
 #[cfg(feature = "rme")]
 const TLBI_SIZE_SHIFT: usize = 44;
 
 #[cfg(feature = "rme")]
-/// Wrapper around `tlbi_rpalos_sz`.
-pub fn tlbi_rpalos(addr: usize, size: usize) {
-    match size {
-        0x1000 => tlbi_rpalos_sz::<{ TLB_SZ_4K }>(addr),
-        0x4000 => tlbi_rpalos_sz::<{ TLB_SZ_16K }>(addr),
-        0x1_0000 => tlbi_rpalos_sz::<{ TLB_SZ_64K }>(addr),
-        _ => todo!("unsupported size"),
-    }
-}
-#[cfg(feature = "rme")]
 /// Issues a `tlbi_rpalos` instruction (TLB Range Invalidate GPT Information by PA, Last level, Outer Shareable).
 /// Only valid on systems with RME, otherwise undefined.
-fn tlbi_rpalos_sz<const SZ: usize>(addr: usize) {
-    let arg: usize = (addr >> TLBI_ADDR_SHIFT) | (SZ << TLBI_SIZE_SHIFT);
+pub fn tlbi_rpalos(addr: usize, size: TlbiSize) {
+    let arg: usize = (addr >> TLBI_ADDR_SHIFT) | ((size as usize) << TLBI_SIZE_SHIFT);
     // Safety: TLB/Cache invalidation does not violate Rust safety.
     #[cfg(all(target_arch = "aarch64", not(test)))]
     unsafe {

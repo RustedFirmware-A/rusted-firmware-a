@@ -9,10 +9,10 @@ mod aarch64;
 mod table;
 
 use crate::{
-    aarch64::{dsb_osh, dsb_oshst, tlbi_rpalos},
+    aarch64::{TlbiSize, dsb_osh, dsb_oshst, tlbi_rpalos},
     gpt::table::{
-        Level0DescriptorRef, Level0Table, Level1Descriptor, Level1DescriptorRef,
-        Level1DescriptorRefMut,
+        ContigSize, ContiguousDescriptorRef, Level0DescriptorRef, Level0Table, Level1Descriptor,
+        Level1DescriptorRef, Level1DescriptorRefMut, Level1Table,
     },
 };
 use arm_sysregs::{
@@ -138,25 +138,32 @@ impl<'a> GranuleProtection<'a> {
         // - self.config is the config of the GranuleProtection object.
         let l1_table: &mut [Level1Descriptor] = unsafe { l0_entry.to_table_mut(&self.config) };
         let l1_idx = self.config.l1_resolve(base_pa);
-        let l1_desc = &mut l1_table[l1_idx];
+        let l1_desc = l1_table[l1_idx];
+        if let Ok(Level1DescriptorRef::Contiguous(contig)) = (&l1_desc).try_into() {
+            self.shatter_contig(base_pa, contig.size(), contig.gpi(), l1_table);
+            dsb_oshst();
 
-        let mut gran = match l1_desc.try_into() {
-            Ok(Level1DescriptorRefMut::Granule(granule)) => granule,
-            // We do not support contiguous descriptors.
-            Ok(Level1DescriptorRefMut::Contiguous(_)) => return Err(GranuleError::InvalidRequest),
-            // Not granule or contig descriptor
-            Err(_) => return Err(GranuleError::InvalidL1Entry),
-        };
+            // Ensure that all agents observe the new configuration.
+            tlbi_rpalos(base_pa, contig.size().into());
+            dsb_osh();
+        }
 
-        let gran_idx = self.config.granule_resolve(base_pa);
-        gran.set_gpi(gran_idx, gpi);
+        // Either was originally a Granule, or created at the shattering step above.
+        if let Ok(Level1DescriptorRefMut::Granule(mut granule)) = (&mut l1_table[l1_idx]).try_into()
+        {
+            let gran_idx = self.config.granule_resolve(base_pa);
+            granule.set_gpi(gran_idx, gpi);
+            dsb_oshst();
 
-        dsb_oshst();
-        // Ensure that all agents observe the new configuration.
-        tlbi_rpalos(base_pa, self.pgs());
-        dsb_osh();
+            // Ensure that all agents observe the new configuration.
+            tlbi_rpalos(base_pa, self.config.pgs.into());
+            dsb_osh();
 
-        Ok(())
+            self.fuse_descriptors(base_pa, gpi, l1_table)
+        } else {
+            // Shattering a valid contiguous descriptor above always creates a granule descriptor.
+            Err(GranuleError::InvalidL1Entry)
+        }
     }
 
     /// Looks up the access control mapping of the memory region starting at `base_pa` from the GPT.
@@ -205,6 +212,106 @@ impl<'a> GranuleProtection<'a> {
             }
             Err(_) => Err(GranuleError::InvalidL1Entry),
         }
+    }
+
+    /// Align `base_pa` to `contig`, and fill the next `ContigSize` range with contiguous descriptors.
+    fn fuse(&self, base_pa: PA, gpi: GPIAccessType, l1: &mut Level1Table, contig: ContigSize) {
+        let base_aligned = contig.align_pa(base_pa);
+        let contig_desc = Level1Descriptor::contig(contig, gpi);
+        self.fill_descs(base_aligned, contig.size() / self.pgs(), contig_desc, l1);
+    }
+
+    fn fuse_descriptors(
+        &self,
+        base_pa: PA,
+        gpi: GPIAccessType,
+        l1: &mut Level1Table,
+    ) -> Result<(), GranuleError> {
+        // Fuse to the largest possible ContigSize.
+        if self.can_fuse(base_pa, gpi, l1, ContigSize::MB2)? {
+            if self.can_fuse(base_pa, gpi, l1, ContigSize::MB32)? {
+                if self.can_fuse(base_pa, gpi, l1, ContigSize::MB512)? {
+                    self.fuse(base_pa, gpi, l1, ContigSize::MB512);
+                    return Ok(());
+                }
+                self.fuse(base_pa, gpi, l1, ContigSize::MB32);
+                return Ok(());
+            }
+            self.fuse(base_pa, gpi, l1, ContigSize::MB2);
+            return Ok(());
+        }
+        Ok(())
+    }
+
+    fn can_fuse(
+        &self,
+        base_pa: PA,
+        expected_gpi: GPIAccessType,
+        l1: &Level1Table,
+        contig: ContigSize,
+    ) -> Result<bool, GranuleError> {
+        let base_aligned = contig.align_pa(base_pa);
+        let step = 16 * self.pgs();
+        for offset in (0..contig.size()).step_by(step) {
+            let pa = base_aligned + offset;
+
+            // Aligning the address to any ContigSize means it still must belong to the same L1 table.
+            let l1_desc = l1[self.config.l1_resolve(pa)];
+            // After shattering at `base_pa`, this range is described by granules or contiguous
+            // descriptors smaller than `contig`, so only the GPI needs to be checked.
+            if !l1_desc.matches_gpi(expected_gpi)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// Write `desc` in the `l1` GPT table `count` times consecutively.
+    ///
+    /// Assumptions:
+    /// - bits of `base_pa` selecting the L1 table are not checked, it is assumed to point to `l1`,
+    fn fill_descs(&self, base_pa: PA, count: usize, desc: Level1Descriptor, l1: &mut Level1Table) {
+        let end_pa = base_pa + count * self.pgs();
+        for pa in (base_pa..end_pa).step_by(16 * self.pgs()) {
+            let l1_idx = self.config.l1_resolve(pa);
+            l1[l1_idx] = desc;
+        }
+    }
+
+    /// Used in `set()` for shattering a contiguous descriptor.
+    ///
+    /// `base_pa`: address written to in `set()`.
+    fn shatter_contig(
+        &self,
+        base_pa: PA,
+        size: ContigSize,
+        gpi: GPIAccessType,
+        l1: &mut Level1Table,
+    ) {
+        let base_aligned = size.align_pa(base_pa);
+        let Some(smaller) = size.next_smaller() else {
+            // Shattering a 2 MB contiguous descriptor to granules.
+            let desc = Level1Descriptor::granule(&[gpi; 16]);
+            self.fill_descs(base_aligned, size.size() / self.pgs(), desc, l1);
+            return;
+        };
+
+        let base_small_aligned = smaller.align_pa(base_pa);
+        // Fill with the smaller ContigSize variant
+        let desc = Level1Descriptor::contig(smaller, gpi);
+        // 1. fill before
+        let bytes_pre = base_small_aligned - base_aligned;
+        self.fill_descs(base_aligned, bytes_pre / self.pgs(), desc, l1);
+        // 2. shatter the middle part
+        self.shatter_contig(base_pa, smaller, gpi, l1);
+        // 3. fill the remaining parts
+        let bytes_post = size.size() - smaller.size() - bytes_pre;
+        self.fill_descs(
+            base_small_aligned + smaller.size(),
+            bytes_post / self.pgs(),
+            desc,
+            l1,
+        );
     }
 }
 
@@ -302,6 +409,26 @@ impl PhysicalGranuleSize {
     /// Physical Granule Size in bytes.
     pub fn size(&self) -> usize {
         0x1 << self.width()
+    }
+}
+
+impl From<PhysicalGranuleSize> for TlbiSize {
+    fn from(size: PhysicalGranuleSize) -> Self {
+        match size {
+            PhysicalGranuleSize::KB4 => Self::KB4,
+            PhysicalGranuleSize::KB16 => Self::KB16,
+            PhysicalGranuleSize::KB64 => Self::KB64,
+        }
+    }
+}
+
+impl From<ContigSize> for TlbiSize {
+    fn from(size: ContigSize) -> Self {
+        match size {
+            ContigSize::MB2 => Self::MB2,
+            ContigSize::MB32 => Self::MB32,
+            ContigSize::MB512 => Self::MB512,
+        }
     }
 }
 
@@ -417,10 +544,35 @@ mod test {
             let mut gptbr = GptbrEl3::empty();
             gptbr.set_baddr(base >> 12);
             EL3_SYSREGS.lock().unwrap().gptbr_el3 = gptbr;
-            EL3_SYSREGS.lock().unwrap().gpccr_el3 = GpccrEl3::empty() | GpccrEl3::GPC;
+            let gpccr = GpccrEl3::GPC
+            .with_pps($GPC.pps as u8)
+            .with_l0gptsz($GPC.l0gptsz as u8)
+            .with_pgs($GPC.pgs as u8);
+            EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
             let mut $name =
                 // SAFETY: Each test only calls this once.
                 unsafe { GranuleProtection::discover().expect("failed to discover GPT") };
+	        assert_eq!($name.config, $GPC);
+        };
+    }
+
+    /// Declare a GPT and initialize all L0 entries as NoAccess blocks.
+    macro_rules! declare_gpt_noaccess {
+        ($name:ident, $l0name:ident, $GPC:expr) => {
+            declare_empty_gpt!($name, $l0name, $GPC);
+            let desc = Level0Descriptor::block(GPIAccessType::NoAccess);
+            let bytes = desc.as_bytes();
+            for chunk in $l0name.chunks_exact_mut(core::mem::size_of::<Level0Descriptor>()) {
+                chunk.copy_from_slice(bytes);
+            }
+        };
+    }
+
+    /// Change an L0 entry to a TableDescriptor, and point it to an L1 table.
+    macro_rules! add_table_at_idx {
+        ($gpt:ident, $l1name:ident, $idx:expr) => {
+            declare_l1!($l1name, $gpt.config.pgs, $gpt.config.l0gptsz, 1);
+            $gpt.level0.0[$idx] = Level0Descriptor::table($l1name.as_ptr() as u64);
         };
     }
 
@@ -431,6 +583,128 @@ mod test {
             let bytes = desc.as_bytes();
             $l0name[offset..offset + bytes.len()].copy_from_slice(bytes);
         };
+    }
+
+    enum L0Matcher<'a> {
+        Block(GPIAccessType),
+        Table(&'a [(usize, L1Matcher<'a>)]),
+    }
+
+    enum L1Matcher<'a> {
+        Contig(ContigSize, GPIAccessType),
+        GranulePart(&'a [(usize, GPIAccessType)]),
+        Granule([GPIAccessType; 16]),
+    }
+
+    use L0Matcher::*;
+    use L1Matcher::*;
+
+    /// Checks that the data in `gpt` corresponds to the description given in `expected`. Parts not
+    /// described by `expected` must be Block descriptors with [`GPIAccessType`] `NoAccess`.
+    fn assert_gpt_eq<'a>(gpt: &GranuleProtection, expected: &'a [(usize, L0Matcher<'a>)]) {
+        fn match_l1<'a>(entry: &Level1Descriptor, matcher: &L1Matcher<'a>) {
+            match matcher {
+                Contig(size, gpi) => {
+                    let Ok(Level1DescriptorRef::Contiguous(contig)) = entry.try_into() else {
+                        panic!("Did not match contiguous descriptor");
+                    };
+
+                    assert_eq!(contig.gpi(), *gpi);
+                    assert_eq!(contig.size(), *size);
+                }
+                GranulePart(items) => {
+                    let Ok(Level1DescriptorRef::Granule(granule)) = entry.try_into() else {
+                        panic!("Did not match granule descriptor");
+                    };
+
+                    for (i, gran) in *items {
+                        assert_eq!(granule.gpi(*i).expect("Failed to index granule"), *gran)
+                    }
+                }
+                Granule(items) => {
+                    let Ok(Level1DescriptorRef::Granule(granule)) = entry.try_into() else {
+                        panic!("Did not match granule descriptor");
+                    };
+
+                    for (i, gran) in items.iter().enumerate() {
+                        assert_eq!(granule.gpi(i).expect("Failed to index granule"), *gran)
+                    }
+                }
+            }
+        }
+
+        fn match_l0<'a>(
+            entry: &Level0Descriptor,
+            matcher: &L0Matcher<'a>,
+            gpc: GranuleProtectionConfig,
+        ) {
+            match matcher {
+                Block(gpi) => {
+                    let Ok(Level0DescriptorRef::Block(block)) = entry.try_into() else {
+                        panic!("Did not match block descriptor");
+                    };
+
+                    assert_eq!(block.gpi(), *gpi)
+                }
+                Table(items) => {
+                    let Ok(Level0DescriptorRef::Table(table_descriptor)) = entry.try_into() else {
+                        panic!("Did not match table descriptor");
+                    };
+                    // Safety: the GPT is assumed to be programmed correctly.
+                    let table = unsafe { table_descriptor.to_table(&gpc) };
+
+                    let mut l1_matcher_iter = items.iter().peekable();
+
+                    let mut l1_idx = 0;
+
+                    while l1_idx < table.len() {
+                        let l1_entry = &table[l1_idx];
+
+                        if l1_matcher_iter.peek().is_some_and(|(i, _)| *i == l1_idx) {
+                            let (_, l1_matcher) = l1_matcher_iter.next().unwrap();
+
+                            match_l1(l1_entry, l1_matcher);
+                        } else {
+                            match l1_entry.try_into() {
+                                Ok(Level1DescriptorRef::Contiguous(contig)) => {
+                                    assert_eq!(contig.gpi(), GPIAccessType::NoAccess)
+                                }
+                                Ok(Level1DescriptorRef::Granule(granule)) => {
+                                    assert!(granule.is_empty())
+                                }
+                                Err(_) => panic!(
+                                    "Did not match NoAccess contiguous or empty granule descriptor."
+                                ),
+                            }
+                        }
+
+                        let size = match l1_entry.try_into() {
+                            Ok(Level1DescriptorRef::Contiguous(contig)) => {
+                                contig.size().size() >> (gpc.pgs.width() + 4)
+                            }
+                            _ => 1,
+                        };
+
+                        l1_idx += size;
+                    }
+                }
+            }
+        }
+
+        let mut l0_matcher_iter = expected.iter().peekable();
+        for (l0_idx, l0_entry) in gpt.level0.0.iter().enumerate() {
+            if l0_matcher_iter.peek().is_some_and(|(i, _)| *i == l0_idx) {
+                let (_, l0_matcher) = l0_matcher_iter.next().unwrap();
+
+                match_l0(l0_entry, l0_matcher, gpt.config);
+            } else {
+                assert!(matches!(
+                    l0_entry.try_into(),
+                    Ok(Level0DescriptorRef::Block(block))
+                        if block.gpi() == GPIAccessType::NoAccess
+                ));
+            }
+        }
     }
 
     #[test]
@@ -455,24 +729,21 @@ mod test {
 
         declare_empty_gpt!(gpt, l0table, gpc);
 
-        // SAFETY: GPT is assumed to be programmed correctly.
-        assert_eq!(None, unsafe { gpt.level0.get_l1(0x0, &gpc) });
-
         // Set first descriptor to Block::NoAccess
         write_block!(l0table, 0, GPIAccessType::NoAccess);
 
-        let addr_0 = (1 << 30) - 1;
+        let addr_0 = (1 << gpc.l0gptsz.width()) - 1;
         assert_eq!(gpc.l0_resolve(addr_0), 0);
         assert_eq!(gpt.lookup(addr_0), Ok(GPIAccessType::NoAccess));
 
         // Create secure block
-        let addr_1 = 1 << 30;
+        let addr_1 = 1 << gpc.l0gptsz.width();
         assert_eq!(gpc.l0_resolve(addr_1), 1);
         write_block!(l0table, 1, GPIAccessType::Secure);
         assert_eq!(gpt.lookup(addr_1), Ok(GPIAccessType::Secure));
 
         // Create L1 table
-        let addr_2 = 2 << 30;
+        let addr_2 = 2 << gpc.l0gptsz.width();
         declare_l1!(l1table, gpc.pgs, gpc.l0gptsz, 32);
         let base = l1table.as_ptr() as u64;
         let desc = Level0Descriptor::table(base);
@@ -488,10 +759,10 @@ mod test {
 
         // Modify other granules in the L1 table
         let gr_0 = addr_2;
-        let gr_1 = addr_2 + 0x1000;
-        let gr_2 = addr_2 + 0x2000;
-        let gr_3 = addr_2 + 0x3000;
-        let gr_4 = addr_2 + 0x4000;
+        let gr_1 = addr_2 + gpt.pgs();
+        let gr_2 = addr_2 + 2 * gpt.pgs();
+        let gr_3 = addr_2 + 3 * gpt.pgs();
+        let gr_4 = addr_2 + 4 * gpt.pgs();
         assert_eq!(gpt.config.granule_resolve(gr_0), 0);
         assert_eq!(gpt.config.granule_resolve(gr_1), 1);
         assert_eq!(gpt.config.granule_resolve(gr_2), 2);
@@ -534,21 +805,14 @@ mod test {
             pgs: PhysicalGranuleSize::KB4,
         };
 
-        declare_empty_gpt!(gpt, l0table, gpc);
-
+        declare_gpt_noaccess!(gpt, l0table, gpc);
         // Create L1 table
-        let addr_1 = 1 << 30;
-        declare_l1!(l1table, gpc.pgs, gpc.l0gptsz, 32);
-        let base = l1table.as_ptr() as u64;
-        let desc = Level0Descriptor::table(base);
-        let bytes = desc.as_bytes();
-        let offset = size_of::<Level0Descriptor>();
-        l0table[offset..offset + bytes.len()].copy_from_slice(bytes);
-        assert_eq!(gpt.lookup(addr_1), Ok(GPIAccessType::NoAccess));
+        let addr_1 = 1 << gpc.l0gptsz.width();
+        add_table_at_idx!(gpt, l1table, 1);
 
         // L1 table initialized with zeros means they are granules with NoAccess GPI.
         let gr_0 = addr_1;
-        let gr_1 = addr_1 + 0x1000;
+        let gr_1 = addr_1 + gpt.pgs();
 
         assert_eq!(gpt.lookup(gr_0), Ok(GPIAccessType::NoAccess));
         assert_eq!(gpt.lookup(gr_1), Ok(GPIAccessType::NoAccess));
@@ -622,5 +886,306 @@ mod test {
         gpccr |= GpccrEl3::NSO;
         EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
         assert!(gpt.is_gpi_supported(gpi));
+    }
+
+    #[test]
+    fn tables() -> Result<(), GranuleError> {
+        let gpc = GranuleProtectionConfig {
+            pps: ProtectedPhysicalAddressSize::GB64,
+            l0gptsz: Level0GptSize::GB1,
+            pgs: PhysicalGranuleSize::KB64,
+        };
+
+        declare_gpt_noaccess!(gpt, l0, gpc);
+        add_table_at_idx!(gpt, l1, 1);
+        add_table_at_idx!(gpt, l1, 2);
+
+        assert_gpt_eq(
+            &gpt,
+            &[
+                (0, Block(GPIAccessType::NoAccess)),
+                (1, Table(&[(0, Granule([GPIAccessType::NoAccess; 16]))])),
+                (2, Table(&[(0, Granule([GPIAccessType::NoAccess; 16]))])),
+                (3, Block(GPIAccessType::NoAccess)),
+            ],
+        );
+
+        Ok(())
+    }
+    #[test]
+    fn set_granules() -> Result<(), GranuleError> {
+        let gpc = GranuleProtectionConfig {
+            pps: ProtectedPhysicalAddressSize::GB64,
+            l0gptsz: Level0GptSize::GB1,
+            pgs: PhysicalGranuleSize::KB64,
+        };
+        declare_gpt_noaccess!(gpt, l0, gpc);
+        add_table_at_idx!(gpt, l1, 0);
+
+        gpt.set(0, GPIAccessType::Root)?;
+        gpt.set(1 * gpt.pgs(), GPIAccessType::Realm)?;
+        gpt.set(2 * gpt.pgs(), GPIAccessType::Secure)?;
+        gpt.set(3 * gpt.pgs(), GPIAccessType::NonSecure)?;
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[(
+                    0,
+                    GranulePart(&[
+                        (0, GPIAccessType::Root),
+                        (1, GPIAccessType::Realm),
+                        (2, GPIAccessType::Secure),
+                        (3, GPIAccessType::NonSecure),
+                    ]),
+                )]),
+            )],
+        );
+
+        Ok(())
+    }
+    #[test]
+    fn contig_2mb() -> Result<(), GranuleError> {
+        let gpc = GranuleProtectionConfig {
+            pps: ProtectedPhysicalAddressSize::GB64,
+            l0gptsz: Level0GptSize::GB1,
+            pgs: PhysicalGranuleSize::KB64,
+        };
+        declare_gpt_noaccess!(gpt, l0, gpc);
+        add_table_at_idx!(gpt, l1, 0);
+
+        for pa in (0..0x20_0000).step_by(gpt.pgs()) {
+            gpt.set(pa, GPIAccessType::Root)?;
+        }
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[(0, Contig(ContigSize::MB2, GPIAccessType::Root))]),
+            )],
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contigs_2mb() -> Result<(), GranuleError> {
+        let gpc = GranuleProtectionConfig {
+            pps: ProtectedPhysicalAddressSize::GB64,
+            l0gptsz: Level0GptSize::GB1,
+            pgs: PhysicalGranuleSize::KB64,
+        };
+        declare_gpt_noaccess!(gpt, l0, gpc);
+        add_table_at_idx!(gpt, l1, 0);
+
+        for pa in (0..0x20_0000).step_by(gpt.pgs()) {
+            gpt.set(pa, GPIAccessType::Root)?;
+        }
+        for pa in (0x20_0000..0x40_0000).step_by(gpt.pgs()) {
+            gpt.set(pa, GPIAccessType::Realm)?;
+        }
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[
+                    (0, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (2, Contig(ContigSize::MB2, GPIAccessType::Realm)),
+                ]),
+            )],
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contig_shatter() -> Result<(), GranuleError> {
+        let gpc = GranuleProtectionConfig {
+            pps: ProtectedPhysicalAddressSize::GB64,
+            l0gptsz: Level0GptSize::GB1,
+            pgs: PhysicalGranuleSize::KB64,
+        };
+        declare_gpt_noaccess!(gpt, l0, gpc);
+        add_table_at_idx!(gpt, l1, 0);
+
+        for pa in (0..0x20_0000).step_by(gpt.pgs()) {
+            gpt.set(pa, GPIAccessType::Root)?;
+        }
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[(0, Contig(ContigSize::MB2, GPIAccessType::Root))]),
+            )],
+        );
+
+        gpt.set(0x10_0000, GPIAccessType::Secure)?;
+        gpt.set(0x10_0000 + 4 * gpt.pgs(), GPIAccessType::Secure)?;
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[
+                    (0, Granule([GPIAccessType::Root; 16])),
+                    (
+                        1,
+                        GranulePart(&[
+                            (0, GPIAccessType::Secure),
+                            (1, GPIAccessType::Root),
+                            (2, GPIAccessType::Root),
+                            (3, GPIAccessType::Root),
+                            (4, GPIAccessType::Secure),
+                            (5, GPIAccessType::Root),
+                            (6, GPIAccessType::Root),
+                            (7, GPIAccessType::Root),
+                            (8, GPIAccessType::Root),
+                            (9, GPIAccessType::Root),
+                            (10, GPIAccessType::Root),
+                            (11, GPIAccessType::Root),
+                            (12, GPIAccessType::Root),
+                            (13, GPIAccessType::Root),
+                            (14, GPIAccessType::Root),
+                            (15, GPIAccessType::Root),
+                        ]),
+                    ),
+                ]),
+            )],
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn contig_512mb() -> Result<(), GranuleError> {
+        let gpc = GranuleProtectionConfig {
+            pps: ProtectedPhysicalAddressSize::GB64,
+            l0gptsz: Level0GptSize::GB1,
+            pgs: PhysicalGranuleSize::KB64,
+        };
+
+        declare_gpt_noaccess!(gpt, l0, gpc);
+        add_table_at_idx!(gpt, l1, 0);
+
+        for pa in (0..0x4000_0000).step_by(gpt.pgs()) {
+            gpt.set(pa, GPIAccessType::Root)?;
+        }
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[
+                    (0, Contig(ContigSize::MB512, GPIAccessType::Root)),
+                    (512, Contig(ContigSize::MB512, GPIAccessType::Root)),
+                ]),
+            )],
+        );
+
+        gpt.set(0x0, GPIAccessType::Realm)?;
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[
+                    (
+                        // First MB as granules, with the modified at 0x0.
+                        0,
+                        GranulePart(&[
+                            (0, GPIAccessType::Realm),
+                            (1, GPIAccessType::Root),
+                            (2, GPIAccessType::Root),
+                            (3, GPIAccessType::Root),
+                            (4, GPIAccessType::Root),
+                            (5, GPIAccessType::Root),
+                            (6, GPIAccessType::Root),
+                            (7, GPIAccessType::Root),
+                            (8, GPIAccessType::Root),
+                            (9, GPIAccessType::Root),
+                            (10, GPIAccessType::Root),
+                            (11, GPIAccessType::Root),
+                            (12, GPIAccessType::Root),
+                            (13, GPIAccessType::Root),
+                            (14, GPIAccessType::Root),
+                            (15, GPIAccessType::Root),
+                        ]),
+                    ),
+                    // Second MB of granules
+                    (1, Granule([GPIAccessType::Root; 16])),
+                    // Rest of the first 32MB as 2MB contigs
+                    (1 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (2 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (3 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (4 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (5 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (6 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (7 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (8 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (9 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (10 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (11 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (12 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (13 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (14 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    (15 * 2, Contig(ContigSize::MB2, GPIAccessType::Root)),
+                    // Rest of the first 512MB as 32MB contigs
+                    (1 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (2 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (3 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (4 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (5 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (6 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (7 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (8 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (9 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (10 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (11 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (12 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (13 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (14 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    (15 * 32, Contig(ContigSize::MB32, GPIAccessType::Root)),
+                    // Second 512MB contig unchanged
+                    (512, Contig(ContigSize::MB512, GPIAccessType::Root)),
+                ]),
+            )],
+        );
+
+        // Check if changing back to Root triggers fusing back to 512MB contigs
+        gpt.set(0x0, GPIAccessType::Root)?;
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[
+                    (0, Contig(ContigSize::MB512, GPIAccessType::Root)),
+                    (512, Contig(ContigSize::MB512, GPIAccessType::Root)),
+                ]),
+            )],
+        );
+
+        // Check that overwriting the whole range with granules works.
+
+        for pa in (0..0x4000_0000).step_by(gpt.pgs()) {
+            gpt.set(pa, GPIAccessType::Secure)?;
+        }
+
+        assert_gpt_eq(
+            &gpt,
+            &[(
+                0,
+                Table(&[
+                    (0, Contig(ContigSize::MB512, GPIAccessType::Secure)),
+                    (512, Contig(ContigSize::MB512, GPIAccessType::Secure)),
+                ]),
+            )],
+        );
+
+        Ok(())
     }
 }

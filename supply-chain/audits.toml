@@ -922,6 +922,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "1.18.1 -> 1.19.0"
 notes = "No unsafe code or major logic changes."
 
+[[audits.uuid]]
+who = "Balint Dobszay <balint.dobszay@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "1.19.0 -> 1.23.0"
+notes = "Small correctness fixes, API cleanup and test refactoring. No new unsafe code."
+
 [[audits.zerocopy]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"

@@ -270,6 +270,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.0 -> 0.1.1"
 notes = "No code changes, only metadata."
 
+[[audits.arm-generic-timer]]
+who = "Balint Dobszay <balint.dobszay@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.1.1 -> 0.2.1"
+notes = "Refactors MMIO based access into a dedicated module and adds sysreg based access. No new unsafe code."
+
 [[audits.arm-gic]]
 who = "Jeremi Miller <jeremimiller@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

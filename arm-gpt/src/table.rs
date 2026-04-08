@@ -338,10 +338,9 @@ impl<'a> Level0Table<'a> {
 pub(crate) type Level1Table = [Level1Descriptor];
 
 #[cfg(test)]
-mod test {
-
+mod tests {
     use crate::{
-        Error, GPIAccessType,
+        GPIAccessType,
         table::{ContigSize, Level0Descriptor, Level1Descriptor},
     };
 

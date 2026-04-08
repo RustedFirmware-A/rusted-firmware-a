@@ -319,6 +319,15 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.7.1 -> 0.7.2"
 notes = "Fixed a bug in Distributor:::set_routing, dependency bump."
 
+[[audits.arm-gic]]
+who = "Balint Dobszay <balint.dobszay@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.7.2 -> 0.8.1"
+notes = """
+Replaces sysreg access functions with using arm-sysregs, optimizes distributor/redistributor setup
+to use 32-bit MMIO writes. Small changes to unsafe code, safety comments are correct.
+"""
+
 [[audits.arm-pl011-uart]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]

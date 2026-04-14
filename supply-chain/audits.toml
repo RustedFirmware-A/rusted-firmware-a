@@ -779,6 +779,35 @@ blocks are paired with safety comments that are well justified. The risk of UB r
 and is not increased by this delta.
 """
 
+[[audits.safe-mmio]]
+who = "Balint Dobszay <balint.dobszay@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.7 -> 0.3.0"
+notes = """
+"safe-to-deploy"
+No change to this criteria.
+
+"does-not-implement-crypto"
+No change to this criteria.
+
+"ub-risk-2"
+The diff introduces the following changes:
+- Adds modify() and modify_mut() methods for UniqueMmioPointer. These are wrappers around existing
+  read/write operations, no new unsafe code.
+- Minor refactor of the field! and field_shared! macros, safety invariants are unchanged.
+- Changes the signatures of UniqueMmioPointer::split and SharedMmioPointer::split, this is a
+  breaking API change but does not affect unsafe code.
+- Adds get_range() methods for MMIO array and slice pointers, to create a child pointer to a slice
+  of elements in the original array/slice. The functions do the necessary range validation and
+  correctly handle zero-length ranges as well. All unsafe blocks have corresponding safety comments
+  which provide detailed explanation (slight inaccuracy in SharedMmioPointer::get_range safety
+  comments but the implementation itself is sound).
+- Implements iterators for MMIO array and slice pointers, for both unique and shared pointers. The
+  iterator yields the current head element and then shrinks the remaining tail. All unsafe blocks
+  have corresponding safety comments which provide detailed explanation (slight inaccuracy in
+  SharedMmioPointerIterator::next safety comments but the implementation itself is sound).
+"""
+
 [[audits.scopeguard]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"

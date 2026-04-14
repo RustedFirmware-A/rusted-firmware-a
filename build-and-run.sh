@@ -12,6 +12,10 @@ if [ -z ${TFA} ]; then
     exit 1
 fi
 
+# Resolve TFA to an absolute path, handling tilde and relative paths
+TFA="${TFA/#\~/$HOME}"
+TFA=$(readlink -f "${TFA}")
+
 if [ -z ${DEBUG} ]; then
     BUILDTYPE=release
 else

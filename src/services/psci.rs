@@ -332,15 +332,32 @@ impl PsciCompositePowerState {
         ancestors: &mut AncestorPowerDomains,
     ) {
         cpu.set_local_state(self.cpu_level_state());
+
+        let mut child_state = None;
         if highest_affected_level > PsciCompositePowerState::CPU_POWER_LEVEL {
-            for (node, state) in ancestors.iter_mut().into_slice()[..=highest_affected_level - 1]
-                .iter_mut()
-                .zip(
+            for ((node_index, node), state) in
+                ancestors.enumerate_mut().take(highest_affected_level).zip(
                     &self.states
                         [PsciCompositePowerState::CPU_POWER_LEVEL + 1..=highest_affected_level],
                 )
             {
                 node.set_local_state(*state);
+
+                // Propagate non-CPU node states to parent nodes.
+                if let Some((non_cpu_index, state)) = child_state {
+                    node.set_non_cpu_state(non_cpu_index, state);
+                }
+
+                child_state = Some((node_index, *state));
+            }
+
+            // If the highest affected level is not the top level, copy the state to the parent node
+            // of the node where the previous loop stopped.
+            if highest_affected_level < PsciPlatformImpl::MAX_POWER_LEVEL
+                && let Some(last) = ancestors.iter_mut().nth(highest_affected_level)
+                && let Some((non_cpu_index, state)) = child_state
+            {
+                last.set_non_cpu_state(non_cpu_index, state);
             }
         }
     }
@@ -381,8 +398,10 @@ impl PsciCompositePowerState {
     pub fn coordinate_state(&mut self, cpu_index: usize, ancestors: &mut AncestorPowerDomains) {
         let mut higher_levels_are_run = false;
 
-        for (node, state) in ancestors
-            .iter_mut()
+        let mut child_state = None;
+
+        for ((node_index, node), state) in ancestors
+            .enumerate_mut()
             .zip(&mut self.states[PsciCompositePowerState::CPU_POWER_LEVEL + 1..])
         {
             node.set_requested_power_state(cpu_index, *state);
@@ -401,6 +420,12 @@ impl PsciCompositePowerState {
                 // the minimal allowed state because it can only be in running state.
                 *state = PlatformPowerState::RUN;
             }
+
+            if let Some((child_index, state)) = child_state {
+                node.set_non_cpu_state(child_index, state);
+            }
+
+            child_state = Some((node_index, *state));
         }
     }
 
@@ -447,16 +472,18 @@ impl PsciCompositePowerState {
             return Ok(());
         }
 
+        let mut child_index = None;
+
         // For each level in the hierarchy, check each ancestor for descendants that will be
         // incompatible with the requested state at that level.
-        for (node, requested_state) in ancestors.iter().as_slice()[..=highest_affected_level - 1]
-            .iter()
-            .zip(
+        for ((node_index, node), requested_state) in
+            ancestors.enumerate().take(highest_affected_level).zip(
                 &self.states[PsciCompositePowerState::CPU_POWER_LEVEL + 1..=highest_affected_level],
             )
         {
             let shallowest_descendant_state =
-                node.get_osi_minimal_allowed_state_without_core(cpu_index);
+                node.get_osi_minimal_allowed_state_without_core(cpu_index, child_index);
+
             // If the requested state is deeper (remember: deeper -> larger; RUN state is 0) than
             // any of the other descendants at this level, the state must be rejected. For example,
             // if the other descendant states are retention, it is not possible to go to off at this
@@ -474,6 +501,8 @@ impl PsciCompositePowerState {
                     return Err(ErrorCode::InvalidParameters);
                 }
             }
+
+            child_index = Some(node_index);
         }
 
         Ok(())
@@ -534,10 +563,7 @@ impl Psci {
                 cpu.set_affinity_info(AffinityInfo::On);
                 cpu.set_local_state(PlatformPowerState::RUN);
 
-                for node in ancestors.iter_mut() {
-                    node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
-                    node.set_local_state(PlatformPowerState::RUN);
-                }
+                ancestors.set_running(cpu_index);
             });
         }
         let suspend_mode = SpinMutex::<_>::new(SuspendMode::PlatformCoordinated);
@@ -730,12 +756,7 @@ impl Psci {
                     cpu.pop_entry_point();
                 }
                 cpu.set_local_state(PlatformPowerState::RUN);
-
-                for node in ancestors.iter_mut() {
-                    node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
-                    node.clear_suspend_state(cpu_index);
-                    node.set_local_state(PlatformPowerState::RUN);
-                }
+                ancestors.set_running(cpu_index);
             });
         Ok(())
     }
@@ -853,11 +874,7 @@ impl Psci {
 
                 cpu.set_local_state(PlatformPowerState::RUN);
 
-                for node in ancestors.iter_mut() {
-                    node.set_requested_power_state(cpu_index, PlatformPowerState::RUN);
-                    node.clear_suspend_state(cpu_index);
-                    node.set_local_state(PlatformPowerState::RUN);
-                }
+                ancestors.set_running(cpu_index);
             });
 
         let entry_point = cpu.pop_entry_point();
@@ -2742,6 +2759,100 @@ mod tests {
         assert_eq!(
             psci.cpu_suspend(PowerState::PowerDown(0x333), ENTRY_POINT),
             Err(ErrorCode::InvalidParameters)
+        );
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_with_non_cpu_running() {
+        let psci = Psci::new(TestPsciPlatformImpl::new());
+        assert_eq!(psci.set_suspend_mode(SuspendMode::OsInitiated), Ok(0));
+
+        // Cluster 0 CPU 0
+        // Cluster 0 CPU 1
+        // Cluster 1 CPU 0
+        const CPU_INDICES: [usize; 3] = [0, 1, 6];
+
+        for mpidr in CPU_INDICES[1..].iter().map(|i| &CPU_MPIDRS[*i]) {
+            assert_eq!(psci.cpu_on(*mpidr, ENTRY_POINT), Ok(()));
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr((*mpidr).into());
+            let _ = psci.handle_cpu_boot();
+        }
+
+        for cpu_index in &CPU_INDICES {
+            check_ancestor_state(&psci, *cpu_index, &PsciCompositePowerState::RUN.states);
+        }
+
+        let _reset_sysregs = SysregsResetter;
+
+        // Suspend Cluster 0 CPU 1
+        // Suspend Cluster 1 CPU 0
+        for cpu_index in &CPU_INDICES[1..] {
+            SYSREGS.lock().unwrap().mpidr_el1 =
+                MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(*cpu_index).into());
+            expect_cpu_power_down_wfi(|| {
+                assert_eq!(
+                    psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                    Ok(())
+                );
+            });
+        }
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(CPU_INDICES[0]).into());
+        assert_eq!(
+            psci.cpu_suspend(PowerState::PowerDown(0x3333), ENTRY_POINT),
+            Err(ErrorCode::Denied)
+        );
+    }
+
+    #[test]
+    fn psci_cpu_suspend_osi_with_non_cpu_running_mixed_cpu_off() {
+        let psci = Psci::new(TestPsciPlatformImpl::new());
+        assert_eq!(psci.set_suspend_mode(SuspendMode::OsInitiated), Ok(0));
+
+        // Cluster 0 CPU 0
+        // Cluster 1 CPU 0
+        const CPU_INDICES: [usize; 2] = [0, 6];
+
+        for mpidr in CPU_INDICES[1..].iter().map(|i| &CPU_MPIDRS[*i]) {
+            assert_eq!(psci.cpu_on(*mpidr, ENTRY_POINT), Ok(()));
+            SYSREGS.lock().unwrap().mpidr_el1 = MpidrEl1::from_psci_mpidr((*mpidr).into());
+            let _ = psci.handle_cpu_boot();
+        }
+
+        for cpu_index in &CPU_INDICES {
+            check_ancestor_state(&psci, *cpu_index, &PsciCompositePowerState::RUN.states);
+        }
+
+        let _reset_sysregs = SysregsResetter;
+
+        // Suspend Cluster 1 CPU 0
+        for cpu_index in &CPU_INDICES[1..] {
+            SYSREGS.lock().unwrap().mpidr_el1 =
+                MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(*cpu_index).into());
+            expect_cpu_power_down_wfi(|| {
+                assert_eq!(
+                    psci.cpu_suspend(PowerState::PowerDown(0x3), ENTRY_POINT),
+                    Ok(())
+                );
+            });
+        }
+
+        SYSREGS.lock().unwrap().mpidr_el1 =
+            MpidrEl1::from_psci_mpidr(mpidr_from_cpu_index(CPU_INDICES[0]).into());
+        expect_cpu_power_down_wfi(|| {
+            assert_eq!(psci.cpu_off(), Ok(()));
+        });
+
+        check_ancestor_state(
+            &psci,
+            0,
+            &[
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::OFF,
+                PlatformPowerState::RUN,
+            ],
         );
     }
 

@@ -44,10 +44,10 @@ use smccc::{Smc, psci};
 use spin::mutex::SpinMutex;
 
 /// The version of FF-A which we support.
-const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 3);
+const FFA_VERSION: arm_ffa::Version = arm_ffa::Version::V1_3;
 
 /// An unreasonably high FF-A version number.
-const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
+const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version::new(1, 0xffff).unwrap();
 
 // Dummy PAuth key for Non-secure world.
 #[cfg(feature = "pauth")]

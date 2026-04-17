@@ -39,7 +39,7 @@ use crate::{
 };
 use aarch64_rt::{enable_mmu, entry, set_exception_vector};
 use arm_ffa::{
-    FfaError, Interface, Version,
+    FfaError, Interface, Version, VersionOut,
     interface_args::{DirectMsgArgs, MsgWaitFlags, SuccessArgsIdGet, WarmBootType},
 };
 use arm_psci::ReturnCode;
@@ -52,10 +52,10 @@ use percore::Cores;
 use smccc::psci;
 
 /// The version of FF-A which we support.
-const FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 3);
+const FFA_VERSION: arm_ffa::Version = arm_ffa::Version::V1_3;
 
 /// An unreasonably high FF-A version number.
-const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version(1, 0xffff);
+const HIGH_FFA_VERSION: arm_ffa::Version = arm_ffa::Version::new(1, 0xffff).unwrap();
 
 // Dummy PAuth key for Secure world.
 #[cfg(feature = "pauth")]
@@ -261,7 +261,7 @@ fn handle_version_request(version: Version) -> DirectMsgArgs {
     };
 
     DirectMsgArgs::VersionResp {
-        version: Some(out_version),
+        version: VersionOut::Version(out_version),
     }
 }
 

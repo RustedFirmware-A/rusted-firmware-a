@@ -73,12 +73,10 @@ impl Service for Spmd {
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
         // TODO: forward SVE hint bit
 
-        // TODO: should we use a different version for NWd?
-        let version = self.spmc_version;
-
         let smc_regs = get_smc_regs(regs);
 
-        match &mut Interface::from_regs(version, smc_regs) {
+        // Match on &mut to avoid copying the Interface instance
+        match &mut Interface::try_from(&*smc_regs) {
             Ok(msg) => {
                 trace!("Handle FF-A call from NWd {msg:x?}");
 
@@ -89,7 +87,7 @@ impl Service for Spmd {
 
                 let next_world = self.handle_non_secure_call(msg);
 
-                msg.to_regs(version, smc_regs);
+                msg.to_regs(smc_regs);
 
                 next_world
             }
@@ -98,25 +96,23 @@ impl Service for Spmd {
                 let response = match error {
                     // If the FFA_VERSION decoding failed, we have to use a different error encoding
                     arm_ffa::Error::InvalidVersion(_)
-                    | arm_ffa::Error::InvalidVersionFlags(_)
                     | arm_ffa::Error::InvalidVersionQueryType(_) => Interface::VersionOut {
                         output_version: VersionOut::InvalidParameter,
                     },
-                    error => Interface::error((*error).into(), true),
+                    error => Interface::error(error.clone().into(), true),
                 };
 
-                response.to_regs(version, smc_regs);
+                response.to_regs(smc_regs);
                 World::NonSecure
             }
         }
     }
 
     fn handle_secure_smc(&self, regs: &mut SmcReturn) -> World {
-        let version = self.spmc_version;
-
         let smc_regs = get_smc_regs(regs);
 
-        match &mut Interface::from_regs(version, smc_regs) {
+        // Match on &mut to avoid copying the Interface instance
+        match &mut Interface::try_from(&*smc_regs) {
             Ok(msg) => {
                 trace!("Handle FF-A call from SWd {msg:x?}");
 
@@ -132,7 +128,7 @@ impl Service for Spmd {
                 };
 
                 if has_msg {
-                    msg.to_regs(version, smc_regs);
+                    msg.to_regs(smc_regs);
                 } else {
                     regs.mark_empty();
                 }
@@ -141,7 +137,7 @@ impl Service for Spmd {
             }
             Err(error) => {
                 error!("Invalid FF-A call from Secure World: {error} ");
-                Interface::error((*error).into(), true).to_regs(version, smc_regs);
+                Interface::error(error.clone().into(), true).to_regs(smc_regs);
                 World::Secure
             }
         }
@@ -158,7 +154,7 @@ fn get_smc_regs(regs: &mut SmcReturn) -> &mut [u64] {
 
 impl Spmd {
     const OWN_ID: u16 = 0xffff;
-    const VERSION: Version = Version(1, 3);
+    const VERSION: Version = Version::V1_3;
     const NS_EP_ID: u16 = 0; // TODO: this should come from arm_ffa
 
     /// Initialises the SPMD state.
@@ -171,7 +167,7 @@ impl Spmd {
 
         // TODO: read these attributes from the SPMC manifest
         let spmc_id = 0x8000;
-        let spmc_version = Version(1, 3);
+        let spmc_version = Version::V1_3;
         let spmc_primary_ep = 0x0600_0000;
 
         assert!(spmc_version.is_compatible_to(Self::VERSION));
@@ -328,10 +324,7 @@ impl Spmd {
                         DirectMsgArgs::VersionResp { version } if *src_id == self.spmc_id => {
                             next_world = World::NonSecure;
                             Interface::VersionOut {
-                                output_version: match version {
-                                    None => VersionOut::NotSupported,
-                                    Some(v) => VersionOut::Version(v),
-                                },
+                                output_version: version,
                             }
                         }
                         _ => Interface::error(FfaError::InvalidParameters, true),
@@ -532,7 +525,7 @@ impl Spmd {
         self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::SecureInterrupt);
 
         let out_regs = regs.mark_all_used();
-        msg.to_regs(self.spmc_version, out_regs);
+        msg.to_regs(out_regs);
 
         World::Secure
     }
@@ -558,7 +551,7 @@ impl Spmd {
         self.switch_spmc_local_state(SpmcState::Runtime, SpmcState::PsciEventHandling);
 
         let mut out_regs = SmcReturn::EMPTY;
-        msg.to_regs(self.spmc_version, out_regs.mark_all_used());
+        msg.to_regs(out_regs.mark_all_used());
 
         out_regs
     }
@@ -571,7 +564,6 @@ impl Spmd {
 
 impl PsciSpmInterface for Spmd {
     fn forward_psci_request(&self, function: Function) -> ReturnCode {
-        let version = self.spmc_version;
         let mut regs = SmcReturn::EMPTY;
 
         let mut psci_request = [0; 4];
@@ -585,14 +577,14 @@ impl PsciSpmInterface for Spmd {
             },
         };
 
-        msg.to_regs(version, regs.mark_all_used());
+        msg.to_regs(regs.mark_all_used());
 
         self.cpu_states
             .switch_world(World::NonSecure, World::Secure);
 
         let ret: i32 = loop {
             match enter_world(&mut regs, World::Secure) {
-                RunResult::Smc => match Interface::from_regs(version, regs.values()) {
+                RunResult::Smc => match Interface::try_from(regs.values()) {
                     Ok(Interface::MsgSendDirectResp {
                         src_id,
                         dst_id: Self::OWN_ID,
@@ -628,7 +620,7 @@ impl PsciSpmInterface for Spmd {
             .switch_world(World::NonSecure, World::Secure);
         let _ret: i32 = loop {
             match enter_world(&mut regs, World::Secure) {
-                RunResult::Smc => match Interface::from_regs(self.spmc_version, regs.values()) {
+                RunResult::Smc => match Interface::try_from(regs.values()) {
                     Ok(Interface::MsgSendDirectResp {
                         src_id,
                         dst_id: Self::OWN_ID,

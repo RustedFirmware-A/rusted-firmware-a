@@ -18,6 +18,8 @@ mod dram;
 mod errata_framework;
 mod exceptions;
 mod gicv3;
+#[cfg(feature = "rme")]
+mod gpt;
 #[cfg_attr(test, path = "layout_fake.rs")]
 mod layout;
 mod logger;

@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "3"
-members = ["secure_test_framework", "arm-gpt"]
+members = ["secure_test_framework"]
 
 [package]
 name = "rf-a-bl31"
@@ -38,7 +38,6 @@ arm-fvp-base-pac = { version = "0.2.0", default-features = false, features = [
   "el3",
 ] }
 arm-gic = { version = "0.8.1", features = ["el3"] }
-arm-gpt = { version = "0.1.0", path = "arm-gpt", optional = true }
 arm-pl011-uart = { version = "0.5.0", default-features = false }
 arm-pl061 = { version = "0.2.0", default-features = false }
 arm-psci = "0.2.0"
@@ -66,7 +65,7 @@ arm-sysregs = { version = "0.2.7", features = ["fakes"] }
 [features]
 default = ["sel2"]
 pauth = []
-rme = ["dep:arm-gpt"]
+rme = []
 sel2 = []
 max_log_off = ["log/max_level_off"]
 max_log_error = ["log/max_level_error"]

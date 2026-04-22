@@ -8,7 +8,7 @@ use core::slice::from_raw_parts_mut;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::{GranuleProtectionConfig, PA, mask};
+use crate::gpt::{GranuleProtectionConfig, PA, mask};
 
 /// Creates an accessor function for a type wrapping an integer.
 ///
@@ -339,7 +339,8 @@ pub(crate) type Level1Table = [Level1Descriptor];
 
 #[cfg(test)]
 mod tests {
-    use crate::{
+
+    use crate::gpt::{
         GPIAccessType,
         table::{ContigSize, Level0Descriptor, Level1Descriptor},
     };

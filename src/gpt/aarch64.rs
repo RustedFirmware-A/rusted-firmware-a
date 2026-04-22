@@ -9,22 +9,12 @@ use arm_sysregs::{
 use core::arch::asm;
 
 use crate::{
-    Error, GranuleProtection, GranuleProtectionConfig, Level0GptSize, Level0Table,
-    PhysicalGranuleSize, ProtectedPhysicalAddressSize, mask,
+    aarch64::{dsb_sy, isb, tlbi_paallos},
+    gpt::{
+        Error, GranuleProtection, GranuleProtectionConfig, Level0GptSize, Level0Table,
+        PhysicalGranuleSize, ProtectedPhysicalAddressSize, mask,
+    },
 };
-
-fn isb() {
-    // Safety: `isb` does not violate Rust safety.
-    unsafe { asm!("isb") }
-}
-fn dsbsy() {
-    // Safety: `isb` does not violate Rust safety.
-    unsafe { asm!("dsb sy") }
-}
-fn tlbi_paallos() {
-    // Safety: TLB/Cache invalidation does not violate Rust safety.
-    unsafe { asm!("sys #6, c8, c1, #4") }
-}
 
 impl GranuleProtection<'static> {
     /// Reads the values from the `GPCCR_EL3` and `GPTBR_EL3` register to locate an existing Granule
@@ -112,7 +102,7 @@ impl GranuleProtection<'static> {
 
         isb();
         tlbi_paallos();
-        dsbsy();
+        dsb_sy();
         isb();
 
         gpcc |= GpccrEl3::GPC;
@@ -126,7 +116,7 @@ impl GranuleProtection<'static> {
         // Invalidate TLB entries.
         isb();
         tlbi_paallos();
-        dsbsy();
+        dsb_sy();
         isb();
 
         Ok(())

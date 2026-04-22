@@ -65,3 +65,15 @@ pub fn wfi() {
         asm!("wfi", options(nostack));
     }
 }
+
+/// Issues a translation lookaside buffer invalidate (`tlbi`) instruction that invalidates
+/// cached copies of GPT entries from TLBs. The invalidation affects all TLBs in the
+/// Outer Shareable domain.
+#[cfg(feature = "rme")]
+pub fn tlbi_paallos() {
+    // SAFETY: TLB/Cache invalidation does not violate Rust safety.
+    #[cfg(all(target_arch = "aarch64", not(test)))]
+    unsafe {
+        asm!("sys #6, c8, c1, #4")
+    }
+}

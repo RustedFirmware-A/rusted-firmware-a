@@ -2,33 +2,18 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-// TODO: Temporary until the crate is fully implemented.
-#![allow(dead_code)]
-#![no_std]
+// TODO: Temporary until the RME feature is fully implemented.
+#![allow(unused, dead_code)]
 
-use core::fmt::Debug;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use thiserror::Error;
-
-pub use crate::table::GPIAccessType;
-use crate::table::Level0Table;
-
-#[cfg(all(target_arch = "aarch64", not(test)))]
 mod aarch64;
 mod table;
 
-pub type PA = usize;
+use core::fmt::Debug;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-/// Errors returned when manipulating the [`GranuleProtection`] object.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum Error {
-    #[error("No existing GPT found")]
-    GptNotInitialized,
-    #[error("Existing GPT Config is invalid")]
-    InvalidConfiguration,
-    #[error("L0 buffer must be aligned on its size")]
-    MisalignedL0Buffer,
-}
+pub use crate::gpt::table::GPIAccessType;
+use crate::gpt::table::{Level0Table, Level1Descriptor};
+pub type PA = usize;
 
 /// Generates a bitmask:
 /// - `mask!(end, start)`: bits from `start` (inclusive) to `end` (exclusive) are set to 1.
@@ -45,7 +30,16 @@ macro_rules! mask {
         ((1 << $len) - 1)
     };
 }
+
 pub(crate) use mask;
+
+/// Errors returned when manipulating the [`GranuleProtection`] object.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Error {
+    GptNotInitialized,
+    InvalidConfiguration,
+    MisalignedL0Buffer,
+}
 
 /// Handle to manipulate the Granule Protection Table and related registers.
 pub struct GranuleProtection<'a> {
@@ -151,11 +145,11 @@ impl PhysicalGranuleSize {
 /// Size configuration of the [`GranuleProtection`] object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct GranuleProtectionConfig {
-    /// [`Pps`] used by this [`GranuleProtection`].
+    /// [`ProtectedPhysicalAddressSize`] used by this [`GranuleProtection`].
     pps: ProtectedPhysicalAddressSize,
-    /// [`L0GptSz`] used by this [`GranuleProtection`].
+    /// [`Level0GptSize`] used by this [`GranuleProtection`].
     l0gptsz: Level0GptSize,
-    /// [`Pgs`] used by this [`GranuleProtection`].
+    /// [`PhysicalGranuleSize`] used by this [`GranuleProtection`].
     pgs: PhysicalGranuleSize,
 }
 

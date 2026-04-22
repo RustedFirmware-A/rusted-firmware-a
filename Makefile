@@ -149,7 +149,6 @@ cargo-doc:
 
 clippy:
 	$(TARGET_CARGO) clippy $(CARGO_FLAGS)  --features "$(FEATURES)"
-	$(TARGET_CARGO) clippy $(CARGO_FLAGS) --package arm-gpt
 	$(STF_CARGO) clippy \
 		--package rf-a-secure-test-framework \
 		$(CARGO_FLAGS) \

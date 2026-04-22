@@ -7,7 +7,6 @@
 pub mod manifest;
 pub mod svc;
 
-use arm_gpt::GranuleProtection;
 use core::{
     cell::RefCell,
     slice::from_raw_parts_mut,
@@ -22,6 +21,7 @@ use spin::mutex::SpinMutex;
 
 use crate::{
     context::{CoresImpl, PerCoreState, World},
+    gpt::GranuleProtection,
     platform::{Platform, PlatformImpl, exception_free},
     services::{
         Service, owns,

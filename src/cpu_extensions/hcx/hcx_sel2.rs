@@ -36,6 +36,7 @@ pub fn save_context(world: World) {
     })
 }
 
+#[allow(dead_code)]
 pub fn restore_context(world: World) {
     exception_free(|token| {
         // SAFETY: We're restoring the value previously saved, so it must be valid.

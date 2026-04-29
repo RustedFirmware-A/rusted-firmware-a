@@ -41,8 +41,9 @@ use rf_a_bl31::{
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
     cpu_extensions::{
         CpuExtension, amu::Amu, fgt::Fgt, fgt2::Fgt2, hcx::Hcx, mpam::Mpam, mte2::MemoryTagging,
-        pmuv3::MultiThreadedPmu, ras::Ras, sctlr2::Sctlr2, simd::Simd, spe::StatisticalProfiling,
-        sys_reg_trace::SysRegTrace, tcr2::Tcr2, trbe::TraceBufferNonSecure, trf::TraceFiltering,
+        pfar::Pfar, pmuv3::MultiThreadedPmu, ras::Ras, sctlr2::Sctlr2, simd::Simd,
+        spe::StatisticalProfiling, sys_reg_trace::SysRegTrace, tcr2::Tcr2,
+        trbe::TraceBufferNonSecure, trf::TraceFiltering,
     },
     debug::DEBUG,
     errata_framework::define_errata_list,
@@ -330,6 +331,7 @@ static FGT2: Fgt2<{ Fvp::CORE_COUNT }, Fvp> = Fgt2::new();
 static HCX: Hcx<{ Fvp::CORE_COUNT }, Fvp> = Hcx::new();
 static MPAM: Mpam<{ Fvp::CORE_COUNT }, Fvp> = Mpam::new();
 static MEMORY_TAGGING: MemoryTagging<{ Fvp::CORE_COUNT }, Fvp> = MemoryTagging::new();
+static PFAR: Pfar<{ Fvp::CORE_COUNT }, Fvp> = Pfar::new();
 static RAS: Ras<{ Fvp::CORE_COUNT }, Fvp> = Ras::new();
 static TCR2: Tcr2<{ Fvp::CORE_COUNT }, Fvp> = Tcr2::new();
 static SIMD: Simd<{ Fvp::CORE_COUNT }, Fvp> = Simd::simd();
@@ -384,6 +386,7 @@ unsafe impl Platform for Fvp {
         &TCR2,
         &TraceBufferNonSecure,
         &TraceFiltering,
+        &PFAR,
     ];
 
     // Set write-through mode to ensure all written values are propagated to system memory.

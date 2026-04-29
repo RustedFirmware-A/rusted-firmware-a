@@ -7,6 +7,7 @@
 mod dit;
 mod ffa_spmd;
 mod interrupts;
+mod pfar;
 mod psci;
 mod psci_osi;
 #[cfg(feature = "rme")]

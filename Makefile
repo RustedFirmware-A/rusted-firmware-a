@@ -109,7 +109,7 @@ endif
 
 ifeq ($(BUILD_STD), 1)
 	CARGO_FLAGS += -Zbuild-std=core,compiler_builtins,alloc
-	CARGO ?= cargo +nightly
+	CARGO ?= cargo +nightly-2026-05-03
 else
 	CARGO ?= cargo
 endif

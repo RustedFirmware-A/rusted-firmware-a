@@ -59,7 +59,7 @@ impl Sve {
         let cptr_el3 = read_cptr_el3();
         // SAFETY: We only allowed SVE instructions.
         unsafe {
-            write_cptr_el3(cptr_el3 | CptrEl3::EZ);
+            write_cptr_el3((cptr_el3 | CptrEl3::EZ) - CptrEl3::TFP);
         }
         isb();
 

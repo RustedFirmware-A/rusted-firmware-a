@@ -8,11 +8,9 @@ use crate::{
     context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld},
     platform::{Platform, PlatformImpl},
 };
-use arm_sysregs::{IdAa64smfr0El1, read_id_aa64smfr0_el1, read_write_sysreg};
+use arm_sysregs::{IdAa64smfr0El1, Svcr, read_id_aa64smfr0_el1, read_svcr, write_svcr};
 use core::{arch::asm, cell::RefCell};
 use percore::{ExceptionLock, PerCore};
-
-read_write_sysreg!(svcr: S3_3_C4_C2_2, u64, safe_read);
 
 pub static SIMD_CTX: PerCoreState<PerWorld<SimdCpuContext>> = PerCore::new(
     [const {
@@ -25,8 +23,6 @@ pub static SIMD_CTX: PerCoreState<PerWorld<SimdCpuContext>> = PerCore::new(
 pub static NS_SVE_CTX: PerCoreState<SveCpuContext> = PerCore::new(
     [const { ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY)) }; PlatformImpl::CORE_COUNT],
 );
-
-const SVCR_SM_BIT: u64 = 1 << 0;
 
 #[repr(C)]
 pub struct SimdCpuContext {
@@ -137,7 +133,7 @@ pub struct SveCpuContext {
     ffr: [u8; 256 / 8],        // TODO: Adjust to [u8; SVE_VECTOR_LEN_BYTES / 8]
     fpsr: u64,
     fpcr: u64,
-    svcr: u64, // This is unused if SME is not present.
+    svcr: Svcr, // This is unused if SME is not present.
 }
 
 impl SveCpuContext {
@@ -147,12 +143,12 @@ impl SveCpuContext {
         ffr: [0; 256 / 8],
         fpsr: 0,
         fpcr: 0,
-        svcr: 0,
+        svcr: Svcr::empty(),
     };
 
     fn should_save_restore_ffr(&self, has_sme: bool) -> bool {
         if has_sme {
-            let streaming = (self.svcr & SVCR_SM_BIT) != 0;
+            let streaming = self.svcr.contains(Svcr::SM);
             if streaming && !read_id_aa64smfr0_el1().contains(IdAa64smfr0El1::FA64) {
                 return false;
             }

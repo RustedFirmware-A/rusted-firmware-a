@@ -54,6 +54,20 @@ pub trait CpuExtension {
     /// checking if the extension is supported by the hardware. This way `restore_context` will be
     /// a no-op for every extension that does not have any context.
     fn restore_context(&self, _world: World) {}
+
+    /// Save the extension-specific registers specifically before PSCI suspend to powerdown.
+    ///
+    /// By default, this is a no-op. If the extension needs to save any registers before
+    /// suspend to powerdown, it should implement this function and override the default.
+    fn save_context_before_suspend_to_powerdown(&self) {}
+
+    /// Restore the extension-specific registers specifically after resume from PSCI
+    /// suspend to powerdown.
+    ///
+    /// By default, this is a no-op. If the extension needs to restore any registers after
+    /// resume from suspend to powerdown, it should implement this function and override the
+    /// default.
+    fn restore_context_after_suspend_to_powerdown(&self) {}
 }
 
 /// Enable architecture extensions for EL3 execution. This function only updates

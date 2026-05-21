@@ -774,6 +774,10 @@ impl Psci {
         }
 
         if is_power_down_state {
+            for ext in PlatformImpl::CPU_EXTENSIONS {
+                ext.save_context_before_suspend_to_powerdown();
+            }
+
             self.platform.power_domain_power_down(&composite_state);
             // This WFI will trigger core powerdown attempt. If successful, the core will lose all
             // state and must restart from its reset vector which is typically bl31_warm_entrypoint.

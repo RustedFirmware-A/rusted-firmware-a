@@ -1008,6 +1008,10 @@ pub fn update_contexts_suspend(
 
         #[cfg(feature = "rme")]
         cpu_state[World::Realm].gpregs.registers[..realm_args.len()].copy_from_slice(realm_args);
+
+        for ext in PlatformImpl::CPU_EXTENSIONS {
+            ext.restore_context_after_suspend_to_powerdown();
+        }
     });
 }
 

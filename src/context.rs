@@ -75,7 +75,6 @@ pub type PerCoreState<T> =
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum World {
-    // The enum values must match those used by the `get_security_state` assembly function.
     /// Secure world.
     Secure = 0,
     /// Non-Secure world.
@@ -1116,7 +1115,6 @@ mod asm {
         PMCR_EL0_DP_BIT = const PmcrEl0::DP.bits(),
         MODE_SP_EL0 = const StackPointer::El0 as u8,
         MODE_SP_ELX = const StackPointer::ElX as u8,
-        SCR_NSE_SHIFT = const 62,
         CTX_NESTED_EA_FLAG = const offset_of!(El3State, nested_ea_flag),
         CTX_GPREGS_OFFSET = const offset_of!(GpRegs, registers),
         CTX_EL3STATE_OFFSET = const offset_of!(CpuContext, el3_state),

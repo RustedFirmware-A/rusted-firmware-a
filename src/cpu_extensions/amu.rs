@@ -224,7 +224,7 @@ impl CpuExtension for Amu {
         read_id_aa64pfr0_el1().is_feat_amu_present()
     }
 
-    fn save_context_before_suspend_to_pwrdown(&self) {
+    fn save_context_before_suspend_to_powerdown(&self) {
         if !self.is_present() {
             return;
         }
@@ -235,7 +235,7 @@ impl CpuExtension for Amu {
         });
     }
 
-    fn restore_context_after_suspend_to_pwrdown(&self) {
+    fn restore_context_after_suspend_to_powerdown(&self) {
         if !self.is_present() {
             return;
         }

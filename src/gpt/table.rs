@@ -2,13 +2,11 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+use super::{GranuleProtectionConfig, PA, mask};
 use core::fmt::Debug;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
-
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-
-use crate::gpt::{GranuleProtectionConfig, PA, mask};
 
 /// Creates an accessor function for a type wrapping an integer.
 ///
@@ -390,11 +388,7 @@ pub(crate) type Level1Table = [Level1Descriptor];
 
 #[cfg(test)]
 mod tests {
-
-    use crate::gpt::{
-        GPIAccessType,
-        table::{ContigSize, Level0Descriptor, Level1Descriptor},
-    };
+    use super::*;
 
     #[test]
     fn as_block_valid() {

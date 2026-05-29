@@ -2,20 +2,17 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+use super::{
+    Error, GranuleProtection, GranuleProtectionConfig, Level0GptSize, Level0Table,
+    PhysicalGranuleSize, ProtectedPhysicalAddressSize, mask,
+};
+use crate::aarch64::{dsb_sy, isb, tlbi_paallos};
 use arm_sysregs::{
     Cacheability, GpccrEl3, GptbrEl3, Shareability, read_gpccr_el3, read_gptbr_el3,
     write_gpccr_el3, write_gptbr_el3,
 };
 #[cfg(all(target_arch = "aarch64", not(test)))]
 use core::arch::asm;
-
-use crate::{
-    aarch64::{dsb_sy, isb, tlbi_paallos},
-    gpt::{
-        Error, GranuleProtection, GranuleProtectionConfig, Level0GptSize, Level0Table,
-        PhysicalGranuleSize, ProtectedPhysicalAddressSize, mask,
-    },
-};
 
 impl GranuleProtection<'static> {
     /// Reads the values from the `GPCCR_EL3` and `GPTBR_EL3` register to locate an existing Granule

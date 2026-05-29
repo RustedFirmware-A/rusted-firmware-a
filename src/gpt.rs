@@ -8,15 +8,11 @@
 mod aarch64;
 mod table;
 
+use crate::aarch64::{dsb_osh, dsb_oshst, tlbi_rpalos};
 use core::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-
-pub use crate::gpt::table::GPIAccessType;
-use crate::{
-    aarch64::{dsb_osh, dsb_oshst, tlbi_rpalos},
-    gpt::table::{Level0Table, Level1Descriptor},
-};
-pub type PA = usize;
+pub use table::GPIAccessType;
+use table::{Level0Table, Level1Descriptor};
 
 /// Generates a bitmask:
 /// - `mask!(end, start)`: bits from `start` (inclusive) to `end` (exclusive) are set to 1.
@@ -33,8 +29,9 @@ macro_rules! mask {
         ((1 << $len) - 1)
     };
 }
-
 pub(crate) use mask;
+
+pub type PA = usize;
 
 /// Errors returned when manipulating the [`GranuleProtection`] object.
 #[derive(Debug, PartialEq, Eq)]
@@ -283,7 +280,6 @@ impl GranuleProtectionConfig {
 }
 #[cfg(test)]
 mod test {
-
     use super::*;
     use table::Level0Descriptor;
 

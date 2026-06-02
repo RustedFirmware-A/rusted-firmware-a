@@ -85,6 +85,35 @@ Being mechanically generated, lints don’t always directly describe the problem
 detect a symptom (possibly even a 2nd-order symptom). For each lint, think carefully about the
 ultimate cause and seek to solve that. Don’t quiet lints just for the sake of quieting them.
 
+### Ordering of `mod` and `use` statements
+
+The Rust Style Guide offers a few [rules][9] about the order in which `use` statements should appear
+in a Rust source file but it leaves some of it unspecified. For example, it does not recommend any
+particular grouping scheme for imports (like one group for Rust standard library imports, one group
+for other types of imports), and it does not mention whether they should come before or after `mod`
+statements.
+
+The RF-A project tries to stick to the following convention:
+1. Module declarations first.
+2. An empty line.
+3. One single group of imports, ordered as recommended in the [Rust Style Guide][9].
+
+In practice, this looks like this:
+
+```
+                                    For example:
+module declarations                 mod foo;
+<empty line>
+Imports from parent module          use super::x;
+Imports from the crate root         use crate::y;
+Other Imports
+  (standard library crates, external crates or the module's children crates all clubbed together,
+  ordered as per the Rust Style Guide)
+```
+
+`cargo fmt` will enforce the correct ordering of imports, so long as the "one single group of
+imports" rule is followed.
+
 ## Documentation
 
 Document all `pub` interfaces (functions, types, methods, etc.) with Rustdoc comments (`/// ...` and
@@ -131,3 +160,4 @@ based on the SPDX License Identifiers that are available [here][8].
 [6]: https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html#lossy-provenance-casts
 [7]: https://doc.rust-lang.org/rustdoc/write-documentation/linking-to-items-by-name.html
 [8]: http://spdx.org/licenses/
+[9]: https://doc.rust-lang.org/stable/style-guide/items.html#imports-use-statements

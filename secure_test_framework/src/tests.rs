@@ -4,6 +4,7 @@
 
 //! Test cases.
 
+mod dit;
 mod ffa_spmd;
 mod interrupts;
 mod psci;

@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Make sure `cargo vet` and `cargo clippy` are clean, and everything builds,
+# Make sure `cargo vet`, `cargo clippy` and `cargo fmt` are clean, and everything builds,
 # before `git push`.
 
 set -o errexit
@@ -63,8 +63,8 @@ for platform in "${all_platforms[@]}"; do
 done
 
 must cargo vet
-must cargo fmt
+must cargo fmt --all --check
 
 cd secure_test_framework
-must cargo fmt
+must cargo fmt --all --check
 cd -

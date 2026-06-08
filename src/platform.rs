@@ -11,7 +11,7 @@ macro_rules! select_platform {
         #[cfg(platform = $condition)]
         pub use $mod::$sub::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
         };
     };
     (platform = $condition:literal, $mod:ident::$plat_impl:ident) => {
@@ -21,7 +21,7 @@ macro_rules! select_platform {
         #[cfg(platform = $condition)]
         pub use $mod::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
         };
     };
     (test, $mod:ident::$plat_impl:ident) => {
@@ -31,7 +31,7 @@ macro_rules! select_platform {
         #[cfg(test)]
         pub use $mod::{
             CPU_OPS, EARLY_PAGE_TABLE_RANGES, EARLY_PAGE_TABLE_SIZE, ERRATA_LIST,
-            $plat_impl as PlatformImpl,
+            PSCI_MAX_POWER_LEVEL, $plat_impl as PlatformImpl,
         };
     };
 }
@@ -81,9 +81,14 @@ pub type LogSinkImpl = <PlatformImpl as Platform>::LogSinkImpl;
 
 pub type PsciPlatformImpl = <PlatformImpl as Platform>::PsciPlatformImpl;
 pub type TrngPlatformImpl = <PlatformImpl as Platform>::TrngPlatformImpl;
-pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface>::PlatformPowerState;
+pub type PlatformPowerState = <PsciPlatformImpl as PsciPlatformInterface<
+    PSCI_STATE_COUNT,
+    PSCI_MAX_POWER_LEVEL,
+>>::PlatformPowerState;
 
 pub type PlatformServiceImpl = <PlatformImpl as Platform>::PlatformServiceImpl;
+
+pub const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 
 /// The hooks implemented by all platforms.
 ///
@@ -137,7 +142,7 @@ pub unsafe trait Platform {
     type LogSinkImpl: LogSink;
 
     /// Platform dependent PsciPlatformInterface implementation type.
-    type PsciPlatformImpl: PsciPlatformInterface;
+    type PsciPlatformImpl;
 
     /// Platform dependent TrngPlatformInterface implementation type.
     type TrngPlatformImpl: TrngPlatformInterface;

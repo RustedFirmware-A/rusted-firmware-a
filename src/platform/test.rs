@@ -371,10 +371,12 @@ impl TestPsciPlatformImpl {
     }
 }
 
-impl PsciPlatformInterface for TestPsciPlatformImpl {
-    const POWER_DOMAIN_COUNT: usize = 20;
+/// Maximum PSCI power level for fake platform.
+pub const PSCI_MAX_POWER_LEVEL: usize = 3;
+const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 
-    const MAX_POWER_LEVEL: usize = 3;
+impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciPlatformImpl {
+    const POWER_DOMAIN_COUNT: usize = 20;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::all();
 
@@ -386,7 +388,9 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
         &[1, 2, 2, 2, 3, 3, 3, 4]
     }
 
-    fn try_parse_power_state(power_state: PowerState) -> Option<PsciCompositePowerState> {
+    fn try_parse_power_state(
+        power_state: PowerState,
+    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>> {
         let states = match power_state {
             PowerState::StandbyOrRetention(0) => [
                 TestPowerState::Standby0,
@@ -431,15 +435,13 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
                 TestPowerState::On,
             ],
 
-            PowerState::PowerDown(0x3333) => {
-                [TestPowerState::PowerDown; TestPsciPlatformImpl::MAX_POWER_LEVEL + 1]
-            }
+            PowerState::PowerDown(0x3333) => [TestPowerState::PowerDown; PSCI_STATE_COUNT],
 
             _ => return None,
         };
         Some(PsciCompositePowerState::new_with_last_power_level(
             states,
-            PsciCompositePowerState::new(states)
+            PsciCompositePowerState::<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>::new(states)
                 .find_highest_non_run_level()
                 .unwrap(),
         ))
@@ -447,22 +449,36 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
 
     fn cpu_standby(&self, _cpu_state: TestPowerState) {}
 
-    fn power_domain_suspend(&self, _target_state: &PsciCompositePowerState) {}
+    fn power_domain_suspend(
+        &self,
+        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
+    }
 
-    fn power_domain_suspend_finish(&self, _previous_state: &PsciCompositePowerState) {}
+    fn power_domain_suspend_finish(
+        &self,
+        _previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
+    }
 
     fn power_domain_validate_suspend(
         &self,
-        _target_state: &PsciCompositePowerState,
+        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
     ) -> Result<(), ErrorCode> {
         Ok(())
     }
 
-    fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
+    fn power_domain_off(
+        &self,
+        target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
         assert_eq!(target_state.cpu_level_state(), TestPowerState::PowerDown);
     }
 
-    fn power_domain_power_down(&self, _target_state: &PsciCompositePowerState) {
+    fn power_domain_power_down(
+        &self,
+        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
         // SAFETY: `disable_mmu_el3` is safe to call here as it doesn't actually do anything with
         // the MMU in tests.
         unsafe {
@@ -476,7 +492,11 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
         Ok(())
     }
 
-    fn power_domain_on_finish(&self, _previous_state: &PsciCompositePowerState) {}
+    fn power_domain_on_finish(
+        &self,
+        _previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
+    }
 
     fn system_off(&self) -> ! {
         panic!("{}", Self::SYSTEM_OFF_MAGIC);
@@ -518,7 +538,9 @@ impl PsciPlatformInterface for TestPsciPlatformImpl {
         Ok(HwState::Off)
     }
 
-    fn sys_suspend_power_state(&self) -> PsciCompositePowerState {
+    fn sys_suspend_power_state(
+        &self,
+    ) -> PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> {
         PsciCompositePowerState::OFF
     }
 }

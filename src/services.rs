@@ -18,7 +18,10 @@ use crate::{
     context::{World, cpu_state, set_initial_world, switch_world},
     exceptions::{RunResult, enter_world, inject_undef64},
     gicv3::{self, InterruptType},
-    platform::{Platform, PlatformImpl, PlatformServiceImpl, exception_free},
+    platform::{
+        PSCI_MAX_POWER_LEVEL, PSCI_STATE_COUNT, Platform, PlatformImpl, PlatformServiceImpl,
+        exception_free,
+    },
     services::{
         arch::Arch, errata_management::ErrataManagement, ffa::spmd::Spmd, psci::Psci, trng::Trng,
     },
@@ -90,7 +93,7 @@ static SERVICES: Lazy<Services> = Lazy::new(Services::new);
 /// Contains an instance of all of the currently implemented services.
 pub struct Services {
     arch: Arch,
-    pub psci: Psci,
+    pub psci: Psci<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
     platform: PlatformServiceImpl,
     /// The FF-A SPMD service.
     pub spmd: Spmd,

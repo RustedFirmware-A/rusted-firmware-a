@@ -454,13 +454,15 @@ enum PowerDownKind {
     Suspend,
 }
 
+pub const PSCI_MAX_POWER_LEVEL: usize = 2;
+const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
+
 pub struct QemuPsciPlatformImpl {
     per_cpu_powerdown_kinds: [SpinMutex<PowerDownKind>; Qemu::CORE_COUNT],
 }
 
-impl PsciPlatformInterface for QemuPsciPlatformImpl {
+impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for QemuPsciPlatformImpl {
     const POWER_DOMAIN_COUNT: usize = 1 + CLUSTER_COUNT + Qemu::CORE_COUNT;
-    const MAX_POWER_LEVEL: usize = 2;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::OS_INITIATED_MODE;
 
@@ -472,19 +474,20 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         &[1, CLUSTER_COUNT, MAX_CPUS_PER_CLUSTER]
     }
 
-    fn try_parse_power_state(power_state: PowerState) -> Option<PsciCompositePowerState> {
+    fn try_parse_power_state(
+        power_state: PowerState,
+    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>> {
         const POWER_STATES_MASK: u32 = 0x0000_0fff;
         const LOCAL_PSTATE_WIDTH: u32 = 4;
         const LOCAL_PSTATE_MASK: u32 = (1 << LOCAL_PSTATE_WIDTH) - 1;
         // last_at_power_level is encoded in the bits immediately following the state ID bits
         // for each power level.
-        let last_at_power_level_shift: u32 =
-            LOCAL_PSTATE_WIDTH * (Self::MAX_POWER_LEVEL as u32 + 1);
+        let last_at_power_level_shift: u32 = LOCAL_PSTATE_WIDTH * (PSCI_MAX_POWER_LEVEL as u32 + 1);
 
         let last_at_power_level_mask: u32 = LOCAL_PSTATE_MASK << last_at_power_level_shift;
         let last_at_power_level: u32 =
             (u32::from(power_state) & last_at_power_level_mask) >> last_at_power_level_shift;
-        if last_at_power_level as usize > Self::MAX_POWER_LEVEL {
+        if last_at_power_level as usize > PSCI_MAX_POWER_LEVEL {
             return None;
         }
 
@@ -548,25 +551,38 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
 
     fn power_domain_validate_suspend(
         &self,
-        _target_state: &PsciCompositePowerState,
+        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
     ) -> Result<(), ErrorCode> {
         Ok(())
     }
 
-    fn power_domain_suspend(&self, _target_state: &PsciCompositePowerState) {
+    fn power_domain_suspend(
+        &self,
+        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
         *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() = PowerDownKind::Suspend;
     }
 
-    fn power_domain_suspend_finish(&self, _previous_state: &PsciCompositePowerState) {}
+    fn power_domain_suspend_finish(
+        &self,
+        _previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
+    }
 
-    fn power_domain_off(&self, target_state: &PsciCompositePowerState) {
+    fn power_domain_off(
+        &self,
+        target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
         assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);
 
         Gic::get().cpu_interface_disable();
         *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() = PowerDownKind::Off;
     }
 
-    fn power_domain_power_down(&self, _target_state: &PsciCompositePowerState) {
+    fn power_domain_power_down(
+        &self,
+        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
         if *self.per_cpu_powerdown_kinds[CoresImpl::core_index()].lock() == PowerDownKind::Off {
             // SAFETY: `disable_mmu_el3` is safe to call here as the CPU is about to be switched off.
             // `plat_secondary_cold_boot_setup` is trusted assembly.
@@ -594,7 +610,10 @@ impl PsciPlatformInterface for QemuPsciPlatformImpl {
         Ok(())
     }
 
-    fn power_domain_on_finish(&self, previous_state: &PsciCompositePowerState) {
+    fn power_domain_on_finish(
+        &self,
+        previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    ) {
         assert_eq!(previous_state.cpu_level_state(), QemuPowerState::PowerDown);
         Gic::get().redistributor_init(&Qemu::GIC_CONFIG);
         Gic::get().cpu_interface_enable();

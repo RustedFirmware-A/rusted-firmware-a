@@ -792,7 +792,7 @@ impl FvpPsciPlatformImpl<'_> {
 
     fn power_domain_on_finish_common(
         &self,
-        previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, NodeIndex>,
     ) {
         assert_eq!(previous_state.cpu_level_state(), FvpPowerState::Off);
 
@@ -870,6 +870,8 @@ const _: () = assert!(
 pub const PSCI_MAX_POWER_LEVEL: usize = 2;
 const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 
+type NodeIndex = u8;
+
 impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPlatformImpl<'_> {
     const POWER_DOMAIN_COUNT: usize =
         1 + FVP_CLUSTER_COUNT + FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER;
@@ -880,7 +882,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     type PlatformPowerState = FvpPowerState;
 
-    type NodeIndex = u8;
+    type NodeIndex = NodeIndex;
 
     fn topology() -> &'static [usize] {
         const TOPOLOGY: [usize; 2 + FVP_CLUSTER_COUNT] = {
@@ -906,7 +908,8 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
     /// Based on 6.5 Recommended StateID Encoding
     fn try_parse_power_state(
         power_state: PowerState,
-    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>> {
+    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex>>
+    {
         const POWER_LEVEL_STATE_MASK: u32 = 0x0000_0fff;
         const ARM_LOCAL_PSTATE_WIDTH: u32 = 4;
         const ARM_LOCAL_PSTATE_MASK: u32 = (1 << ARM_LOCAL_PSTATE_WIDTH) - 1;
@@ -960,7 +963,11 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     fn power_domain_suspend(
         &self,
-        target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        target_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
         // FVP has retention only at cpu level. Just return as nothing is to be done for retention.
         if target_state.cpu_level_state() == FvpPowerState::Retention {
@@ -993,7 +1000,11 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     fn power_domain_suspend_finish(
         &self,
-        previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        previous_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
         // Nothing to be done on waking up from retention at CPU level.
         if previous_state.cpu_level_state() == FvpPowerState::Retention {
@@ -1006,7 +1017,11 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     fn power_domain_off(
         &self,
-        target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        target_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
         assert_eq!(FvpPowerState::Off, target_state.cpu_level_state());
 
@@ -1023,7 +1038,11 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     fn power_domain_power_down(
         &self,
-        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        _target_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
     }
 
@@ -1047,7 +1066,11 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     fn power_domain_on_finish(
         &self,
-        previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        previous_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
         self.power_domain_on_finish_common(previous_state);
         Gic::get().redistributor_init(&Fvp::GIC_CONFIG);
@@ -1096,7 +1119,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     fn sys_suspend_power_state(
         &self,
-    ) -> PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> {
+    ) -> PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex> {
         PsciCompositePowerState::OFF
     }
 
@@ -1109,7 +1132,11 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for FvpPsciPl
 
     fn power_domain_validate_suspend(
         &self,
-        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        _target_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) -> Result<(), ErrorCode> {
         Ok(())
     }

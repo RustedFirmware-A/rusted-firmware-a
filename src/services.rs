@@ -20,10 +20,14 @@ use crate::{
     gicv3::{self, InterruptType},
     platform::{
         PSCI_MAX_POWER_LEVEL, PSCI_STATE_COUNT, Platform, PlatformImpl, PlatformServiceImpl,
-        exception_free,
+        PsciPlatformImpl, exception_free,
     },
     services::{
-        arch::Arch, errata_management::ErrataManagement, ffa::spmd::Spmd, psci::Psci, trng::Trng,
+        arch::Arch,
+        errata_management::ErrataManagement,
+        ffa::spmd::Spmd,
+        psci::{Psci, PsciPlatformInterface},
+        trng::Trng,
     },
     smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
@@ -93,7 +97,11 @@ static SERVICES: Lazy<Services> = Lazy::new(Services::new);
 /// Contains an instance of all of the currently implemented services.
 pub struct Services {
     arch: Arch,
-    pub psci: Psci<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+    pub psci: Psci<
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        <PsciPlatformImpl as PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>>::NodeIndex,
+    >,
     platform: PlatformServiceImpl,
     /// The FF-A SPMD service.
     pub spmd: Spmd,

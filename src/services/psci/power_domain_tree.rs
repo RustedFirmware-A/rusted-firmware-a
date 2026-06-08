@@ -4,7 +4,7 @@
 
 //! Collection of structures for describing the power domain tree.
 
-use super::{CPU_POWER_LEVEL, NodeIndex, PlatformPowerState, PlatformPowerStateInterface as _};
+use super::{CPU_POWER_LEVEL, PlatformPowerState, PlatformPowerStateInterface as _};
 use crate::services::psci::NodeIndexInterface;
 use arm_psci::{AffinityInfo, EntryPoint};
 use arrayvec::ArrayVec;
@@ -17,7 +17,11 @@ use spin::mutex::{SpinMutex, SpinMutexGuard};
 
 /// Represents a non-CPU power domain node in the power domain tree.
 #[derive(Debug)]
-pub struct NonCpuPowerNode<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize> {
+pub struct NonCpuPowerNode<
+    const CPU_DOMAIN_COUNT: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    NodeIndex: NodeIndexInterface,
+> {
     /// Parent node index or None if it is the top level node
     parent: Option<NodeIndex>,
     /// Local power state of the node
@@ -45,16 +49,19 @@ pub struct NonCpuPowerNode<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_C
     // required capacity for each node.
 }
 
-impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize>
-    NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>
+impl<
+    const CPU_DOMAIN_COUNT: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    NodeIndex: NodeIndexInterface,
+> NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>
 {
     /// Create new non-CPU power node and assign its parent node index.
     pub fn new(parent: Option<NodeIndex>) -> Self {
         Self {
             parent,
             local_state: PlatformPowerState::OFF,
-            cpu_range: 0..0,
-            non_cpu_range: 0..0,
+            cpu_range: 0.into()..0.into(),
+            non_cpu_range: 0.into()..0.into(),
             requested_states: ArrayVec::new(),
             suspend_states: ArrayVec::new(),
             non_cpu_states: ArrayVec::new(),
@@ -64,10 +71,10 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize>
     /// Assign descendant CPU node index incrementally.
     fn assign_cpu(&mut self, cpu_index: NodeIndex) {
         if self.cpu_range.is_empty() {
-            self.cpu_range = cpu_index..cpu_index + 1;
+            self.cpu_range = cpu_index..cpu_index + 1.into();
         } else {
             debug_assert_eq!(self.cpu_range.end, cpu_index);
-            self.cpu_range.end += 1;
+            self.cpu_range.end += 1.into();
         }
 
         self.requested_states.push(PlatformPowerState::OFF);
@@ -77,10 +84,10 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize>
     /// Assigns direct descendant non-CPU node index incrementally.
     fn assign_non_cpu(&mut self, non_cpu_index: NodeIndex) {
         if self.non_cpu_range.is_empty() {
-            self.non_cpu_range = non_cpu_index..non_cpu_index + 1;
+            self.non_cpu_range = non_cpu_index..non_cpu_index + 1.into();
         } else {
             debug_assert_eq!(self.non_cpu_range.end, non_cpu_index);
-            self.non_cpu_range.end += 1;
+            self.non_cpu_range.end += 1.into();
         }
 
         self.non_cpu_states.push(PlatformPowerState::OFF);
@@ -89,25 +96,25 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize>
     /// Store the requested power state of a descendant CPU node.
     pub fn set_requested_power_state(&mut self, cpu_index: NodeIndex, state: PlatformPowerState) {
         assert!(self.cpu_range.contains(&cpu_index));
-        self.requested_states[usize::from(cpu_index - self.cpu_range.start)] = state;
+        self.requested_states[(cpu_index - self.cpu_range.start).into()] = state;
     }
 
     /// Sets the requested suspend state of a descendant CPU node.
     pub fn set_suspend_state(&mut self, cpu_index: NodeIndex, state: PlatformPowerState) {
         assert!(self.cpu_range.contains(&cpu_index));
-        self.suspend_states[usize::from(cpu_index - self.cpu_range.start)] = Some(state);
+        self.suspend_states[(cpu_index - self.cpu_range.start).into()] = Some(state);
     }
 
     /// Clears the requested suspend state of a descendant CPU node.
     pub fn clear_suspend_state(&mut self, cpu_index: NodeIndex) {
         assert!(self.cpu_range.contains(&cpu_index));
-        self.suspend_states[usize::from(cpu_index - self.cpu_range.start)] = None;
+        self.suspend_states[(cpu_index - self.cpu_range.start).into()] = None;
     }
 
     /// Sets the state of direct descendant non-CPU nodes.
     pub fn set_non_cpu_state(&mut self, non_cpu_index: NodeIndex, state: PlatformPowerState) {
         assert!(self.non_cpu_range.contains(&non_cpu_index));
-        self.non_cpu_states[usize::from(non_cpu_index - self.non_cpu_range.start)] = state;
+        self.non_cpu_states[(non_cpu_index - self.non_cpu_range.start).into()] = state;
     }
 
     /// Checks if all the cores are non-running state except the one identified by `cpu_index`. If
@@ -150,9 +157,10 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize>
         // still need to keep the parent node on. This must prevent turning off higher level
         // ancestors.
         if let Some(non_cpu_index) = non_cpu_index {
+            let non_cpu_index = non_cpu_index.into();
             self.non_cpu_states
                 .iter()
-                .zip(self.non_cpu_range.clone())
+                .zip(self.non_cpu_range.start.into()..self.non_cpu_range.end.into())
                 .filter_map(|(state, i)| {
                     if i != non_cpu_index {
                         Some(state)
@@ -190,7 +198,7 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize>
         &self,
         skip_cpu_index: NodeIndex,
     ) -> impl Iterator<Item = (&PlatformPowerState, &Option<PlatformPowerState>)> {
-        let skip = usize::from(skip_cpu_index - self.cpu_range.start);
+        let skip = (skip_cpu_index - self.cpu_range.start).into();
 
         self.requested_states
             .iter()
@@ -206,7 +214,7 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize>
 
 /// Represents a CPU power domain node in the power domain tree.
 #[derive(Debug)]
-pub struct CpuPowerNode {
+pub struct CpuPowerNode<NodeIndex: NodeIndexInterface> {
     /// Parent non-CPU power node index
     parent: NodeIndex,
     /// Current affinity info of the CPU
@@ -217,7 +225,7 @@ pub struct CpuPowerNode {
     entry_point: Option<EntryPoint>,
 }
 
-impl CpuPowerNode {
+impl<NodeIndex: NodeIndexInterface> CpuPowerNode<NodeIndex> {
     pub fn new(parent: NodeIndex) -> Self {
         Self {
             parent,
@@ -267,9 +275,10 @@ pub struct AncestorPowerDomains<
     const CPU_DOMAIN_COUNT: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     const MAX_POWER_LEVEL: usize,
+    NodeIndex: NodeIndexInterface,
 > {
     list: ArrayVec<
-        SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>>,
+        SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>>,
         MAX_POWER_LEVEL,
     >,
     indices: ArrayVec<NodeIndex, MAX_POWER_LEVEL>,
@@ -280,13 +289,16 @@ impl<
     const CPU_DOMAIN_COUNT: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     const MAX_POWER_LEVEL: usize,
-> AncestorPowerDomains<'a, CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL>
+    NodeIndex: NodeIndexInterface,
+> AncestorPowerDomains<'a, CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL, NodeIndex>
 {
     /// Lock the selected node and its ancestors up to `max_level`.
     pub fn new_with_max_level(
         index: NodeIndex,
         max_level: usize,
-        mutexes: &'a [SpinMutex<NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>>],
+        mutexes: &'a [SpinMutex<
+            NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>,
+        >],
     ) -> Self {
         let mut list = ArrayVec::new();
         let mut indices = ArrayVec::new();
@@ -299,7 +311,7 @@ impl<
                 break;
             }
 
-            let locked = mutexes[usize::from(index)].lock();
+            let locked = mutexes[index.into()].lock();
             parent = locked.parent;
             list.push(locked);
             indices.push(index);
@@ -312,15 +324,20 @@ impl<
     /// Creates immutable iterator starting from the lowest level.
     pub fn iter(
         &self,
-    ) -> Iter<'_, SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>>> {
+    ) -> Iter<
+        '_,
+        SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>>,
+    > {
         self.list.iter()
     }
 
     /// Creates mutable iterator starting from the lowest level.
     pub fn iter_mut(
         &mut self,
-    ) -> IterMut<'_, SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>>>
-    {
+    ) -> IterMut<
+        '_,
+        SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>>,
+    > {
         self.list.iter_mut()
     }
 
@@ -330,7 +347,7 @@ impl<
     ) -> impl Iterator<
         Item = (
             NodeIndex,
-            &SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>>,
+            &SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>>,
         ),
     > {
         self.indices.iter().copied().zip(self.list.iter())
@@ -342,7 +359,10 @@ impl<
     ) -> impl Iterator<
         Item = (
             NodeIndex,
-            &mut SpinMutexGuard<'a, NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>>,
+            &mut SpinMutexGuard<
+                'a,
+                NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>,
+            >,
         ),
     > {
         self.indices.iter().copied().zip(self.list.iter_mut())
@@ -389,8 +409,13 @@ impl<
     }
 }
 
-impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX_POWER_LEVEL: usize>
-    Drop for AncestorPowerDomains<'_, CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL>
+impl<
+    const CPU_DOMAIN_COUNT: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    const MAX_POWER_LEVEL: usize,
+    NodeIndex: NodeIndexInterface,
+> Drop
+    for AncestorPowerDomains<'_, CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL, NodeIndex>
 {
     fn drop(&mut self) {
         while let Some(guard) = self.list.pop() {
@@ -409,16 +434,21 @@ pub struct PowerDomainTree<
     const CPU_DOMAIN_COUNT: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     const MAX_POWER_LEVEL: usize,
+    NodeIndex: NodeIndexInterface,
 > {
     non_cpu_power_nodes: ArrayVec<
-        SpinMutex<NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>>,
+        SpinMutex<NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>>,
         NON_CPU_DOMAIN_COUNT,
     >,
-    cpu_power_nodes: ArrayVec<SpinMutex<CpuPowerNode>, CPU_DOMAIN_COUNT>,
+    cpu_power_nodes: ArrayVec<SpinMutex<CpuPowerNode<NodeIndex>>, CPU_DOMAIN_COUNT>,
 }
 
-impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX_POWER_LEVEL: usize>
-    PowerDomainTree<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL>
+impl<
+    const CPU_DOMAIN_COUNT: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    const MAX_POWER_LEVEL: usize,
+    NodeIndex: NodeIndexInterface,
+> PowerDomainTree<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL, NodeIndex>
 {
     /// Create power domain tree based on the BFS format topology description.
     pub fn new(topology: &[usize]) -> Self {
@@ -430,25 +460,25 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX
 
         // Initialize non-CPU power nodes.
         let mut non_cpu_power_nodes: ArrayVec<
-            SpinMutex<NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>>,
+            SpinMutex<NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>>,
             NON_CPU_DOMAIN_COUNT,
         > = ArrayVec::new();
         let mut node_index = 0..NON_CPU_DOMAIN_COUNT;
         let mut node_count: usize = 1;
-        let mut parent_node_index: NodeIndex = 0;
+        let mut parent_node_index: NodeIndex = 0.into();
         let mut parent_node = None;
 
         for _ in (CPU_POWER_LEVEL + 1..=MAX_POWER_LEVEL).rev() {
             let mut next_level_node_count = 0;
 
             for _ in 0..node_count {
-                let child_count = topology[usize::from(parent_node_index)];
+                let child_count = topology[parent_node_index.into()];
 
                 for index in (&mut node_index).take(child_count) {
                     non_cpu_power_nodes.push(SpinMutex::new(NonCpuPowerNode::new(parent_node)));
 
                     if let Some(parent_index) = parent_node {
-                        non_cpu_power_nodes[usize::from(parent_index)]
+                        non_cpu_power_nodes[parent_index.into()]
                             .lock()
                             .assign_non_cpu(index.try_into().unwrap());
                     }
@@ -456,7 +486,7 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX
 
                 parent_node = Some(parent_node_index);
                 next_level_node_count += child_count;
-                parent_node_index += 1;
+                parent_node_index += 1.into();
             }
 
             node_count = next_level_node_count;
@@ -467,14 +497,20 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX
 
         // Initialize CPU power nodes.
         let mut cpu_power_nodes = ArrayVec::new();
-        let mut node_index = 0 as NodeIndex..CPU_DOMAIN_COUNT as NodeIndex;
-        for num_children in &topology[usize::from(parent_node_index)..] {
+        let mut node_index = 0..CPU_DOMAIN_COUNT;
+        for num_children in &topology[parent_node_index.into()..] {
             for cpu_index in (&mut node_index).take(*num_children) {
-                cpu_power_nodes.push(SpinMutex::new(CpuPowerNode::new(parent_node_index - 1)));
-                Self::assign_cpu(&non_cpu_power_nodes, parent_node_index - 1, cpu_index);
+                cpu_power_nodes.push(SpinMutex::new(CpuPowerNode::new(
+                    parent_node_index - 1.into(),
+                )));
+                Self::assign_cpu(
+                    &non_cpu_power_nodes,
+                    parent_node_index - 1.into(),
+                    cpu_index.try_into().unwrap(),
+                );
             }
 
-            parent_node_index += 1;
+            parent_node_index += 1.into();
         }
 
         // Check if the expected number of CPU nodes has been created.
@@ -490,12 +526,12 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX
     /// This can be only done when the BFS traversal reaches the CPU level.
     fn assign_cpu(
         non_cpu_power_nodes: &[SpinMutex<
-            NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT>,
+            NonCpuPowerNode<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, NodeIndex>,
         >],
         parent_index: NodeIndex,
         cpu_index: NodeIndex,
     ) {
-        let mut node = non_cpu_power_nodes[usize::from(parent_index)].lock();
+        let mut node = non_cpu_power_nodes[parent_index.into()].lock();
         node.assign_cpu(cpu_index);
         if let Some(parent_index) = node.parent {
             Self::assign_cpu(non_cpu_power_nodes, parent_index, cpu_index);
@@ -506,7 +542,7 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX
     pub fn is_last_cpu(&self, cpu_index: NodeIndex) -> bool {
         self.cpu_power_nodes.iter().enumerate().all(|(index, cpu)| {
             let locked_cpu = cpu.lock();
-            if index == usize::from(cpu_index) {
+            if index == cpu_index.into() {
                 assert_eq!(locked_cpu.affinity_info(), AffinityInfo::On);
                 true
             } else {
@@ -516,19 +552,28 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX
     }
 
     /// Return a lock-guarded CPU node by its index.
-    pub fn locked_cpu_node(&self, cpu_index: NodeIndex) -> SpinMutexGuard<'_, CpuPowerNode> {
-        self.cpu_power_nodes[usize::from(cpu_index)].lock()
+    pub fn locked_cpu_node(
+        &self,
+        cpu_index: NodeIndex,
+    ) -> SpinMutexGuard<'_, CpuPowerNode<NodeIndex>> {
+        self.cpu_power_nodes[cpu_index.into()].lock()
     }
 
     /// Locks all ancestor nodes of a CPU, runs the closure and unlocks the nodes.
     /// This function ensures that power cordination is only possible with the proper locks
     /// acquired and it avoid deadlocks by always locking the nodes from the lowest level to the
     /// highest.
-    pub fn with_ancestors_locked<F, T>(&self, cpu: &mut CpuPowerNode, f: F) -> T
+    pub fn with_ancestors_locked<F, T>(&self, cpu: &mut CpuPowerNode<NodeIndex>, f: F) -> T
     where
         F: FnOnce(
-            &mut CpuPowerNode,
-            AncestorPowerDomains<'_, CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL>,
+            &mut CpuPowerNode<NodeIndex>,
+            AncestorPowerDomains<
+                '_,
+                CPU_DOMAIN_COUNT,
+                NON_CPU_DOMAIN_COUNT,
+                MAX_POWER_LEVEL,
+                NodeIndex,
+            >,
         ) -> T,
     {
         self.with_ancestors_locked_to_max_level(cpu, MAX_POWER_LEVEL, f)
@@ -540,14 +585,20 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX
     /// highest.
     pub fn with_ancestors_locked_to_max_level<F, T>(
         &self,
-        cpu: &mut CpuPowerNode,
+        cpu: &mut CpuPowerNode<NodeIndex>,
         max_level: usize,
         f: F,
     ) -> T
     where
         F: FnOnce(
-            &mut CpuPowerNode,
-            AncestorPowerDomains<'_, CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL>,
+            &mut CpuPowerNode<NodeIndex>,
+            AncestorPowerDomains<
+                '_,
+                CPU_DOMAIN_COUNT,
+                NON_CPU_DOMAIN_COUNT,
+                MAX_POWER_LEVEL,
+                NodeIndex,
+            >,
         ) -> T,
     {
         let lock_list = AncestorPowerDomains::new_with_max_level(
@@ -566,8 +617,12 @@ impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX
     }
 }
 
-impl<const CPU_DOMAIN_COUNT: usize, const NON_CPU_DOMAIN_COUNT: usize, const MAX_POWER_LEVEL: usize>
-    Debug for PowerDomainTree<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL>
+impl<
+    const CPU_DOMAIN_COUNT: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    const MAX_POWER_LEVEL: usize,
+    NodeIndex: NodeIndexInterface,
+> Debug for PowerDomainTree<CPU_DOMAIN_COUNT, NON_CPU_DOMAIN_COUNT, MAX_POWER_LEVEL, NodeIndex>
 {
     /// Outputs the tree in Graphviz DOT format.
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -621,6 +676,7 @@ pub mod test_helpers {
             { TestPlatform::CORE_COUNT },
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
+            u8,
         >,
         cpu_index: usize,
         state: PlatformPowerState,
@@ -656,8 +712,9 @@ mod tests {
             { TestPlatform::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            u8,
         >,
-        cpu_index: NodeIndex,
+        cpu_index: u8,
         end_power_level: usize,
     ) -> bool {
         let mut cpu = tree.locked_cpu_node(cpu_index);
@@ -669,7 +726,7 @@ mod tests {
     #[test]
     fn non_cpu_power_node() {
         let mut node =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT>::new(Some(1));
+            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8>::new(Some(1));
         assert_eq!(node.parent, Some(1));
         assert_eq!(PlatformPowerState::OFF, node.local_state);
         assert!(node.cpu_range.is_empty());
@@ -713,7 +770,7 @@ mod tests {
     #[test]
     fn non_cpu_power_node_is_last_cpu_to_idle() {
         let mut node =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT>::new(Some(0));
+            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8>::new(Some(0));
         for cpu_index in 0..3 {
             node.assign_cpu(cpu_index);
         }
@@ -743,7 +800,7 @@ mod tests {
     #[test]
     fn non_cpu_power_node_get_osi_minimal_allowed_state_without_core() {
         let mut node0 =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT>::new(Some(0));
+            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8>::new(Some(0));
         for cpu_index in 0..3 {
             node0.assign_cpu(cpu_index);
         }
@@ -772,7 +829,7 @@ mod tests {
         );
 
         let mut node1 =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT>::new(Some(1));
+            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8>::new(Some(1));
         node1.assign_cpu(3);
         assert_eq!(
             node1.get_osi_minimal_allowed_state_without_core(3, None),
@@ -783,7 +840,7 @@ mod tests {
     #[test]
     fn non_cpu_power_node_get_osi_minimal_allowed_state_with_running_non_cpu() {
         let mut node0 =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT>::new(Some(0));
+            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8>::new(Some(0));
         for cpu_index in 0..3 {
             node0.assign_cpu(cpu_index);
         }
@@ -810,7 +867,7 @@ mod tests {
     #[should_panic]
     fn non_cpu_power_node_invalid_cpu_request() {
         let mut node =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT>::new(Some(1));
+            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8>::new(Some(1));
         node.assign_cpu(2);
         node.assign_cpu(3);
         node.set_requested_power_state(4, PlatformPowerState::RUN);
@@ -818,7 +875,7 @@ mod tests {
 
     #[test]
     fn cpu_power_node() {
-        let mut node = CpuPowerNode::new(3);
+        let mut node = CpuPowerNode::new(3u8);
         assert_eq!(3, node.parent);
         assert_eq!(AffinityInfo::Off, node.affinity_info());
         assert_eq!(PlatformPowerState::OFF, node.local_state());
@@ -848,7 +905,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn cpu_power_node_overwrite_entry() {
-        let mut node = CpuPowerNode::new(3);
+        let mut node = CpuPowerNode::new(3u8);
 
         node.set_entry_point(EntryPoint::Entry32 {
             entry_point_address: 1,
@@ -866,6 +923,7 @@ mod tests {
             { TestPlatform::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            u8,
         >::new(TestPsciPlatformImpl::topology());
         let non_cpu_parents = [None, Some(0), Some(0), Some(1), Some(1), Some(2), Some(2)];
         let non_cpu_ranges = [0..13, 0..6, 6..13, 0..3, 3..6, 6..9, 9..13];
@@ -895,6 +953,7 @@ mod tests {
             { TestPlatform::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            u8,
         >::new(TestPsciPlatformImpl::topology());
 
         tree.locked_cpu_node(2).set_affinity_info(AffinityInfo::On);
@@ -911,6 +970,7 @@ mod tests {
             { TestPlatform::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            u8,
         >::new(TestPsciPlatformImpl::topology());
 
         let mut cpu = tree.locked_cpu_node(4);
@@ -936,6 +996,7 @@ mod tests {
             { TestPlatform::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            u8,
         >::new(TestPsciPlatformImpl::topology());
         for cpu in &tree.cpu_power_nodes {
             cpu.lock().set_affinity_info(AffinityInfo::On);
@@ -949,6 +1010,7 @@ mod tests {
             { TestPlatform::CORE_COUNT },
             NON_CPU_DOMAIN_COUNT,
             PSCI_MAX_POWER_LEVEL,
+            u8,
         >::new(TestPsciPlatformImpl::topology());
         for cpu in &tree.cpu_power_nodes {
             cpu.lock().set_affinity_info(AffinityInfo::On);
@@ -973,6 +1035,7 @@ mod tests {
             { TestPlatform::CORE_COUNT },
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
+            u8,
         >::new(TestPsciPlatformImpl::topology());
         for cpu in &tree.cpu_power_nodes {
             cpu.lock().set_affinity_info(AffinityInfo::Off);

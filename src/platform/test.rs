@@ -390,7 +390,8 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
 
     fn try_parse_power_state(
         power_state: PowerState,
-    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>> {
+    ) -> Option<PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex>>
+    {
         let states = match power_state {
             PowerState::StandbyOrRetention(0) => [
                 TestPowerState::Standby0,
@@ -441,7 +442,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
         };
         Some(PsciCompositePowerState::new_with_last_power_level(
             states,
-            PsciCompositePowerState::<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>::new(states)
+            PsciCompositePowerState::<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex>::new(states)
                 .find_highest_non_run_level()
                 .unwrap(),
         ))
@@ -451,33 +452,53 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
 
     fn power_domain_suspend(
         &self,
-        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        _target_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
     }
 
     fn power_domain_suspend_finish(
         &self,
-        _previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        _previous_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
     }
 
     fn power_domain_validate_suspend(
         &self,
-        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        _target_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) -> Result<(), ErrorCode> {
         Ok(())
     }
 
     fn power_domain_off(
         &self,
-        target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        target_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
         assert_eq!(target_state.cpu_level_state(), TestPowerState::PowerDown);
     }
 
     fn power_domain_power_down(
         &self,
-        _target_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        _target_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
         // SAFETY: `disable_mmu_el3` is safe to call here as it doesn't actually do anything with
         // the MMU in tests.
@@ -494,7 +515,11 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
 
     fn power_domain_on_finish(
         &self,
-        _previous_state: &PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL>,
+        _previous_state: &PsciCompositePowerState<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            Self::NodeIndex,
+        >,
     ) {
     }
 
@@ -540,7 +565,7 @@ impl PsciPlatformInterface<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> for TestPsciP
 
     fn sys_suspend_power_state(
         &self,
-    ) -> PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL> {
+    ) -> PsciCompositePowerState<PSCI_STATE_COUNT, PSCI_MAX_POWER_LEVEL, Self::NodeIndex> {
         PsciCompositePowerState::OFF
     }
 }

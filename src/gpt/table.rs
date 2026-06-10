@@ -146,6 +146,7 @@ impl Level0Descriptor {
     const TAG_MASK: u64 = mask!(4);
     const BLOCK_TAG: u64 = 0b0001;
     const TABLE_TAG: u64 = 0b0011;
+    const BLOCK_GPI_SHIFT: u64 = 4;
 
     const TABLE_ADDR_LEN: usize = 52;
     const TABLE_ADDR_ALIGN: usize = 12;
@@ -168,7 +169,9 @@ impl Level0Descriptor {
     /// Returns a [`BlockDescriptorRef`] referencing `self`, or [`None`] if self does not contain
     /// a Block Descriptor.
     #[allow(unused)]
-    pub const fn as_block<'a>(&'a self) -> Option<BlockDescriptorRef<'a>> {
+    pub fn as_block<'a>(&'a self) -> Option<BlockDescriptorRef<'a>> {
+        let _gpi = GPIAccessType::try_from((self.0 >> Self::BLOCK_GPI_SHIFT) & GPIAccessType::MASK)
+            .ok()?;
         if self.0 & Self::TAG_MASK == Self::BLOCK_TAG {
             Some(BlockDescriptorRef(self))
         } else {
@@ -272,12 +275,19 @@ pub(crate) struct Level1Descriptor(u64);
 impl Level1Descriptor {
     const TAG_MASK: u64 = mask!(4);
     const CONTIG_TAG: u64 = 0b0001;
+    const CONTIG_GPI_SHIFT: u64 = 4;
+    const CONTIG_SIZE_SHIFT: u64 = 8;
 
     /// Tries to create a view of this Level 1 Descriptor as a Contig Descriptor.
     ///
     /// Returns a [`ContiguousDescriptorRef`] referencing `self`, or [`None`] if self does not contain
     /// a Contig Descriptor.
-    pub const fn as_contig<'a>(&'a self) -> Option<ContiguousDescriptorRef<'a>> {
+    pub fn as_contig<'a>(&'a self) -> Option<ContiguousDescriptorRef<'a>> {
+        let _size =
+            ContigSize::try_from((self.0 >> Self::CONTIG_SIZE_SHIFT) & ContigSize::MASK).ok()?;
+        let _gpi =
+            GPIAccessType::try_from((self.0 >> Self::CONTIG_GPI_SHIFT) & GPIAccessType::MASK)
+                .ok()?;
         if self.0 & Self::TAG_MASK == Self::CONTIG_TAG {
             Some(ContiguousDescriptorRef(self))
         } else {
@@ -293,13 +303,19 @@ impl Level1Descriptor {
         Self(Self::CONTIG_TAG | (size & ContigSize::MASK) << 8 | (gpi & GPIAccessType::MASK) << 4)
     }
 
+    fn valid_granule(&self) -> bool {
+        (0..64)
+            .step_by(4)
+            .all(|i| GPIAccessType::try_from((self.0 >> i) & GPIAccessType::MASK).is_ok())
+    }
+
     /// Tries to create a view of this Level 1 Descriptor as a Granule Descriptor.
     ///
     /// Returns a [`GranuleDescriptorRef`] referencing `self`, or [`None`] if self does not contain
     /// a Granule Descriptor.
     #[allow(unused)]
     pub fn as_granule<'a>(&'a self) -> Option<GranuleDescriptorRef<'a>> {
-        if GPIAccessType::try_from(self.0 & GPIAccessType::MASK).is_ok() {
+        if self.valid_granule() {
             Some(GranuleDescriptorRef(self))
         } else {
             None
@@ -311,7 +327,7 @@ impl Level1Descriptor {
     /// Returns a [`GranuleDescriptorRefMut`] mutably referencing `self`, or [`None`] if self does not
     /// contain a Granule Descriptor.
     pub fn as_granule_mut<'a>(&'a mut self) -> Option<GranuleDescriptorRefMut<'a>> {
-        if GPIAccessType::try_from(self.0 & GPIAccessType::MASK).is_ok() {
+        if self.valid_granule() {
             Some(GranuleDescriptorRefMut(self))
         } else {
             None
@@ -442,6 +458,7 @@ mod tests {
     #[test]
     fn as_block_invalid() {
         assert!(Level0Descriptor(0).as_block().is_none());
+        assert!(Level0Descriptor(0b0010_0001).as_block().is_none());
     }
 
     #[test]
@@ -489,7 +506,12 @@ mod tests {
 
     #[test]
     fn as_contig_invalid() {
+        // valid size, valid gpi, invalid contig tag.
         assert!(Level1Descriptor(0b11_1001_0000).as_contig().is_none());
+        // invalid size, valid gpi, valid contig tag.
+        assert!(Level1Descriptor(0b00_1001_0001).as_contig().is_none());
+        // valid size, invalid gpi, valid contig tag.
+        assert!(Level1Descriptor(0b01_0010_0001).as_contig().is_none());
     }
 
     #[test]
@@ -520,6 +542,8 @@ mod tests {
     fn as_granule_invalid() {
         assert!(Level1Descriptor(1).as_granule().is_none());
         assert!(Level1Descriptor(1).as_granule_mut().is_none());
+        assert!(Level1Descriptor(0xB19F).as_granule().is_none());
+        assert!(Level1Descriptor(0xB19F).as_granule_mut().is_none());
     }
 
     #[test]

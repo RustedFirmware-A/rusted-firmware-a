@@ -36,11 +36,12 @@ use spin::{
     mutex::{SpinMutex, SpinMutexGuard},
 };
 
+/// An error with an address for RME.
 #[cfg(feature = "rme")]
 pub enum Error {
     /// The address is out of range.
     AddressOutOfRange,
-    /// The [`GPIAccessType`] value cannot be mapped to a [`PhysicalAddressSpace`] value.
+    /// The `GPIAccessType` value cannot be mapped to a `PhysicalAddressSpace` value.
     InvalidGPI,
 }
 

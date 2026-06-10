@@ -18,7 +18,7 @@ pub const fn const_zeroed<T: FromZeros>() -> T {
 /// Declares a static zero-initialised `$t`, and a SpinMutex initialised with a mutable reference to
 /// it. E.g.,
 ///
-/// ```compile_fail
+/// ```
 /// use rf_a_bl31::dram::zeroed_mut;
 ///
 /// zeroed_mut!(FOO, u64);
@@ -35,19 +35,20 @@ pub const fn const_zeroed<T: FromZeros>() -> T {
 /// Attributes can optionally be provided both for the underlying static and for the `SpinMutex`
 /// wrapper, e.g.:
 ///
-/// ```compile_fail
+/// ```
 /// use rf_a_bl31::dram::zeroed_mut;
 ///
+/// # #[cfg(any(target_os = "none", target_os = "linux"))]
 /// zeroed_mut! {
 ///     /// Rustdoc comment for FOO.
 ///     pub FOO, u64, unsafe(link_section = ".bss.dram")
 /// }
 /// ```
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! zeroed_mut {
     ($(#[$attributes:meta])* $visibility:vis $name:ident, $t:ty $(, $raw_attributes:meta)*) => {
         $(#[$attributes])*
-        $visibility static $name: spin::mutex::SpinMutex<&'static mut $t> = spin::mutex::SpinMutex::new({
+        $visibility static $name: $crate::reexports::spin::mutex::SpinMutex<&'static mut $t> = $crate::reexports::spin::mutex::SpinMutex::new({
             $(#[$raw_attributes])*
             static mut RAW: $t = $crate::dram::const_zeroed();
             // SAFETY: This is the only place where we create a reference to the contents of this
@@ -56,14 +57,13 @@ macro_rules! zeroed_mut {
         });
     };
 }
-#[allow(unused)]
-pub(crate) use zeroed_mut;
+pub use zeroed_mut;
 
 /// Declares a static lazily-initialised `$t` which may reside in zero-initialised memory.
 ///
 /// For example:
 ///
-/// ```compile_fail
+/// ```
 /// use rf_a_bl31::dram::lazy_indirect;
 ///
 /// lazy_indirect!(FOO, u64, 42);
@@ -79,19 +79,20 @@ pub(crate) use zeroed_mut;
 /// a different section of memory. Attributes can optionally be provided both for the underlying
 /// static and for the `Lazy` wrapper, e.g.:
 ///
-/// ```compile_fail
+/// ```
 /// use rf_a_bl31::dram::lazy_indirect;
 ///
+/// # #[cfg(any(target_os = "none", target_os = "linux"))]
 /// lazy_indirect! {
 ///     /// Rustdoc comment for FOO.
 ///     pub FOO, u64, 42, unsafe(link_section = ".bss.dram")
 /// }
 /// ```
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! lazy_indirect {
     ($(#[$attributes:meta])* $visibility:vis $name:ident, $t:ty, $init:expr $(, $raw_attributes:meta)*) => {
         $(#[$attributes])*
-        $visibility static $name: spin::Lazy<&$t> = spin::Lazy::new(|| {
+        $visibility static $name: $crate::reexports::spin::Lazy<&$t> = $crate::reexports::spin::Lazy::new(|| {
             $(#[$raw_attributes])*
             static mut RAW: core::mem::MaybeUninit<$t> =
                 $crate::dram::const_zeroed();
@@ -101,8 +102,7 @@ macro_rules! lazy_indirect {
         });
     };
 }
-#[allow(unused)]
-pub(crate) use lazy_indirect;
+pub use lazy_indirect;
 
 #[cfg(test)]
 mod tests {

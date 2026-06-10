@@ -79,6 +79,7 @@ pub trait NodeIndexInterface:
     + TryFrom<usize, Error: Debug>
     + 'static
 {
+    /// The highest possible value of the type.
     const MAX: usize;
 }
 

@@ -6,30 +6,29 @@
 
 #![cfg_attr(not(any(test, feature = "fakes")), no_std)]
 
-mod aarch64;
-mod context;
+pub mod aarch64;
+pub mod context;
 pub mod cpu;
-mod cpu_extensions;
+pub mod cpu_extensions;
 #[cfg(not(any(test, feature = "fakes")))]
 mod crash_console;
-mod debug;
-mod dram;
-mod errata_framework;
+pub mod debug;
+pub mod dram;
+pub mod errata_framework;
 mod exceptions;
-mod gicv3;
+pub mod gicv3;
 #[cfg(feature = "rme")]
 mod gpt;
 #[cfg_attr(test, path = "layout_fake.rs")]
 mod layout;
-mod logger;
-mod pagetable;
+pub mod logger;
+pub mod pagetable;
 mod platform;
 pub mod reexports;
-#[cfg(platform = "qemu")]
-mod semihosting;
-mod services;
+pub mod semihosting;
+pub mod services;
 mod smccc;
-mod stacks;
+pub mod stacks;
 
 #[cfg(feature = "pauth")]
 use crate::cpu_extensions::pauth;

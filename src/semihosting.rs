@@ -9,43 +9,27 @@
 use core::arch::asm;
 
 /// `SYS_*` operation codes from the semihosting spec.
+#[allow(unused)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
 enum Operation {
-    #[allow(unused)]
     Open = 0x01,
-    #[allow(unused)]
     Close = 0x02,
-    #[allow(unused)]
     Write0 = 0x04,
-    #[allow(unused)]
     Writec = 0x03,
-    #[allow(unused)]
     Write = 0x05,
-    #[allow(unused)]
     Read = 0x06,
-    #[allow(unused)]
     Readc = 0x07,
-    #[allow(unused)]
     Seek = 0x0A,
-    #[allow(unused)]
     Flen = 0x0C,
-    #[allow(unused)]
     Remove = 0x0E,
-    #[allow(unused)]
     Clock = 0x10,
-    #[allow(unused)]
     Time = 0x11,
-    #[allow(unused)]
     System = 0x12,
-    #[allow(unused)]
     Errno = 0x13,
     Exit = 0x18,
-    #[allow(unused)]
     ExitExtended = 0x20,
-    #[allow(unused)]
     Elapsed = 0x30,
-    #[allow(unused)]
     Tickfreq = 0x31,
 }
 

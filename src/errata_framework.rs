@@ -134,6 +134,7 @@ pub unsafe trait PlatformErrata {
 }
 
 /// Calculates the count of specified Erratum types.
+#[macro_export]
 macro_rules! errata_count {
     () => { 0 };
     ($erratum:ty) => { 1 };
@@ -141,9 +142,10 @@ macro_rules! errata_count {
         $crate::errata_framework::errata_count!($erratum) + $crate::errata_framework::errata_count!($($errata),+)
     };
 }
-pub(crate) use errata_count;
+pub use errata_count;
 
 /// Declares the ERRATA_LIST array.
+#[macro_export]
 macro_rules! define_errata_list {
     ($platform:ty, [$($erratum:ty),*]) => {
         static ERRATA_LIST : [$crate::errata_framework::ErratumEntry; $crate::errata_framework::errata_count!($($erratum),*)] = [
@@ -207,7 +209,7 @@ macro_rules! define_errata_list {
         }
     }
 }
-pub(crate) use define_errata_list;
+pub use define_errata_list;
 
 /// Implements the logic for an erratum `check` function in assembly.
 ///
@@ -246,7 +248,7 @@ pub(crate) use define_errata_list;
 ///     // ...
 /// }
 /// ```
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! implement_erratum_check {
     ($midr:expr, $apply_from:expr, $fixed_in:expr $(,)?) => {
         {
@@ -313,5 +315,4 @@ macro_rules! implement_erratum_check {
         }
     };
 }
-#[allow(unused)]
-pub(crate) use implement_erratum_check;
+pub use implement_erratum_check;

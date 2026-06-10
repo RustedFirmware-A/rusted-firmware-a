@@ -770,6 +770,14 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuStates<CORE_COUNT, Plat
     }
 }
 
+impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default
+    for CpuStates<CORE_COUNT, PlatformImpl>
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Methods to access the `CpuState` for the platform.
 ///
 /// Implemented for the platform by the `statics!` macro, platforms shouldn't implement it manually.

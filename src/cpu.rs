@@ -212,6 +212,7 @@ pub extern "C" fn cpu_reset_handler<PlatformImpl: PlatformCpuOps>() {
 }
 
 /// Finds the CPU operations for the current CPU and calls the reset handler for it.
+/// Clobbers x0-x4, x16.
 #[cfg(not(any(test, feature = "fakes")))]
 #[unsafe(naked)]
 pub extern "C" fn cpu_reset_handler<PlatformImpl: PlatformCpuOps>() {
@@ -222,8 +223,8 @@ pub extern "C" fn cpu_reset_handler<PlatformImpl: PlatformCpuOps>() {
         cbz	x0, 1f
 
         /* Read and jump to reset handler function */
-        ldr	x1, [x0, #{reset_handler_offset}]
-        br	x1
+        ldr	x16, [x0, #{reset_handler_offset}]
+        br	x16 /* use x16 to satisfy 'bti c' at the start of the callee function */
 
     1:
         /* The MIDR values was not found */
@@ -237,7 +238,7 @@ pub extern "C" fn cpu_reset_handler<PlatformImpl: PlatformCpuOps>() {
 /// Fetches up to 8 CPU-specific registers of the current CPU for a crash dump.
 ///
 /// Returns the register name list in x6, and register values in x8-x15.
-/// Clobbers x0-x5.
+/// Clobbers x0-x5, x16.
 ///
 /// # Safety
 ///
@@ -252,8 +253,8 @@ pub unsafe extern "C" fn cpu_dump_registers<PlatformImpl: PlatformCpuOps>() {
         cbz	x0, 1f
 
         /* Read and jump to dump_registers function */
-        ldr	x1, [x0, #{dump_registers_offset}]
-        br	x1
+        ldr	x16, [x0, #{dump_registers_offset}]
+        br	x16 /* use x16 to satisfy 'bti c' at the start of the callee function */
 
     1:
         /*

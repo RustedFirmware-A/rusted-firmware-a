@@ -210,8 +210,8 @@ pub fn flush_dcache<T>(value: &T) {
 #[repr(u8)]
 enum PhysicalAddressSpace {
     Secure = 0b00,
-    NonSecure = 0b01,
-    Root = 0b10,
+    Root = 0b01,
+    NonSecure = 0b10,
     Realm = 0b11,
 }
 

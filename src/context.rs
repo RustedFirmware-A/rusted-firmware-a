@@ -13,7 +13,6 @@ use crate::{
     cpu_extensions::{
         CpuExtension, initialise_el3_sysregs, mpam::mpam_is_present, pmuv3, trf::TraceFiltering,
     },
-    debug::CrashBuffer,
     gicv3,
     platform::{Platform, exception_free},
     smccc::SmcReturn,
@@ -53,19 +52,21 @@ use arm_sysregs::{
     write_tpidrro_el0, write_ttbr0_el1, write_ttbr1_el1, write_vbar_el1,
 };
 use arm_sysregs::{
-    CptrEl3, EsrEl3, MdcrEl3, Mpam3El3, ScrEl3, SpsrEl3, read_mpidr_el1, write_cptr_el3,
-    write_mpam3_el3, write_scr_el3,
+    CptrEl3, EsrEl3, MdcrEl3, Mpam3El3, ScrEl3, SpsrEl3, read_mpidr_el1, read_tpidr_el3,
+    write_cptr_el3, write_mpam3_el3, write_scr_el3,
 };
 #[cfg(not(any(test, feature = "fakes")))]
-pub use asm::init_cpu_data_ptr;
+pub use asm::percore_init_offset;
 use core::{
     cell::{RefCell, RefMut},
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
-#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
-use include_first::include_first;
-use percore::{Cores, ExceptionFree, ExceptionLock, PerCore};
+#[cfg(feature = "pauth")]
+use percore::derive::percore;
+use percore::{
+    Cores, ExceptionFree, ExceptionLock, PerCore, derive::PercoreLocalOffset, percore_local_offset,
+};
 use spin::Once;
 
 /// The number of contexts to store for each CPU core, one per security state.
@@ -106,6 +107,23 @@ unsafe impl<PlatformImpl: Platform> Cores for CoresImpl<PlatformImpl> {
         PlatformImpl::core_position(read_mpidr_el1().bits())
     }
 }
+
+/// Returns the core local offset from the TPIDR_EL3 register.
+struct TpidrEl3PercoreOffset;
+
+/// Safety: The offset is fetched from TPIDR_EL3, and it is initialized to point to the local core's
+/// percore offset, via `percore_init_offset()`. The percore data is copied into the secondary
+/// cores' percore area during primary core's cold boot using `percore_copy_secondary_data()`. The
+/// percore sections are allocated in a way that the offset does not overflow `isize`.
+unsafe impl PercoreLocalOffset for TpidrEl3PercoreOffset {
+    #[inline(always)]
+    fn percore_local_offset() -> isize {
+        read_tpidr_el3().threadid() as isize
+    }
+}
+
+// Register TpidrEl3PercoreOffset as the PercoreLocalOffset of the platform.
+percore_local_offset!(TpidrEl3PercoreOffset);
 
 /// The state of a core at the next lower EL in a given security state.
 #[derive(Clone, Debug)]
@@ -673,28 +691,22 @@ impl PerWorldContext {
     }
 }
 
-/// Per-CPU but not per-world data.
+/// PAuth keys for EL3.
+#[cfg(feature = "pauth")]
 #[derive(Clone, Debug)]
-#[repr(C, align(64))]
-pub struct CpuData {
-    #[cfg(feature = "pauth")]
+#[repr(C)]
+pub struct PAuthEl3Keys {
     apiakey_lo: u64,
-    #[cfg(feature = "pauth")]
     apiakey_hi: u64,
-    /// Buffer used to store register values during the crash dump process.
-    pub crash_buffer: CrashBuffer,
 }
 
-impl CpuData {
-    /// An empty instance of `CpuData`, all zeroes, for initialising it.
-    pub const EMPTY: Self = Self {
-        #[cfg(feature = "pauth")]
+#[cfg(feature = "pauth")]
+#[percore]
+static PAUTH_APIAKEY_EL3: ExceptionLock<core::cell::Cell<PAuthEl3Keys>> =
+    ExceptionLock::new(core::cell::Cell::new(PAuthEl3Keys {
         apiakey_lo: 0,
-        #[cfg(feature = "pauth")]
         apiakey_hi: 0,
-        crash_buffer: CrashBuffer::EMPTY,
-    };
-}
+    }));
 
 static PER_WORLD_CONTEXT: Once<PerWorld<PerWorldContext>> = Once::new();
 
@@ -705,12 +717,16 @@ pub fn world_context(world: World) -> &'static PerWorldContext {
     &PER_WORLD_CONTEXT.get().unwrap()[world]
 }
 
-/// Sets the apkey fields of the current CPU's data.
+/// Sets the PAuth APIAKey fields of the current core's percore context.
 #[cfg(feature = "pauth")]
-pub fn cpu_data_set_apkey<PlatformImpl: CpuDataIndex>(token: ExceptionFree, apkey: u128) {
-    PlatformImpl::update_cpu_data(token, |cpu_data| {
-        cpu_data.apiakey_lo = apkey as u64;
-        cpu_data.apiakey_hi = (apkey >> 64) as u64;
+pub fn set_percore_pauth_apiakey(apkey: u128) {
+    let keys = PAUTH_APIAKEY_EL3.get();
+
+    exception_free(|token| {
+        keys.borrow(token).set(PAuthEl3Keys {
+            apiakey_lo: apkey as u64,
+            apiakey_hi: (apkey >> u64::BITS) as u64,
+        });
     });
 }
 
@@ -1092,6 +1108,7 @@ mod asm {
         arch::global_asm,
         mem::{offset_of, size_of},
     };
+    use percore::derive::aarch64::percore_calculate_local_offset;
 
     // TODO: Let this be controlled by the platform or a cargo feature.
     const ERRATA_SPECULATIVE_AT: bool = false;
@@ -1112,28 +1129,26 @@ mod asm {
     #[cfg(feature = "sel2")]
     const _: () = assert!(!ERRATA_SPECULATIVE_AT);
 
-    #[cfg(feature = "pauth")]
-    const APIAKEY_OFFSET: usize = offset_of!(CpuData, apiakey_lo);
     #[cfg(not(feature = "pauth"))]
-    const APIAKEY_OFFSET: usize = 0;
+    static PAUTH_APIAKEY_EL3: () = ();
 
-    /// Initialises the TPIDR_EL3 register to refer to the `CpuData`
+    /// Initialises the TPIDR_EL3 register to contain the core local offset of the percore area
     /// for the calling CPU.
     ///
-    /// This can be called without a valid stack. It assumes that plat_my_core_pos() does not
-    /// clobber register x10.
+    /// This can be called without a valid stack. It assumes that plat_my_core_pos() and
+    /// percore_calculate_local_offset() do not clobber register x10.
     ///
     /// Clobbers x0-x5, x10.
     #[unsafe(naked)]
-    pub extern "C" fn init_cpu_data_ptr<PlatformImpl: CpuDataIndex + Platform>() {
+    pub extern "C" fn percore_init_offset<PlatformImpl: Platform>() {
         naked_asm!(
             "mov x10, x30",
             "bl {plat_my_core_pos}",
-            "bl {cpu_data_by_index}",
+            "bl {percore_calculate_local_offset}",
             "msr tpidr_el3, x0",
             "ret x10",
             plat_my_core_pos = sym my_core_pos::<PlatformImpl>,
-            cpu_data_by_index = sym PlatformImpl::cpu_data_by_index,
+            percore_calculate_local_offset = sym percore_calculate_local_offset,
         );
     }
 
@@ -1190,69 +1205,9 @@ mod asm {
         RUN_RESULT_SMC = const RunResult::SMC,
         RUN_RESULT_SYSREG_TRAP = const RunResult::SYSREG_TRAP,
         RUN_RESULT_INTERRUPT = const RunResult::INTERRUPT,
-        CPU_DATA_APIAKEY_OFFSET = const APIAKEY_OFFSET,
+        // Adding the local offset to PAUTH_APIAKEY_EL3 will result in a pointer to the core-local
+        // instance of the variable.
+        PAUTH_APIAKEY_EL3 = sym PAUTH_APIAKEY_EL3,
         ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,
     );
 }
-
-/// Trait automatically implemented for the platform by the `context_asm!` macro to provide the
-/// `cpu_data_by_index` naked function.
-///
-/// This shouldn't be implemented manually.
-///
-/// # Safety
-///
-/// Except in unit tests, `cpu_data_by_index` must be implemented as a naked function in assembly so
-/// that doesn't use the stack or clobber any registers other than x0 and x1. It must return a valid
-/// pointer to the `CpuData` instance for the given CPU index as long as the CPU index is valid.
-#[cfg_attr(test, allow(unused))]
-pub unsafe trait CpuDataIndex {
-    /// Calls the given closure with a mutable reference to the current CPU's data.
-    fn update_cpu_data(token: ExceptionFree, f: impl FnOnce(&mut CpuData));
-
-    /// Returns the CpuData structure for the CPU with given linear index.
-    ///
-    /// This can be called without a valid stack.
-    ///
-    /// Clobbers x0-x1.
-    extern "C" fn cpu_data_by_index(cpu_index: usize) -> *mut CpuData;
-}
-
-/// Generates some naked functions for context-related assembly code.
-#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
-#[macro_export]
-#[include_first]
-macro_rules! context_asm {
-    ($platform:ty) => {
-        // SAFETY: `cpu_data_by_index` is a naked function that doesn't use the stack and only
-        // clobbers x0 and x1. For any valid index it will return a pointer to an element of
-        // `PERCPU_DATA` which must be valid.
-        unsafe impl $crate::context::CpuDataIndex for $platform {
-            fn update_cpu_data(_token: $crate::reexports::percore::ExceptionFree, f: impl FnOnce(&mut $crate::context::CpuData)) {
-                // SAFETY: Only the current CPU's data is ever accessed and exceptions are masked so the
-                // modification will not be interrupted part-way through.
-                let cpu_data = unsafe { &mut PERCPU_DATA[$crate::context::CoresImpl::<$platform>::core_index()] };
-                f(cpu_data);
-            }
-
-            #[unsafe(naked)]
-            extern "C" fn cpu_data_by_index(cpu_index: usize) -> *mut $crate::context::CpuData {
-                naked_asm!(
-                    include_str!("asm_macros_common.S"),
-                    "mov_imm x1, {CPU_DATA_SIZE}",
-                    "mul x0, x0, x1",
-                    "adr_l x1, {percpu_data}",
-                    "add x0, x0, x1",
-                    "ret",
-                    include_str!("asm_macros_common_purge.S"),
-                    DEBUG = const $crate::debug::DEBUG as u32,
-                    CPU_DATA_SIZE = const size_of::<$crate::context::CpuData>(),
-                    percpu_data = sym PERCPU_DATA,
-                );
-            }
-        }
-    };
-}
-#[allow(clippy::single_component_path_imports)]
-#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
-pub use context_asm;

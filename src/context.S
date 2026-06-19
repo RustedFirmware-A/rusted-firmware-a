@@ -92,10 +92,12 @@
 	stp	x28, x29, [sp, #{CTX_PAUTH_REGS_OFFSET} + {CTX_APGAKEY_LO}] /* APGAKey = x29:x28 */
 
 .if {ENABLE_PAUTH}
-	/* tpidr_el3 contains the address of the cpu_data structure */
-	mrs	x20, tpidr_el3
-	/* Load the EL3 APIAKey from cpu_data */
-	ldp	x21, x22, [x20, #{CPU_DATA_APIAKEY_OFFSET}]
+	/* tpidr_el3 contains the offset to the local CPU's percore section */
+	adr_l	x20, {PAUTH_APIAKEY_EL3}
+	mrs	x21, tpidr_el3
+	add	x20, x21, x20
+	/* Load the EL3 APIAKey from the percore section */
+	ldp	x21, x22, [x20]
 
 	/* Program APIAKey with the EL3 key */
 	msr	s3_0_c2_c1_0, x21 /* apiakeylo_el1 */

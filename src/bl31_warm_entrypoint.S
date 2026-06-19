@@ -41,8 +41,8 @@
 	/* Initialises SCTLR2_EL3 if FEAT_SCTLR2 is implemented. */
 	bl {init_sctlr2_el3}
 
-	/* Initialise TPIDR_EL3 to point to the current CPU's CpuData instance. */
-	bl {init_cpu_data_ptr}
+	/* Initialise TPIDR_EL3 to store the offset to the CPU's percore area. */
+	bl {percore_init_offset}
 
 	/* ---------------------------------------------------------------------
 	 * Enable External Aborts and SError Interrupts now that the exception

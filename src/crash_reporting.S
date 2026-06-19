@@ -115,21 +115,34 @@ func str_in_crash_buf_print
 endfunc str_in_crash_buf_print
 
 	/* ------------------------------------------------------
-	 * This macro calculates the offset to crash buf from
-	 * cpu_data and stores it in tpidr_el3. It also saves x0
-	 * and x1 in the crash buf by using sp as a temporary
-	 * register.
+	 * This macro fetches the core-local percore area offset from the tpidr_el3
+	 * register and adds it to the CRASH_BUFFER base value. It uses sp and
+	 * tpidr_el3 as a temporary storage for saving x0 and x1 content while it
+	 * calculates the crash buffer address. Finally, it stores the core-local
+	 * crash buffer address in tpidr_el3 and saves x0, x1 in the crash buffer.
 	 * ------------------------------------------------------
 	 */
 	.macro prepare_crash_buf_save_x0_x1
 	/* we can corrupt this reg to free up x0 */
 	mov	sp, x0
-	/* tpidr_el3 contains the address to cpu_data structure */
+
+	/* Fetch core local percore area offset from TPIDR_EL3 */
 	mrs	x0, tpidr_el3
-	/* Calculate the Crash buffer offset in cpu_data */
-	add	x0, x0, #{CPU_DATA_CRASH_BUFFER_OFFSET}
+
+	/* Save X1 into TPIDR_EL3 */
+	msr	tpidr_el3, x1
+
+	/* Calculate per-core Crash buffer instance: CRASH_BUFFER address + core local offset */
+	adr_l	x1, {CRASH_BUFFER}
+	add	x0, x0, x1
+
+	/* Restore X1 from TPIDR_EL3 */
+	mrs	x1, tpidr_el3
+
 	/* Store crash buffer address in tpidr_el3 */
 	msr	tpidr_el3, x0
+
+	/* Save X0 and X1 in the crash buffer. */
 	str	x1, [x0, #{REGSZ}]
 	mov	x1, sp
 	str	x1, [x0]

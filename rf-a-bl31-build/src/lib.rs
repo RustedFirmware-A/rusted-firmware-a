@@ -29,6 +29,11 @@ fn setup_linker(builder: &dyn Builder) {
     );
     define_linker_symbol("BL31_DRAM_SIZE", builder.bl31_dram_size());
     define_linker_symbol("PAGE_SIZE", PAGE_SIZE);
+    define_linker_symbol("CORE_COUNT", builder.core_count() as u64);
+    define_linker_symbol(
+        "CACHE_WRITEBACK_GRANULE",
+        builder.cache_writeback_granule() as u64,
+    );
 
     // Write linker script to the out directory, so that the binary build can find it.
     let linker_script_path = Path::new(&env::var_os("OUT_DIR").unwrap()).join("bl31.ld");
@@ -81,6 +86,12 @@ pub trait Builder {
     fn bl31_dram_size(&self) -> u64 {
         0
     }
+
+    /// Returns the core count of the target system.
+    fn core_count(&self) -> usize;
+
+    /// Returns the cache writeback granule size in bytes.
+    fn cache_writeback_granule(&self) -> usize;
 
     /// Sets up platform-specific configurations (code generation, file inclusions, etc.).
     fn configure_build(&self) -> BuildResult {

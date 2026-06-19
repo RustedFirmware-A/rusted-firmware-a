@@ -34,7 +34,7 @@ pub mod stacks;
 #[cfg(feature = "pauth")]
 use crate::cpu_extensions::pauth;
 use crate::{
-    context::{CoresImpl, CpuDataIndex, CpuStateAccess, initialise_contexts},
+    context::{CoresImpl, CpuStateAccess, initialise_contexts},
     cpu::PlatformCpuOps,
     errata_framework::PlatformErrata,
     gicv3::Gic,
@@ -62,8 +62,7 @@ pub fn coldboot<
     const REQ_WORDS: usize,
     const WORDS_IN_POOL: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
-    PlatformImpl: CpuDataIndex
-        + CpuStateAccess
+    PlatformImpl: CpuStateAccess
         + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>
         + PlatformCpuOps
         + PlatformErrata,
@@ -140,7 +139,7 @@ pub trait WarmbootEntrypoint {
 
 #[cfg_attr(test, allow(unused))]
 extern "C" fn psci_warmboot_entrypoint<
-    PlatformImpl: CpuDataIndex + CpuStateAccess + Platform + WarmbootEntrypoint,
+    PlatformImpl: CpuStateAccess + Platform + WarmbootEntrypoint,
 >() -> ! {
     debug!(
         "Warmboot on core #{}",
@@ -160,7 +159,7 @@ extern "C" fn psci_warmboot_entrypoint<
 mod asm {
     use super::*;
     use crate::{
-        context::{CpuDataIndex, init_cpu_data_ptr},
+        context::percore_init_offset,
         cpu::{PlatformCpuOps, cpu_reset_handler},
         cpu_extensions::sctlr2::init_sctlr2_el3,
         debug::{DEBUG, ENABLE_ASSERTIONS},
@@ -190,12 +189,7 @@ mod asm {
     /// This must be called with the MMU turned off.
     #[unsafe(naked)]
     pub unsafe extern "C" fn bl31_warm_entrypoint<
-        PlatformImpl: CpuDataIndex
-            + CpuStateAccess
-            + Platform
-            + PlatformCpuOps
-            + PlatformErrata
-            + WarmbootEntrypoint,
+        PlatformImpl: CpuStateAccess + Platform + PlatformCpuOps + PlatformErrata + WarmbootEntrypoint,
     >() -> ! {
         naked_asm!(
             include_str!("asm_macros_common.S"),
@@ -217,7 +211,7 @@ mod asm {
             psci_warmboot_entrypoint = sym psci_warmboot_entrypoint::<PlatformImpl>,
             apply_reset_errata = sym PlatformImpl::apply_reset_errata,
             plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
-            init_cpu_data_ptr = sym init_cpu_data_ptr::<PlatformImpl>,
+            percore_init_offset = sym percore_init_offset::<PlatformImpl>,
             init_sctlr2_el3 = sym init_sctlr2_el3,
         );
     }
@@ -278,8 +272,9 @@ macro_rules! main_asm {
                     bl31_main = sym super::bl31_main,
                     apply_reset_errata = sym <PlatformImpl as $crate::errata_framework::PlatformErrata>::apply_reset_errata,
                     plat_set_my_stack = sym $crate::stacks::set_my_stack::<PlatformImpl>,
-                    init_cpu_data_ptr = sym $crate::context::init_cpu_data_ptr::<PlatformImpl>,
+                    percore_init_offset = sym $crate::context::percore_init_offset::<PlatformImpl>,
                     init_sctlr2_el3 = sym $crate::cpu_extensions::sctlr2::init_sctlr2_el3,
+                    percore_copy_secondary_data = sym $crate::reexports::percore::derive::aarch64::percore_copy_secondary_data,
                 );
             }
 
@@ -292,7 +287,6 @@ macro_rules! main_asm {
 #[macro_export]
 macro_rules! all_asm {
     ($platform:ty) => {
-        $crate::context::context_asm!($platform);
         $crate::debug::debug_asm!($platform);
         $crate::stacks::stacks_asm!($platform);
         $crate::main_asm!($platform);
@@ -348,14 +342,6 @@ global_asm!(include_str!("gic_debug_macros_data.S"));
 macro_rules! statics {
     ($platform:ty) => {
         const _: () = assert!(
-            size_of::<$crate::context::CpuData>()
-                .is_multiple_of(align_of::<$crate::context::CpuData>())
-        );
-        const _: () = assert!(
-            size_of::<$crate::context::CpuData>()
-                .is_multiple_of(<$platform as $crate::platform::Platform>::CACHE_WRITEBACK_GRANULE)
-        );
-        const _: () = assert!(
             EARLY_PAGE_TABLE_SIZE
                 <= (<$platform as $crate::platform::Platform>::CORE_COUNT - 1)
                     * $crate::stacks::STACK_SIZE,
@@ -385,12 +371,6 @@ macro_rules! statics {
             { <$platform as $crate::platform::Platform>::CORE_COUNT },
             $platform,
         > = $crate::context::CpuStates::new();
-
-        #[cfg_attr(test, allow(dead_code))]
-        static mut PERCPU_DATA: [$crate::context::CpuData;
-            <$platform as $crate::platform::Platform>::CORE_COUNT] =
-            [$crate::context::CpuData::EMPTY;
-                <$platform as $crate::platform::Platform>::CORE_COUNT];
 
         const MAX_POWER_LEVEL_: usize = PSCI_STATE_COUNT - 1;
         /// The number of PSCI power domains other than CPUs.

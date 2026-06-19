@@ -4,8 +4,10 @@
 
 //! Debug output.
 
+use core::cell::UnsafeCell;
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use include_first::include_first;
+use percore::{ExceptionLock, derive::percore};
 
 /// True if the build is configured with debug assertions on.
 #[cfg(not(any(test, feature = "fakes")))]
@@ -33,6 +35,11 @@ impl CrashBuffer {
     pub const EMPTY: Self = Self([0; CRASH_BUFFER_REGISTER_COUNT]);
 }
 
+/// Crash buffer
+#[percore]
+pub static CRASH_BUFFER: ExceptionLock<UnsafeCell<CrashBuffer>> =
+    ExceptionLock::new(UnsafeCell::new(CrashBuffer::EMPTY));
+
 /// Generates a `global_asm!` block for debug-related assembly code.
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 #[macro_export]
@@ -57,7 +64,7 @@ macro_rules! debug_asm {
                 ENABLE_ASSERTIONS = const $crate::debug::ENABLE_ASSERTIONS as u32,
                 ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,
                 MODE_SP_ELX = const 1,
-                CPU_DATA_CRASH_BUFFER_OFFSET = const core::mem::offset_of!($crate::context::CpuData, crash_buffer),
+                CRASH_BUFFER = sym $crate::debug::CRASH_BUFFER,
                 CRASH_BUFFER_SIZE = const size_of::<$crate::debug::CrashBuffer>(),
                 REGSZ = const size_of::<u64>(),
                 plat_crash_console_init = sym PlatformImpl::crash_console_init,

@@ -41,4 +41,12 @@ impl Builder for QemuBuilder {
     fn bl31_dram_size(&self) -> u64 {
         Self::BL31_DRAM_SIZE
     }
+
+    fn core_count(&self) -> usize {
+        8
+    }
+
+    fn cache_writeback_granule(&self) -> usize {
+        64
+    }
 }

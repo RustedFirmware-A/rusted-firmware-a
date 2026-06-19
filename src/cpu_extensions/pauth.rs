@@ -12,18 +12,14 @@
 //! authenticate will fail. For these reasons, PAuth is handled outside the standard CPU extensions
 //! framework.
 
-use crate::{
-    aarch64::isb,
-    context::{CpuDataIndex, cpu_data_set_apkey},
-    platform::{Platform, exception_free},
-};
+use crate::{aarch64::isb, context::set_percore_pauth_apiakey, platform::Platform};
 use arm_sysregs::{
     ApiakeyhiEl1, ApiakeyloEl1, Sctlr2El3, SctlrEl3, is_feat_pauth_lr_present, read_sctlr_el3,
     read_sctlr2_el3, write_apiakeyhi_el1, write_apiakeylo_el1, write_sctlr_el3, write_sctlr2_el3,
 };
 
 /// Setup the PAuth registers and the CPU data with the PAuth key.
-fn set_apkey<PlatformImpl: CpuDataIndex + Platform>() {
+fn set_apkey<PlatformImpl: Platform>() {
     let key = PlatformImpl::init_apkey();
 
     // SAFETY: We haven't yet enabled PAuth, so it is safe to set the key.
@@ -32,7 +28,7 @@ fn set_apkey<PlatformImpl: CpuDataIndex + Platform>() {
         write_apiakeyhi_el1(ApiakeyhiEl1::from_bits_retain((key >> 64) as u64));
     }
 
-    exception_free(|token| cpu_data_set_apkey::<PlatformImpl>(token, key));
+    set_percore_pauth_apiakey(key);
 }
 
 /// Enables Pointer Authentication at EL3.
@@ -43,7 +39,7 @@ fn set_apkey<PlatformImpl: CpuDataIndex + Platform>() {
 /// never returns, otherwise authentication will fail when the caller's function returns. This
 /// function is always inlined to ensure that it does not introduce PAuth guards of its own.
 #[inline(always)]
-pub unsafe fn init<PlatformImpl: CpuDataIndex + Platform>() {
+pub unsafe fn init<PlatformImpl: Platform>() {
     set_apkey::<PlatformImpl>();
 
     // SAFETY: It is safe to enable pointer authentication here because this function is always

@@ -9,7 +9,7 @@ use super::{DummyService, Platform};
 use crate::services::rmmd::svc::{EccCurve, RmmCommandReturnCode};
 use crate::{
     aarch64::sev,
-    context::{CoresImpl, CpuData, CpuDataIndex, EntryPointInfo},
+    context::EntryPointInfo,
     cpu::{Cpu, CpuOps, PlatformCpuOps},
     cpu_extensions::CpuExtension,
     errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
@@ -31,8 +31,6 @@ use arm_gic::IntId;
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use arm_sysregs::{MidrEl1, MpidrEl1};
 use core::fmt;
-use percore::Cores;
-use percore::ExceptionFree;
 use std::io::{Write, stdout};
 use uuid::Uuid;
 
@@ -240,22 +238,6 @@ unsafe impl Platform for TestPlatform {
     extern "C" fn crash_console_flush() {}
 
     unsafe extern "C" fn dump_registers() {}
-}
-
-// SAFETY: The safety requirement for `cpu_data_by_index` to be a naked function doesn't apply for
-// the test platform because it's only used in unit tests. It always panics, so there's no issue
-// with the validity of the returned pointer.
-unsafe impl CpuDataIndex for TestPlatform {
-    fn update_cpu_data(_token: ExceptionFree, f: impl FnOnce(&mut CpuData)) {
-        // SAFETY: This is only used in unit tests, which are run on the host where there are no
-        // hardware exceptions nor multiple threads.
-        let cpu_data = unsafe { &mut PERCPU_DATA[CoresImpl::<TestPlatform>::core_index()] };
-        f(cpu_data);
-    }
-
-    extern "C" fn cpu_data_by_index(_cpu_index: usize) -> *mut CpuData {
-        unimplemented!()
-    }
 }
 
 /// A log sink for tests which writes logs to standard output.

@@ -27,4 +27,12 @@ impl Builder for FvpBuilder {
     fn bl31_size(&self) -> u64 {
         Self::BL31_SIZE
     }
+
+    fn core_count(&self) -> usize {
+        8
+    }
+
+    fn cache_writeback_granule(&self) -> usize {
+        64
+    }
 }

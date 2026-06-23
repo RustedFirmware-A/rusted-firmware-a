@@ -86,3 +86,8 @@ missing_safety_doc = "deny"
 [lints.rust]
 missing_docs = "deny"
 unsafe_op_in_unsafe_fn = "deny"
+
+[package.metadata.docs.rs]
+default-target = "aarch64-unknown-none-softfloat"
+features = ["pauth", "rme", "sel2"]
+rustdoc-args = ["--cfg", "docsrs"]

@@ -5,6 +5,7 @@
 //! RF-A: A new implementation of TF-A for AArch64.
 
 #![cfg_attr(not(any(test, feature = "fakes")), no_std)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod aarch64;
 pub mod context;

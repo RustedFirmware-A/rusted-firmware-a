@@ -14,6 +14,7 @@ pub mod mte2;
 pub mod pauth;
 pub mod pmuv3;
 pub mod ras;
+pub mod sctlr2;
 pub mod simd;
 pub mod spe;
 pub mod sys_reg_trace;

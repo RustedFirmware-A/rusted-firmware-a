@@ -12,6 +12,7 @@ mod psci_osi;
 mod rmi;
 #[cfg(any(not(feature = "rme"), feature = "test_rmm_fail"))]
 mod rmi_fail;
+mod sctlr2;
 mod simd;
 mod smccc_arch;
 mod sve;

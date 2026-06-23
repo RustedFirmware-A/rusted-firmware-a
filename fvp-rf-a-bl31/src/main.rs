@@ -41,7 +41,7 @@ use rf_a_bl31::{
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
     cpu_extensions::{
         CpuExtension, amu::Amu, fgt::Fgt, fgt2::Fgt2, hcx::Hcx, mpam::Mpam, mte2::MemoryTagging,
-        pmuv3::MultiThreadedPmu, ras::Ras, simd::Simd, spe::StatisticalProfiling,
+        pmuv3::MultiThreadedPmu, ras::Ras, sctlr2::Sctlr2, simd::Simd, spe::StatisticalProfiling,
         sys_reg_trace::SysRegTrace, tcr2::Tcr2, trbe::TraceBufferNonSecure, trf::TraceFiltering,
     },
     debug::DEBUG,
@@ -333,6 +333,7 @@ static MEMORY_TAGGING: MemoryTagging<{ Fvp::CORE_COUNT }, Fvp> = MemoryTagging::
 static RAS: Ras<{ Fvp::CORE_COUNT }, Fvp> = Ras::new();
 static TCR2: Tcr2<{ Fvp::CORE_COUNT }, Fvp> = Tcr2::new();
 static SIMD: Simd<{ Fvp::CORE_COUNT }, Fvp> = Simd::simd();
+static SCTLR2: Sctlr2<{ Fvp::CORE_COUNT }, Fvp> = Sctlr2::new();
 
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0-x5, and returns a unique core index as long as `FVP_MAX_CPUS_PER_CLUSTER` and
@@ -376,6 +377,7 @@ unsafe impl Platform for Fvp {
         &MPAM,
         &MultiThreadedPmu,
         &RAS,
+        &SCTLR2,
         &SIMD,
         &StatisticalProfiling,
         &SysRegTrace,

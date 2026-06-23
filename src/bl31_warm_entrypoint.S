@@ -38,6 +38,9 @@
 	msr     sctlr_el3, x0
 	isb
 
+	/* Initialises SCTLR2_EL3 if FEAT_SCTLR2 is implemented. */
+	bl {init_sctlr2_el3}
+
 	/* Initialise TPIDR_EL3 to point to the current CPU's CpuData instance. */
 	bl {init_cpu_data_ptr}
 

@@ -162,6 +162,7 @@ mod asm {
     use crate::{
         context::{CpuDataIndex, init_cpu_data_ptr},
         cpu::{PlatformCpuOps, cpu_reset_handler},
+        cpu_extensions::sctlr2::init_sctlr2_el3,
         debug::{DEBUG, ENABLE_ASSERTIONS},
         errata_framework::PlatformErrata,
         pagetable::{PAGE_TABLE_ADDR, enable_mmu},
@@ -217,6 +218,7 @@ mod asm {
             apply_reset_errata = sym PlatformImpl::apply_reset_errata,
             plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
             init_cpu_data_ptr = sym init_cpu_data_ptr::<PlatformImpl>,
+            init_sctlr2_el3 = sym init_sctlr2_el3,
         );
     }
 
@@ -277,6 +279,7 @@ macro_rules! main_asm {
                     apply_reset_errata = sym <PlatformImpl as $crate::errata_framework::PlatformErrata>::apply_reset_errata,
                     plat_set_my_stack = sym $crate::stacks::set_my_stack::<PlatformImpl>,
                     init_cpu_data_ptr = sym $crate::context::init_cpu_data_ptr::<PlatformImpl>,
+                    init_sctlr2_el3 = sym $crate::cpu_extensions::sctlr2::init_sctlr2_el3,
                 );
             }
 

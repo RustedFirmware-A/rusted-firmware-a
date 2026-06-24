@@ -187,37 +187,31 @@ impl<'a> GranuleProtection<'a> {
         }
     }
 
-    /// Enables the Granule Protection Checks using this Granule Protection Table.
+    /// Enables the Granule Protection Checks.
     ///
     /// # Safety
     ///
     /// Before calling this function, the caller must ensure that the table grants access to the
     /// Root World for the whole RF-A address space.
-    #[allow(unused)]
-    pub unsafe fn enable(&self, config: Option<GpccrEl3>) -> Result<(), Error> {
-        let mut gpcc = match config {
-            Some(c) => c,
-            None => read_gpccr_el3(),
-        };
-        assert!(!gpcc.contains(GpccrEl3::GPC));
-
-        gpcc.set_pps(self.config.pps() as u8);
-        gpcc.set_l0gptsz(self.config.l0gptsz() as u8);
-        gpcc.set_pgs(self.config.pgs() as u8);
-
+    ///
+    /// # Panics
+    ///
+    /// Callers must ensure that Granule Protection Checks are off, otherwise the function will panic.
+    pub unsafe fn enable(&self) -> Result<(), Error> {
         let base = self.level0.0.as_ptr() as u64;
         if base & mask!(12) != 0 {
             return Err(Error::MisalignedL0Buffer);
         }
 
-        let mut gptbr = GptbrEl3::empty();
-        gptbr.set_baddr(base >> 12);
+        let gptbr = GptbrEl3::empty().with_baddr(base >> 12);
 
+        // Check that GPC is actually off.
+        assert!(!(read_gpccr_el3().contains(GpccrEl3::GPC)));
         // Writes the register, except for the Granule Protection Check enabled bit.
         // SAFETY: since the GPC bit is off, this operation has no effect.
         unsafe {
+            write_gpccr_el3(self.config.gpccr_el3 - GpccrEl3::GPC);
             write_gptbr_el3(gptbr);
-            write_gpccr_el3(gpcc);
         }
 
         isb();
@@ -225,12 +219,10 @@ impl<'a> GranuleProtection<'a> {
         dsb_sy();
         isb();
 
-        gpcc |= GpccrEl3::GPC;
-
         // Safety: Root World access is ensured by the caller. The pointer in `GPTBR_EL3` was
         // previously configured with the address of a valid Level 0 Table.
         unsafe {
-            write_gpccr_el3(gpcc);
+            write_gpccr_el3(self.config.gpccr_el3);
         }
 
         // Invalidate TLB entries.

@@ -287,10 +287,14 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
         }
     }
 
-    /// Initializes the set of registers to pass to R-EL2 after waking up from a suspend.
+    /// Performs Rmmd-related setup for cores coming out of CPU_SUSPEND.
+    ///
+    /// Initializes the set of registers to pass to R-EL2, and re-enables Granule Protection Checks.
     ///
     /// <https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html#warm-boot-interface>
     pub(crate) fn handle_wake_from_cpu_suspend(&self) -> [u64; 4] {
+        self.reenable_gpc();
+
         let activation_token = exception_free(|token| {
             RMMD_CORE_LOCAL
                 .get()
@@ -307,6 +311,13 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
             0,
         ]
     }
+
+    /// Performs Rmmd-related setup required for the initial boot of secondary cores and
+    /// subsequently for any core coming out of a CPU_OFF.
+    pub(crate) fn handle_wake_from_cpu_off(&self) {
+        self.reenable_gpc();
+    }
+
     pub(crate) fn boot_success(&self) -> bool {
         self.rmm_boot_state.load(Ordering::Acquire) == RmmBootState::ColdBootDone as u8
     }
@@ -329,6 +340,27 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
     pub(crate) fn set_boot_failure(&self) {
         self.rmm_boot_state
             .store(RmmBootState::Error as u8, Ordering::Release);
+    }
+
+    /// Re-enables Granule Protection Checks after a warmboot.
+    ///
+    /// To do this, the values of GPCCR_EL3 and GPTBR_EL3 have to be rewritten to the original value.
+    ///
+    /// Should only be called after a warmboot, when writing these registers is allowed: on systems
+    /// with FEAT_FGWTE3, attempting to write these registers after FEAT_FGWTE3 is enabled causes
+    /// the writes to trap.
+    fn reenable_gpc(&self) {
+        let gpt = GRANULE_PROTECTION_TABLE
+            .get()
+            .expect("GPT not initialized")
+            .lock();
+
+        // SAFETY: these values were read from the CPU during Rmmd initalization, therefore Root
+        // world must have access to the RF-A region.
+        // As long as this is only called after a warmboot, the function will not panic.
+        unsafe {
+            gpt.enable().unwrap();
+        };
     }
 
     /// Attempts to handle a SMC originating from Realm World, returning an appropriate code on

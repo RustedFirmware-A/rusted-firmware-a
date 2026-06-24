@@ -393,6 +393,9 @@ where
                 #[cfg(feature = "rme")]
                 let realm_entry_point = PlatformImpl::realm_entry_point();
 
+                #[cfg(feature = "rme")]
+                self.core_services.rmmd.handle_wake_from_cpu_off();
+
                 self.cpu_states.initialise_contexts(
                     &non_secure_entry_point,
                     &secure_entry_point,

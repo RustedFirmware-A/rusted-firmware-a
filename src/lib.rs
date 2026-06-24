@@ -41,6 +41,8 @@ use crate::{
     platform::Platform,
     services::{El3Runtime, psci::PsciPlatformInterface},
 };
+#[cfg(feature = "rme")]
+use arm_sysregs::el1::accessors::read_id_aa64pfr0_el1;
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::bl31_warm_entrypoint;
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
@@ -96,6 +98,14 @@ where
     debug!("Parameters: {arg0:#0x} {arg1:#0x} {arg2:#0x} {arg3:#0x}");
 
     debug!("Page table activated.");
+
+    // Unlike other CPU features, FEAT_RME is enabled at compile time. For such builds, we
+    // must check if the CPU actually has the feature, otherwise accessing RME-related sysregs
+    // would result in architecturally undefined state.
+    #[cfg(feature = "rme")]
+    if !read_id_aa64pfr0_el1().is_feat_rme_present() {
+        panic!("RME is enabled, but the CPU does not support it.");
+    }
 
     // SAFETY: This function never returns, so it is safe to enable PAuth part way through it.
     #[cfg(feature = "pauth")]

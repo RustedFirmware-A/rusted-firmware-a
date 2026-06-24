@@ -141,6 +141,8 @@ case "$PLAT" in
         -C cluster1.gicv3.extended-interrupt-range-support=1 \
         -C cluster0.amu_num_auxiliary_counters=16 \
         -C cluster1.amu_num_auxiliary_counters=16 \
+        -C cluster0.amu_version=2 \
+        -C cluster1.amu_version=2 \
         -C cluster0.has_ras_pfar=2 \
         -C cluster1.has_ras_pfar=2 \
         -C cluster0.has_gcs=2 \

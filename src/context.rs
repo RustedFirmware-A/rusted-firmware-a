@@ -878,8 +878,6 @@ impl CpuStates {
             #[cfg(feature = "rme")]
             per_world[World::Realm].initialise_common();
 
-            // NS world can always access AMUv1 registers.
-            per_world[World::NonSecure].cptr_el3 -= CptrEl3::TAM;
             // SCR_EL3.FGTEN: Do not trap FGT register accesses to EL3. FEAT_FGT is mandatory since
             // ARMv8.6.
             per_world[World::NonSecure].scr_el3 |= ScrEl3::NS | ScrEl3::FGTEN;
@@ -1103,7 +1101,8 @@ mod asm {
         smccc::NOT_SUPPORTED,
     };
     use arm_sysregs::{
-        el0::registers::{Dit, PmcrEl0},
+        el0::registers::{Amcntenclr0El0, Dit, PmcrEl0},
+        el1::registers::IdAa64pfr0El1,
         types::StackPointer,
     };
     use core::{
@@ -1211,5 +1210,8 @@ mod asm {
         // instance of the variable.
         PAUTH_APIAKEY_EL3 = sym PAUTH_APIAKEY_EL3,
         ENABLE_PAUTH = const cfg!(feature = "pauth") as u32,
+        AMU_SHIFT = const IdAa64pfr0El1::AMU_SHIFT,
+        AMU_WIDTH = const IdAa64pfr0El1::AMU_MASK.count_ones(),
+        AMU_P2_P3_BITS = const Amcntenclr0El0::P2.bits() | Amcntenclr0El0::P3.bits(),
     );
 }

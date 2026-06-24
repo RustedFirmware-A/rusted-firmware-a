@@ -37,7 +37,8 @@
  * FEAT_PAuth registers.
  * It also checks if the Secure Cycle Counter (PMCCNTR_EL0)
  * is disabled in EL3/Secure (ARMv8.5-PMU), wherein PMCCNTR_EL0
- * needs not to be saved/restored during world switch.
+ * needs not to be saved/restored during world switch, and disables AMU
+ * counter 2 and 3 because these are context switched between worlds.
  *
  * Ideally we would only save and restore the callee saved registers
  * when a world switch occurs but that type of implementation is more
@@ -65,6 +66,15 @@
 	mrs	x18, sp_el0
 	str	x18, [sp, #{CTX_GPREGS_OFFSET} + {CTX_GPREG_SP_EL0}]
 
+	/* Check if FEAT_AMU is present */
+	mrs	x18, id_aa64pfr0_el1
+	ubfx	x18, x18, #{AMU_SHIFT}, #{AMU_WIDTH} /* ID_AA64PFR0_EL1.AMU */
+	cbz	x18, 1f
+	/* Disable counter 2 and 3, these are context switched between worlds */
+	mov	x18, #{AMU_P2_P3_BITS} /* AMCNTENCLR0_EL0.P2-P3 */
+	msr	s3_3_c13_c2_4, x18 /* AMCNTENCLR0_EL0 */
+
+1:
 	/* PMUv3 is presumed to be always present */
 	mrs	x18, pmcr_el0
 	str	x18, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_PMCR_EL0}]
@@ -125,7 +135,8 @@ endfunc prepare_el3_entry
 
 /* ------------------------------------------------------------------
  * This function restores all general purpose and FEAT_PAuth
- * registers except x30 from the CPU context.
+ * registers except x30 from the CPU context. It also re-enables AMU
+ * counter 2 and 3, which were stopped at entering EL3.
  * x30 register must be explicitly restored by the caller.
  * ------------------------------------------------------------------
  */
@@ -148,6 +159,15 @@ func restore_gp_pmcr_pauth_regs
 	msr	s3_0_c2_c3_0, x8 /* apgakeylo_el1 */
 	msr	s3_0_c2_c3_1, x9 /* apgakeyhi_el1 */
 
+	/* Check if FEAT_AMU is present */
+	mrs	x18, id_aa64pfr0_el1
+	ubfx	x18, x18, #{AMU_SHIFT}, #{AMU_WIDTH} /* ID_AA64PFR0_EL1.AMU */
+	cbz	x18, 1f
+	/* Enable counter 2 and 3, these are context switched between worlds */
+	mov	x18, #{AMU_P2_P3_BITS} /* AMCNTENSET0_EL0.P2-P3 */
+	msr	s3_3_c13_c2_5, x18 /* AMCNTENSET0_EL0 */
+
+1:
 	/* PMUv3 is presumed to be always present */
 	ldr	x0, [sp, #{CTX_EL3STATE_OFFSET} + {CTX_PMCR_EL0}]
 	msr	pmcr_el0, x0

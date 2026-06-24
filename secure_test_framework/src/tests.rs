@@ -4,6 +4,7 @@
 
 //! Test cases.
 
+mod amu;
 mod dit;
 mod ffa_spmd;
 mod gcs;

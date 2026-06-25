@@ -30,9 +30,9 @@ fn is_feat_pauth_lr_present() -> bool {
     let id_aa64isar1_el1 = read_id_aa64isar1_el1();
     // FEAT_PAuth_LR support is indicated by up to 3 fields, where if one or more of these is 0b0110
     // then the feature is present.
-    //   1) id_aa64isr1_el1.api
-    //   2) id_aa64isr1_el1.apa
-    //   3) id_aa64isr2_el1.apa3
+    //   1) id_aa64isar1_el1.api
+    //   2) id_aa64isar1_el1.apa
+    //   3) id_aa64isar2_el1.apa3
     id_aa64isar1_el1.apa() == PAUTH_LR_IMPLEMENTED
         || id_aa64isar1_el1.api() == PAUTH_LR_IMPLEMENTED
         || read_id_aa64isar2_el1().apa3() == PAUTH_LR_IMPLEMENTED

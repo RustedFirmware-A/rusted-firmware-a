@@ -36,6 +36,24 @@ pub fn current_el() -> u8 {
     (current_el >> 2) as u8
 }
 
+/// Indicates whether FEAT_PAuth_LR is implemented.
+#[cfg(feature = "pauth")]
+fn is_feat_pauth_lr_present() -> bool {
+    use arm_sysregs::{read_id_aa64isar1_el1, read_id_aa64isar2_el1};
+
+    const PAUTH_LR_IMPLEMENTED: u8 = 0b110;
+
+    let id_aa64isar1_el1 = read_id_aa64isar1_el1();
+    // FEAT_PAuth_LR support is indicated by up to 3 fields, where if one or more of these is 0b0110
+    // then the feature is present.
+    //   1) id_aa64isar1_el1.api
+    //   2) id_aa64isar1_el1.apa
+    //   3) id_aa64isar2_el1.apa3
+    id_aa64isar1_el1.apa() == PAUTH_LR_IMPLEMENTED
+        || id_aa64isar1_el1.api() == PAUTH_LR_IMPLEMENTED
+        || read_id_aa64isar2_el1().apa3() == PAUTH_LR_IMPLEMENTED
+}
+
 /// Gets the key currently being used for PAuth.
 #[cfg(feature = "pauth")]
 pub fn get_pauth_key() -> u128 {
@@ -48,8 +66,9 @@ pub fn get_pauth_key() -> u128 {
 #[inline(always)]
 pub fn enable_pauth(key: u128) {
     use arm_sysregs::{
-        ApiakeyhiEl1, ApiakeyloEl1, SctlrEl1, SctlrEl2, read_sctlr_el1, read_sctlr_el2,
-        write_apiakeyhi_el1, write_apiakeylo_el1, write_sctlr_el1, write_sctlr_el2,
+        ApiakeyhiEl1, ApiakeyloEl1, Sctlr2El1, Sctlr2El2, SctlrEl1, SctlrEl2, read_sctlr_el1,
+        read_sctlr_el2, read_sctlr2_el1, read_sctlr2_el2, write_apiakeyhi_el1, write_apiakeylo_el1,
+        write_sctlr_el1, write_sctlr_el2, write_sctlr2_el1, write_sctlr2_el2,
     };
 
     unsafe {
@@ -61,10 +80,26 @@ pub fn enable_pauth(key: u128) {
         unsafe {
             write_sctlr_el2(read_sctlr_el2() | SctlrEl2::ENIA);
         }
+
+        if is_feat_pauth_lr_present() {
+            // SAFETY: We have set the PAuth key and SCTLR2_ELx access is enabled for lower EL, so
+            // it is safe to enable PAuth_LR.
+            unsafe {
+                write_sctlr2_el2(read_sctlr2_el2() | Sctlr2El2::ENPACM);
+            }
+        }
     } else {
         // SAFETY: We have set the PAuth key, so it is safe to enable PAuth.
         unsafe {
             write_sctlr_el1(read_sctlr_el1() | SctlrEl1::ENIA);
+        }
+
+        if is_feat_pauth_lr_present() {
+            // SAFETY: We have set the PAuth key and SCTLR2_ELx access is enabled for lower EL, so
+            // it is safe to enable PAuth_LR.
+            unsafe {
+                write_sctlr2_el1(read_sctlr2_el1() | Sctlr2El1::ENPACM);
+            }
         }
     }
     // SAFETY: The `isb` instruction does not violate safe Rust guarantees.

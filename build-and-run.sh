@@ -109,6 +109,8 @@ case "$PLAT" in
         -C cluster1.cpu3.etm-present=0 \
         -C cluster0.cpu0.semihosting-cwd=${OUT} \
         -C cluster1.cpu0.semihosting-cwd=${OUT} \
+        -C cluster0.enhanced_pac2_level=4 \
+        -C cluster1.enhanced_pac2_level=4 \
         -C cluster0.has_amu=1 \
         -C cluster1.has_amu=1 \
         -C cluster0.has_branch_target_exception=1 \

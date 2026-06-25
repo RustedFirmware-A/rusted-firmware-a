@@ -25,12 +25,12 @@ OBJDUMP ?= rust-objdump
 FEATURES ?= sel2
 STF_FEATURES ?=
 
-.PHONY: all cargo-doc clean clippy clippy-test build build-stf list_platforms list_features
+.PHONY: all cargo-doc clean clippy clippy-test build build-stf list_platforms list_features list_test_features
 
 PLATFORMS_AVAILABLE := fvp qemu
 
 ifndef PLAT
-  ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),clean clippy-test help list_platforms))
+  ifneq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),clean clippy-test help list_platforms list_test_features))
     $(info error: environment variable PLAT=<xxx> is required. Options are:)
     $(foreach p, $(PLATFORMS_AVAILABLE), $(info * $(p)))
     $(error Please run `make PLAT=...`)
@@ -172,6 +172,9 @@ else ifeq (${PLAT}, fvp)
 	@echo "'' 'sel2' 'rme' 'sel2,rme'"
 endif
 
+list_test_features:
+	@echo "'' 'sel2' 'rme' 'sel2,rme'"
+
 help:
 	@echo "usage: ${MAKE} PLAT=<platform> [VAR=<value> [...]] <target> [...]"
 	@echo
@@ -194,4 +197,5 @@ help:
 	@echo "  clippy       	Lint the Rust source tree for the specified platform."
 	@echo "  clippy-test 	Lint the Rust source tree for the test configuration."
 	@echo "  list_features  List all possible FEATURE combinations for the given platform."
+	@echo "  list_test_features  List all possible FEATURE combinations for unit tests."
 	@echo "  list_platforms List all supported platforms."

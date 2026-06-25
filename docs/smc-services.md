@@ -114,6 +114,26 @@ It implements the TRNG SMCs as defined by Arm document DEN0098.
 | `ARM_TRNG_RND32`                      | Supported     | Generates up to 96 bits of entropy.                          |
 | `ARM_TRNG_RND64`                      | Supported     | Generates up to 192 bits of entropy.                         |
 
+## RMM-EL3 Interface (`src/services/rmmd.rs`)
+
+This service is available to normal and realm worlds. The normal world interface validates RMI calls, and forwards them to the realm world. The realm world interface implements the following calls:
+
+| Interface                             | Support       | Notes                                                        |
+| ------------------------------------- | ------------- | ------------------------------------------------------------ |
+| `RMM_RMI_REQ_COMPLETE`                | Supported     |                                                              |
+| `RMM_GTSI_DELEGATE`                   | Supported     |                                                              |
+| `RMM_GTSI_UNDELEGATE`                 | Supported     |                                                              |
+| `RMM_ATTEST_GET_REALM_KEY`            | Supported     |                                                              |
+| `RMM_ATTEST_GET_PLAT_TOKEN`           | Supported     |                                                              |
+| `RMM_EL3_FEATURES`                    | Supported     |                                                              |
+| `RMM_EL3_TOKEN_SIGN`                  | Not supported |                                                              |
+| `RMM_MECID_KEY_UPDATE`                | Not supported |                                                              |
+| `RMM_IDE_KEY_PROG`                    | Not supported |                                                              |
+| `RMM_IDE_KEY_SET_GO`                  | Not supported |                                                              |
+| `RMM_IDE_KEY_SET_STOP`                | Not supported |                                                              |
+| `RMM_IDE_KM_PULL_RESPONSE`            | Not supported |                                                              |
+| `RMM_RESERVE_MEMORY`                  | Not supported |                                                              |
+
 ## Platform service
 
 Platforms may implement their own SMC service, which can internally further dispatch to sub-services

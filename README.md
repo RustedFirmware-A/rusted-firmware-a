@@ -23,6 +23,7 @@ The current implementation supports:
 * [Arm Power State Coordination Interface (PSCI)][11].
 * [Errata Management][12].
 * [Arm True Random Number Generator Firmware Interface][13].
+* [RMM-EL3 Interface defined in TF-A][15].
 * An optional platform-specific service.
 
 For more details on each of these services, please refer to the
@@ -92,6 +93,7 @@ Arm word trademark.
 [12]: https://developer.arm.com/documentation/den0100/latest/
 [13]: https://developer.arm.com/documentation/den0098/latest
 [14]: docs/architecture.md
+[15]: https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html
 
 ---
 

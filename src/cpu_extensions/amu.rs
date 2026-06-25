@@ -143,70 +143,66 @@ impl AmuContext {
     }
 
     fn restore(&self) {
-        // SAFETY: We're restoring the values previously saved, so they must be valid.
-        unsafe {
-            // Disable all counters before restoring.
-            write_amcr_el0(AmcrEl0::empty());
+        write_amcr_el0(AmcrEl0::empty());
 
-            let n_group1 = read_amcgcr_el0().cg1nc();
+        let n_group1 = read_amcgcr_el0().cg1nc();
 
-            write_amevcntr00_el0(self.amevcntr00_el0);
-            write_amevcntr01_el0(self.amevcntr01_el0);
-            write_amevcntr02_el0(self.amevcntr02_el0);
-            write_amevcntr03_el0(self.amevcntr03_el0);
+        write_amevcntr00_el0(self.amevcntr00_el0);
+        write_amevcntr01_el0(self.amevcntr01_el0);
+        write_amevcntr02_el0(self.amevcntr02_el0);
+        write_amevcntr03_el0(self.amevcntr03_el0);
 
-            if n_group1 > 0 {
-                write_amevcntr10_el0(self.amevcntr10_el0);
-            }
-            if n_group1 > 1 {
-                write_amevcntr11_el0(self.amevcntr11_el0);
-            }
-            if n_group1 > 2 {
-                write_amevcntr12_el0(self.amevcntr12_el0);
-            }
-            if n_group1 > 3 {
-                write_amevcntr13_el0(self.amevcntr13_el0);
-            }
-            if n_group1 > 4 {
-                write_amevcntr14_el0(self.amevcntr14_el0);
-            }
-            if n_group1 > 5 {
-                write_amevcntr15_el0(self.amevcntr15_el0);
-            }
-            if n_group1 > 6 {
-                write_amevcntr16_el0(self.amevcntr16_el0);
-            }
-            if n_group1 > 7 {
-                write_amevcntr17_el0(self.amevcntr17_el0);
-            }
-            if n_group1 > 8 {
-                write_amevcntr18_el0(self.amevcntr18_el0);
-            }
-            if n_group1 > 9 {
-                write_amevcntr19_el0(self.amevcntr19_el0);
-            }
-            if n_group1 > 10 {
-                write_amevcntr110_el0(self.amevcntr110_el0);
-            }
-            if n_group1 > 11 {
-                write_amevcntr111_el0(self.amevcntr111_el0);
-            }
-            if n_group1 > 12 {
-                write_amevcntr112_el0(self.amevcntr112_el0);
-            }
-            if n_group1 > 13 {
-                write_amevcntr113_el0(self.amevcntr113_el0);
-            }
-            if n_group1 > 14 {
-                write_amevcntr114_el0(self.amevcntr114_el0);
-            }
-            if n_group1 > 15 {
-                write_amevcntr115_el0(self.amevcntr115_el0);
-            }
-
-            write_amuserenr_el0(self.amuserenr_el0);
-            write_amcr_el0(self.amcr_el0);
+        if n_group1 > 0 {
+            write_amevcntr10_el0(self.amevcntr10_el0);
         }
+        if n_group1 > 1 {
+            write_amevcntr11_el0(self.amevcntr11_el0);
+        }
+        if n_group1 > 2 {
+            write_amevcntr12_el0(self.amevcntr12_el0);
+        }
+        if n_group1 > 3 {
+            write_amevcntr13_el0(self.amevcntr13_el0);
+        }
+        if n_group1 > 4 {
+            write_amevcntr14_el0(self.amevcntr14_el0);
+        }
+        if n_group1 > 5 {
+            write_amevcntr15_el0(self.amevcntr15_el0);
+        }
+        if n_group1 > 6 {
+            write_amevcntr16_el0(self.amevcntr16_el0);
+        }
+        if n_group1 > 7 {
+            write_amevcntr17_el0(self.amevcntr17_el0);
+        }
+        if n_group1 > 8 {
+            write_amevcntr18_el0(self.amevcntr18_el0);
+        }
+        if n_group1 > 9 {
+            write_amevcntr19_el0(self.amevcntr19_el0);
+        }
+        if n_group1 > 10 {
+            write_amevcntr110_el0(self.amevcntr110_el0);
+        }
+        if n_group1 > 11 {
+            write_amevcntr111_el0(self.amevcntr111_el0);
+        }
+        if n_group1 > 12 {
+            write_amevcntr112_el0(self.amevcntr112_el0);
+        }
+        if n_group1 > 13 {
+            write_amevcntr113_el0(self.amevcntr113_el0);
+        }
+        if n_group1 > 14 {
+            write_amevcntr114_el0(self.amevcntr114_el0);
+        }
+        if n_group1 > 15 {
+            write_amevcntr115_el0(self.amevcntr115_el0);
+        }
+
+        write_amuserenr_el0(self.amuserenr_el0);
+        write_amcr_el0(self.amcr_el0);
     }
 }
 
@@ -236,7 +232,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
     for Amu<CORE_COUNT, PlatformImpl>
 {
     fn is_present(&self) -> bool {
-        read_id_aa64pfr0_el1().is_feat_amu_present()
+        read_id_aa64pfr0_el1().is_feat_amuv1_present()
     }
 
     fn save_context_before_suspend_to_powerdown(&self) {

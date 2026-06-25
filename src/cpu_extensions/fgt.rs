@@ -75,7 +75,7 @@ mod fgt_el2 {
         exception_free(|token| {
             let ctx = &mut context.get().borrow_mut(token)[world];
 
-            if read_id_aa64pfr0_el1().is_feat_amu_present() {
+            if read_id_aa64pfr0_el1().is_feat_amuv1_present() {
                 ctx.hafgrtr_el2 = read_hafgrtr_el2();
             }
             ctx.hdfgrtr_el2 = read_hdfgrtr_el2();
@@ -93,7 +93,7 @@ mod fgt_el2 {
         exception_free(|token| {
             let ctx = &context.get().borrow_mut(token)[world];
 
-            if read_id_aa64pfr0_el1().is_feat_amu_present() {
+            if read_id_aa64pfr0_el1().is_feat_amuv1_present() {
                 // SAFETY: We're restoring the value previously saved, so it must be valid.
                 unsafe {
                     write_hafgrtr_el2(ctx.hafgrtr_el2);

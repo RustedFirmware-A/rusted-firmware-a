@@ -146,9 +146,11 @@ impl CpuContext {
         #[cfg(feature = "sel2")]
         self.el2_sysregs.restore::<PlatformImpl>(world);
         #[cfg(not(feature = "sel2"))]
-        self.el1_sysregs.restore();
-        #[cfg(not(feature = "sel2"))]
-        let _ = world;
+        {
+            self.el1_sysregs.restore();
+            let _ = world;
+            let _: PlatformImpl;
+        }
     }
 
     /// Skips an instruction in a lower EL.

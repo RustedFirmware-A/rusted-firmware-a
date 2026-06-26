@@ -56,10 +56,10 @@ for platform in "${all_platforms[@]}"; do
             fi
 
             must make FEATURES=$features DEBUG="$debug" PLAT="$platform" build
+            must make FEATURES=$features DEBUG="$debug" PLAT="$platform" clippy
+            must make FEATURES=$features DEBUG="$debug" PLAT="$platform" cargo-doc
         done
     done
-    must make PLAT="$platform" clippy
-    must make PLAT="$platform" cargo-doc
 done
 
 must cargo vet

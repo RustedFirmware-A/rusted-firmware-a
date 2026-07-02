@@ -5,7 +5,7 @@
 //! FF-A Secure Partition Manager Dispatcher.
 
 use crate::{
-    context::{PerCoreState, World, switch_world},
+    context::{World, switch_world},
     errata_framework::PlatformErrata,
     exceptions::{RunResult, enter_world},
     platform::{Platform, exception_free},
@@ -22,10 +22,11 @@ use arm_ffa::{
 use arm_psci::{ErrorCode, Function, ReturnCode};
 use core::{
     cell::RefCell,
+    marker::PhantomData,
     sync::atomic::{AtomicUsize, Ordering::Relaxed},
 };
 use log::{debug, error, trace, warn};
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
 
 const FUNCTION_NUMBER_MIN: u16 = 0x0060;
 const FUNCTION_NUMBER_MAX: u16 = 0x00EF;
@@ -52,16 +53,20 @@ enum SpmcState {
     PsciEventHandling,
 }
 
+#[percore]
+static SPMD_CORE_LOCAL: ExceptionLock<RefCell<SpmdLocal>> =
+    ExceptionLock::new(RefCell::new(SpmdLocal::new()));
+
 /// Secure Partition Manager Dispatcher, defined by Arm Firmware Framework for A-Profile (FF-A)
-pub struct Spmd<const CORE_COUNT: usize, PlatformImpl: Platform> {
+pub struct Spmd<PlatformImpl: Platform> {
     spmc_id: u16,
     spmc_version: Version,
     spmc_primary_ep: usize,
     spmc_secondary_ep: AtomicUsize,
-    core_local: PerCoreState<CORE_COUNT, PlatformImpl, SpmdLocal>,
+    _phantom: PhantomData<PlatformImpl>,
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Service for Spmd<CORE_COUNT, PlatformImpl> {
+impl<PlatformImpl: Platform> Service for Spmd<PlatformImpl> {
     owns!(
         OwningEntityNumber::STANDARD_SECURE,
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
@@ -80,7 +85,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Service for Spmd<CORE_COUN
                 trace!("Handle FF-A call from NWd {msg:x?}");
 
                 let spmc_state =
-                    exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
+                    exception_free(|token| SPMD_CORE_LOCAL.get().borrow(token).borrow().spmc_state);
 
                 assert_eq!(spmc_state, SpmcState::Runtime);
 
@@ -118,7 +123,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Service for Spmd<CORE_COUN
                 trace!("Handle FF-A call from SWd {msg:x?}");
 
                 let spmc_state =
-                    exception_free(|token| self.core_local.get().borrow(token).borrow().spmc_state);
+                    exception_free(|token| SPMD_CORE_LOCAL.get().borrow(token).borrow().spmc_state);
 
                 let (has_msg, next_world) = match spmc_state {
                     SpmcState::Off => panic!(),
@@ -153,7 +158,7 @@ fn get_smc_regs(regs: &mut SmcReturn) -> &mut [u64] {
     }
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformImpl> {
+impl<PlatformImpl: Platform> Spmd<PlatformImpl> {
     const OWN_ID: u16 = 0xffff;
     const VERSION: Version = Version(1, 3);
     const NS_EP_ID: u16 = 0; // TODO: this should come from arm_ffa
@@ -173,17 +178,13 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformI
 
         assert!(spmc_version.is_compatible_to(Self::VERSION));
 
-        let core_local = PerCore::new(
-            [const { ExceptionLock::new(RefCell::new(SpmdLocal::new())) }; CORE_COUNT],
-        );
-
         let spmd = Self {
             spmc_id,
             spmc_version,
             spmc_primary_ep,
             // By default the secondary EP is same as primary
             spmc_secondary_ep: spmc_primary_ep.into(),
-            core_local,
+            _phantom: PhantomData,
         };
 
         // This only runs once, on the primary core, at cold boot. Set the correct state before
@@ -206,7 +207,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformI
 
     fn switch_spmc_local_state(&self, expected_state: SpmcState, new_state: SpmcState) {
         exception_free(|token| {
-            let spmc_state = &mut self.core_local.get().borrow_mut(token).spmc_state;
+            let spmc_state = &mut SPMD_CORE_LOCAL.get().borrow_mut(token).spmc_state;
             assert_eq!(
                 *spmc_state, expected_state,
                 "Unexpected starting state while attempting transition {expected_state:?} -> {new_state:?}, actual: {spmc_state:?} -> {new_state:?}"
@@ -570,9 +571,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformI
     }
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform + PlatformErrata> PsciSpmInterface
-    for Spmd<CORE_COUNT, PlatformImpl>
-{
+impl<PlatformImpl: Platform + PlatformErrata> PsciSpmInterface for Spmd<PlatformImpl> {
     fn forward_psci_request(&self, function: Function) -> ReturnCode {
         let version = self.spmc_version;
         let mut regs = SmcReturn::EMPTY;

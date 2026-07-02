@@ -119,14 +119,14 @@ pub struct Services<
         NON_CPU_DOMAIN_COUNT,
         PlatformImpl,
         PlatformImpl::PsciPlatformImpl,
-        Spmd<CORE_COUNT, PlatformImpl>,
+        Spmd<PlatformImpl>,
     >,
     platform: PlatformImpl::PlatformServiceImpl,
     /// The FF-A SPMD service.
-    pub spmd: Spmd<CORE_COUNT, PlatformImpl>,
+    pub spmd: Spmd<PlatformImpl>,
     /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
-    pub rmmd: Rmmd<CORE_COUNT, PlatformImpl>,
+    pub rmmd: Rmmd<PlatformImpl>,
     trng: Trng<TRNG_REQ_WORDS, TRNG_WORDS_IN_POOL, PlatformImpl::TrngPlatformImpl>,
     errata_management: ErrataManagement<PlatformImpl>,
 }
@@ -155,7 +155,7 @@ where
     <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<TRNG_REQ_WORDS>,
 {
     /// Constructs a new instance of the services.
-    pub fn new(get_spm: fn() -> &'static Spmd<CORE_COUNT, PlatformImpl>) -> Self {
+    pub fn new(get_spm: fn() -> &'static Spmd<PlatformImpl>) -> Self {
         Self {
             arch: Arch::new(),
             psci: Psci::new(PlatformImpl::psci_platform().unwrap(), get_spm),

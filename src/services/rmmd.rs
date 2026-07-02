@@ -9,17 +9,18 @@ pub mod svc;
 
 use core::{
     cell::RefCell,
+    marker::PhantomData,
     slice::from_raw_parts_mut,
     sync::atomic::{AtomicU8, Ordering},
 };
 use log::{debug, error, warn};
 use num_enum::TryFromPrimitive;
-use percore::{Cores, ExceptionLock, PerCore};
+use percore::{Cores, ExceptionLock, derive::percore};
 use spin::{Once, mutex::SpinMutex};
 
 use crate::{
     aarch64::dsb_osh,
-    context::{CoresImpl, PerCoreState, World},
+    context::{CoresImpl, World},
     gpt::{GPIAccessType, GranuleProtection},
     pagetable::flush_dcache_to_popa_range,
     platform::{Platform, exception_free},
@@ -181,19 +182,23 @@ enum RmiFuncId {
     Version = 0xC400_0150,
 }
 
+#[percore]
+static RMMD_CORE_LOCAL: ExceptionLock<RefCell<RmmdLocal>> =
+    ExceptionLock::new(RefCell::new(RmmdLocal::new()));
+
 /// Arm CCA SMCs, for communication between RF-A and TF-RMM.
 ///
 /// This is described at
 /// <https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html>
-pub struct Rmmd<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    core_local: PerCoreState<CORE_COUNT, PlatformImpl, RmmdLocal>,
+pub struct Rmmd<PlatformImpl: Platform> {
     attestation_token_read_index: SpinMutex<usize>,
     // Boot status of RMM across all cores.
     // If RMM fails to boot on any core then it is disabled for all cores.
     rmm_boot_state: AtomicU8,
+    _phantom: PhantomData<PlatformImpl>,
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Service for Rmmd<CORE_COUNT, PlatformImpl> {
+impl<PlatformImpl: Platform> Service for Rmmd<PlatformImpl> {
     owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x01CF}
 
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
@@ -222,12 +227,8 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Service for Rmmd<CORE_COUN
     }
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Rmmd<CORE_COUNT, PlatformImpl> {
+impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
     pub(super) fn new() -> Self {
-        let core_local = PerCore::new(
-            [const { ExceptionLock::new(RefCell::new(RmmdLocal::new())) }; CORE_COUNT],
-        );
-
         // Safety:
         // - This function is called after initializing the MMU and pagetable.
         // - This function never calls again `get_shared_buffer()`, thus the reference will be dropped
@@ -248,9 +249,9 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Rmmd<CORE_COUNT, PlatformI
         });
 
         Self {
-            core_local,
             attestation_token_read_index: SpinMutex::new(0),
             rmm_boot_state: AtomicU8::new(RmmBootState::Unknown as u8),
+            _phantom: PhantomData,
         }
     }
 
@@ -259,7 +260,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Rmmd<CORE_COUNT, PlatformI
     /// <https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html#warm-boot-interface>
     pub(crate) fn handle_wake_from_cpu_suspend(&self) -> [u64; 4] {
         let activation_token = exception_free(|token| {
-            self.core_local
+            RMMD_CORE_LOCAL
                 .get()
                 .borrow(token)
                 .borrow()
@@ -569,7 +570,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Rmmd<CORE_COUNT, PlatformI
         }
 
         exception_free(|token| {
-            let mut state = self.core_local.get().borrow_mut(token);
+            let mut state = RMMD_CORE_LOCAL.get().borrow_mut(token);
 
             if state.activation_token.is_none() {
                 let activation_token = regs.values()[2];
@@ -630,7 +631,7 @@ mod tests {
     use super::*;
     use crate::platform::test::TestPlatform;
 
-    fn setup() -> Rmmd<{ TestPlatform::CORE_COUNT }, TestPlatform> {
+    fn setup() -> Rmmd<TestPlatform> {
         Rmmd::new()
     }
 

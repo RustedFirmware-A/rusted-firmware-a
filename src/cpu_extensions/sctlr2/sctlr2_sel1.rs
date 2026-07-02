@@ -4,11 +4,8 @@
 
 //! FEAT_SCTLR2 context management for when Secure EL2 is not enabled.
 
-use super::Sctlr2;
-use crate::{
-    context::World,
-    platform::{Platform, exception_free},
-};
+use super::{SCTLR2_CONTEXT, Sctlr2};
+use crate::{context::World, platform::exception_free};
 use arm_sysregs::{Sctlr2El1, read_sctlr2_el1, write_sctlr2_el1};
 
 pub struct Sctlr2CpuContext {
@@ -21,17 +18,17 @@ impl Sctlr2CpuContext {
     };
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Sctlr2<CORE_COUNT, PlatformImpl> {
+impl Sctlr2 {
     pub(super) fn save_registers(&self, world: World) {
         exception_free(|token| {
-            let mut ctx = self.context.get().borrow_mut(token);
+            let mut ctx = SCTLR2_CONTEXT.get().borrow_mut(token);
             ctx[world].sctlr2_el1 = read_sctlr2_el1();
         })
     }
 
     pub(super) fn restore_registers(&self, world: World) {
         exception_free(|token| {
-            let ctx = self.context.get().borrow_mut(token);
+            let ctx = SCTLR2_CONTEXT.get().borrow_mut(token);
             // SAFETY: We're restoring the value previously saved, so it must be valid.
             unsafe {
                 write_sctlr2_el1(ctx[world].sctlr2_el1);

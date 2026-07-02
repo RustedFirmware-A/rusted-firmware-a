@@ -15,44 +15,21 @@ use self::tcr2_sel1::Tcr2CpuContext;
 #[cfg(feature = "sel2")]
 use self::tcr2_sel2::Tcr2CpuContext;
 use super::CpuExtension;
-use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, PerWorldContext, World},
-    platform::Platform,
-};
+use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, PerWorldContext, World};
 use arm_sysregs::{ScrEl3, read_id_aa64mmfr3_el1};
 use core::cell::RefCell;
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
+
+#[percore]
+static TCR2_CONTEXT: ExceptionLock<RefCell<PerWorld<Tcr2CpuContext>>> = ExceptionLock::new(
+    RefCell::new(PerWorld([Tcr2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
+);
 
 /// Enables access to the TCR2_ELx registers at lower ELs, along with context switching of those
 /// registers on world switch.
-pub struct Tcr2<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    context: PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<Tcr2CpuContext>>,
-}
+pub struct Tcr2;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Tcr2<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the TCR2 CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            context: PerCore::new(
-                [const {
-                    ExceptionLock::new(RefCell::new(PerWorld(
-                        [Tcr2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-                    )))
-                }; CORE_COUNT],
-            ),
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Tcr2<CORE_COUNT, PlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for Tcr2<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for Tcr2 {
     fn is_present(&self) -> bool {
         read_id_aa64mmfr3_el1().is_feat_tcr2_present()
     }

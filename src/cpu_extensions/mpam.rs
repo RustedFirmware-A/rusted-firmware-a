@@ -21,53 +21,26 @@ mod mpam_sel2;
 use self::mpam_sel2::MpamCpuContext;
 use super::CpuExtension;
 #[cfg(feature = "sel2")]
-use crate::context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld};
-use crate::{
-    context::{PerWorldContext, World},
-    platform::Platform,
-};
+use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld};
+use crate::context::{PerWorldContext, World};
 use arm_sysregs::{Mpam3El3, read_id_aa64pfr0_el1};
 #[cfg(feature = "sel2")]
 use core::cell::RefCell;
-use core::marker::PhantomData;
 #[cfg(feature = "sel2")]
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
+
+#[cfg(feature = "sel2")]
+#[percore]
+static MPAM_CONTEXT: ExceptionLock<RefCell<PerWorld<MpamCpuContext>>> = ExceptionLock::new(
+    RefCell::new(PerWorld([MpamCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
+);
 
 /// FEAT_MPAM support
 ///
 /// Enables MPAM configuration and disables MPAM system register traps for NS and Realm worlds.
-pub struct Mpam<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    #[cfg(feature = "sel2")]
-    context: PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<MpamCpuContext>>,
-    _platform: PhantomData<PlatformImpl>,
-}
+pub struct Mpam;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Mpam<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the MPAM CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            #[cfg(feature = "sel2")]
-            context: PerCore::new(
-                [const {
-                    ExceptionLock::new(RefCell::new(PerWorld(
-                        [MpamCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-                    )))
-                }; CORE_COUNT],
-            ),
-            _platform: PhantomData,
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Mpam<CORE_COUNT, PlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for Mpam<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for Mpam {
     fn is_present(&self) -> bool {
         mpam_is_present()
     }

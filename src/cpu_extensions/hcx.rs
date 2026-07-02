@@ -11,53 +11,26 @@ mod hcx_sel2;
 use self::hcx_sel2::HcxCpuContext;
 use super::CpuExtension;
 #[cfg(feature = "sel2")]
-use crate::context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld};
-use crate::{
-    context::{PerWorldContext, World},
-    platform::Platform,
-};
+use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld};
+use crate::context::{PerWorldContext, World};
 use arm_sysregs::{HcrxEl2, ScrEl3, read_id_aa64mmfr1_el1, write_hcrx_el2};
 #[cfg(feature = "sel2")]
 use core::cell::RefCell;
-use core::marker::PhantomData;
 #[cfg(feature = "sel2")]
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
+
+#[cfg(feature = "sel2")]
+#[percore]
+static HCX_CONTEXT: ExceptionLock<RefCell<PerWorld<HcxCpuContext>>> = ExceptionLock::new(
+    RefCell::new(PerWorld([HcxCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
+);
 
 /// FEAT_HCX introduces the Extended Hypervisor Configuration Register, HCRX_EL2, that provides
 /// configuration controls for virtualization in addition to those provided by HCR_EL2, including
 /// defining whether various operations are trapped to EL2.
-pub struct Hcx<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    #[cfg(feature = "sel2")]
-    context: PerCoreState<{ CORE_COUNT }, PlatformImpl, PerWorld<HcxCpuContext>>,
-    _platform: PhantomData<PlatformImpl>,
-}
+pub struct Hcx;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Hcx<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the HCX CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            #[cfg(feature = "sel2")]
-            context: PerCore::new(
-                [const {
-                    ExceptionLock::new(RefCell::new(PerWorld(
-                        [HcxCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-                    )))
-                }; CORE_COUNT],
-            ),
-            _platform: PhantomData,
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Hcx<CORE_COUNT, PlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for Hcx<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for Hcx {
     fn is_present(&self) -> bool {
         read_id_aa64mmfr1_el1().is_feat_hcx_present()
     }

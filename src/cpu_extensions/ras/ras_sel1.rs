@@ -4,11 +4,8 @@
 
 //! FEAT_RAS context management for when Secure EL2 is not enabled.
 
-use super::Ras;
-use crate::{
-    context::World,
-    platform::{Platform, exception_free},
-};
+use super::{RAS_CONTEXT, Ras};
+use crate::{context::World, platform::exception_free};
 use arm_sysregs::{DisrEl1, read_disr_el1, write_disr_el1};
 
 pub struct RasCpuContext {
@@ -21,18 +18,18 @@ impl RasCpuContext {
     };
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Ras<CORE_COUNT, PlatformImpl> {
+impl Ras {
     /// Saves the system register values to this context struct.
     pub(crate) fn save_context_internal(&self, world: World) {
         exception_free(|token| {
-            self.context.get().borrow_mut(token)[world].disr_el1 = read_disr_el1();
+            RAS_CONTEXT.get().borrow_mut(token)[world].disr_el1 = read_disr_el1();
         })
     }
 
     /// Restores the system register values from this context struct.
     pub(crate) fn restore_context_internal(&self, world: World) {
         exception_free(|token| {
-            write_disr_el1(self.context.get().borrow_mut(token)[world].disr_el1);
+            write_disr_el1(RAS_CONTEXT.get().borrow_mut(token)[world].disr_el1);
         })
     }
 }

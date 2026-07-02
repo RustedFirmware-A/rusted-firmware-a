@@ -129,7 +129,7 @@ static SECURE_GPIO: SpinMutex<PL061> = SpinMutex::new(PL061::new(unsafe {
     UniqueMmioPointer::new(NonNull::new(SECURE_GPIO_ADDR).unwrap())
 }));
 
-static SIMD: Simd<{ Qemu::CORE_COUNT }, Qemu> = Simd::sve(512, false);
+static SIMD: Simd = Simd::sve(512, false);
 
 #[repr(C, align(64))]
 struct HoldSlot {

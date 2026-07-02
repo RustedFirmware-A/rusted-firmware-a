@@ -14,13 +14,15 @@ use self::pfar_sel1::PfarContext;
 #[cfg(feature = "sel2")]
 use self::pfar_sel2::PfarContext;
 use super::CpuExtension;
-use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, PerWorldContext, World},
-    platform::Platform,
-};
+use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, PerWorldContext, World};
 use arm_sysregs::{ScrEl3, read_id_aa64pfr1_el1};
 use core::cell::RefCell;
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
+
+#[percore]
+static PFAR_CONTEXT: ExceptionLock<RefCell<PerWorld<PfarContext>>> = ExceptionLock::new(
+    RefCell::new(PerWorld([PfarContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
+);
 
 /// FEAT_PFAR support
 ///
@@ -31,34 +33,9 @@ use percore::{ExceptionLock, PerCore};
 ///
 /// PFAR_ELx records the faulting physical address for a synchronous External abort or SError
 /// exception.
-pub struct Pfar<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    context: PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<PfarContext>>,
-}
+pub struct Pfar;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Pfar<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the PFAR CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            context: PerCore::new(
-                [const {
-                    ExceptionLock::new(RefCell::new(PerWorld(
-                        [PfarContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-                    )))
-                }; CORE_COUNT],
-            ),
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Pfar<CORE_COUNT, PlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for Pfar<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for Pfar {
     fn is_present(&self) -> bool {
         read_id_aa64pfr1_el1().is_feat_pfar_present()
     }

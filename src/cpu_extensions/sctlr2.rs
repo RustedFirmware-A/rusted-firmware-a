@@ -18,46 +18,23 @@ use self::sctlr2_sel1::Sctlr2CpuContext;
 #[cfg(feature = "sel2")]
 use self::sctlr2_sel2::Sctlr2CpuContext;
 use super::CpuExtension;
-use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, PerWorldContext, World},
-    platform::Platform,
-};
+use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, PerWorldContext, World};
 use arm_sysregs::{ScrEl3, read_id_aa64mmfr3_el1};
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::init_sctlr2_el3;
 use core::cell::RefCell;
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
+
+#[percore]
+static SCTLR2_CONTEXT: ExceptionLock<RefCell<PerWorld<Sctlr2CpuContext>>> = ExceptionLock::new(
+    RefCell::new(PerWorld([Sctlr2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
+);
 
 /// Enables access to the SCTLR2_ELx registers at lower ELs, along with context switching of those
 /// registers on world switch.
-pub struct Sctlr2<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    context: PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<Sctlr2CpuContext>>,
-}
+pub struct Sctlr2;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Sctlr2<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the SCTLR2 CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            context: PerCore::new(
-                [const {
-                    ExceptionLock::new(RefCell::new(PerWorld(
-                        [Sctlr2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-                    )))
-                }; CORE_COUNT],
-            ),
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Sctlr2<CORE_COUNT, PlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for Sctlr2<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for Sctlr2 {
     fn is_present(&self) -> bool {
         read_id_aa64mmfr3_el1().is_feat_sctlr2_present()
     }

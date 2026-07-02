@@ -4,11 +4,7 @@
 
 //! Activity Monitor Unit (AMU) extension support.
 
-use crate::{
-    context::PerCoreState,
-    cpu_extensions::CpuExtension,
-    platform::{Platform, exception_free},
-};
+use crate::{cpu_extensions::CpuExtension, platform::exception_free};
 use arm_sysregs::{
     AmcrEl0, Amevcntr00El0, Amevcntr01El0, Amevcntr02El0, Amevcntr03El0, Amevcntr10El0,
     Amevcntr11El0, Amevcntr12El0, Amevcntr13El0, Amevcntr14El0, Amevcntr15El0, Amevcntr16El0,
@@ -27,7 +23,7 @@ use arm_sysregs::{
     write_amevcntr113_el0, write_amevcntr114_el0, write_amevcntr115_el0, write_amuserenr_el0,
 };
 use core::cell::RefCell;
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
 
 #[derive(Clone, Copy, Default)]
 struct AmuContext {
@@ -206,31 +202,14 @@ impl AmuContext {
     }
 }
 
+#[percore]
+static AMU_CONTEXT: ExceptionLock<RefCell<AmuContext>> =
+    ExceptionLock::new(RefCell::new(AmuContext::EMPTY));
+
 /// Activity Monitor Unit (AMU) extension support.
-pub struct Amu<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    context: PerCoreState<CORE_COUNT, PlatformImpl, AmuContext>,
-}
+pub struct Amu;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Amu<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the AMU CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            context: PerCore::new(
-                [const { ExceptionLock::new(RefCell::new(AmuContext::EMPTY)) }; CORE_COUNT],
-            ),
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Amu<CORE_COUNT, PlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for Amu<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for Amu {
     fn is_present(&self) -> bool {
         read_id_aa64pfr0_el1().is_feat_amuv1_present()
     }
@@ -241,7 +220,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
         }
 
         exception_free(|token| {
-            let mut ctx = self.context.get().borrow_mut(token);
+            let mut ctx = AMU_CONTEXT.get().borrow_mut(token);
             ctx.save();
         });
     }
@@ -252,7 +231,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
         }
 
         exception_free(|token| {
-            let ctx = self.context.get().borrow_mut(token);
+            let ctx = AMU_CONTEXT.get().borrow_mut(token);
             ctx.restore();
         });
     }

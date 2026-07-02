@@ -10,17 +10,19 @@ mod mte2_sel1;
 mod mte2_sel2;
 
 use super::CpuExtension;
-use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, PerWorldContext, World},
-    platform::Platform,
-};
+use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, PerWorldContext, World};
 use arm_sysregs::{ScrEl3, read_id_aa64pfr1_el1};
 use core::cell::RefCell;
 #[cfg(not(feature = "sel2"))]
 use mte2_sel1::Mte2CpuContext;
 #[cfg(feature = "sel2")]
 use mte2_sel2::Mte2CpuContext;
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
+
+#[percore]
+static MTE2_CONTEXT: ExceptionLock<RefCell<PerWorld<Mte2CpuContext>>> = ExceptionLock::new(
+    RefCell::new(PerWorld([Mte2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
+);
 
 /// Memory Tagging Extension
 ///
@@ -30,36 +32,9 @@ use percore::{ExceptionLock, PerCore};
 /// FEAT_MTE2 provides architectural support for runtime, always-on detection of various classes of
 /// memory error to aid with software debugging to eliminate vulnerabilities arising from
 /// memory-unsafe languages.
-pub struct MemoryTagging<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    context: PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<Mte2CpuContext>>,
-}
+pub struct MemoryTagging;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> MemoryTagging<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the MTE CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            context: PerCore::new(
-                [const {
-                    ExceptionLock::new(RefCell::new(PerWorld(
-                        [Mte2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-                    )))
-                }; CORE_COUNT],
-            ),
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default
-    for MemoryTagging<CORE_COUNT, PlatformImpl>
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for MemoryTagging<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for MemoryTagging {
     fn is_present(&self) -> bool {
         mte2_is_present()
     }

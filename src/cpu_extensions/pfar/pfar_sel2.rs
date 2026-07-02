@@ -4,11 +4,8 @@
 
 //! Physical Fault Address Register Extension, EL2 context management
 
-use super::Pfar;
-use crate::{
-    context::World,
-    platform::{Platform, exception_free},
-};
+use super::{PFAR_CONTEXT, Pfar};
+use crate::{context::World, platform::exception_free};
 use arm_sysregs::{PfarEl2, read_pfar_el2, write_pfar_el2};
 
 pub struct PfarContext {
@@ -21,10 +18,10 @@ impl PfarContext {
     };
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Pfar<CORE_COUNT, PlatformImpl> {
+impl Pfar {
     pub(super) fn save_context_internal(&self, world: World) {
         exception_free(|token| {
-            self.context.get().borrow_mut(token)[world].pfar_el2 = read_pfar_el2();
+            PFAR_CONTEXT.get().borrow_mut(token)[world].pfar_el2 = read_pfar_el2();
         });
     }
 
@@ -33,7 +30,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Pfar<CORE_COUNT, PlatformI
             // SAFETY: FEAT_PFAR is assumed to be present, and the saved `pfar_el2` value is
             // assumed to be valid.
             unsafe {
-                write_pfar_el2(self.context.get().borrow_mut(token)[world].pfar_el2);
+                write_pfar_el2(PFAR_CONTEXT.get().borrow_mut(token)[world].pfar_el2);
             }
         });
     }

@@ -4,11 +4,8 @@
 
 //! FEAT_MTE2 context management for when Secure EL2 is not enabled.
 
-use super::MemoryTagging;
-use crate::{
-    context::World,
-    platform::{Platform, exception_free},
-};
+use super::{MTE2_CONTEXT, MemoryTagging};
+use crate::{context::World, platform::exception_free};
 use arm_sysregs::{
     GcrEl1, RgsrEl1, TfsrEl1, Tfsre0El1, read_gcr_el1, read_rgsr_el1, read_tfsr_el1,
     read_tfsre0_el1, write_gcr_el1, write_rgsr_el1, write_tfsr_el1, write_tfsre0_el1,
@@ -30,10 +27,10 @@ impl Mte2CpuContext {
     };
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> MemoryTagging<CORE_COUNT, PlatformImpl> {
+impl MemoryTagging {
     pub(crate) fn save_context_internal(&self, world: World) {
         exception_free(|token| {
-            let mut ctx = self.context.get().borrow_mut(token);
+            let mut ctx = MTE2_CONTEXT.get().borrow_mut(token);
             ctx[world].tfsre0_el1 = read_tfsre0_el1();
             ctx[world].tfsr_el1 = read_tfsr_el1();
             ctx[world].rgsr_el1 = read_rgsr_el1();
@@ -43,7 +40,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> MemoryTagging<CORE_COUNT, 
 
     pub(crate) fn restore_context_internal(&self, world: World) {
         exception_free(|token| {
-            let ctx = self.context.get().borrow_mut(token);
+            let ctx = MTE2_CONTEXT.get().borrow_mut(token);
             // SAFETY: We're restoring the values previously saved, so they must be valid.
             unsafe {
                 write_tfsre0_el1(ctx[world].tfsre0_el1);

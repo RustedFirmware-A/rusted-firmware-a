@@ -4,11 +4,8 @@
 
 //! FEAT_MTE2 context management for when Secure EL2 is enabled.
 
-use super::MemoryTagging;
-use crate::{
-    context::World,
-    platform::{Platform, exception_free},
-};
+use super::{MTE2_CONTEXT, MemoryTagging};
+use crate::{context::World, platform::exception_free};
 use arm_sysregs::{TfsrEl2, read_tfsr_el2, write_tfsr_el2};
 
 pub struct Mte2CpuContext {
@@ -21,11 +18,11 @@ impl Mte2CpuContext {
     };
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> MemoryTagging<CORE_COUNT, PlatformImpl> {
+impl MemoryTagging {
     /// Saves the system register values to this context struct.
     pub(crate) fn save_context_internal(&self, world: World) {
         exception_free(|token| {
-            let mut ctx = self.context.get().borrow_mut(token);
+            let mut ctx = MTE2_CONTEXT.get().borrow_mut(token);
             ctx[world].tfsr_el2 = read_tfsr_el2();
         })
     }
@@ -33,7 +30,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> MemoryTagging<CORE_COUNT, 
     /// Restores the system register values from this context struct.
     pub(crate) fn restore_context_internal(&self, world: World) {
         exception_free(|token| {
-            let ctx = self.context.get().borrow_mut(token);
+            let ctx = MTE2_CONTEXT.get().borrow_mut(token);
             write_tfsr_el2(ctx[world].tfsr_el2);
         })
     }

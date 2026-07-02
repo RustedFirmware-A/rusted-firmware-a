@@ -6,13 +6,12 @@
 
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use crate::{
-    context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld},
+    context::{CPU_DATA_CONTEXT_NUM, PerWorld},
     platform::exception_free,
 };
 use crate::{
     context::{PerWorldContext, World},
     cpu_extensions::CpuExtension,
-    platform::Platform,
 };
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use arm_sysregs::{
@@ -23,9 +22,8 @@ use arm_sysregs::{
 use arm_sysregs::{ScrEl3, read_id_aa64mmfr0_el1};
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use core::cell::RefCell;
-use core::marker::PhantomData;
 #[cfg(any(feature = "sel2", feature = "rme"))]
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
 
 #[cfg(any(feature = "sel2", feature = "rme"))]
 struct Fgt2CpuContext {
@@ -47,6 +45,12 @@ impl Fgt2CpuContext {
     };
 }
 
+#[cfg(any(feature = "sel2", feature = "rme"))]
+#[percore]
+static FGT2_CONTEXT: ExceptionLock<RefCell<PerWorld<Fgt2CpuContext>>> = ExceptionLock::new(
+    RefCell::new(PerWorld([Fgt2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
+);
+
 /// FEAT_FGT2 support
 ///
 /// Enables support for the HFGITR2_EL2, HFGRTR2_EL2, HFGWTR_EL2, HDFGRTR2_EL2, and HDFGWTR2_EL2
@@ -54,38 +58,9 @@ impl Fgt2CpuContext {
 /// control over the traps. They are saved and restored during world switches.
 ///
 /// The extension is enabled for all worlds present in the system.
-pub struct Fgt2<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    #[cfg(any(feature = "sel2", feature = "rme"))]
-    context: PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<Fgt2CpuContext>>,
-    _platform: PhantomData<PlatformImpl>,
-}
+pub struct Fgt2;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Fgt2<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the FGT2 CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            #[cfg(any(feature = "sel2", feature = "rme"))]
-            context: PerCore::new(
-                [const {
-                    ExceptionLock::new(RefCell::new(PerWorld(
-                        [Fgt2CpuContext::EMPTY; CPU_DATA_CONTEXT_NUM],
-                    )))
-                }; CORE_COUNT],
-            ),
-            _platform: PhantomData,
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Fgt2<CORE_COUNT, PlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for Fgt2<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for Fgt2 {
     fn is_present(&self) -> bool {
         read_id_aa64mmfr0_el1().is_feat_fgt2_present()
     }
@@ -98,7 +73,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
     fn save_context(&self, world: World) {
         if self.is_present() {
             exception_free(|token| {
-                let mut ctx = self.context.get().borrow_mut(token);
+                let mut ctx = FGT2_CONTEXT.get().borrow_mut(token);
                 let ctx = &mut ctx[world];
 
                 ctx.hfgitr2_el2 = read_hfgitr2_el2();
@@ -114,7 +89,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
     fn restore_context(&self, world: World) {
         if self.is_present() {
             exception_free(|token| {
-                let ctx = self.context.get().borrow_mut(token);
+                let ctx = FGT2_CONTEXT.get().borrow_mut(token);
                 let ctx = &ctx[world];
 
                 // SAFETY: We're restoring the values previously saved, so they must be valid.

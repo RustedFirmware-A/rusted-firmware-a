@@ -7,16 +7,15 @@
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use self::fgt_el2::FgtCpuContext;
 #[cfg(any(feature = "sel2", feature = "rme"))]
-use crate::context::{CPU_DATA_CONTEXT_NUM, PerCoreState, PerWorld, World};
-use crate::{cpu_extensions::CpuExtension, platform::Platform};
+use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, World};
+use crate::cpu_extensions::CpuExtension;
 use arm_sysregs::{HfgitrEl2, HfgrtrEl2, HfgwtrEl2};
 #[cfg(not(any(feature = "sel2", feature = "rme")))]
 use arm_sysregs::{write_hfgitr_el2, write_hfgrtr_el2, write_hfgwtr_el2};
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use core::cell::RefCell;
-use core::marker::PhantomData;
 #[cfg(any(feature = "sel2", feature = "rme"))]
-use percore::{ExceptionLock, PerCore};
+use percore::{ExceptionLock, derive::percore};
 
 // Initialization values for the HFG*_EL2 registers that disable some fine-grained traps so that
 // legacy systems unaware of FEAT_FGT do not get trapped due to their lack of initialization for
@@ -35,10 +34,7 @@ const HFGWTR_EL2_INIT_VAL: HfgwtrEl2 = HfgwtrEl2::NACCDATA_EL1
 
 #[cfg(any(feature = "sel2", feature = "rme"))]
 mod fgt_el2 {
-    use crate::{
-        context::{PerCoreState, PerWorld, World},
-        platform::{Platform, exception_free},
-    };
+    use crate::{context::World, platform::exception_free};
     use arm_sysregs::{
         HafgrtrEl2, HdfgrtrEl2, HdfgwtrEl2, HfgitrEl2, HfgrtrEl2, HfgwtrEl2, read_hafgrtr_el2,
         read_hdfgrtr_el2, read_hdfgwtr_el2, read_hfgitr_el2, read_hfgrtr_el2, read_hfgwtr_el2,
@@ -68,12 +64,9 @@ mod fgt_el2 {
         };
     }
 
-    pub fn save_context<const CORE_COUNT: usize, PlatformImpl: Platform>(
-        context: &PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<FgtCpuContext>>,
-        world: World,
-    ) {
+    pub fn save_context(world: World) {
         exception_free(|token| {
-            let ctx = &mut context.get().borrow_mut(token)[world];
+            let ctx = &mut super::FGT_CONTEXT.get().borrow_mut(token)[world];
 
             if read_id_aa64pfr0_el1().is_feat_amuv1_present() {
                 ctx.hafgrtr_el2 = read_hafgrtr_el2();
@@ -86,12 +79,9 @@ mod fgt_el2 {
         })
     }
 
-    pub fn restore_context<const CORE_COUNT: usize, PlatformImpl: Platform>(
-        context: &PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<FgtCpuContext>>,
-        world: World,
-    ) {
+    pub fn restore_context(world: World) {
         exception_free(|token| {
-            let ctx = &context.get().borrow_mut(token)[world];
+            let ctx = &super::FGT_CONTEXT.get().borrow_mut(token)[world];
 
             if read_id_aa64pfr0_el1().is_feat_amuv1_present() {
                 // SAFETY: We're restoring the value previously saved, so it must be valid.
@@ -111,43 +101,20 @@ mod fgt_el2 {
     }
 }
 
+#[cfg(any(feature = "sel2", feature = "rme"))]
+#[percore]
+static FGT_CONTEXT: ExceptionLock<RefCell<PerWorld<FgtCpuContext>>> = ExceptionLock::new(
+    RefCell::new(PerWorld([FgtCpuContext::INIT_VAL; CPU_DATA_CONTEXT_NUM])),
+);
+
 /// FEAT_FGT support
 ///
 /// Enables support for the HFGITR_EL2, HFGRTR_EL2, HFGWTR_EL2, HDFGRTR_EL2, and HDFGWTR_EL2
 /// registers, which enable fine-grained traps to EL2 of EL1 and EL0 access to system registers and
 /// instructions.
-pub struct Fgt<const CORE_COUNT: usize, PlatformImpl: Platform> {
-    #[cfg(any(feature = "sel2", feature = "rme"))]
-    context: PerCoreState<CORE_COUNT, PlatformImpl, PerWorld<FgtCpuContext>>,
-    _platform: PhantomData<PlatformImpl>,
-}
+pub struct Fgt;
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Fgt<CORE_COUNT, PlatformImpl> {
-    /// Constructs a new instance of the FGT CPU extension.
-    pub const fn new() -> Self {
-        Self {
-            #[cfg(any(feature = "sel2", feature = "rme"))]
-            context: PerCore::new(
-                [const {
-                    ExceptionLock::new(RefCell::new(PerWorld(
-                        [FgtCpuContext::INIT_VAL; CPU_DATA_CONTEXT_NUM],
-                    )))
-                }; CORE_COUNT],
-            ),
-            _platform: PhantomData,
-        }
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Default for Fgt<CORE_COUNT, PlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
-    for Fgt<CORE_COUNT, PlatformImpl>
-{
+impl CpuExtension for Fgt {
     fn is_present(&self) -> bool {
         // Assume present as FEAT_FGT is mandatory from Armv8.6.
         true
@@ -168,14 +135,14 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> CpuExtension
     #[cfg(any(feature = "sel2", feature = "rme"))]
     fn save_context(&self, world: World) {
         if self.is_present() {
-            fgt_el2::save_context(&self.context, world);
+            fgt_el2::save_context(world);
         }
     }
 
     #[cfg(any(feature = "sel2", feature = "rme"))]
     fn restore_context(&self, world: World) {
         if self.is_present() {
-            fgt_el2::restore_context(&self.context, world);
+            fgt_el2::restore_context(world);
         }
     }
 }

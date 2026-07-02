@@ -4,11 +4,8 @@
 
 //! MPAM context management for when Secure EL2 is enabled.
 
-use super::Mpam;
-use crate::{
-    context::World,
-    platform::{Platform, exception_free},
-};
+use super::{MPAM_CONTEXT, Mpam};
+use crate::{context::World, platform::exception_free};
 use arm_sysregs::{
     Mpam2El2, MpamhcrEl2, MpamidrEl1, Mpamvpm0El2, Mpamvpm1El2, Mpamvpm2El2, Mpamvpm3El2,
     Mpamvpm4El2, Mpamvpm5El2, Mpamvpm6El2, Mpamvpm7El2, MpamvpmvEl2, read_mpam2_el2,
@@ -49,10 +46,10 @@ impl MpamCpuContext {
     };
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: Platform> Mpam<CORE_COUNT, PlatformImpl> {
+impl Mpam {
     pub(super) fn save_el2_context(&self, world: World) {
         exception_free(|token| {
-            let mut ctx = self.context.get().borrow_mut(token);
+            let mut ctx = MPAM_CONTEXT.get().borrow_mut(token);
             ctx[world].mpam2_el2 = read_mpam2_el2();
 
             let mpamidr_el1 = read_mpamidr_el1();
@@ -97,7 +94,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Mpam<CORE_COUNT, PlatformI
 
     pub(super) fn restore_el2_context(&self, world: World) {
         exception_free(|token| {
-            let ctx = self.context.get().borrow_mut(token);
+            let ctx = MPAM_CONTEXT.get().borrow_mut(token);
 
             // SAFETY: We're restoring the value previously saved, so it must be valid.
             unsafe {

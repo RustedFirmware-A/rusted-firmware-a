@@ -8,6 +8,11 @@ use super::CpuExtension;
 use crate::context::{CpuContext, World};
 use arm_sysregs::{MdcrEl3, read_id_aa64dfr0_el1};
 
+/// NSPB value to configure the Profiling Buffer to use Non-secure Virtual Addresses,
+/// enable Statistical Profiling in Non-secure state and disable it in Secure state,
+/// and trap accesses to profiling control registers from both Secure and Non-secure states to EL3.
+const NSPB_TRAP_ALL: u8 = 0b10;
+
 /// Statistical Profiling Extension
 ///
 /// Configures the Statistical Profiling Extension (FEAT_SPE) so that the Non-secure world owns the
@@ -37,6 +42,12 @@ impl CpuExtension for StatisticalProfiling {
             // aren't implemented.
             context.el3_state.mdcr_el3 |= MdcrEl3::NSPB_NS | MdcrEl3::ENPMSN | MdcrEl3::ENPMS3;
             context.el3_state.mdcr_el3 -= MdcrEl3::NSPBE;
+        } else {
+            // Secure and Realm worlds: keep buffer owned by Non-secure so that PMBPTR is translated
+            // via NS S1, and prohibit Secure-state profiling. NSPB = 0b10.
+            // Clear EnPMSN and EnPMS3 to trap access to PMSNEVFR_EL1 and PMSDSFR_EL1.
+            context.el3_state.mdcr_el3.set_nspb(NSPB_TRAP_ALL);
+            context.el3_state.mdcr_el3 -= MdcrEl3::NSPBE | MdcrEl3::ENPMSN | MdcrEl3::ENPMS3;
         }
     }
 }

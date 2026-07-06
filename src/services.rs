@@ -16,7 +16,7 @@ pub mod trng;
 use crate::services::rmmd::Rmmd;
 use crate::{
     context::{
-        CpuStateAccess, World, initialise_contexts, set_initial_world, switch_world,
+        CpuStates, World, initialise_contexts, set_initial_world, switch_world,
         update_contexts_suspend,
     },
     cpu::PlatformCpuOps,
@@ -101,7 +101,7 @@ pub struct Services<
     const NON_CPU_DOMAIN_COUNT: usize,
     const TRNG_REQ_WORDS: usize,
     const TRNG_WORDS_IN_POOL: usize,
-    PlatformImpl: CpuStateAccess + Platform + PlatformErrata + 'static,
+    PlatformImpl: Platform + PlatformErrata + 'static,
 > where
     <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
             PSCI_STATE_COUNT,
@@ -138,7 +138,7 @@ impl<
     const NON_CPU_DOMAIN_COUNT: usize,
     const TRNG_REQ_WORDS: usize,
     const TRNG_WORDS_IN_POOL: usize,
-    PlatformImpl: CpuStateAccess + Platform + PlatformCpuOps + PlatformErrata,
+    PlatformImpl: Platform + PlatformCpuOps + PlatformErrata,
 >
     Services<
         CORE_COUNT,
@@ -248,7 +248,7 @@ where
         match esr & EsrEl3::ISS_SYSREG_OPCODE_MASK {
             // TODO: add trap handlers, should set step_to_next_instr as necessary
             _ => {
-                inject_undef64::<PlatformImpl>(world);
+                inject_undef64(world);
                 return;
             }
         }
@@ -256,7 +256,7 @@ where
         #[allow(unreachable_code)]
         if step_to_next_instr {
             exception_free(|token| {
-                PlatformImpl::cpu_state(token)[world].skip_lower_el_instruction();
+                CpuStates::cpu_state(token)[world].skip_lower_el_instruction();
             })
         }
     }
@@ -265,7 +265,7 @@ where
         let mut next_world;
 
         loop {
-            next_world = match enter_world::<PlatformImpl>(regs, world) {
+            next_world = match enter_world(regs, world) {
                 RunResult::Smc => self.handle_smc(regs, world),
                 RunResult::Interrupt => self.handle_interrupt(regs, world),
                 RunResult::SysregTrap { esr } => {

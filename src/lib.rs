@@ -34,7 +34,7 @@ pub mod stacks;
 #[cfg(feature = "pauth")]
 use crate::cpu_extensions::pauth;
 use crate::{
-    context::{CoresImpl, CpuStateAccess, initialise_contexts},
+    context::{CoresImpl, initialise_contexts},
     cpu::PlatformCpuOps,
     errata_framework::PlatformErrata,
     gicv3::Gic,
@@ -62,10 +62,7 @@ pub fn coldboot<
     const REQ_WORDS: usize,
     const WORDS_IN_POOL: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
-    PlatformImpl: CpuStateAccess
-        + Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>
-        + PlatformCpuOps
-        + PlatformErrata,
+    PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>> + PlatformCpuOps + PlatformErrata,
 >(
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
@@ -138,9 +135,7 @@ pub trait WarmbootEntrypoint {
 }
 
 #[cfg_attr(test, allow(unused))]
-extern "C" fn psci_warmboot_entrypoint<
-    PlatformImpl: CpuStateAccess + Platform + WarmbootEntrypoint,
->() -> ! {
+extern "C" fn psci_warmboot_entrypoint<PlatformImpl: Platform + WarmbootEntrypoint>() -> ! {
     debug!(
         "Warmboot on core #{}",
         CoresImpl::<PlatformImpl>::core_index()
@@ -189,7 +184,7 @@ mod asm {
     /// This must be called with the MMU turned off.
     #[unsafe(naked)]
     pub unsafe extern "C" fn bl31_warm_entrypoint<
-        PlatformImpl: CpuStateAccess + Platform + PlatformCpuOps + PlatformErrata + WarmbootEntrypoint,
+        PlatformImpl: Platform + PlatformCpuOps + PlatformErrata + WarmbootEntrypoint,
     >() -> ! {
         naked_asm!(
             include_str!("asm_macros_common.S"),
@@ -367,11 +362,6 @@ macro_rules! statics {
             { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
         > = $crate::pagetable::OncePageTable::new();
 
-        static CPU_STATES: $crate::context::CpuStates<
-            { <$platform as $crate::platform::Platform>::CORE_COUNT },
-            $platform,
-        > = $crate::context::CpuStates::new();
-
         const MAX_POWER_LEVEL_: usize = PSCI_STATE_COUNT - 1;
         /// The number of PSCI power domains other than CPUs.
         pub const NON_CPU_DOMAIN_COUNT: usize =
@@ -392,22 +382,6 @@ macro_rules! statics {
         > = $crate::reexports::spin::Lazy::new(|| {
             $crate::services::Services::new(|| &SERVICES.spmd)
         });
-
-        // SAFETY: `world_cpu_context` just calls `CpuStates::world_cpu_context`, which is
-        // guaranteed to return a valid pointer.
-        unsafe impl $crate::context::CpuStateAccess for $platform {
-            fn cpu_state(
-                token: $crate::reexports::percore::ExceptionFree,
-            ) -> core::cell::RefMut<$crate::context::CpuState> {
-                CPU_STATES.cpu_state(token)
-            }
-
-            fn world_cpu_context(
-                world: $crate::context::World,
-            ) -> *mut $crate::context::CpuContext {
-                CPU_STATES.world_cpu_context(world)
-            }
-        }
 
         impl $crate::WarmbootEntrypoint for $platform {
             fn warmboot() -> ! {

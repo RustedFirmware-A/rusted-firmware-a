@@ -5,7 +5,7 @@
 //! FF-A Secure Partition Manager Dispatcher.
 
 use crate::{
-    context::{CpuStateAccess, PerCoreState, World, switch_world},
+    context::{PerCoreState, World, switch_world},
     errata_framework::PlatformErrata,
     exceptions::{RunResult, enter_world},
     platform::{Platform, exception_free},
@@ -570,8 +570,8 @@ impl<const CORE_COUNT: usize, PlatformImpl: Platform> Spmd<CORE_COUNT, PlatformI
     }
 }
 
-impl<const CORE_COUNT: usize, PlatformImpl: CpuStateAccess + Platform + PlatformErrata>
-    PsciSpmInterface for Spmd<CORE_COUNT, PlatformImpl>
+impl<const CORE_COUNT: usize, PlatformImpl: Platform + PlatformErrata> PsciSpmInterface
+    for Spmd<CORE_COUNT, PlatformImpl>
 {
     fn forward_psci_request(&self, function: Function) -> ReturnCode {
         let version = self.spmc_version;
@@ -593,7 +593,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: CpuStateAccess + Platform + Platform
         switch_world::<PlatformImpl>(World::NonSecure, World::Secure);
 
         let ret: i32 = loop {
-            match enter_world::<PlatformImpl>(&mut regs, World::Secure) {
+            match enter_world(&mut regs, World::Secure) {
                 RunResult::Smc => match Interface::from_regs(version, regs.values()) {
                     Ok(Interface::MsgSendDirectResp {
                         src_id,
@@ -627,7 +627,7 @@ impl<const CORE_COUNT: usize, PlatformImpl: CpuStateAccess + Platform + Platform
 
         switch_world::<PlatformImpl>(World::NonSecure, World::Secure);
         let _ret: i32 = loop {
-            match enter_world::<PlatformImpl>(&mut regs, World::Secure) {
+            match enter_world(&mut regs, World::Secure) {
                 RunResult::Smc => match Interface::from_regs(self.spmc_version, regs.values()) {
                     Ok(Interface::MsgSendDirectResp {
                         src_id,

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    context::{CpuStateAccess, World},
+    context::{CpuStates, World},
     errata_framework::PlatformErrata,
     platform::exception_free,
     services::{Service, owns},
@@ -51,11 +51,11 @@ impl SetFrom<Status> for SmcReturn {
 }
 
 /// Arm Errata Management Firmware Interface, as specified by Arm document number DEN0100.
-pub struct ErrataManagement<PlatformImpl: CpuStateAccess> {
+pub struct ErrataManagement<PlatformImpl> {
     _platform: PhantomData<PlatformImpl>,
 }
 
-impl<PlatformImpl: CpuStateAccess> ErrataManagement<PlatformImpl> {
+impl<PlatformImpl> ErrataManagement<PlatformImpl> {
     pub const fn new() -> Self {
         Self {
             _platform: PhantomData,
@@ -63,7 +63,7 @@ impl<PlatformImpl: CpuStateAccess> ErrataManagement<PlatformImpl> {
     }
 }
 
-impl<PlatformImpl: CpuStateAccess + PlatformErrata> Service for ErrataManagement<PlatformImpl> {
+impl<PlatformImpl: PlatformErrata> Service for ErrataManagement<PlatformImpl> {
     owns!(
         OwningEntityNumber::STANDARD_SECURE,
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
@@ -95,7 +95,7 @@ fn features(em_func_id: u32) -> i32 {
     }
 }
 
-fn cpu_erratum_features<PlatformImpl: CpuStateAccess + PlatformErrata>(regs: &[u64]) -> Status {
+fn cpu_erratum_features<PlatformImpl: PlatformErrata>(regs: &[u64]) -> Status {
     let cpu_erratum_id = regs[1] as u32;
     let forward_flag = regs[2] != 0;
 
@@ -104,7 +104,7 @@ fn cpu_erratum_features<PlatformImpl: CpuStateAccess + PlatformErrata>(regs: &[u
     }
 
     let originator = exception_free(|token| {
-        PlatformImpl::cpu_state(token)[World::NonSecure]
+        CpuStates::cpu_state(token)[World::NonSecure]
             .el3_state
             .spsr_el3
     })
@@ -218,7 +218,7 @@ mod tests {
     fn em_cpu_erratum_features_invalid_forward_flag_nsel1() {
         // Make it look like the non-secure world was in EL1.
         exception_free(|token| {
-            TestPlatform::cpu_state(token)[World::NonSecure]
+            CpuStates::cpu_state(token)[World::NonSecure]
                 .el3_state
                 .spsr_el3 = SpsrEl3::M_AARCH64_EL1H
         });
@@ -233,7 +233,7 @@ mod tests {
 
         // Reset the CPU state ready for the next test.
         exception_free(|token| {
-            TestPlatform::cpu_state(token)[World::NonSecure]
+            CpuStates::cpu_state(token)[World::NonSecure]
                 .el3_state
                 .spsr_el3 = SpsrEl3::empty();
         });
@@ -244,7 +244,7 @@ mod tests {
     fn em_cpu_erratum_features_valid_forward_flag_nsel2() {
         // Make it look like the non-secure world was in EL2.
         exception_free(|token| {
-            TestPlatform::cpu_state(token)[World::NonSecure]
+            CpuStates::cpu_state(token)[World::NonSecure]
                 .el3_state
                 .spsr_el3 = SpsrEl3::M_AARCH64_EL2H
         });
@@ -259,7 +259,7 @@ mod tests {
 
         // Reset the CPU state ready for the next test.
         exception_free(|token| {
-            TestPlatform::cpu_state(token)[World::NonSecure]
+            CpuStates::cpu_state(token)[World::NonSecure]
                 .el3_state
                 .spsr_el3 = SpsrEl3::empty();
         });

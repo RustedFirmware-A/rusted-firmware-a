@@ -465,6 +465,12 @@ register fields so that later feature versions are also treated as implementing 
 and introduces type aliases for identical registers instead of generating separate types.
 """
 
+[[audits.arm-sysregs]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.0 -> 0.3.1"
+notes = "Added new registers and functions for checking the presence of CPU extensions."
+
 [[audits.arm-tzc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

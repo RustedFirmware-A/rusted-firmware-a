@@ -6,6 +6,7 @@
 
 mod dit;
 mod ffa_spmd;
+mod hcx;
 mod interrupts;
 mod pfar;
 mod psci;

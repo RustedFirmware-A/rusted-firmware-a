@@ -35,6 +35,7 @@ use spin::{
 
 /// An error with an address for RME.
 #[cfg(feature = "rme")]
+#[derive(Debug, PartialEq)]
 pub enum Error {
     /// The address is out of range.
     AddressOutOfRange,
@@ -200,21 +201,23 @@ pub fn flush_dcache<T>(value: &T) {
     }
 }
 
-/// Represents the NS and NSE bits used by `flush_dcache_to_popa_range` to calculate the mask to add to pointers,
+/// Represents the NS, NSE and NSE2 bits used by `flush_dcache_to_popa_range` to calculate the mask to add to pointers,
 /// based on the `GPIAccessType` of the `addr`.
 #[cfg(feature = "rme")]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(u8)]
 enum PhysicalAddressSpace {
-    Secure = 0b00,
-    Root = 0b01,
-    NonSecure = 0b10,
-    Realm = 0b11,
+    Secure = 0b000,
+    Root = 0b010,
+    NonSecure = 0b100,
+    Realm = 0b110,
+    SystemAgent = 0b001,
+    NonSecureProtected = 0b101,
 }
 
 #[cfg(feature = "rme")]
 impl PhysicalAddressSpace {
-    const PAS_SHIFT: u8 = 62;
+    const PAS_SHIFT: u8 = 61;
 }
 
 #[cfg(feature = "rme")]
@@ -229,11 +232,16 @@ impl TryFrom<GPIAccessType> for PhysicalAddressSpace {
     type Error = Error;
     fn try_from(gpi: GPIAccessType) -> Result<Self, Self::Error> {
         match gpi {
-            GPIAccessType::Secure => Ok(PhysicalAddressSpace::Secure),
-            GPIAccessType::NonSecure => Ok(PhysicalAddressSpace::NonSecure),
-            GPIAccessType::Root => Ok(PhysicalAddressSpace::Root),
-            GPIAccessType::Realm => Ok(PhysicalAddressSpace::Realm),
-            _ => Err(Error::InvalidGPI),
+            GPIAccessType::Secure => Ok(Self::Secure),
+            GPIAccessType::NonSecure => Ok(Self::NonSecure),
+            GPIAccessType::Root => Ok(Self::Root),
+            GPIAccessType::Realm => Ok(Self::Realm),
+            GPIAccessType::SystemAgent => Ok(Self::SystemAgent),
+            GPIAccessType::NonSecureProtected => Ok(Self::NonSecureProtected),
+            GPIAccessType::Any
+            | GPIAccessType::NoAccess
+            | GPIAccessType::NoAccess6
+            | GPIAccessType::NoAccess7 => Err(Error::InvalidGPI),
         }
     }
 }
@@ -247,27 +255,28 @@ pub fn flush_dcache_to_popa_range(
 ) -> Result<(), Error> {
     trace!("Flushing {len:?} bytes at {addr:?} from dcache");
     // Both `flush_dcache_to_popa_range` and `flush_dcache_to_popa_range_mte2` expect an
-    // address, that has at most 56 bits used for the physical address.
-    // Addresses with any value in the top byte are invalid.
-    let mask = 0xFF00_0000_0000_0000;
+    // address, that has at most 52 bits used for the physical address.
+    // Addresses with non-zero value in the top 12 bits are invalid.
+    let mask = 0xFFF0_0000_0000_0000;
     if addr & mask != 0 {
         return Err(Error::AddressOutOfRange);
     }
-    let bits = PhysicalAddressSpace::try_from(gpi)?;
-    let addr_masked = addr as u64 | u64::from(bits);
+    let pas = PhysicalAddressSpace::try_from(gpi)?;
+    let addr_masked = addr as u64 | u64::from(pas);
     if mte2_is_present() {
-        // SAFETY: We just checked that `addr` is not out of range, and added the NS and NSE bits.
+        // SAFETY: We just checked that `addr` is not out of range, and added the NS, NSE and NSE2 bits.
         #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
         unsafe {
             asm::flush_dcache_to_popa_range_mte2(addr_masked as usize, len);
         }
     } else {
-        // SAFETY: We just checked that `addr` is not out of range, and added the NS and NSE bits.
+        // SAFETY: We just checked that `addr` is not out of range, and added the NS, NSE and NSE2 bits.
         #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
         unsafe {
             asm::flush_dcache_to_popa_range(addr_masked as usize, len);
         }
     }
+    let _ = addr_masked;
     Ok(())
 }
 

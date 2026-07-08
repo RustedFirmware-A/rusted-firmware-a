@@ -105,6 +105,7 @@ fn tlbi_rpalos_sz<const SZ: usize>(addr: usize) {
     unsafe {
         asm!("sys #6, c8, c4, #7, {0}" , in(reg) arg)
     };
+    let _ = arg;
 }
 
 /// Wait For Interrupt is a hint instruction that indicates that the PE can enter a low-power state

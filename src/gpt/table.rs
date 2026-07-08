@@ -32,13 +32,28 @@ pub enum LeafDescriptorType {
     Contig,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[repr(u64)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
 /// Access control restriction that can be applied to a memory region in the GPT.
 pub enum GPIAccessType {
-    /// No accesses permitted..
+    /// No accesses permitted.
     NoAccess = 0b0000,
-    /// Accesses permitted to Secure PA space only..
+    /// Accesses permitted to System Agent PA space only.
+    /// This encoding is reserved if GPCCR_EL3.SA is 0, or if FEAT_RME_GDI is not implemented.
+    /// Accesses are not permitted for the PE, only used to check for invalid encodings.
+    SystemAgent = 0b0100,
+    /// Accesses permitted to Non-secure Protected PA space only.
+    /// This encoding is reserved if GPCCR_EL3.NSP is 0, or if FEAT_RME_GDI is not implemented.
+    /// Accesses are not permitted for the PE, only used to check for invalid encodings.
+    NonSecureProtected = 0b0101,
+    /// No accesses permitted.
+    /// This encoding is reserved if GPCCR_EL3.NA6 is 0, or if FEAT_RME_GDI is not implemented.
+    NoAccess6 = 0b0110,
+    /// No accesses permitted.
+    /// This encoding is reserved if GPCCR_EL3.NA7 is 0, or if FEAT_RME_GDI is not implemented.
+    NoAccess7 = 0b0111,
+    /// Accesses permitted to Secure PA space only.
+    /// This encoding is reserved if FEAT_SEL2 is not implemented.
     Secure = 0b1000,
     /// Accesses permitted to Non-secure PA space only.
     NonSecure = 0b1001,
@@ -52,6 +67,21 @@ pub enum GPIAccessType {
 
 impl GPIAccessType {
     const MASK: u64 = mask!(4);
+}
+
+impl From<GPIAccessType> for u64 {
+    fn from(gpi: GPIAccessType) -> Self {
+        u8::from(gpi).into()
+    }
+}
+
+impl TryFrom<u64> for GPIAccessType {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<GPIAccessType, Self::Error> {
+        let byte = u8::try_from(value).map_err(|_| ())?;
+        byte.try_into().map_err(|_| ())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]

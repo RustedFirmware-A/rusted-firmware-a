@@ -9,6 +9,7 @@ mod aarch64;
 mod table;
 
 use crate::aarch64::{dsb_osh, dsb_oshst, tlbi_rpalos};
+use arm_sysregs::{GpccrEl3, read_gpccr_el3, read_id_aa64mmfr4_el1};
 use core::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 pub use table::GPIAccessType;
@@ -71,12 +72,42 @@ impl<'a> GranuleProtection<'a> {
         self.config.pgs.size()
     }
 
+    /// Checks if the `GPIAccessType` value is supported on the current system based on available
+    /// features and bits of `GpccrEl3`.
+    pub fn is_gpi_supported(&self, gpi: GPIAccessType) -> bool {
+        // TODO: cache these values in `GranuleProtectionConfig`.
+        let gpccr_el3 = read_gpccr_el3();
+        match gpi {
+            GPIAccessType::SystemAgent => {
+                gpccr_el3.contains(GpccrEl3::SA)
+                    && read_id_aa64mmfr4_el1().is_feat_rme_gdi_present()
+            }
+            GPIAccessType::NonSecureProtected => {
+                gpccr_el3.contains(GpccrEl3::NSP)
+                    && read_id_aa64mmfr4_el1().is_feat_rme_gdi_present()
+            }
+            GPIAccessType::NoAccess6 => {
+                gpccr_el3.contains(GpccrEl3::NA6)
+                    && read_id_aa64mmfr4_el1().is_feat_rme_gdi_present()
+            }
+            GPIAccessType::NoAccess7 => {
+                gpccr_el3.contains(GpccrEl3::NA7)
+                    && read_id_aa64mmfr4_el1().is_feat_rme_gdi_present()
+            }
+            _ => true,
+        }
+    }
+
     /// Updates an access control mapping in the GPT.
     ///
     /// - `base_pa`: Address of the granule whose GPI is updated.
     /// - `gpi`: Describes which Physical Address Space the granule will belong to.
     pub fn set(&mut self, base_pa: PA, gpi: GPIAccessType) -> Result<(), GranuleError> {
         if base_pa >= self.config.pps.size() {
+            return Err(GranuleError::InvalidRequest);
+        }
+        // Do not allow setting to a currently unsupported GPI value.
+        if !self.is_gpi_supported(gpi) {
             return Err(GranuleError::InvalidRequest);
         }
         let l0_idx = self.config.l0_resolve(base_pa);
@@ -127,7 +158,12 @@ impl<'a> GranuleProtection<'a> {
         let l0_entry = self.level0.0[l0_idx];
 
         if let Some(block) = l0_entry.as_block() {
-            return Ok(block.gpi());
+            let gpi = block.gpi();
+            return if self.is_gpi_supported(gpi) {
+                Ok(gpi)
+            } else {
+                Err(GranuleError::InvalidL0Entry)
+            };
         }
         let Some(l0_entry) = l0_entry.as_table() else {
             // Not block or table descriptor
@@ -142,7 +178,12 @@ impl<'a> GranuleProtection<'a> {
         let l1_desc = l1_table[l1_idx];
 
         if let Some(contig) = l1_desc.as_contig() {
-            return Ok(contig.gpi());
+            let gpi = contig.gpi();
+            if self.is_gpi_supported(gpi) {
+                return Ok(gpi);
+            }
+            // Contig with unsupported encoding
+            return Err(GranuleError::InvalidL1Entry);
         }
         let Some(granule) = l1_desc.as_granule() else {
             // Not granule or contiguous descriptor
@@ -150,7 +191,10 @@ impl<'a> GranuleProtection<'a> {
         };
 
         let gran_idx = self.config.granule_resolve(base_pa);
-        granule.gpi(gran_idx).ok_or(GranuleError::InvalidL1Entry)
+        granule
+            .gpi(gran_idx)
+            .filter(|gpi| self.is_gpi_supported(*gpi))
+            .ok_or(GranuleError::InvalidL1Entry)
     }
 }
 
@@ -281,6 +325,7 @@ impl GranuleProtectionConfig {
 #[cfg(test)]
 mod test {
     use super::*;
+    use arm_sysregs::{GpccrEl3, GptbrEl3, IdAa64mmfr4El1, fake::SYSREGS};
     use table::Level0Descriptor;
 
     #[test]
@@ -312,8 +357,6 @@ mod test {
         assert_eq!(gpc.granule_resolve(0xabcd_1234_9876), 0x4);
         assert_eq!(gpc.granule_resolve(0xf432_abcd), 0x2);
     }
-
-    use arm_sysregs::{GpccrEl3, GptbrEl3, fake::SYSREGS};
 
     /// Dynamically allocates a 'static buffer for `elems` entries of `size` bytes. The resulting
     /// buffer is aligned on `size`.
@@ -493,9 +536,59 @@ mod test {
 
         // Overwrite L1 table with invalid GPI values
         for val in l1table.iter_mut() {
-            *val = 0b0100; // invalid
+            *val = 0b1110; // invalid
         }
 
         assert_eq!(gpt.lookup(gr_0), Err(GranuleError::InvalidL1Entry));
+    }
+
+    #[test]
+    fn gpi_encodings() {
+        let gpc = GranuleProtectionConfig {
+            pps: ProtectedPhysicalAddressSize::GB64,
+            l0gptsz: Level0GptSize::GB1,
+            pgs: PhysicalGranuleSize::KB4,
+        };
+        declare_empty_gpt!(gpt, l0table, gpc);
+
+        // enable FEAT_RME_GDI
+        let mut gpccr = GpccrEl3::empty();
+        let mut id_aa64mmfr4_el1 = IdAa64mmfr4El1::empty();
+        id_aa64mmfr4_el1.set_rmegdi(0b0001);
+        SYSREGS.lock().unwrap().id_aa64mmfr4_el1 = id_aa64mmfr4_el1;
+
+        assert_eq!(Err(()), GPIAccessType::try_from(0b1_0000_0000u64));
+
+        let byte = GPIAccessType::SystemAgent as u8;
+        let gpi = GPIAccessType::try_from(byte).unwrap();
+        assert_eq!(GPIAccessType::SystemAgent, gpi);
+        assert!(!gpt.is_gpi_supported(gpi));
+        gpccr |= GpccrEl3::SA;
+        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        assert!(gpt.is_gpi_supported(gpi));
+
+        let byte = GPIAccessType::NonSecureProtected as u8;
+        let gpi = GPIAccessType::try_from(byte).unwrap();
+        assert_eq!(GPIAccessType::NonSecureProtected, gpi);
+        assert!(!gpt.is_gpi_supported(gpi));
+        gpccr |= GpccrEl3::NSP;
+        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        assert!(gpt.is_gpi_supported(gpi));
+
+        let byte = GPIAccessType::NoAccess6 as u8;
+        let gpi = GPIAccessType::try_from(byte).unwrap();
+        assert_eq!(GPIAccessType::NoAccess6, gpi);
+        assert!(!gpt.is_gpi_supported(gpi));
+        gpccr |= GpccrEl3::NA6;
+        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        assert!(gpt.is_gpi_supported(gpi));
+
+        let byte = GPIAccessType::NoAccess7 as u8;
+        let gpi = GPIAccessType::try_from(byte).unwrap();
+        assert_eq!(GPIAccessType::NoAccess7, gpi);
+        assert!(!gpt.is_gpi_supported(gpi));
+        gpccr |= GpccrEl3::NA7;
+        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        assert!(gpt.is_gpi_supported(gpi));
     }
 }

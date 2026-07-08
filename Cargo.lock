@@ -189,7 +189,6 @@ name = "fvp-rf-a-bl31"
 version = "0.1.0"
 dependencies = [
  "arm-fvp-base-pac",
- "arm-pl011-uart",
  "rf-a-bl31",
  "rf-a-bl31-build",
 ]

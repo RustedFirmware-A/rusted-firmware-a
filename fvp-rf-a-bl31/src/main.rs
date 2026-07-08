@@ -15,10 +15,10 @@ use arm_fvp_base_pac::{
     arm_generic_timer::memory_mapped::{
         CntAcr, CntControlBase, CntCtlBase, GenericTimerControl, GenericTimerCtl,
     },
+    arm_pl011_uart::{Uart, UniqueMmioPointer},
     power_controller::{FvpPowerController, FvpPowerControllerRegisters, SystemStatus},
     system::{FvpSystemPeripheral, FvpSystemRegisters, SystemConfigFunction},
 };
-use arm_pl011_uart::{Uart, UniqueMmioPointer};
 #[cfg(feature = "pauth")]
 use core::arch::asm;
 use core::{

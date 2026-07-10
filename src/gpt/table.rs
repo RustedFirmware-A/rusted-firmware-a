@@ -61,6 +61,10 @@ pub enum GPIAccessType {
     Root = 0b1010,
     /// Accesses permitted to Realm PA space only.
     Realm = 0b1011,
+    /// Accesses permitted to Non-secure PA space only, by Non-secure or Root Security states.
+    /// This encoding is reserved if the Effective value of GPCCR_EL3.NSO is 0, or if FEAT_RME_GPC2
+    /// is not implemented.
+    NonSecureOnly = 0b1101,
     /// All accesses permitted.
     Any = 0b1111,
 }

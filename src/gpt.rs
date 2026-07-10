@@ -9,7 +9,7 @@ mod aarch64;
 mod table;
 
 use crate::aarch64::{dsb_osh, dsb_oshst, tlbi_rpalos};
-use arm_sysregs::{GpccrEl3, read_gpccr_el3, read_id_aa64mmfr4_el1};
+use arm_sysregs::{GpccrEl3, read_gpccr_el3, read_id_aa64mmfr4_el1, read_id_aa64pfr0_el1};
 use core::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 pub use table::GPIAccessType;
@@ -93,6 +93,10 @@ impl<'a> GranuleProtection<'a> {
             GPIAccessType::NoAccess7 => {
                 gpccr_el3.contains(GpccrEl3::NA7)
                     && read_id_aa64mmfr4_el1().is_feat_rme_gdi_present()
+            }
+            GPIAccessType::NonSecureOnly => {
+                gpccr_el3.contains(GpccrEl3::NSO)
+                    && read_id_aa64pfr0_el1().is_feat_rme_gpc2_present()
             }
             _ => true,
         }
@@ -325,7 +329,7 @@ impl GranuleProtectionConfig {
 #[cfg(test)]
 mod test {
     use super::*;
-    use arm_sysregs::{GpccrEl3, GptbrEl3, IdAa64mmfr4El1, fake::SYSREGS};
+    use arm_sysregs::{GpccrEl3, GptbrEl3, IdAa64mmfr4El1, IdAa64pfr0El1, fake::SYSREGS};
     use table::Level0Descriptor;
 
     #[test]
@@ -557,6 +561,11 @@ mod test {
         id_aa64mmfr4_el1.set_rmegdi(0b0001);
         SYSREGS.lock().unwrap().id_aa64mmfr4_el1 = id_aa64mmfr4_el1;
 
+        // enable FEAT_RME_GPC2
+        let mut id_aa64pfr0_el1 = IdAa64pfr0El1::empty();
+        id_aa64pfr0_el1.set_rme(0b0010);
+        SYSREGS.lock().unwrap().id_aa64pfr0_el1 = id_aa64pfr0_el1;
+
         assert_eq!(Err(()), GPIAccessType::try_from(0b1_0000_0000u64));
 
         let byte = GPIAccessType::SystemAgent as u8;
@@ -588,6 +597,14 @@ mod test {
         assert_eq!(GPIAccessType::NoAccess7, gpi);
         assert!(!gpt.is_gpi_supported(gpi));
         gpccr |= GpccrEl3::NA7;
+        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        assert!(gpt.is_gpi_supported(gpi));
+
+        let byte = GPIAccessType::NonSecureOnly as u8;
+        let gpi = GPIAccessType::try_from(byte).unwrap();
+        assert_eq!(GPIAccessType::NonSecureOnly, gpi);
+        assert!(!gpt.is_gpi_supported(gpi));
+        gpccr |= GpccrEl3::NSO;
         SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
         assert!(gpt.is_gpi_supported(gpi));
     }

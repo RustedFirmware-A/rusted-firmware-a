@@ -238,6 +238,8 @@ impl TryFrom<GPIAccessType> for PhysicalAddressSpace {
             GPIAccessType::Realm => Ok(Self::Realm),
             GPIAccessType::SystemAgent => Ok(Self::SystemAgent),
             GPIAccessType::NonSecureProtected => Ok(Self::NonSecureProtected),
+            // NonSecureOnly GPI maps to NonSecure PAS
+            GPIAccessType::NonSecureOnly => Ok(PhysicalAddressSpace::NonSecure),
             GPIAccessType::Any
             | GPIAccessType::NoAccess
             | GPIAccessType::NoAccess6

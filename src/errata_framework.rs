@@ -97,10 +97,9 @@ impl ErratumEntry {
     }
 }
 
-/// Returns true if the platform has an erratum with the given ID, and it applies on the current
-/// CPU.
-pub fn erratum_applies<PlatformImpl: PlatformErrata>(id: ErratumId) -> bool {
-    PlatformImpl::ERRATA_LIST
+/// Returns true if the given errata list contains an erratum ID, and it applies on the current CPU.
+pub fn erratum_applies(errata_list: &[ErratumEntry], id: ErratumId) -> bool {
+    errata_list
         .iter()
         .any(|erratum| erratum.id == id && (erratum.check)())
 }

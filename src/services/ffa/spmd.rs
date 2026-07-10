@@ -5,10 +5,9 @@
 //! FF-A Secure Partition Manager Dispatcher.
 
 use crate::{
-    context::{World, switch_world},
-    errata_framework::PlatformErrata,
+    context::{CpuStates, World},
     exceptions::{RunResult, enter_world},
-    platform::{Platform, exception_free},
+    platform::exception_free,
     services::{Service, owns, psci::PsciSpmInterface},
     smccc::{FunctionId, OwningEntityNumber, SmcReturn, SmcccCallType},
 };
@@ -22,7 +21,6 @@ use arm_ffa::{
 use arm_psci::{ErrorCode, Function, ReturnCode};
 use core::{
     cell::RefCell,
-    marker::PhantomData,
     sync::atomic::{AtomicUsize, Ordering::Relaxed},
 };
 use log::{debug, error, trace, warn};
@@ -58,15 +56,15 @@ static SPMD_CORE_LOCAL: ExceptionLock<RefCell<SpmdLocal>> =
     ExceptionLock::new(RefCell::new(SpmdLocal::new()));
 
 /// Secure Partition Manager Dispatcher, defined by Arm Firmware Framework for A-Profile (FF-A)
-pub struct Spmd<PlatformImpl: Platform> {
+pub struct Spmd {
+    cpu_states: CpuStates,
     spmc_id: u16,
     spmc_version: Version,
     spmc_primary_ep: usize,
     spmc_secondary_ep: AtomicUsize,
-    _phantom: PhantomData<PlatformImpl>,
 }
 
-impl<PlatformImpl: Platform> Service for Spmd<PlatformImpl> {
+impl Service for Spmd {
     owns!(
         OwningEntityNumber::STANDARD_SECURE,
         FUNCTION_NUMBER_MIN..=FUNCTION_NUMBER_MAX
@@ -158,7 +156,7 @@ fn get_smc_regs(regs: &mut SmcReturn) -> &mut [u64] {
     }
 }
 
-impl<PlatformImpl: Platform> Spmd<PlatformImpl> {
+impl Spmd {
     const OWN_ID: u16 = 0xffff;
     const VERSION: Version = Version(1, 3);
     const NS_EP_ID: u16 = 0; // TODO: this should come from arm_ffa
@@ -168,7 +166,7 @@ impl<PlatformImpl: Platform> Spmd<PlatformImpl> {
     /// This should be called exactly once, before any other SPMD methods are called or any
     /// secondary CPUs are started.
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new(cpu_states: CpuStates) -> Self {
         debug!("Initializing SPMD");
 
         // TODO: read these attributes from the SPMC manifest
@@ -179,12 +177,12 @@ impl<PlatformImpl: Platform> Spmd<PlatformImpl> {
         assert!(spmc_version.is_compatible_to(Self::VERSION));
 
         let spmd = Self {
+            cpu_states,
             spmc_id,
             spmc_version,
             spmc_primary_ep,
             // By default the secondary EP is same as primary
             spmc_secondary_ep: spmc_primary_ep.into(),
-            _phantom: PhantomData,
         };
 
         // This only runs once, on the primary core, at cold boot. Set the correct state before
@@ -571,7 +569,7 @@ impl<PlatformImpl: Platform> Spmd<PlatformImpl> {
     }
 }
 
-impl<PlatformImpl: Platform + PlatformErrata> PsciSpmInterface for Spmd<PlatformImpl> {
+impl PsciSpmInterface for Spmd {
     fn forward_psci_request(&self, function: Function) -> ReturnCode {
         let version = self.spmc_version;
         let mut regs = SmcReturn::EMPTY;
@@ -589,7 +587,8 @@ impl<PlatformImpl: Platform + PlatformErrata> PsciSpmInterface for Spmd<Platform
 
         msg.to_regs(version, regs.mark_all_used());
 
-        switch_world::<PlatformImpl>(World::NonSecure, World::Secure);
+        self.cpu_states
+            .switch_world(World::NonSecure, World::Secure);
 
         let ret: i32 = loop {
             match enter_world(&mut regs, World::Secure) {
@@ -609,7 +608,8 @@ impl<PlatformImpl: Platform + PlatformErrata> PsciSpmInterface for Spmd<Platform
             }
         };
 
-        switch_world::<PlatformImpl>(World::Secure, World::NonSecure);
+        self.cpu_states
+            .switch_world(World::Secure, World::NonSecure);
 
         ReturnCode::try_from(ret).unwrap_or_else(|e| {
             error!("SPMD returned unrecognised PSCI code {ret}: {e:?}");
@@ -624,7 +624,8 @@ impl<PlatformImpl: Platform + PlatformErrata> PsciSpmInterface for Spmd<Platform
     fn notify_cpu_suspend_powerdown_abandoned(&self) {
         let mut regs = self.handle_wake_from_cpu_suspend();
 
-        switch_world::<PlatformImpl>(World::NonSecure, World::Secure);
+        self.cpu_states
+            .switch_world(World::NonSecure, World::Secure);
         let _ret: i32 = loop {
             match enter_world(&mut regs, World::Secure) {
                 RunResult::Smc => match Interface::from_regs(self.spmc_version, regs.values()) {
@@ -646,7 +647,8 @@ impl<PlatformImpl: Platform + PlatformErrata> PsciSpmInterface for Spmd<Platform
         // The PSCI request was sent and a response was received in enter_world. As such, revert
         // the state back to Runtime.
         self.switch_spmc_local_state(SpmcState::PsciEventHandling, SpmcState::Runtime);
-        switch_world::<PlatformImpl>(World::Secure, World::NonSecure);
+        self.cpu_states
+            .switch_world(World::Secure, World::NonSecure);
     }
 }
 

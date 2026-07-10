@@ -5,7 +5,6 @@
 //! Handles initialising, saving and restoring register context when switching between EL3 and lower
 //! ELs.
 
-use crate::errata_framework::PlatformErrata;
 #[cfg(feature = "sel2")]
 use crate::errata_framework::erratum_applies;
 use crate::{
@@ -13,6 +12,7 @@ use crate::{
     cpu_extensions::{
         CpuExtension, initialise_el3_sysregs, mpam::mpam_is_present, pmuv3, trf::TraceFiltering,
     },
+    errata_framework::{ErratumEntry, PlatformErrata},
     gicv3,
     platform::{Platform, exception_free},
     smccc::SmcReturn,
@@ -160,14 +160,14 @@ impl CpuContext {
         self.el1_sysregs.save();
     }
 
-    fn restore_lower_el_sysregs<PlatformImpl: PlatformErrata>(&self, world: World) {
+    fn restore_lower_el_sysregs(&self, world: World, errata_list: &'static [ErratumEntry]) {
         #[cfg(feature = "sel2")]
-        self.el2_sysregs.restore::<PlatformImpl>(world);
+        self.el2_sysregs.restore(world, errata_list);
         #[cfg(not(feature = "sel2"))]
         {
             self.el1_sysregs.restore();
             let _ = world;
-            let _: PlatformImpl;
+            let _ = errata_list;
         }
     }
 
@@ -514,7 +514,7 @@ impl El2Sysregs {
     }
 
     /// Writes the saved register values to the system registers.
-    fn restore<PlatformImpl: PlatformErrata>(&self, world: World) {
+    fn restore(&self, world: World, errata_list: &'static [ErratumEntry]) {
         // SAFETY: We're restoring the values previously saved, so they must be valid.
         unsafe {
             write_actlr_el2(self.actlr_el2);
@@ -534,7 +534,7 @@ impl El2Sysregs {
             write_icc_sre_el2(self.icc_sre_el2);
             write_ich_hcr_el2(self.ich_hcr_el2);
 
-            let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies::<PlatformImpl>();
+            let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies(errata_list);
             if apply_ich_vmcr_el2_errata {
                 let scr_el3 = read_scr_el3();
                 if world == World::Secure {
@@ -583,10 +583,10 @@ impl El2Sysregs {
 }
 
 #[cfg(feature = "sel2")]
-fn errata_ich_vmcr_el2_applies<PlatformImpl: PlatformErrata>() -> bool {
-    erratum_applies::<PlatformImpl>(3_300_099)
-        || erratum_applies::<PlatformImpl>(3_658_374)
-        || erratum_applies::<PlatformImpl>(3_773_617)
+fn errata_ich_vmcr_el2_applies(errata_list: &[ErratumEntry]) -> bool {
+    erratum_applies(errata_list, 3_300_099)
+        || erratum_applies(errata_list, 3_658_374)
+        || erratum_applies(errata_list, 3_773_617)
 }
 
 /// Registers whose values can be shared across CPUs.
@@ -760,10 +760,24 @@ impl CpuState {
 static CPU_STATE: ExceptionLock<RefCell<CpuState>> =
     ExceptionLock::new(RefCell::new(CpuState::EMPTY));
 
-/// An instance of `CpuState` for each CPU core on the platform.
-pub struct CpuStates;
+/// An object to manipulate the current CPU's CpuState. This takes into account the CPU extensions
+/// enabled on this CPU, as well as the errata that might affect it.
+#[derive(Clone)]
+pub struct CpuStates {
+    cpu_extensions: &'static [&'static dyn CpuExtension],
+    errata_list: &'static [ErratumEntry],
+}
 
 impl CpuStates {
+    /// Returns an instance by fetching the CPU extensions and errata list from the Platform
+    /// implementation.
+    pub fn get<PlatformImpl: Platform + PlatformErrata>() -> Self {
+        Self {
+            cpu_extensions: PlatformImpl::CPU_EXTENSIONS,
+            errata_list: PlatformImpl::ERRATA_LIST,
+        }
+    }
+
     /// Returns a reference to the `CpuState` for the current CPU.
     ///
     /// Panics if the `CpuState` is already borrowed.
@@ -779,275 +793,266 @@ impl CpuStates {
         // field of the `PerWorld` directly rather than using the `IndexMut` implementation.
         unsafe { &raw mut (*CPU_STATE.get().as_ptr()).0[world.index()] }
     }
-}
 
-/// Restores the context for the given world.
-fn restore_world<PlatformImpl: PlatformErrata + Platform>(world: World, context: &CpuContext) {
-    let world_context = world_context(world);
+    /// Restores the context for the given world.
+    fn restore_world(&self, world: World, context: &CpuContext) {
+        let world_context = world_context(world);
 
-    // Restore EL3 sysregs first, e.g. to allow SVE register access before restoring SVE context.
-    world_context.restore_el3_sysregs();
+        // Restore EL3 sysregs first, e.g. to allow SVE register access before restoring SVE context.
+        world_context.restore_el3_sysregs();
 
-    for ext in PlatformImpl::CPU_EXTENSIONS {
-        ext.restore_context(world);
+        for ext in self.cpu_extensions {
+            ext.restore_context(world);
+        }
+
+        context.restore_lower_el_sysregs(world, self.errata_list);
     }
 
-    context.restore_lower_el_sysregs::<PlatformImpl>(world);
-}
+    /// Saves lower EL system registers from the current world, restores lower EL and some per-world
+    /// EL3 system registers of the given world.
+    pub fn switch_world(&self, old_world: World, new_world: World) {
+        assert_ne!(old_world, new_world);
+        exception_free(|token| {
+            let mut cpu_state = CpuStates::cpu_state(token);
+            cpu_state[old_world].save_lower_el_sysregs();
+            for ext in self.cpu_extensions {
+                ext.save_context(old_world);
+            }
 
-/// Saves lower EL system registers from the current world, restores lower EL and some per-world
-/// EL3 system registers of the given world.
-pub fn switch_world<PlatformImpl: PlatformErrata + Platform>(old_world: World, new_world: World) {
-    assert_ne!(old_world, new_world);
-    exception_free(|token| {
-        let mut cpu_state = CpuStates::cpu_state(token);
-        cpu_state[old_world].save_lower_el_sysregs();
-        for ext in PlatformImpl::CPU_EXTENSIONS {
-            ext.save_context(old_world);
-        }
+            self.restore_world(new_world, &cpu_state[new_world]);
+        });
+    }
 
-        restore_world::<PlatformImpl>(new_world, &cpu_state[new_world]);
-    });
-}
+    /// Restores lower EL and some per-world EL3 system registers of the given world.
+    ///
+    /// This doesn't save the current state of the lower EL system registers, so should only be used for
+    /// initial boot where we don't care about their state.
+    pub fn set_initial_world(&self, world: World) {
+        exception_free(|token| {
+            let cpu_state = CpuStates::cpu_state(token);
+            let context = &cpu_state[world];
 
-/// Restores lower EL and some per-world EL3 system registers of the given world.
-///
-/// This doesn't save the current state of the lower EL system registers, so should only be used for
-/// initial boot where we don't care about their state.
-pub fn set_initial_world<PlatformImpl: PlatformErrata + Platform>(world: World) {
-    exception_free(|token| {
-        let cpu_state = CpuStates::cpu_state(token);
-        let context = &cpu_state[world];
+            // This must be initialised before the EL2 system registers are written to, to avoid an
+            // exception.
+            // SAFETY: This only affects lower ELs, and the value we've selected should be consistent
+            // with how we handle traps.
+            unsafe {
+                write_scr_el3(world_context(world).scr_el3);
+            }
+            isb();
 
-        // This must be initialised before the EL2 system registers are written to, to avoid an
-        // exception.
-        // SAFETY: This only affects lower ELs, and the value we've selected should be consistent
-        // with how we handle traps.
-        unsafe {
-            write_scr_el3(world_context(world).scr_el3);
-        }
-        isb();
+            self.restore_world(world, context);
+        });
+    }
 
-        restore_world::<PlatformImpl>(world, context);
-    });
-}
+    /// Initialises the per-world contexts.
+    fn initialise_per_world_contexts(&self) {
+        PER_WORLD_CONTEXT.call_once(|| {
+            let mut per_world = PerWorld::<PerWorldContext>::default();
 
-/// Initialises the per-world contexts.
-fn initialise_per_world_contexts<PlatformImpl: Platform>() {
-    PER_WORLD_CONTEXT.call_once(|| {
-        let mut per_world = PerWorld::<PerWorldContext>::default();
+            per_world[World::NonSecure].initialise_common();
+            per_world[World::Secure].initialise_common();
+            #[cfg(feature = "rme")]
+            per_world[World::Realm].initialise_common();
 
-        per_world[World::NonSecure].initialise_common();
-        per_world[World::Secure].initialise_common();
-        #[cfg(feature = "rme")]
-        per_world[World::Realm].initialise_common();
-
-        // NS world can always access AMUv1 registers.
-        per_world[World::NonSecure].cptr_el3 -= CptrEl3::TAM;
-        // SCR_EL3.FGTEN: Do not trap FGT register accesses to EL3. FEAT_FGT is mandatory since
-        // ARMv8.6.
-        per_world[World::NonSecure].scr_el3 |= ScrEl3::NS | ScrEl3::FGTEN;
-        gicv3::set_routing_model(&mut per_world[World::NonSecure].scr_el3, World::NonSecure);
-
-        // Enable Secure EL1 access to timer registers.
-        // Otherwise they would be accessible only at EL3.
-        per_world[World::Secure].scr_el3 |= ScrEl3::ST;
-        gicv3::set_routing_model(&mut per_world[World::Secure].scr_el3, World::Secure);
-
-        #[cfg(feature = "rme")]
-        {
+            // NS world can always access AMUv1 registers.
+            per_world[World::NonSecure].cptr_el3 -= CptrEl3::TAM;
             // SCR_EL3.FGTEN: Do not trap FGT register accesses to EL3. FEAT_FGT is mandatory since
             // ARMv8.6.
-            //
-            // SCR_NS + SCR_NSE = Realm state
-            per_world[World::Realm].scr_el3 |= ScrEl3::NS | ScrEl3::NSE | ScrEl3::FGTEN;
+            per_world[World::NonSecure].scr_el3 |= ScrEl3::NS | ScrEl3::FGTEN;
+            gicv3::set_routing_model(&mut per_world[World::NonSecure].scr_el3, World::NonSecure);
 
-            gicv3::set_routing_model(&mut per_world[World::Realm].scr_el3, World::Realm);
+            // Enable Secure EL1 access to timer registers.
+            // Otherwise they would be accessible only at EL3.
+            per_world[World::Secure].scr_el3 |= ScrEl3::ST;
+            gicv3::set_routing_model(&mut per_world[World::Secure].scr_el3, World::Secure);
+
+            #[cfg(feature = "rme")]
+            {
+                // SCR_EL3.FGTEN: Do not trap FGT register accesses to EL3. FEAT_FGT is mandatory since
+                // ARMv8.6.
+                //
+                // SCR_NS + SCR_NSE = Realm state
+                per_world[World::Realm].scr_el3 |= ScrEl3::NS | ScrEl3::NSE | ScrEl3::FGTEN;
+
+                gicv3::set_routing_model(&mut per_world[World::Realm].scr_el3, World::Realm);
+            }
+
+            for ext in self.cpu_extensions {
+                if ext.is_present() {
+                    ext.configure_per_world(World::NonSecure, &mut per_world[World::NonSecure]);
+                    ext.configure_per_world(World::Secure, &mut per_world[World::Secure]);
+                    #[cfg(feature = "rme")]
+                    ext.configure_per_world(World::Realm, &mut per_world[World::Realm]);
+                }
+            }
+            per_world
+        });
+    }
+
+    /// Initialises all CPU contexts for this CPU, ready for first boot.
+    pub fn initialise_contexts(
+        &self,
+        non_secure_entry_point: &EntryPointInfo,
+        secure_entry_point: &EntryPointInfo,
+        #[cfg(feature = "rme")] realm_entry_point: &EntryPointInfo,
+    ) {
+        initialise_el3_sysregs(self.cpu_extensions);
+        self.initialise_per_world_contexts();
+
+        exception_free(|token| {
+            let mut cpu_state = CpuStates::cpu_state(token);
+            self.initialise_nonsecure(&mut cpu_state[World::NonSecure], non_secure_entry_point);
+            self.initialise_secure(&mut cpu_state[World::Secure], secure_entry_point);
+            #[cfg(feature = "rme")]
+            self.initialise_realm(&mut cpu_state[World::Realm], realm_entry_point);
+        });
+    }
+
+    /// Initialises parts of the given CPU context that are the same for all worlds.
+    fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
+        *context = CpuContext::EMPTY;
+        context.el3_state.elr_el3 = entry_point.pc;
+        context.gpregs.registers[..entry_point.args.len()].copy_from_slice(&entry_point.args);
+
+        context.el3_state.spsr_el3 =
+            SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H;
+
+        #[cfg(feature = "sel2")]
+        {
+            // TODO: Initialise the rest of the context.el2_sysregs too.
+            context.el2_sysregs.cptr_el2 = CptrEl2::RES1;
+            context.el2_sysregs.icc_sre_el2 =
+                IccSreEl2::DIB | IccSreEl2::DFB | IccSreEl2::ENABLE | IccSreEl2::SRE;
+            context.el2_sysregs.tcr_el2 = TcrEl2::RES1;
+            context.el2_sysregs.vmpidr_el2 = VmpidrEl2::RES1;
+            context.el2_sysregs.vtcr_el2 = VtcrEl2::RES1;
+        }
+        #[cfg(not(feature = "sel2"))]
+        {
+            context.el1_sysregs.par_el1 = ParEl1::RES1;
+            context.el1_sysregs.sctlr_el1 = SctlrEl1::LSMAOE
+                | SctlrEl1::NTLSMD
+                | SctlrEl1::SPAN
+                | SctlrEl1::EIS
+                | SctlrEl1::TSCXT
+                | SctlrEl1::EOS;
         }
 
-        for ext in PlatformImpl::CPU_EXTENSIONS {
+        // Initialise MDCR_EL3, setting all fields rather than relying on hw.
+        // Some fields are architecturally UNKNOWN on reset.
+        //
+        // MDCR_EL3.SDD: Set to one to disable AArch64 Secure self-hosted debug.
+        //  Debug exceptions, other than Breakpoint Instruction exceptions, are
+        //  disabled from all ELs in Secure state.
+        //
+        // MDCR_EL3.SPD32: Set to 0b10 to disable AArch32 Secure self-hosted
+        //  privileged debug from S-EL1.
+        //
+        // MDCR_EL3.TDOSA: Set to zero so that EL2 and EL2 System register
+        //  access to the powerdown debug registers do not trap to EL3.
+        //
+        // MDCR_EL3.TDA: Set to zero to allow EL0, EL1 and EL2 access to the
+        //  debug registers, other than those registers that are controlled by
+        //  MDCR_EL3.TDOSA.
+        //
+        // MDCR_EL3.NSTB, MDCR_EL3.NSTBE: Set to zero so that Trace Buffer
+        //  owning security state is Secure state. If FEAT_TRBE is implemented,
+        //  accesses to Trace Buffer control registers at EL2 and EL1 in any
+        //  security state generates trap exceptions to EL3.
+        //  If FEAT_TRBE is not implemented, these bits are RES0.
+        context.el3_state.mdcr_el3 = MdcrEl3::SDD | MdcrEl3::SPD32;
+
+        if TraceFiltering.is_present() {
+            // Trap Trace Filter controls by default.
+            // This bit will be overwritten if the platform supports TRF.
+            context.el3_state.mdcr_el3 |= MdcrEl3::TTRF;
+        }
+
+        pmuv3::configure_per_cpu(context);
+    }
+
+    /// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.
+    fn initialise_nonsecure(&self, context: &mut CpuContext, entry_point: &EntryPointInfo) {
+        Self::initialise_common(context, entry_point);
+
+        // Configure CPU extensions for the non-secure world.
+        for ext in self.cpu_extensions {
             if ext.is_present() {
-                ext.configure_per_world(World::NonSecure, &mut per_world[World::NonSecure]);
-                ext.configure_per_world(World::Secure, &mut per_world[World::Secure]);
-                #[cfg(feature = "rme")]
-                ext.configure_per_world(World::Realm, &mut per_world[World::Realm]);
+                ext.configure_per_cpu(World::NonSecure, context);
             }
         }
-        per_world
-    });
-}
-
-/// Initialises all CPU contexts for this CPU, ready for first boot.
-pub fn initialise_contexts<PlatformImpl: Platform>(
-    non_secure_entry_point: &EntryPointInfo,
-    secure_entry_point: &EntryPointInfo,
-    #[cfg(feature = "rme")] realm_entry_point: &EntryPointInfo,
-) {
-    initialise_el3_sysregs::<PlatformImpl>();
-    initialise_per_world_contexts::<PlatformImpl>();
-
-    exception_free(|token| {
-        let mut cpu_state = CpuStates::cpu_state(token);
-        initialise_nonsecure::<PlatformImpl>(
-            &mut cpu_state[World::NonSecure],
-            non_secure_entry_point,
-        );
-        initialise_secure::<PlatformImpl>(&mut cpu_state[World::Secure], secure_entry_point);
-        #[cfg(feature = "rme")]
-        initialise_realm::<PlatformImpl>(&mut cpu_state[World::Realm], realm_entry_point);
-    });
-}
-
-/// Initialises parts of the given CPU context that are the same for all worlds.
-fn initialise_common(context: &mut CpuContext, entry_point: &EntryPointInfo) {
-    *context = CpuContext::EMPTY;
-    context.el3_state.elr_el3 = entry_point.pc;
-    context.gpregs.registers[..entry_point.args.len()].copy_from_slice(&entry_point.args);
-
-    context.el3_state.spsr_el3 =
-        SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL2H;
-
-    #[cfg(feature = "sel2")]
-    {
-        // TODO: Initialise the rest of the context.el2_sysregs too.
-        context.el2_sysregs.cptr_el2 = CptrEl2::RES1;
-        context.el2_sysregs.icc_sre_el2 =
-            IccSreEl2::DIB | IccSreEl2::DFB | IccSreEl2::ENABLE | IccSreEl2::SRE;
-        context.el2_sysregs.tcr_el2 = TcrEl2::RES1;
-        context.el2_sysregs.vmpidr_el2 = VmpidrEl2::RES1;
-        context.el2_sysregs.vtcr_el2 = VtcrEl2::RES1;
-    }
-    #[cfg(not(feature = "sel2"))]
-    {
-        context.el1_sysregs.par_el1 = ParEl1::RES1;
-        context.el1_sysregs.sctlr_el1 = SctlrEl1::LSMAOE
-            | SctlrEl1::NTLSMD
-            | SctlrEl1::SPAN
-            | SctlrEl1::EIS
-            | SctlrEl1::TSCXT
-            | SctlrEl1::EOS;
     }
 
-    // Initialise MDCR_EL3, setting all fields rather than relying on hw.
-    // Some fields are architecturally UNKNOWN on reset.
-    //
-    // MDCR_EL3.SDD: Set to one to disable AArch64 Secure self-hosted debug.
-    //  Debug exceptions, other than Breakpoint Instruction exceptions, are
-    //  disabled from all ELs in Secure state.
-    //
-    // MDCR_EL3.SPD32: Set to 0b10 to disable AArch32 Secure self-hosted
-    //  privileged debug from S-EL1.
-    //
-    // MDCR_EL3.TDOSA: Set to zero so that EL2 and EL2 System register
-    //  access to the powerdown debug registers do not trap to EL3.
-    //
-    // MDCR_EL3.TDA: Set to zero to allow EL0, EL1 and EL2 access to the
-    //  debug registers, other than those registers that are controlled by
-    //  MDCR_EL3.TDOSA.
-    //
-    // MDCR_EL3.NSTB, MDCR_EL3.NSTBE: Set to zero so that Trace Buffer
-    //  owning security state is Secure state. If FEAT_TRBE is implemented,
-    //  accesses to Trace Buffer control registers at EL2 and EL1 in any
-    //  security state generates trap exceptions to EL3.
-    //  If FEAT_TRBE is not implemented, these bits are RES0.
-    context.el3_state.mdcr_el3 = MdcrEl3::SDD | MdcrEl3::SPD32;
+    /// Initialises the given CPU context ready for booting S-EL2 or S-EL1.
+    fn initialise_secure(&self, context: &mut CpuContext, entry_point: &EntryPointInfo) {
+        Self::initialise_common(context, entry_point);
 
-    if TraceFiltering.is_present() {
-        // Trap Trace Filter controls by default.
-        // This bit will be overwritten if the platform supports TRF.
-        context.el3_state.mdcr_el3 |= MdcrEl3::TTRF;
-    }
+        #[cfg(not(feature = "sel2"))]
+        {
+            context.el3_state.spsr_el3 =
+                SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL1H;
+        }
 
-    pmuv3::configure_per_cpu(context);
-}
-
-/// Initialises the given CPU context ready for booting NS-EL2 or NS-EL1.
-fn initialise_nonsecure<PlatformImpl: Platform>(
-    context: &mut CpuContext,
-    entry_point: &EntryPointInfo,
-) {
-    initialise_common(context, entry_point);
-
-    // Configure CPU extensions for the non-secure world.
-    for ext in PlatformImpl::CPU_EXTENSIONS {
-        if ext.is_present() {
-            ext.configure_per_cpu(World::NonSecure, context);
+        // Configure CPU extensions for the secure world.
+        for ext in self.cpu_extensions {
+            if ext.is_present() {
+                ext.configure_per_cpu(World::Secure, context);
+            }
         }
     }
-}
 
-/// Initialises the given CPU context ready for booting S-EL2 or S-EL1.
-fn initialise_secure<PlatformImpl: Platform>(
-    context: &mut CpuContext,
-    entry_point: &EntryPointInfo,
-) {
-    initialise_common(context, entry_point);
+    /// Initialises the given CPU context ready for booting Realm world
+    #[cfg(feature = "rme")]
+    fn initialise_realm(&self, context: &mut CpuContext, entry_point: &EntryPointInfo) {
+        Self::initialise_common(context, entry_point);
 
-    #[cfg(not(feature = "sel2"))]
-    {
-        context.el3_state.spsr_el3 =
-            SpsrEl3::D | SpsrEl3::A | SpsrEl3::I | SpsrEl3::F | SpsrEl3::M_AARCH64_EL1H;
-    }
-
-    // Configure CPU extensions for the secure world.
-    for ext in PlatformImpl::CPU_EXTENSIONS {
-        if ext.is_present() {
-            ext.configure_per_cpu(World::Secure, context);
+        // Configure CPU extensions for the Realm world.
+        for ext in self.cpu_extensions {
+            if ext.is_present() {
+                ext.configure_per_cpu(World::Realm, context);
+            }
         }
     }
-}
 
-/// Initialises the given CPU context ready for booting Realm world
-#[cfg(feature = "rme")]
-fn initialise_realm<PlatformImpl: Platform>(
-    context: &mut CpuContext,
-    entry_point: &EntryPointInfo,
-) {
-    initialise_common(context, entry_point);
+    /// Updates the CPU context of each world to resume after suspend.
+    ///
+    /// When the CPU wakes up from a powerdown suspend state, lower ELs in each world expect a specific
+    /// state for resuming their execution. This can be a different entry point or just arguments passed
+    /// in registers.
+    pub fn update_contexts_suspend(
+        &self,
+        psci_entrypoint: EntryPoint,
+        secure_args: &SmcReturn,
+        #[cfg(feature = "rme")] realm_args: &[u64],
+    ) {
+        initialise_el3_sysregs(self.cpu_extensions);
 
-    // Configure CPU extensions for the Realm world.
-    for ext in PlatformImpl::CPU_EXTENSIONS {
-        if ext.is_present() {
-            ext.configure_per_cpu(World::Realm, context);
-        }
+        exception_free(|token| {
+            let mut cpu_state = CpuStates::cpu_state(token);
+
+            let entry_point = EntryPointInfo {
+                pc: psci_entrypoint.entry_point_address() as usize,
+                args: [psci_entrypoint.context_id(), 0, 0, 0, 0, 0, 0, 0],
+            };
+            // This will reset all the saved system registers of the non-secure world. Among other
+            // things, this ensures that the SPSR_EL3.DAIF bits are set to 1 as required by section
+            // 6.4.3.3 of the PSCI 1.3 specification. The execution state and endianness will also match
+            // the state when the PSCI call was made, because the lower EL can't change these so they
+            // are always the state we set initially.
+            self.initialise_nonsecure(&mut cpu_state[World::NonSecure], &entry_point);
+
+            cpu_state[World::Secure].gpregs.registers[..18].copy_from_slice(secure_args.values());
+
+            #[cfg(feature = "rme")]
+            cpu_state[World::Realm].gpregs.registers[..realm_args.len()]
+                .copy_from_slice(realm_args);
+
+            for ext in self.cpu_extensions {
+                ext.restore_context_after_suspend_to_powerdown();
+            }
+        });
     }
-}
-
-/// Updates the CPU context of each world to resume after suspend.
-///
-/// When the CPU wakes up from a powerdown suspend state, lower ELs in each world expect a specific
-/// state for resuming their execution. This can be a different entry point or just arguments passed
-/// in registers.
-pub fn update_contexts_suspend<PlatformImpl: Platform>(
-    psci_entrypoint: EntryPoint,
-    secure_args: &SmcReturn,
-    #[cfg(feature = "rme")] realm_args: &[u64],
-) {
-    initialise_el3_sysregs::<PlatformImpl>();
-
-    exception_free(|token| {
-        let mut cpu_state = CpuStates::cpu_state(token);
-
-        let entry_point = EntryPointInfo {
-            pc: psci_entrypoint.entry_point_address() as usize,
-            args: [psci_entrypoint.context_id(), 0, 0, 0, 0, 0, 0, 0],
-        };
-        // This will reset all the saved system registers of the non-secure world. Among other
-        // things, this ensures that the SPSR_EL3.DAIF bits are set to 1 as required by section
-        // 6.4.3.3 of the PSCI 1.3 specification. The execution state and endianness will also match
-        // the state when the PSCI call was made, because the lower EL can't change these so they
-        // are always the state we set initially.
-        initialise_nonsecure::<PlatformImpl>(&mut cpu_state[World::NonSecure], &entry_point);
-
-        cpu_state[World::Secure].gpregs.registers[..18].copy_from_slice(secure_args.values());
-
-        #[cfg(feature = "rme")]
-        cpu_state[World::Realm].gpregs.registers[..realm_args.len()].copy_from_slice(realm_args);
-
-        for ext in PlatformImpl::CPU_EXTENSIONS {
-            ext.restore_context_after_suspend_to_powerdown();
-        }
-    });
 }
 
 /// Information about the entry point for a next stage (e.g. BL32 or BL33).

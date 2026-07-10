@@ -34,7 +34,7 @@ pub mod stacks;
 #[cfg(feature = "pauth")]
 use crate::cpu_extensions::pauth;
 use crate::{
-    context::{CoresImpl, initialise_contexts},
+    context::{CoresImpl, CpuStates},
     cpu::PlatformCpuOps,
     errata_framework::PlatformErrata,
     gicv3::Gic,
@@ -118,7 +118,7 @@ where
     #[cfg(feature = "rme")]
     let realm_entry_point = PlatformImpl::realm_entry_point();
 
-    initialise_contexts::<PlatformImpl>(
+    CpuStates::get::<PlatformImpl>().initialise_contexts(
         &non_secure_entry_point,
         &secure_entry_point,
         #[cfg(feature = "rme")]

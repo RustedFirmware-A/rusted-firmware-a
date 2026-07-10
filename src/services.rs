@@ -15,10 +15,7 @@ pub mod trng;
 #[cfg(feature = "rme")]
 use crate::services::rmmd::Rmmd;
 use crate::{
-    context::{
-        CpuStates, World, initialise_contexts, set_initial_world, switch_world,
-        update_contexts_suspend,
-    },
+    context::{CpuStates, World},
     cpu::PlatformCpuOps,
     errata_framework::PlatformErrata,
     exceptions::{RunResult, enter_world, inject_undef64},
@@ -111,6 +108,7 @@ pub struct Services<
         >,
     <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<TRNG_REQ_WORDS>,
 {
+    cpu_states: CpuStates,
     arch: Arch<PlatformImpl>,
     psci: Psci<
         PSCI_STATE_COUNT,
@@ -119,11 +117,11 @@ pub struct Services<
         NON_CPU_DOMAIN_COUNT,
         PlatformImpl,
         PlatformImpl::PsciPlatformImpl,
-        Spmd<PlatformImpl>,
+        Spmd,
     >,
     platform: PlatformImpl::PlatformServiceImpl,
     /// The FF-A SPMD service.
-    pub spmd: Spmd<PlatformImpl>,
+    pub spmd: Spmd,
     /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
     pub rmmd: Rmmd<PlatformImpl>,
@@ -155,12 +153,15 @@ where
     <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<TRNG_REQ_WORDS>,
 {
     /// Constructs a new instance of the services.
-    pub fn new(get_spm: fn() -> &'static Spmd<PlatformImpl>) -> Self {
+    pub fn new(get_spm: fn() -> &'static Spmd) -> Self {
+        let cpu_states = CpuStates::get::<PlatformImpl>();
+
         Self {
+            cpu_states: cpu_states.clone(),
             arch: Arch::new(),
             psci: Psci::new(PlatformImpl::psci_platform().unwrap(), get_spm),
             platform: PlatformImpl::create_service(),
-            spmd: Spmd::new(),
+            spmd: Spmd::new(cpu_states),
             #[cfg(feature = "rme")]
             rmmd: Rmmd::new(),
             trng: Trng::new(),
@@ -295,7 +296,7 @@ where
         let mut regs = SmcReturn::EMPTY;
 
         debug!("Booting Secure World");
-        set_initial_world::<PlatformImpl>(World::Secure);
+        self.cpu_states.set_initial_world(World::Secure);
         // TODO: implement separate boot loop for Secure World
         let next_world = self.per_world_loop(&mut regs, World::Secure);
         assert_eq!(next_world, World::NonSecure);
@@ -305,7 +306,7 @@ where
             // If the RMM boot failed, do not try to boot Realm world again.
             if !self.rmmd.boot_failure() {
                 debug!("Booting Realm World");
-                switch_world::<PlatformImpl>(current_world, World::Realm);
+                self.cpu_states.switch_world(current_world, World::Realm);
                 current_world = World::Realm;
                 // TODO: implement separate boot loop for Realm World
                 regs.mark_empty();
@@ -319,7 +320,7 @@ where
         debug!("Booting Normal World");
 
         loop {
-            switch_world::<PlatformImpl>(current_world, next_world);
+            self.cpu_states.switch_world(current_world, next_world);
             current_world = next_world;
             next_world = self.per_world_loop(&mut regs, current_world);
             assert_ne!(current_world, next_world);
@@ -352,7 +353,7 @@ where
                 #[cfg(feature = "rme")]
                 let realm_entry_point = PlatformImpl::realm_entry_point();
 
-                initialise_contexts::<PlatformImpl>(
+                self.cpu_states.initialise_contexts(
                     &non_secure_entry_point,
                     &secure_entry_point,
                     #[cfg(feature = "rme")]
@@ -369,7 +370,7 @@ where
 
                 // TODO: instead of modifying the context directly, should we rather pass the initial
                 // gpregs of each world as arguments to run_loop()?
-                update_contexts_suspend::<PlatformImpl>(
+                self.cpu_states.update_contexts_suspend(
                     psci_entrypoint,
                     &secure_args,
                     #[cfg(feature = "rme")]

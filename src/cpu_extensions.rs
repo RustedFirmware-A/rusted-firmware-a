@@ -24,10 +24,7 @@ pub mod tcr2;
 pub mod trbe;
 pub mod trf;
 
-use crate::{
-    context::{CpuContext, PerWorldContext, World},
-    platform::Platform,
-};
+use crate::context::{CpuContext, PerWorldContext, World};
 
 /// A trait for managing CPU extensions.
 pub trait CpuExtension: Sync {
@@ -77,8 +74,8 @@ pub trait CpuExtension: Sync {
 /// Enable architecture extensions for EL3 execution. This function only updates
 /// registers in-place which are expected to either never change or be
 /// overwritten by el3_exit.
-pub fn initialise_el3_sysregs<PlatformImpl: Platform>() {
-    for ext in PlatformImpl::CPU_EXTENSIONS {
+pub fn initialise_el3_sysregs(cpu_extensions: &[&'static dyn CpuExtension]) {
+    for ext in cpu_extensions {
         if ext.is_present() {
             ext.init();
         }

@@ -8,12 +8,17 @@
 mod aarch64;
 mod table;
 
-use crate::aarch64::{dsb_osh, dsb_oshst, tlbi_rpalos};
+use crate::{
+    aarch64::{dsb_osh, dsb_oshst, tlbi_rpalos},
+    gpt::table::{
+        Level0DescriptorRef, Level0Table, Level1Descriptor, Level1DescriptorRef,
+        Level1DescriptorRefMut,
+    },
+};
 use arm_sysregs::{GpccrEl3, read_gpccr_el3, read_id_aa64mmfr4_el1, read_id_aa64pfr0_el1};
 use core::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 pub use table::GPIAccessType;
-use table::{Level0Table, Level1Descriptor};
 
 /// Generates a bitmask:
 /// - `mask!(end, start)`: bits from `start` (inclusive) to `end` (exclusive) are set to 1.
@@ -115,15 +120,14 @@ impl<'a> GranuleProtection<'a> {
             return Err(GranuleError::InvalidRequest);
         }
         let l0_idx = self.config.l0_resolve(base_pa);
-        let l0_entry = self.level0.0[l0_idx];
+        let l0_entry = &self.level0.0[l0_idx];
 
-        // We do not support changing the GPI of an L0 block descriptor.
-        if l0_entry.as_block().is_some() {
-            return Err(GranuleError::InvalidRequest);
-        }
-        let Some(mut l0_entry) = l0_entry.as_table() else {
+        let mut l0_entry = match l0_entry.try_into() {
+            Ok(Level0DescriptorRef::Table(table)) => table,
+            // We do not support changing the GPI of an L0 block descriptor.
+            Ok(Level0DescriptorRef::Block(_)) => return Err(GranuleError::InvalidRequest),
             // Not block or table descriptor
-            return Err(GranuleError::InvalidL0Entry);
+            Err(_) => return Err(GranuleError::InvalidL0Entry),
         };
 
         // Safety:
@@ -133,13 +137,12 @@ impl<'a> GranuleProtection<'a> {
         let l1_idx = self.config.l1_resolve(base_pa);
         let l1_desc = &mut l1_table[l1_idx];
 
-        // We do not support contiguous descriptors.
-        if l1_desc.as_contig().is_some() {
-            return Err(GranuleError::InvalidRequest);
-        }
-        let Some(mut gran) = l1_desc.as_granule_mut() else {
+        let mut gran = match l1_desc.try_into() {
+            Ok(Level1DescriptorRefMut::Granule(granule)) => granule,
+            // We do not support contiguous descriptors.
+            Ok(Level1DescriptorRefMut::Contiguous(_)) => return Err(GranuleError::InvalidRequest),
             // Not granule or contig descriptor
-            return Err(GranuleError::InvalidL1Entry);
+            Err(_) => return Err(GranuleError::InvalidL1Entry),
         };
 
         let gran_idx = self.config.granule_resolve(base_pa);
@@ -159,19 +162,19 @@ impl<'a> GranuleProtection<'a> {
             return Err(GranuleError::InvalidRequest);
         }
         let l0_idx = self.config.l0_resolve(base_pa);
-        let l0_entry = self.level0.0[l0_idx];
+        let l0_entry = &self.level0.0[l0_idx];
 
-        if let Some(block) = l0_entry.as_block() {
-            let gpi = block.gpi();
-            return if self.is_gpi_supported(gpi) {
-                Ok(gpi)
-            } else {
-                Err(GranuleError::InvalidL0Entry)
-            };
-        }
-        let Some(l0_entry) = l0_entry.as_table() else {
-            // Not block or table descriptor
-            return Err(GranuleError::InvalidL0Entry);
+        let l0_entry = match l0_entry.try_into() {
+            Ok(Level0DescriptorRef::Table(table)) => table,
+            Ok(Level0DescriptorRef::Block(block)) => {
+                let gpi = block.gpi();
+                return if self.is_gpi_supported(gpi) {
+                    Ok(gpi)
+                } else {
+                    Err(GranuleError::InvalidL0Entry)
+                };
+            }
+            Err(_) => return Err(GranuleError::InvalidL0Entry),
         };
 
         // Safety:
@@ -179,26 +182,26 @@ impl<'a> GranuleProtection<'a> {
         // - self.config is the config of the GranuleProtection object.
         let l1_table: &[Level1Descriptor] = unsafe { l0_entry.to_table(&self.config) };
         let l1_idx = self.config.l1_resolve(base_pa);
-        let l1_desc = l1_table[l1_idx];
+        let l1_desc = &l1_table[l1_idx];
 
-        if let Some(contig) = l1_desc.as_contig() {
-            let gpi = contig.gpi();
-            if self.is_gpi_supported(gpi) {
-                return Ok(gpi);
+        match l1_desc.try_into() {
+            Ok(Level1DescriptorRef::Granule(granule)) => {
+                let gran_idx = self.config.granule_resolve(base_pa);
+                granule
+                    .gpi(gran_idx)
+                    .filter(|gpi| self.is_gpi_supported(*gpi))
+                    .ok_or(GranuleError::InvalidL1Entry)
             }
-            // Contig with unsupported encoding
-            return Err(GranuleError::InvalidL1Entry);
+            Ok(Level1DescriptorRef::Contiguous(contig)) => {
+                let gpi = contig.gpi();
+                if self.is_gpi_supported(gpi) {
+                    Ok(gpi)
+                } else {
+                    Err(GranuleError::InvalidL1Entry)
+                }
+            }
+            Err(_) => Err(GranuleError::InvalidL1Entry),
         }
-        let Some(granule) = l1_desc.as_granule() else {
-            // Not granule or contiguous descriptor
-            return Err(GranuleError::InvalidL1Entry);
-        };
-
-        let gran_idx = self.config.granule_resolve(base_pa);
-        granule
-            .gpi(gran_idx)
-            .filter(|gpi| self.is_gpi_supported(*gpi))
-            .ok_or(GranuleError::InvalidL1Entry)
     }
 }
 

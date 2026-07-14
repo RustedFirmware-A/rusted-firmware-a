@@ -136,6 +136,40 @@ impl ContigSize {
     }
 }
 
+/// Possible views of a [`Level0Descriptor`].
+pub(crate) enum Level0DescriptorRef<'a> {
+    Block(BlockDescriptorRef<'a>),
+    Table(TableDescriptorRef<'a>),
+}
+
+impl<'a> Level0DescriptorRef<'a> {
+    fn is_valid_block(descriptor: &'a Level0Descriptor) -> bool {
+        (descriptor.0 & Level0Descriptor::TAG_MASK) == Level0Descriptor::BLOCK_TAG
+            && GPIAccessType::try_from(
+                (descriptor.0 >> Level0Descriptor::BLOCK_GPI_SHIFT) & GPIAccessType::MASK,
+            )
+            .is_ok()
+    }
+
+    fn is_valid_table(descriptor: &'a Level0Descriptor) -> bool {
+        (descriptor.0 & Level0Descriptor::TAG_MASK) == Level0Descriptor::TABLE_TAG
+    }
+}
+
+impl<'a> TryFrom<&'a Level0Descriptor> for Level0DescriptorRef<'a> {
+    type Error = ();
+
+    fn try_from(descriptor: &'a Level0Descriptor) -> Result<Self, Self::Error> {
+        if Self::is_valid_block(descriptor) {
+            Ok(Self::Block(BlockDescriptorRef(descriptor)))
+        } else if Self::is_valid_table(descriptor) {
+            Ok(Self::Table(TableDescriptorRef(descriptor)))
+        } else {
+            Err(())
+        }
+    }
+}
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromBytes, IntoBytes, KnownLayout, Immutable,
 )]
@@ -152,36 +186,9 @@ impl Level0Descriptor {
     const TABLE_ADDR_ALIGN: usize = 12;
     const TABLE_ADDR_MASK: usize = mask!((Self::TABLE_ADDR_LEN), (Self::TABLE_ADDR_ALIGN));
 
-    /// Tries to create a view of this Level 0 Descriptor as a Table Descriptor.
-    ///
-    /// Returns a [`TableDescriptorRef`] referencing `self`, or [`None`] if self does not contain
-    /// a Table Descriptor.
-    pub const fn as_table<'a>(&'a self) -> Option<TableDescriptorRef<'a>> {
-        if (self.0 & Self::TAG_MASK) == Self::TABLE_TAG {
-            Some(TableDescriptorRef(self))
-        } else {
-            None
-        }
-    }
-
-    /// Tries to create a view of this Level 0 Descriptor as a Block Descriptor.
-    ///
-    /// Returns a [`BlockDescriptorRef`] referencing `self`, or [`None`] if self does not contain
-    /// a Block Descriptor.
-    #[allow(unused)]
-    pub fn as_block<'a>(&'a self) -> Option<BlockDescriptorRef<'a>> {
-        let _gpi = GPIAccessType::try_from((self.0 >> Self::BLOCK_GPI_SHIFT) & GPIAccessType::MASK)
-            .ok()?;
-        if self.0 & Self::TAG_MASK == Self::BLOCK_TAG {
-            Some(BlockDescriptorRef(self))
-        } else {
-            None
-        }
-    }
-
     /// Creates a Block Descriptor with the given [`GPIAccessType`].
     pub const fn block(gpi: GPIAccessType) -> Self {
-        Self(Self::BLOCK_TAG | (gpi as u64 & GPIAccessType::MASK) << 4)
+        Self(Self::BLOCK_TAG | (gpi as u64 & GPIAccessType::MASK) << Self::BLOCK_GPI_SHIFT)
     }
 
     /// Creates a Table Descriptor pointing to `addr`.
@@ -266,6 +273,66 @@ impl Debug for BlockDescriptorRef<'_> {
     }
 }
 
+/// Possible views of a [`Level1Descriptor`].
+pub(crate) enum Level1DescriptorRef<'a> {
+    Granule(GranuleDescriptorRef<'a>),
+    Contiguous(ContiguousDescriptorRef<'a>),
+}
+
+impl<'a> Level1DescriptorRef<'a> {
+    fn is_valid_contig(descriptor: &Level1Descriptor) -> bool {
+        (descriptor.0 & Level1Descriptor::TAG_MASK) == Level1Descriptor::CONTIG_TAG
+            && GPIAccessType::try_from(
+                (descriptor.0 >> Level1Descriptor::CONTIG_GPI_SHIFT) & GPIAccessType::MASK,
+            )
+            .is_ok()
+            && ContigSize::try_from(
+                (descriptor.0 >> Level1Descriptor::CONTIG_SIZE_SHIFT) & ContigSize::MASK,
+            )
+            .is_ok()
+    }
+
+    fn is_valid_granule(descriptor: &Level1Descriptor) -> bool {
+        (0..64)
+            .step_by(4)
+            .all(|i| GPIAccessType::try_from((descriptor.0 >> i) & GPIAccessType::MASK).is_ok())
+    }
+}
+
+impl<'a> TryFrom<&'a Level1Descriptor> for Level1DescriptorRef<'a> {
+    type Error = ();
+
+    fn try_from(descriptor: &'a Level1Descriptor) -> Result<Self, Self::Error> {
+        if Self::is_valid_contig(descriptor) {
+            Ok(Self::Contiguous(ContiguousDescriptorRef(descriptor)))
+        } else if Self::is_valid_granule(descriptor) {
+            Ok(Self::Granule(GranuleDescriptorRef(descriptor)))
+        } else {
+            Err(())
+        }
+    }
+}
+
+/// Possible views of a mutable [`Level1Descriptor`].
+pub(crate) enum Level1DescriptorRefMut<'a> {
+    Granule(GranuleDescriptorRefMut<'a>),
+    Contiguous(ContiguousDescriptorRef<'a>),
+}
+
+impl<'a> TryFrom<&'a mut Level1Descriptor> for Level1DescriptorRefMut<'a> {
+    type Error = ();
+
+    fn try_from(descriptor: &'a mut Level1Descriptor) -> Result<Self, Self::Error> {
+        if Level1DescriptorRef::is_valid_contig(descriptor) {
+            Ok(Self::Contiguous(ContiguousDescriptorRef(descriptor)))
+        } else if Level1DescriptorRef::is_valid_granule(descriptor) {
+            Ok(Self::Granule(GranuleDescriptorRefMut(descriptor)))
+        } else {
+            Err(())
+        }
+    }
+}
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromBytes, IntoBytes, KnownLayout, Immutable,
 )]
@@ -278,60 +345,16 @@ impl Level1Descriptor {
     const CONTIG_GPI_SHIFT: u64 = 4;
     const CONTIG_SIZE_SHIFT: u64 = 8;
 
-    /// Tries to create a view of this Level 1 Descriptor as a Contig Descriptor.
-    ///
-    /// Returns a [`ContiguousDescriptorRef`] referencing `self`, or [`None`] if self does not contain
-    /// a Contig Descriptor.
-    pub fn as_contig<'a>(&'a self) -> Option<ContiguousDescriptorRef<'a>> {
-        let _size =
-            ContigSize::try_from((self.0 >> Self::CONTIG_SIZE_SHIFT) & ContigSize::MASK).ok()?;
-        let _gpi =
-            GPIAccessType::try_from((self.0 >> Self::CONTIG_GPI_SHIFT) & GPIAccessType::MASK)
-                .ok()?;
-        if self.0 & Self::TAG_MASK == Self::CONTIG_TAG {
-            Some(ContiguousDescriptorRef(self))
-        } else {
-            None
-        }
-    }
-
     /// Creates a Contiguous Descriptor from the given size and gpi.
     pub fn contig(size: ContigSize, gpi: GPIAccessType) -> Self {
         let size: u64 = size.into();
         let gpi: u64 = gpi.into();
 
-        Self(Self::CONTIG_TAG | (size & ContigSize::MASK) << 8 | (gpi & GPIAccessType::MASK) << 4)
-    }
-
-    fn valid_granule(&self) -> bool {
-        (0..64)
-            .step_by(4)
-            .all(|i| GPIAccessType::try_from((self.0 >> i) & GPIAccessType::MASK).is_ok())
-    }
-
-    /// Tries to create a view of this Level 1 Descriptor as a Granule Descriptor.
-    ///
-    /// Returns a [`GranuleDescriptorRef`] referencing `self`, or [`None`] if self does not contain
-    /// a Granule Descriptor.
-    #[allow(unused)]
-    pub fn as_granule<'a>(&'a self) -> Option<GranuleDescriptorRef<'a>> {
-        if self.valid_granule() {
-            Some(GranuleDescriptorRef(self))
-        } else {
-            None
-        }
-    }
-
-    /// Tries to create a view of this Level 1 Descriptor as a Granule Descriptor.
-    ///
-    /// Returns a [`GranuleDescriptorRefMut`] mutably referencing `self`, or [`None`] if self does not
-    /// contain a Granule Descriptor.
-    pub fn as_granule_mut<'a>(&'a mut self) -> Option<GranuleDescriptorRefMut<'a>> {
-        if self.valid_granule() {
-            Some(GranuleDescriptorRefMut(self))
-        } else {
-            None
-        }
+        Self(
+            Self::CONTIG_TAG
+                | (size & ContigSize::MASK) << Self::CONTIG_SIZE_SHIFT
+                | (gpi & GPIAccessType::MASK) << Self::CONTIG_GPI_SHIFT,
+        )
     }
 
     /// Creates a Granule Descriptor from the given [`GPIAccessType`]s.
@@ -423,11 +446,17 @@ impl<'a> Level0Table<'a> {
         config: &GranuleProtectionConfig,
     ) -> Option<&mut Level1Table> {
         let l0_idx = config.l0_resolve(pa);
+        let l0_desc = &self.0[l0_idx];
+
+        let Ok(Level0DescriptorRef::Table(l0_table)) = l0_desc.try_into() else {
+            return None;
+        };
+
         // Safety: since the GPT is correctly programmed, all Table Descriptors point to Level1Table
         // whose size is given by the L0GPTSZ and PGS fields.
-        self.0[l0_idx].as_table().map(|d| unsafe {
+        Some(unsafe {
             from_raw_parts_mut(
-                d.address() as *mut _,
+                l0_table.address() as *mut _,
                 1 << (config.l0gptsz.width() - (config.pgs.width() + 4)),
             )
         })
@@ -439,26 +468,60 @@ pub(crate) type Level1Table = [Level1Descriptor];
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::panic;
+
+    /// Asserts that a descriptor does not convert to the given descriptor view.
+    macro_rules! assert_invalid_descriptor {
+        ($e:expr, $p:pat) => {
+            assert!(!matches!(($e).try_into(), Ok($p)));
+        };
+    }
+
+    /// Asserts that a descriptor conversion is valid and matches the given descriptor view.
+    macro_rules! assert_valid_descriptor {
+        ($e:expr, $p:pat) => {
+            assert!(matches!(($e).try_into(), Ok($p)));
+        };
+        ($e:expr, $p:pat => $b:expr) => {
+            match ($e).try_into() {
+                Ok($p) => $b,
+                Err(e) => panic!("Expected valid descriptor"),
+                _ => panic!(concat!(
+                    "Expected descriptor ",
+                    stringify!($e),
+                    " to match ",
+                    stringify!($p)
+                )),
+            }
+        };
+    }
 
     #[test]
-    fn as_block_valid() {
-        assert!(
-            Level0Descriptor(0b0001)
-                .as_block()
-                .is_some_and(|b| b.gpi() == GPIAccessType::NoAccess)
+    fn block_valid() {
+        assert_valid_descriptor!(
+            &Level0Descriptor(0b0001),
+            Level0DescriptorRef::Block(block1) =>
+            {
+                assert_eq!(block1.gpi(), GPIAccessType::NoAccess);
+            }
         );
 
-        assert!(
-            Level0Descriptor(0b1111_0001)
-                .as_block()
-                .is_some_and(|b| b.gpi() == GPIAccessType::Any)
+        assert_valid_descriptor!(
+            &Level0Descriptor(0b1111_0001),
+            Level0DescriptorRef::Block(block2) =>
+            {
+                assert_eq!(block2.gpi(), GPIAccessType::Any);
+            }
         );
     }
 
     #[test]
     fn as_block_invalid() {
-        assert!(Level0Descriptor(0).as_block().is_none());
-        assert!(Level0Descriptor(0b0010_0001).as_block().is_none());
+        assert_invalid_descriptor!(&Level0Descriptor(0), Level0DescriptorRef::Block(_));
+        assert_invalid_descriptor!(
+            &Level0Descriptor(0b0010_0001),
+            Level0DescriptorRef::Block(_)
+        );
     }
 
     #[test]
@@ -471,47 +534,85 @@ mod tests {
 
     #[test]
     fn as_table_valid() {
-        assert!(Level0Descriptor(0x0001_dead_beef_0003).as_table().is_some());
+        assert_valid_descriptor!(
+            &Level0Descriptor(0x0001_dead_beef_0003),
+            Level0DescriptorRef::Table(_)
+        );
     }
 
     #[test]
     fn create_table() {
-        let table = Level0Descriptor::table(0x1234_0000);
-        assert!(table.as_table().is_some());
-        assert_eq!(table.as_table().unwrap().address(), 0x1234_0000);
+        assert_valid_descriptor!(
+            &Level0Descriptor::table(0x1234_0000),
+            Level0DescriptorRef::Table(table) =>
+            {
+                assert_eq!(table.address(), 0x1234_0000);
+            }
+        );
     }
 
     #[test]
     fn as_table_invalid() {
-        assert!(Level0Descriptor(0x0001_dead_beef_0001).as_table().is_none());
-        assert!(Level0Descriptor(0x0001_dead_beef_0005).as_table().is_none());
+        assert_invalid_descriptor!(
+            &Level0Descriptor(0x0001_dead_beef_0001),
+            Level0DescriptorRef::Table(_)
+        );
+        assert_invalid_descriptor!(
+            &Level0Descriptor(0x0001_dead_beef_0005),
+            Level0DescriptorRef::Table(_)
+        );
     }
 
     #[test]
     fn as_table_idx() {
-        let desc = Level0Descriptor(0x1000_0000_2003).as_table().unwrap();
-        assert_eq!(desc.address(), 0x1000_0000_2000);
+        assert_valid_descriptor!(
+            &Level0Descriptor(0x1000_0000_2003),
+            Level0DescriptorRef::Table(desc) =>
+            {
+                assert_eq!(desc.address(), 0x1000_0000_2000);
+            }
+        );
 
-        let desc = Level0Descriptor(0x1000_0001_0003).as_table().unwrap();
-        assert_eq!(desc.address(), 0x1000_0001_0000);
+        assert_valid_descriptor!(
+            &Level0Descriptor(0x1000_0001_0003),
+            Level0DescriptorRef::Table(desc) =>
+            {
+                assert_eq!(desc.address(), 0x1000_0001_0000);
+            }
+        );
     }
 
     #[test]
     fn as_contig_valid() {
-        let desc = Level1Descriptor(0b11_1001_0001).as_contig().unwrap();
-
-        assert_eq!(desc.size(), ContigSize::MB512);
-        assert_eq!(desc.gpi(), GPIAccessType::NonSecure);
+        assert_valid_descriptor!(
+            &Level1Descriptor(0b11_1001_0001),
+            Level1DescriptorRef::Contiguous(desc) =>
+            {
+                assert_eq!(desc.size(), ContigSize::MB512);
+                assert_eq!(desc.gpi(), GPIAccessType::NonSecure);
+            }
+        );
     }
 
     #[test]
     fn as_contig_invalid() {
         // valid size, valid gpi, invalid contig tag.
-        assert!(Level1Descriptor(0b11_1001_0000).as_contig().is_none());
+        assert_invalid_descriptor!(
+            &Level1Descriptor(0b11_1001_0000),
+            Level1DescriptorRef::Contiguous(_)
+        );
+
         // invalid size, valid gpi, valid contig tag.
-        assert!(Level1Descriptor(0b00_1001_0001).as_contig().is_none());
+        assert_invalid_descriptor!(
+            &Level1Descriptor(0b00_1001_0001),
+            Level1DescriptorRef::Contiguous(_)
+        );
+
         // valid size, invalid gpi, valid contig tag.
-        assert!(Level1Descriptor(0b01_0010_0001).as_contig().is_none());
+        assert_invalid_descriptor!(
+            &Level1Descriptor(0b01_0010_0001),
+            Level1DescriptorRef::Contiguous(_)
+        );
     }
 
     #[test]
@@ -524,39 +625,48 @@ mod tests {
 
     #[test]
     fn as_granule_valid() {
-        let gpi = Level1Descriptor(0xB09F).as_granule().unwrap();
-
-        assert_eq!(gpi.gpi(0), Some(GPIAccessType::Any));
-        assert_eq!(gpi.gpi(1), Some(GPIAccessType::NonSecure));
-        assert_eq!(gpi.gpi(2), Some(GPIAccessType::NoAccess));
-        assert_eq!(gpi.gpi(3), Some(GPIAccessType::Realm));
+        assert_valid_descriptor!(
+            &Level1Descriptor(0xB09F),
+            Level1DescriptorRef::Granule(gpi) =>
+            {
+                assert_eq!(gpi.gpi(0), Some(GPIAccessType::Any));
+                assert_eq!(gpi.gpi(1), Some(GPIAccessType::NonSecure));
+                assert_eq!(gpi.gpi(2), Some(GPIAccessType::NoAccess));
+                assert_eq!(gpi.gpi(3), Some(GPIAccessType::Realm));
+            }
+        );
     }
 
     #[test]
     fn as_granule_mut_valid() {
-        let mut desc = Level1Descriptor(0xB09F);
-        assert!(desc.as_granule_mut().is_some());
+        assert_valid_descriptor!(
+            &mut Level1Descriptor(0xB09F),
+            Level1DescriptorRefMut::Granule(_)
+        );
     }
 
     #[test]
     fn as_granule_invalid() {
-        assert!(Level1Descriptor(1).as_granule().is_none());
-        assert!(Level1Descriptor(1).as_granule_mut().is_none());
-        assert!(Level1Descriptor(0xB19F).as_granule().is_none());
-        assert!(Level1Descriptor(0xB19F).as_granule_mut().is_none());
+        assert_invalid_descriptor!(&Level1Descriptor(1), Level1DescriptorRef::Granule(_));
+        assert_invalid_descriptor!(&mut Level1Descriptor(1), Level1DescriptorRefMut::Granule(_));
+        assert_invalid_descriptor!(&Level1Descriptor(0xB19F), Level1DescriptorRef::Granule(_));
+        assert_invalid_descriptor!(
+            &mut Level1Descriptor(0xB19F),
+            Level1DescriptorRefMut::Granule(_)
+        );
     }
 
     #[test]
     fn granule_set() {
         let mut desc = Level1Descriptor(0xB09F);
-        let mut gpi = desc.as_granule_mut().unwrap();
+        assert_valid_descriptor!(&mut desc, Level1DescriptorRefMut::Granule(mut gpi) => {
+            gpi.set_gpi(7, GPIAccessType::Root);
+            assert_eq!(gpi.0.0, 0x0000_0000_A000_B09F);
 
-        gpi.set_gpi(7, GPIAccessType::Root);
-        assert_eq!(gpi.0.0, 0x0000_0000_A000_B09F);
-
-        gpi.set_gpi(1, GPIAccessType::Secure);
-        gpi.set_gpi(14, GPIAccessType::Secure);
-        assert_eq!(gpi.0.0, 0x0800_0000_A000_B08F);
+            gpi.set_gpi(1, GPIAccessType::Secure);
+            gpi.set_gpi(14, GPIAccessType::Secure);
+            assert_eq!(gpi.0.0, 0x0800_0000_A000_B08F);
+        });
     }
 
     #[test]
@@ -593,9 +703,12 @@ mod tests {
     #[test]
     fn granule_non_empty() {
         macro_rules! assert_non_empty {
-            ($e:expr) => {
-                assert!($e.as_granule().is_some_and(|v| !v.is_empty()))
-            };
+            ($e:expr) => {{
+                let granule_desc = $e;
+                assert_valid_descriptor!(&granule_desc, Level1DescriptorRef::Granule(granule) => {
+                    assert!(!granule.is_empty());
+                });
+            }};
         }
 
         assert_non_empty!(Level1Descriptor::granule(&[GPIAccessType::Any; 16]));
@@ -605,9 +718,14 @@ mod tests {
     #[test]
     fn granule_empty() {
         macro_rules! assert_empty {
-            ($e:expr) => {
-                assert!($e.as_granule().is_none_or(|v| v.is_empty()))
-            };
+            ($e:expr) => {{
+                let granule_desc = $e;
+                match Level1DescriptorRef::try_from(&granule_desc) {
+                    Ok(Level1DescriptorRef::Granule(granule)) => assert!(granule.is_empty()),
+                    Ok(_) => panic!("Expected empty or invalid granule."),
+                    Err(_) => (),
+                }
+            }};
         }
 
         assert_empty!(Level1Descriptor::granule(&[GPIAccessType::NoAccess; 16]));

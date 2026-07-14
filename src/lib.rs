@@ -40,7 +40,7 @@ use crate::{
     gicv3::Gic,
     pagetable::{IdMap, OncePageTable, PageHeap},
     platform::Platform,
-    services::{Services, psci::PsciPlatformInterface},
+    services::{El3Runtime, psci::PsciPlatformInterface},
 };
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::bl31_warm_entrypoint;
@@ -65,8 +65,8 @@ pub fn coldboot<
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
     gic: &'static Once<Gic<'static, CORE_COUNT, PlatformImpl>>,
-    services: &'static Lazy<
-        Services<
+    el3_runtime: &'static Lazy<
+        El3Runtime<
             CORE_COUNT,
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
@@ -120,12 +120,12 @@ where
         &realm_entry_point,
     );
 
-    services.run_loop()
+    el3_runtime.run_loop()
 }
 
-/// Trait implemented for the platform to call the warmboot entrypoint of the services.
+/// Trait implemented for the platform to call the warmboot entrypoint of the EL3 runtime.
 pub trait WarmbootEntrypoint {
-    /// Calls `Services::warmboot` for the platform.
+    /// Calls [`El3Runtime::warmboot`] for the platform.
     fn warmboot() -> !;
 }
 
@@ -375,20 +375,22 @@ macro_rules! statics {
             $crate::services::CoreServices::new(|| &CORE_SERVICES.spmd)
         });
 
-        /// Instance of core and platform services.
-        pub(crate) static SERVICES: $crate::reexports::spin::Lazy<
-            $crate::services::Services<
+        /// The EL3 runtime instance.
+        pub(crate) static EL3_RUNTIME: $crate::reexports::spin::Lazy<
+            $crate::services::El3Runtime<
                 { <$platform as $crate::platform::Platform>::CORE_COUNT },
                 PSCI_STATE_COUNT,
                 MAX_POWER_LEVEL_,
                 NON_CPU_DOMAIN_COUNT,
                 $platform,
             >,
-        > = $crate::reexports::spin::Lazy::new(|| $crate::services::Services::new(&*CORE_SERVICES));
+        > = $crate::reexports::spin::Lazy::new(|| {
+            $crate::services::El3Runtime::new(&*CORE_SERVICES)
+        });
 
         impl $crate::WarmbootEntrypoint for $platform {
             fn warmboot() -> ! {
-                SERVICES.warmboot()
+                EL3_RUNTIME.warmboot()
             }
         }
 
@@ -405,7 +407,7 @@ macro_rules! statics {
                 &PAGE_TABLE,
                 &PAGE_HEAP,
                 &GIC,
-                &SERVICES,
+                &EL3_RUNTIME,
                 arg0,
                 arg1,
                 arg2,

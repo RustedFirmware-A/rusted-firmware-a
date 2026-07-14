@@ -157,8 +157,8 @@ where
     }
 }
 
-/// Contains an instance of all of the currently implemented services.
-pub struct Services<
+/// Runs the EL3 firmware and dispatches calls to runtime services.
+pub struct El3Runtime<
     const CORE_COUNT: usize,
     const PSCI_STATE_COUNT: usize,
     const PSCI_MAX_POWER_LEVEL: usize,
@@ -189,12 +189,12 @@ impl<
     const MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     PlatformImpl: Platform + PlatformCpuOps + PlatformErrata,
-> Services<CORE_COUNT, STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>
+> El3Runtime<CORE_COUNT, STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>
 where
     <PlatformImpl as Platform>::PsciPlatformImpl:
         PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, CORE_COUNT, NON_CPU_DOMAIN_COUNT>,
 {
-    /// Constructs a new instance of the services.
+    /// Creates a new EL3 runtime.
     pub fn new(
         core_services: &'static CoreServices<
             CORE_COUNT,
@@ -416,7 +416,7 @@ where
 mod tests {
     use super::*;
     use crate::{
-        platform::test::SERVICES,
+        platform::test::EL3_RUNTIME,
         services::arch::{SMCCC_VERSION, SMCCC_VERSION_1_5},
         smccc::FunctionId,
     };
@@ -435,7 +435,7 @@ mod tests {
         let mut regs = SmcReturn::EMPTY;
         regs.set_from(function.0);
 
-        let new_world = SERVICES.handle_smc(&mut regs, World::NonSecure);
+        let new_world = EL3_RUNTIME.handle_smc(&mut regs, World::NonSecure);
 
         assert_eq!(new_world, World::NonSecure);
         assert_eq!(regs.values(), [SMCCC_VERSION_1_5 as u64]);

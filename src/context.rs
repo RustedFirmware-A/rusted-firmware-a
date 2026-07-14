@@ -198,7 +198,7 @@ impl CpuContext {
     /// Increases ELR_EL3 in the saved context by the size of an instruction. After exception return
     /// the execution in lower EL will continue from the next instruction instead of repeating the
     /// one that has caused the trap.
-    /// Should only be used by [`crate::services::Services::handle_sysreg_trap()`].
+    /// Should only be used by [`crate::services::El3Runtime::handle_sysreg_trap()`].
     pub(crate) fn skip_lower_el_instruction(&mut self) {
         self.el3_state.elr_el3 += core::mem::size_of::<u32>();
     }

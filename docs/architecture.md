@@ -164,13 +164,15 @@ platform-specific static variables, and anything else specific to that platform.
 ### `services`
 
 The [`services`] module contains the `Service` trait which is implemented by each
-[runtime service](smc-services.md). These are all grouped together in the `Services` struct, which
-has methods to handle dispatching an SMC to the appropriate service.
+[runtime service](smc-services.md). `CoreServices` contains the built-in PSCI and SPMD services, and
+RMMD as well when RME is enabled. Platforms register any additional services through
+`Platform::services`. These are all grouped together in the `El3Runtime` struct, which has methods
+to handle dispatching an SMC to the appropriate service.
 
-`Services::run_loop` is the main run loop for RF-A, which runs on each core after initialisation is
-complete. This loop essentially calls `enter_world` to enter a particular world at the appropriate
-lower EL, handles the `RunResult` (an SMC call, interrupt, or something else which causes an
-exception to EL3), switches context if necessary, and repeats.
+`El3Runtime::run_loop` is the main run loop for RF-A, which runs on each core after initialisation
+is complete. This loop essentially calls `enter_world` to enter a particular world at the
+appropriate lower EL, handles the `RunResult` (an SMC call, interrupt, or something else which
+causes an exception to EL3), switches context if necessary, and repeats.
 
 ## Concurrency primitives
 

@@ -4,7 +4,7 @@
 
 //! Build script helpers for RF-A BL31.
 
-use std::{env, error::Error, path::Path};
+use std::{env, error::Error, fmt::Display, path::Path};
 
 /// One page of memory has 4KiB.
 const PAGE_SIZE: u64 = 0x1000;
@@ -29,11 +29,8 @@ fn setup_linker(builder: &dyn Builder) {
     );
     define_linker_symbol("BL31_DRAM_SIZE", builder.bl31_dram_size());
     define_linker_symbol("PAGE_SIZE", PAGE_SIZE);
-    define_linker_symbol("CORE_COUNT", builder.core_count() as u64);
-    define_linker_symbol(
-        "CACHE_WRITEBACK_GRANULE",
-        builder.cache_writeback_granule() as u64,
-    );
+    define_linker_symbol("CORE_COUNT", builder.core_count());
+    define_linker_symbol("CACHE_WRITEBACK_GRANULE", builder.cache_writeback_granule());
 
     let linker_script_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src")
@@ -47,9 +44,10 @@ fn add_linker_script(path: &Path) {
     println!("cargo:rerun-if-changed={}", path.display());
 }
 
-/// Prints a line to stdout to make cargo define the given symbol for linker scripts.
-fn define_linker_symbol(name: &str, value: u64) {
-    println!("cargo:rustc-link-arg=--defsym=\"{name}\"={value}");
+/// Defines a global symbol in the linker script file, containing the absolute address given by
+/// expression. For more information see the linker's description of `--defsym` parameter.
+pub fn define_linker_symbol<D: Display>(symbol: &str, expression: D) {
+    println!("cargo:rustc-link-arg=--defsym=\"{symbol}\"={expression}");
 }
 
 /// Result type for platform build configurations.
@@ -86,9 +84,15 @@ pub trait Builder {
     }
 
     /// Returns the core count of the target system.
+    ///
+    /// This is passed to the linker script through the `CORE_COUNT` symbol and made available to
+    /// Rust code through the `CORE_COUNT` environment variable.
     fn core_count(&self) -> usize;
 
     /// Returns the cache writeback granule size in bytes.
+    ///
+    /// This is passed to the linker script through the `CACHE_WRITEBACK_GRANULE` symbol and made
+    /// available to Rust code through the `CACHE_WRITEBACK_GRANULE` environment variable.
     fn cache_writeback_granule(&self) -> usize;
 
     /// Sets up platform-specific configurations (code generation, file inclusions, etc.).

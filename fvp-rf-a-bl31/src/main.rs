@@ -12,11 +12,13 @@ mod psci_platform;
 #[cfg(feature = "rme")]
 mod rmmd_platform;
 
+use crate::psci_platform::{FvpPsciPlatformImpl, PSCI_STATE_COUNT};
 #[cfg(feature = "rme")]
 use crate::rmmd_platform::FvpRmmdPlatformImpl;
-use crate::{
-    config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU},
-    psci_platform::{FvpPsciPlatformImpl, PSCI_STATE_COUNT},
+
+use self::config::{
+    CACHE_WRITEBACK_GRANULE, CORE_COUNT, FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER,
+    FVP_MAX_PE_PER_CPU,
 };
 use arm_fvp_base_pac::{
     MemoryMap, Peripherals, PhysicalInstance,
@@ -117,9 +119,6 @@ const DEVICE1_RANGE: Range<usize> = aligned_range_covering(
 
 /// Peripherals range that covers the GIC.
 const DEVICE2_RANGE: Range<usize> = aligned_range_covering(&MemoryMap::GICD, &MemoryMap::GICR);
-
-const PLATFORM_CORE_COUNT: usize =
-    FVP_CLUSTER_COUNT * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU;
 
 const ARM_TRUSTED_SRAM_RANGE: Range<usize> = from_inclusive_range(&MemoryMap::TRUSTED_SRAM);
 const ARM_SHARED_RAM_BASE: usize = ARM_TRUSTED_SRAM_RANGE.start;
@@ -234,8 +233,8 @@ static AMU: Amu<PLATFORM_CORE_COUNT, CoresImpl<Fvp>> =
 // only clobbers x0-x5, and returns a unique core index as long as `FVP_MAX_CPUS_PER_CLUSTER` and
 // `FVP_MAX_PE_PER_CPU` are correct.
 unsafe impl Platform for Fvp {
-    const CORE_COUNT: usize = PLATFORM_CORE_COUNT;
-    const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
+    const CORE_COUNT: usize = CORE_COUNT;
+    const CACHE_WRITEBACK_GRANULE: usize = CACHE_WRITEBACK_GRANULE;
 
     const PAGE_HEAP_PAGE_COUNT: usize = 6;
 

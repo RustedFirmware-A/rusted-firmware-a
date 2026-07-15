@@ -4,6 +4,10 @@
 
 //! Build script for RF-A on FVP.
 
+#[path = "src/config.rs"]
+mod config;
+
+use crate::config::{CACHE_WRITEBACK_GRANULE, CORE_COUNT};
 use rf_a_bl31_build::{Builder, configure_build};
 
 fn main() {
@@ -29,10 +33,10 @@ impl Builder for FvpBuilder {
     }
 
     fn core_count(&self) -> usize {
-        8
+        CORE_COUNT
     }
 
     fn cache_writeback_granule(&self) -> usize {
-        64
+        CACHE_WRITEBACK_GRANULE
     }
 }

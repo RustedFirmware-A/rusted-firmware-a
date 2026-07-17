@@ -74,7 +74,6 @@ SECTIONS
 	} >image
 
 	/* Everything beyond this point will not be included in the binary. */
-	__ALLOC_END__ = .;
 
 	.percore_secondary (NOLOAD) : ALIGN(ALIGNOF(.percore)) {
 		__PERCORE_SECONDARY_START__ = .;

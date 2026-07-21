@@ -426,7 +426,8 @@ macro_rules! panic_handler {
             if let Some(sink) = LOGGER.log_sink() {
                 writeln!(sink, "{info}");
             }
-            loop {}
+
+            $crate::debug::el3_panic();
         }
     };
 }

@@ -80,3 +80,9 @@ macro_rules! debug_asm {
 #[allow(clippy::single_component_path_imports)]
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 pub use debug_asm;
+
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+unsafe extern "C" {
+    /// Panic and dump registers.
+    pub safe fn el3_panic() -> !;
+}

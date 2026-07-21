@@ -41,6 +41,8 @@ x30_msg:
 	.asciz "x30"
 excpt_msg_el:
 	.asciz "Unhandled Exception from lower EL.\n"
+generic_crash_msg:
+	.asciz "BL31 Crashed.\n"
 
 	/*
 	 * Helper function to print from crash buf.
@@ -225,6 +227,9 @@ do_crash_reporting:
 	bl	{plat_crash_console_init}
 	/* Verify the console is initialized */
 	cbz	x0, crash_panic
+	/* Print generic crash message */
+	adr	x4, generic_crash_msg
+	bl	asm_print_str
 	/* Print the crash message. sp points to the crash message */
 	mov	x4, sp
 	bl	asm_print_str

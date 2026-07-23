@@ -119,6 +119,8 @@ case "$PLAT" in
         -C cluster1.has_ete=1 \
         -C cluster0.has_fgt2=2 \
         -C cluster1.has_fgt2=2 \
+        -C cluster0.has_fgwte3=1 \
+        -C cluster1.has_fgwte3=1 \
         -C cluster0.has_fpmr=1 \
         -C cluster1.has_fpmr=1 \
         -C cluster0.has_mpam=2 \

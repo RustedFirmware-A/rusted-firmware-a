@@ -7,6 +7,7 @@
 pub mod amu;
 pub mod fgt;
 pub mod fgt2;
+pub mod fgwte3;
 pub mod fpmr;
 pub mod hcx;
 pub mod mpam;

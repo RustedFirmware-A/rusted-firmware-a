@@ -10,7 +10,8 @@ use crate::errata_framework::erratum_applies;
 use crate::{
     aarch64::isb,
     cpu_extensions::{
-        CpuExtension, initialise_el3_sysregs, mpam::mpam_is_present, pmuv3, trf::TraceFiltering,
+        CpuExtension, fgwte3::disable_el3_register_writes, initialise_el3_sysregs,
+        mpam::mpam_is_present, pmuv3, trf::TraceFiltering,
     },
     errata_framework::{ErratumEntry, PlatformErrata},
     gicv3,
@@ -929,6 +930,8 @@ impl CpuStates {
             #[cfg(feature = "rme")]
             self.initialise_realm(&mut cpu_state[World::Realm], realm_entry_point);
         });
+
+        disable_el3_register_writes();
     }
 
     /// Initialises parts of the given CPU context that are the same for all worlds.
@@ -1074,6 +1077,8 @@ impl CpuStates {
                 ext.restore_context_after_suspend_to_powerdown();
             }
         });
+
+        disable_el3_register_writes();
     }
 }
 

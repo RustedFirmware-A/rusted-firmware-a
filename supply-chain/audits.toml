@@ -471,6 +471,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.0 -> 0.3.1"
 notes = "Added new registers and functions for checking the presence of CPU extensions."
 
+[[audits.arm-sysregs]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.1 -> 0.3.3"
+notes = "Adds additional registers, feature checker functions, and fixes compile flags."
+
 [[audits.arm-tzc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

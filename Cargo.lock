@@ -143,9 +143,9 @@ dependencies = [
 
 [[package]]
 name = "arm-sysregs"
-version = "0.3.1"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c3aa27e39faf7babb581e2d1a5cd40b3592a8501a0ffa2c112ae592f5472e17"
+checksum = "8020ecabe88c86e2a7d9011e1a881827cc06ddbb0756339a7e474de25b67ade8"
 dependencies = [
  "bitflags",
  "num_enum",
@@ -317,7 +317,7 @@ dependencies = [
  "arm-ffa",
  "arm-gic",
  "arm-psci",
- "arm-sysregs 0.3.1",
+ "arm-sysregs 0.3.3",
  "arrayvec",
  "bitflags",
  "include-first",
@@ -345,7 +345,7 @@ dependencies = [
  "arm-gic",
  "arm-pl011-uart",
  "arm-psci",
- "arm-sysregs 0.3.1",
+ "arm-sysregs 0.3.3",
  "bitflags",
  "buddy_system_allocator",
  "linkme",

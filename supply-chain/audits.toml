@@ -696,6 +696,11 @@ The update reduces the risk of UB in panic scenarios and extends the existing sa
 to dynamic memory layouts.
 '''
 
+[[audits.percore-derive]]
+who = "Andrew Walbran <qwandor@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.2.5"
+
 [[audits.proc-macro2]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

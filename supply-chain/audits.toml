@@ -713,6 +713,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "1.0.40 -> 1.0.41"
 notes = "Build script just checks the Rust version. Other changes are minor refactoring."
 
+[[audits.quote]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.0.41 -> 1.0.47"
+notes = "Updated MSRV to 1.71 and optimized quote_spanned!."
+
 [[audits.rustversion]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

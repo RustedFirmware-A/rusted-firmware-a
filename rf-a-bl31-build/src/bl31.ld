@@ -27,7 +27,7 @@ SECTIONS
 		__TEXT_START__ = .;
 		*(.text.bl31_entrypoint)
 		*(.init.*)
-		*(.text.*)
+		*(SORT_BY_ALIGNMENT(.text.*))
 		*(.vectors)
 	} >image
 	__TEXT_END__ = .;
@@ -37,7 +37,7 @@ SECTIONS
 	 */
 	.rodata : ALIGN(PAGE_SIZE) {
 		__RODATA_START__ = .;
-		*(.rodata.*)
+		*(SORT_BY_ALIGNMENT(.rodata.*))
 		. = ALIGN(8);
 	} >image
 	__RODATA_END__ = .;
@@ -51,7 +51,7 @@ SECTIONS
 	 */
 	.data : ALIGN(PAGE_SIZE) {
 		__DATA_START__ = .;
-		*(.data.*)
+		*(SORT_BY_ALIGNMENT(.data.*))
 		/*
 		 * The entry point code assumes that .data is a multiple of 32
 		 * bytes long.
@@ -84,7 +84,7 @@ SECTIONS
 	/* The entry point code assumes that .bss is 16-byte aligned. */
 	.bss : ALIGN(16)  {
 		__BSS_START__ = .;
-		*(.bss.*)
+		*(SORT_BY_ALIGNMENT(.bss.*))
 		*(COMMON)
 		. = ALIGN(16);
 		__BSS_END__ = .;

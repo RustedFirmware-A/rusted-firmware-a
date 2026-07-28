@@ -696,6 +696,35 @@ The update reduces the risk of UB in panic scenarios and extends the existing sa
 to dynamic memory layouts.
 '''
 
+[[audits.percore]]
+who = "Balint Dobszay <balint.dobszay@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.1 -> 0.2.5"
+notes = '''
+\"safe-to-deploy\"
+
+No change to this criteria. The optional procedural macro is implemented by the percore-derive
+crate, which is audited separately.
+
+\"does-not-implement-crypto\"
+
+No change to this criteria.
+
+\"ub-risk-2\"
+
+The diff adds new unsafe code to support linker-section based percore storage. Pointer arithmetic,
+data copying, and the Sync implementation all rely on the documented requirements for valid linker
+symbols, properly initialized percore areas, and correct percore offsets.
+
+The new AArch32 assembly code masks and restores the relevant exception mask bits in CPSR. The
+existing AArch64 implementation is refactored to wrap the saved mask state into a newtype, without
+changing its behavior. The AArch64 initialization assembly copies aligned percore data and
+calculates offsets from the section boundaries provided by the linker.
+
+The remaining changes add the get_mut and into_inner methods, tests, documentation, and dependency
+updates.
+'''
+
 [[audits.percore-derive]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

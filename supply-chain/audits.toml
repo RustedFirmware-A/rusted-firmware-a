@@ -890,6 +890,24 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
 delta = "2.0.87 -> 2.0.106"
 notes = "Lots of parsing logic changes, but nothing that looks dangerous. The only change near unsafe code is to compare pointers more safely."
 
+[[audits.syn]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.106 -> 2.0.119"
+notes = "Added support to new Rust syntax items, fixed edge cases, improved performance, and changed the MSRV to 1.71."
+
+[[audits.syn]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "2.0.119 -> 3.0.0"
+notes = "Introduced major breaking redesigns and support for new Rust syntax features like safe items, modifiers, frontmatter, raw lifetimes, and field defaults."
+
+[[audits.syn]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "3.0.0 -> 3.0.3"
+notes = "Extended const and unsafe syntax parsing, minor optimizations."
+
 [[audits.thiserror]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

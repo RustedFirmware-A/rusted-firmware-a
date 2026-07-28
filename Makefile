@@ -125,7 +125,7 @@ build:
 	$(TARGET_CARGO) build --package $(PLAT)-rf-a-bl31 $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
 	ln -fsr $(OUT)/$(TARGET)/$(BUILDTYPE)/$(PLAT)-rf-a-bl31 $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
-	$(OBJDUMP) -d $(BL31_ELF) > $(BL31_DUMP)
+	$(OBJDUMP) -dC $(BL31_ELF) > $(BL31_DUMP)
 
 build-stf:
 	$(STF_CARGO) build \

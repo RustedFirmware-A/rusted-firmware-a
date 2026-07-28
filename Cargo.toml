@@ -31,7 +31,7 @@ debug = true
 panic = "abort"
 opt-level = "s"
 lto = "fat"
-strip = true
+strip = false
 overflow-checks = true
 codegen-units = 1
 

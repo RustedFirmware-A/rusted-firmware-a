@@ -38,8 +38,8 @@ This includes:
   the lower EL and need to have different values for different worlds, but don't need to be changed
   at runtime. They are initialised by `initialise_per_world_contexts`, possibly modified by enabled
   CPU extensions, and then restored when switching to a different world.
-- Per-CPU data, in `CpuData` stored in `PERCPU_DATA`. Currently this only includes the crash buffer,
-  which is likely to be refactored in future.
+- Other per-CPU data, such as the crash buffer and CPU extension context, stored in static variables
+  annotated with the [`percore`] crate's `#[percore]` attribute.
 
 ### `cpu`
 
@@ -185,18 +185,17 @@ suggests, this implements a spinlock. It may be used either directly in a `stati
 within some other struct. For example, the TRNG service uses a `SpinMutex<EntropyPool>` inside its
 service struct to keep track of available entropy shared between all cores.
 
-### `PerCoreState`
+### Per-core state
 
 Locking a `SpinMutex` has a small cost due to the use of atomic instructions, and may contend with
-other cores. To avoid this, in some places where mutable state doesn't need to be accessed from
-multiple cores, instead use the `PerCoreState` type. This combines [`PerCore`] and [`ExceptionLock`]
-from the [`percore`] crate with [`RefCell`] from the core library to allow safe mutable access to a
-separate instance of the contained value for each CPU core in the system. `PerCore` allows code
-running on a given CPU core to access only the state associated with that core, while
-`ExceptionLock` ensures that exceptions are masked while accessing the state. This is necessary for
-soundness, to ensure that an exception doesn't happen while some code is accessing the shared state,
-because the exception handler might try to access the same value and find it in an inconsistent
-state. In practice RF-A always runs with exceptions masked, so this has no significant cost.
+other cores. For mutable state that doesn't need to be accessed from multiple cores, use a static
+variable annotated with the [`percore`] crate's [`#[percore]`][percore-attribute] attribute. This
+gives each CPU core a separate instance of the value. Use [`ExceptionLock`] with [`RefCell`] when
+the value needs interior mutability. `ExceptionLock` ensures that exceptions are masked while
+accessing the state. This is necessary for soundness, to ensure that an exception doesn't happen
+while some code is accessing the state, because the exception handler might try to access the same
+value and find it in an inconsistent state. In practice RF-A always runs with exceptions masked, so
+this has no significant cost.
 
 (Note that synchronous exceptions can't be masked, but synchronous exceptions at EL3 are handled in
 assembly by `report_unhandled_exception` without calling into any Rust code, so they aren't an issue
@@ -204,6 +203,10 @@ here.)
 
 This is used in the [`context`] module to keep the per-core, per-world CPU context. Many CPU
 extension modules also use it similarly to store system register context specific to the extension.
+
+The `PerCoreState` type provides a separate instance for each CPU core in an array, combining
+[`PerCore`] and [`ExceptionLock`] with [`RefCell`]. It remains useful when the per-core instances
+need to be constructed or placed in memory as a group, such as for per-core in-memory loggers.
 
 ### `Once` and `Lazy`
 
@@ -292,8 +295,9 @@ late initialisation.
 [`platform`]: ../src/platform.rs
 [`services`]: ../src/services.rs
 [`percore`]: https://crates.io/crates/percore
-[`PerCore`]: https://docs.rs/percore/0.2.1/percore/struct.PerCore.html
-[`ExceptionLock`]: https://docs.rs/percore/0.2.1/percore/struct.ExceptionLock.html
+[percore-attribute]: https://docs.rs/percore/0.2.5/percore/derive/attr.percore.html
+[`PerCore`]: https://docs.rs/percore/0.2.5/percore/struct.PerCore.html
+[`ExceptionLock`]: https://docs.rs/percore/0.2.5/percore/struct.ExceptionLock.html
 [`SpinMutex`]: https://docs.rs/spin/latest/spin/mutex/spin/struct.SpinMutex.html
 [`spin`]: https://crates.io/crates/spin
 [`Once`]: https://docs.rs/spin/latest/spin/type.Once.html

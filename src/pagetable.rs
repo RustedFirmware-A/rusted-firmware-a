@@ -26,7 +26,7 @@ use aarch64_paging::{
     paging::{Constraints, El3, MemoryRegion, PageTable, Translation},
 };
 use arm_sysregs::{SctlrEl3, Ttbr0El3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
-use core::ptr::NonNull;
+use core::{num::NonZeroUsize, ptr::NonNull};
 use log::{debug, trace};
 use spin::{
     Once,
@@ -547,8 +547,9 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> Translation<El23Attributes>
         &self,
         page_table_pa: PhysicalAddress,
     ) -> NonNull<PageTable<El23Attributes>> {
-        NonNull::new(page_table_pa.0 as *mut PageTable<El23Attributes>)
-            .expect("Got physical address 0 for pagetable")
+        let address =
+            NonZeroUsize::new(page_table_pa.0).expect("Got physical address 0 for pagetable");
+        self.pages.with_addr(address)
     }
 }
 

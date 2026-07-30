@@ -2,22 +2,21 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-// TODO: Temporary until the RME feature is fully implemented.
-#![allow(unused, dead_code)]
-
-mod aarch64;
 mod table;
 
 use crate::{
-    aarch64::{TlbiSize, dsb_osh, dsb_oshst, tlbi_rpalos},
+    aarch64::{TlbiSize, dsb_osh, dsb_oshst, dsb_sy, isb, tlbi_paallos, tlbi_rpalos},
     gpt::table::{
-        ContigSize, ContiguousDescriptorRef, Level0DescriptorRef, Level0Table, Level1Descriptor,
-        Level1DescriptorRef, Level1DescriptorRefMut, Level1Table,
+        ContigSize, Level0DescriptorRef, Level0Table, Level1Descriptor, Level1DescriptorRef,
+        Level1DescriptorRefMut, Level1Table,
     },
 };
 use arm_sysregs::{
     el1::accessors::{read_id_aa64mmfr4_el1, read_id_aa64pfr0_el1},
-    el3::{accessors::read_gpccr_el3, registers::GpccrEl3},
+    el3::{
+        accessors::{read_gpccr_el3, read_gptbr_el3, write_gpccr_el3, write_gptbr_el3},
+        registers::{GpccrEl3, GptbrEl3},
+    },
 };
 use core::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -43,6 +42,7 @@ pub(crate) use mask;
 pub type PA = usize;
 
 /// Errors returned when manipulating the [`GranuleProtection`] object.
+#[allow(unused)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     GptNotInitialized,
@@ -71,6 +71,60 @@ impl<'a> Debug for GranuleProtection<'a> {
             .field("level0", &self.level0.0.as_ptr())
             .field("config", &self.config)
             .finish()
+    }
+}
+
+impl GranuleProtection<'static> {
+    /// Reads the values from the `GPCCR_EL3` and `GPTBR_EL3` register to locate an existing Granule
+    /// Protection Table.
+    ///
+    /// GPT initialization typically happens in a bootloader stage prior to setting up the EL3
+    /// runtime environment for the granule transition service so this function detects the
+    /// initialization from a previous stage. Granule protection checks must be enabled already or
+    /// this function will return an error.
+    ///
+    /// # Safety
+    ///
+    /// This function cannot be called multiple times, unless the [`GranuleProtection`] object
+    /// returned by the previous call was dropped.
+    #[allow(unused)]
+    pub unsafe fn discover() -> Result<Self, Error> {
+        let gpcc = read_gpccr_el3();
+        let gptbr = read_gptbr_el3();
+
+        if !gpcc.contains(GpccrEl3::GPC) {
+            return Err(Error::GptNotInitialized);
+        }
+
+        let config = GranuleProtectionConfig {
+            pps: ProtectedPhysicalAddressSize::try_from(gpcc.pps())
+                .map_err(|_| Error::InvalidConfiguration)?,
+            l0gptsz: Level0GptSize::try_from(gpcc.l0gptsz())
+                .map_err(|_| Error::InvalidConfiguration)?,
+            pgs: PhysicalGranuleSize::try_from(gpcc.pgs())
+                .map_err(|_| Error::InvalidConfiguration)?,
+        };
+
+        // Safety: since Granule Protection Checks are enabled, it is safe to assume the the
+        // registers are correctly programmed hence GPTBR_EL3 contains the address of a Level0Table
+        // whose size is given by the GPCCR_EL3.PPS and GPCCR_EL3.L0GPTSZ fields.
+        let level0 = unsafe {
+            use core::slice::from_raw_parts_mut;
+
+            from_raw_parts_mut(
+                (gptbr.baddr() << 12) as *mut _,
+                1 << (config
+                    .pps
+                    .width()
+                    .checked_sub(config.l0gptsz.width())
+                    .ok_or(Error::InvalidConfiguration)?),
+            )
+        };
+
+        Ok(Self {
+            level0: Level0Table(level0),
+            config,
+        })
     }
 }
 
@@ -108,6 +162,61 @@ impl<'a> GranuleProtection<'a> {
             }
             _ => true,
         }
+    }
+
+    /// Enables the Granule Protection Checks using this Granule Protection Table.
+    ///
+    /// # Safety
+    ///
+    /// Before calling this function, the caller must ensure that the table grants access to the
+    /// Root World for the whole RF-A address space.
+    #[allow(unused)]
+    pub unsafe fn enable(&self, config: Option<GpccrEl3>) -> Result<(), Error> {
+        let mut gpcc = match config {
+            Some(c) => c,
+            None => read_gpccr_el3(),
+        };
+        assert!(!gpcc.contains(GpccrEl3::GPC));
+
+        gpcc.set_pps(self.config.pps as u8);
+        gpcc.set_l0gptsz(self.config.l0gptsz as u8);
+        gpcc.set_pgs(self.config.pgs as u8);
+
+        let base = self.level0.0.as_ptr() as u64;
+        if base & mask!(12) != 0 {
+            return Err(Error::MisalignedL0Buffer);
+        }
+
+        let mut gptbr = GptbrEl3::empty();
+        gptbr.set_baddr(base >> 12);
+
+        // Writes the register, except for the Granule Protection Check enabled bit.
+        // SAFETY: since the GPC bit is off, this operation has no effect.
+        unsafe {
+            write_gptbr_el3(gptbr);
+            write_gpccr_el3(gpcc);
+        }
+
+        isb();
+        tlbi_paallos();
+        dsb_sy();
+        isb();
+
+        gpcc |= GpccrEl3::GPC;
+
+        // Safety: Root World access is ensured by the caller. The pointer in `GPTBR_EL3` was
+        // previously configured with the address of a valid Level 0 Table.
+        unsafe {
+            write_gpccr_el3(gpcc);
+        }
+
+        // Invalidate TLB entries.
+        isb();
+        tlbi_paallos();
+        dsb_sy();
+        isb();
+
+        Ok(())
     }
 
     /// Updates an access control mapping in the GPT.
@@ -519,7 +628,7 @@ mod test {
         ($name:ident, $PPS:expr, $L0GPTSZ:expr) => {
             let alignment = max(8 << ($PPS - $L0GPTSZ), 1 << 12);
             let mut $name = vec![0; (alignment) * 2];
-            let mut $name = align(&mut $name, alignment, 1);
+            let $name = align(&mut $name, alignment, 1);
         };
     }
 
@@ -527,7 +636,7 @@ mod test {
         ($name:ident, $PGS:expr, $L0GPTSZ:expr, $l1_size:expr) => {
             let mut $name =
                 vec![0; (8 << ($L0GPTSZ.width() - ($PGS.width() + 4))) * ($l1_size + 1)];
-            let mut $name = align(
+            let $name = align(
                 &mut $name,
                 8 << ($L0GPTSZ.width() - ($PGS.width() + 4)),
                 $l1_size,
@@ -549,6 +658,7 @@ mod test {
             .with_l0gptsz($GPC.l0gptsz as u8)
             .with_pgs($GPC.pgs as u8);
             EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+            #[allow(unused_mut)]
             let mut $name =
                 // SAFETY: Each test only calls this once.
                 unsafe { GranuleProtection::discover().expect("failed to discover GPT") };

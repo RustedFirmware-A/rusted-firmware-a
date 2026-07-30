@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::{GranuleError, GranuleProtectionConfig, PA, mask};
+use super::{GranuleError, GranuleProtectionConfig, mask};
 use core::fmt::Debug;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -23,13 +23,6 @@ macro_rules! declare_accessor {
                 .unwrap()
         }
     };
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LeafDescriptorType {
-    Block,
-    Granule,
-    Contig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
@@ -201,6 +194,7 @@ impl Level0Descriptor {
     const TABLE_ADDR_MASK: usize = mask!((Self::TABLE_ADDR_LEN), (Self::TABLE_ADDR_ALIGN));
 
     /// Creates a Block Descriptor with the given [`GPIAccessType`].
+    #[allow(unused)]
     pub const fn block(gpi: GPIAccessType) -> Self {
         Self(Self::BLOCK_TAG | (gpi as u64 & GPIAccessType::MASK) << Self::BLOCK_GPI_SHIFT)
     }
@@ -276,7 +270,6 @@ impl Debug for TableDescriptorRef<'_> {
 }
 
 /// View of a [`Level0Descriptor`] as a Block Descriptor.
-#[allow(unused)]
 pub(crate) struct BlockDescriptorRef<'a>(&'a Level0Descriptor);
 
 impl<'a> BlockDescriptorRef<'a> {
@@ -330,6 +323,7 @@ impl<'a> TryFrom<&'a Level1Descriptor> for Level1DescriptorRef<'a> {
 }
 
 /// Possible views of a mutable [`Level1Descriptor`].
+#[allow(unused)]
 pub(crate) enum Level1DescriptorRefMut<'a> {
     Granule(GranuleDescriptorRefMut<'a>),
     Contiguous(ContiguousDescriptorRef<'a>),
@@ -484,7 +478,7 @@ mod tests {
         ($e:expr, $p:pat => $b:expr) => {
             match ($e).try_into() {
                 Ok($p) => $b,
-                Err(e) => panic!("Expected valid descriptor"),
+                Err(_e) => panic!("Expected valid descriptor"),
                 _ => panic!(concat!(
                     "Expected descriptor ",
                     stringify!($e),

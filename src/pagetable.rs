@@ -26,10 +26,7 @@ use aarch64_paging::{
     paging::{Constraints, El3, MemoryRegion, PageTable, Translation},
 };
 use arm_sysregs::{SctlrEl3, Ttbr0El3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
-use core::{
-    fmt::{self, Debug, Formatter},
-    ptr::NonNull,
-};
+use core::ptr::NonNull;
 use log::{debug, trace};
 use spin::{
     Once,
@@ -432,7 +429,7 @@ fn init_page_table<
     const PAGE_HEAP_PAGE_COUNT: usize,
     PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
 >(
-    pages: &'static mut [PageTable<El23Attributes>],
+    pages: &'static mut [PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT],
 ) -> IdMap<PAGE_HEAP_PAGE_COUNT> {
     let mut idmap = IdMap::new(pages);
 
@@ -492,21 +489,26 @@ pub unsafe fn disable_mmu_el3() {
     dsb_sy();
 }
 
+#[derive(Debug)]
 struct IdTranslation<const PAGE_HEAP_PAGE_COUNT: usize> {
     /// Pages which can be allocated for page tables.
-    pages: &'static mut [PageTable<El23Attributes>],
+    ///
+    /// This is a raw pointer rather than a `&'static mut [PageTable]` because `aarch64-paging`
+    /// retains the pointers returned by `allocate_table` and writes through them for as long as
+    /// this `IdTranslation` lives. If they were derived from a reference stored here they would be
+    /// children of that reference, so reborrowing or moving `self` (which `RootTable::new_impl`
+    /// does immediately after allocating the root table) would invalidate them.
+    pages: NonNull<PageTable<El23Attributes>>,
     /// Record of which `pages` are currently allocated.
     allocated: [bool; PAGE_HEAP_PAGE_COUNT],
 }
 
-impl<const PAGE_HEAP_PAGE_COUNT: usize> Debug for IdTranslation<PAGE_HEAP_PAGE_COUNT> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_struct("IdTranslation")
-            .field("pages", &self.pages.len())
-            .field("allocated", &self.allocated)
-            .finish()
-    }
-}
+// SAFETY: `pages` is the `&'static mut` passed to `IdMap::new`, kept as a raw pointer, so it has
+// the same threading properties as that reference.
+unsafe impl<const PAGE_HEAP_PAGE_COUNT: usize> Send for IdTranslation<PAGE_HEAP_PAGE_COUNT> {}
+
+// SAFETY: As for `Send` above.
+unsafe impl<const PAGE_HEAP_PAGE_COUNT: usize> Sync for IdTranslation<PAGE_HEAP_PAGE_COUNT> {}
 
 impl<const PAGE_HEAP_PAGE_COUNT: usize> IdTranslation<PAGE_HEAP_PAGE_COUNT> {
     fn virtual_to_physical(va: VirtualAddress) -> PhysicalAddress {
@@ -526,7 +528,9 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> Translation<El23Attributes>
             .position(|&allocated| !allocated)
             .expect("Failed to allocate page table");
         self.allocated[index] = true;
-        let table = NonNull::from(&mut self.pages[index]);
+        // SAFETY: `index` is an index into `self.allocated`, so it is less than
+        // `PAGE_HEAP_PAGE_COUNT`, which is the number of pages in the pool `self.pages` points to.
+        let table = unsafe { self.pages.add(index) };
         (
             table,
             Self::virtual_to_physical(VirtualAddress(table.as_ptr() as usize)),
@@ -534,7 +538,7 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> Translation<El23Attributes>
     }
 
     unsafe fn deallocate_table(&mut self, page_table: NonNull<PageTable<El23Attributes>>) {
-        let index = (page_table.addr().get() - &raw const self.pages[0] as usize)
+        let index = (page_table.addr().get() - self.pages.addr().get())
             / size_of::<PageTable<El23Attributes>>();
         self.allocated[index] = false;
     }
@@ -555,11 +559,11 @@ pub struct IdMap<const PAGE_HEAP_PAGE_COUNT: usize> {
 }
 
 impl<const PAGE_HEAP_PAGE_COUNT: usize> IdMap<PAGE_HEAP_PAGE_COUNT> {
-    fn new(pages: &'static mut [PageTable<El23Attributes>]) -> Self {
+    fn new(pages: &'static mut [PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT]) -> Self {
         Self {
             mapping: Mapping::new(
                 IdTranslation {
-                    pages,
+                    pages: NonNull::from(pages).cast(),
                     allocated: [false; PAGE_HEAP_PAGE_COUNT],
                 },
                 ROOT_LEVEL,

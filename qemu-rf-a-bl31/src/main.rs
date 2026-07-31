@@ -39,7 +39,7 @@ use rf_a_bl31::{
             gicv3::registers::{Gicd, GicrSgi},
         },
         arm_psci::{ErrorCode, Mpidr, PowerState},
-        arm_sysregs::{IccSreEl3, MpidrEl1},
+        arm_sysregs::{el1::registers::MpidrEl1, el3::registers::IccSreEl3},
         percore::Cores,
         spin::mutex::{SpinMutex, SpinMutexGuard},
     },

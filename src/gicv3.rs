@@ -19,7 +19,10 @@ use arm_gic::{
         registers::{Gicd, GicdCtlr, GicrSgi},
     },
 };
-use arm_sysregs::{MpidrEl1, ScrEl3, read_mpidr_el1};
+use arm_sysregs::{
+    el1::{accessors::read_mpidr_el1, registers::MpidrEl1},
+    el3::registers::ScrEl3,
+};
 use core::{marker::PhantomData, panic, ptr::NonNull};
 use log::debug;
 use percore::Cores;

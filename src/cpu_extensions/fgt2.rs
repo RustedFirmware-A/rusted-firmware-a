@@ -14,12 +14,15 @@ use crate::{
     cpu_extensions::CpuExtension,
 };
 #[cfg(any(feature = "sel2", feature = "rme"))]
-use arm_sysregs::{
-    Hdfgrtr2El2, Hdfgwtr2El2, Hfgitr2El2, Hfgrtr2El2, Hfgwtr2El2, read_hdfgrtr2_el2,
-    read_hdfgwtr2_el2, read_hfgitr2_el2, read_hfgrtr2_el2, read_hfgwtr2_el2, write_hdfgrtr2_el2,
-    write_hdfgwtr2_el2, write_hfgitr2_el2, write_hfgrtr2_el2, write_hfgwtr2_el2,
+use arm_sysregs::el2::{
+    accessors::{
+        read_hdfgrtr2_el2, read_hdfgwtr2_el2, read_hfgitr2_el2, read_hfgrtr2_el2, read_hfgwtr2_el2,
+        write_hdfgrtr2_el2, write_hdfgwtr2_el2, write_hfgitr2_el2, write_hfgrtr2_el2,
+        write_hfgwtr2_el2,
+    },
+    registers::{Hdfgrtr2El2, Hdfgwtr2El2, Hfgitr2El2, Hfgrtr2El2, Hfgwtr2El2},
 };
-use arm_sysregs::{ScrEl3, read_id_aa64mmfr0_el1};
+use arm_sysregs::{el1::accessors::read_id_aa64mmfr0_el1, el3::registers::ScrEl3};
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use core::cell::RefCell;
 #[cfg(any(feature = "sel2", feature = "rme"))]

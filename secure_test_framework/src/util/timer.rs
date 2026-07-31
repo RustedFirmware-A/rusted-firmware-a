@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use arm_gic::IntId;
-use arm_sysregs::{read_cntfrq_el0, read_sysreg, write_sysreg};
+use arm_sysregs::{el0::accessors::read_cntfrq_el0, read_sysreg, write_sysreg};
 use bitflags::bitflags;
 
 bitflags! {

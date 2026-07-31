@@ -25,7 +25,10 @@ use aarch64_paging::{
     mair::{Mair, MairAttribute, NormalMemory},
     paging::{Constraints, El3, MemoryRegion, PageTable, Translation},
 };
-use arm_sysregs::{SctlrEl3, Ttbr0El3, read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3};
+use arm_sysregs::el3::{
+    accessors::{read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3},
+    registers::{SctlrEl3, Ttbr0El3},
+};
 use core::{num::NonZeroUsize, ptr::NonNull};
 use log::{debug, trace};
 use spin::{

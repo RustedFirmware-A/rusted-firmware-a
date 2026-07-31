@@ -6,21 +6,30 @@
 
 use crate::{cpu_extensions::CpuExtension, platform::exception_free};
 use arm_sysregs::{
-    AmcrEl0, Amevcntr00El0, Amevcntr01El0, Amevcntr02El0, Amevcntr03El0, Amevcntr10El0,
-    Amevcntr11El0, Amevcntr12El0, Amevcntr13El0, Amevcntr14El0, Amevcntr15El0, Amevcntr16El0,
-    Amevcntr17El0, Amevcntr18El0, Amevcntr19El0, Amevcntr110El0, Amevcntr111El0, Amevcntr112El0,
-    Amevcntr113El0, Amevcntr114El0, Amevcntr115El0, AmuserenrEl0, read_amcgcr_el0, read_amcr_el0,
-    read_amevcntr00_el0, read_amevcntr01_el0, read_amevcntr02_el0, read_amevcntr03_el0,
-    read_amevcntr10_el0, read_amevcntr11_el0, read_amevcntr12_el0, read_amevcntr13_el0,
-    read_amevcntr14_el0, read_amevcntr15_el0, read_amevcntr16_el0, read_amevcntr17_el0,
-    read_amevcntr18_el0, read_amevcntr19_el0, read_amevcntr110_el0, read_amevcntr111_el0,
-    read_amevcntr112_el0, read_amevcntr113_el0, read_amevcntr114_el0, read_amevcntr115_el0,
-    read_amuserenr_el0, read_id_aa64pfr0_el1, write_amcr_el0, write_amevcntr00_el0,
-    write_amevcntr01_el0, write_amevcntr02_el0, write_amevcntr03_el0, write_amevcntr10_el0,
-    write_amevcntr11_el0, write_amevcntr12_el0, write_amevcntr13_el0, write_amevcntr14_el0,
-    write_amevcntr15_el0, write_amevcntr16_el0, write_amevcntr17_el0, write_amevcntr18_el0,
-    write_amevcntr19_el0, write_amevcntr110_el0, write_amevcntr111_el0, write_amevcntr112_el0,
-    write_amevcntr113_el0, write_amevcntr114_el0, write_amevcntr115_el0, write_amuserenr_el0,
+    el0::{
+        accessors::{
+            read_amcgcr_el0, read_amcr_el0, read_amevcntr00_el0, read_amevcntr01_el0,
+            read_amevcntr02_el0, read_amevcntr03_el0, read_amevcntr10_el0, read_amevcntr11_el0,
+            read_amevcntr12_el0, read_amevcntr13_el0, read_amevcntr14_el0, read_amevcntr15_el0,
+            read_amevcntr16_el0, read_amevcntr17_el0, read_amevcntr18_el0, read_amevcntr19_el0,
+            read_amevcntr110_el0, read_amevcntr111_el0, read_amevcntr112_el0, read_amevcntr113_el0,
+            read_amevcntr114_el0, read_amevcntr115_el0, read_amuserenr_el0, write_amcr_el0,
+            write_amevcntr00_el0, write_amevcntr01_el0, write_amevcntr02_el0, write_amevcntr03_el0,
+            write_amevcntr10_el0, write_amevcntr11_el0, write_amevcntr12_el0, write_amevcntr13_el0,
+            write_amevcntr14_el0, write_amevcntr15_el0, write_amevcntr16_el0, write_amevcntr17_el0,
+            write_amevcntr18_el0, write_amevcntr19_el0, write_amevcntr110_el0,
+            write_amevcntr111_el0, write_amevcntr112_el0, write_amevcntr113_el0,
+            write_amevcntr114_el0, write_amevcntr115_el0, write_amuserenr_el0,
+        },
+        registers::{
+            AmcrEl0, Amevcntr00El0, Amevcntr01El0, Amevcntr02El0, Amevcntr03El0, Amevcntr10El0,
+            Amevcntr11El0, Amevcntr12El0, Amevcntr13El0, Amevcntr14El0, Amevcntr15El0,
+            Amevcntr16El0, Amevcntr17El0, Amevcntr18El0, Amevcntr19El0, Amevcntr110El0,
+            Amevcntr111El0, Amevcntr112El0, Amevcntr113El0, Amevcntr114El0, Amevcntr115El0,
+            AmuserenrEl0,
+        },
+    },
+    el1::accessors::read_id_aa64pfr0_el1,
 };
 use core::cell::RefCell;
 use percore::{ExceptionLock, derive::percore};

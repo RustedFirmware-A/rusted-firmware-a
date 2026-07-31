@@ -11,7 +11,7 @@ mod mte2_sel2;
 
 use super::CpuExtension;
 use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, PerWorldContext, World};
-use arm_sysregs::{ScrEl3, read_id_aa64pfr1_el1};
+use arm_sysregs::{el1::accessors::read_id_aa64pfr1_el1, el3::registers::ScrEl3};
 use core::cell::RefCell;
 #[cfg(not(feature = "sel2"))]
 use mte2_sel1::Mte2CpuContext;

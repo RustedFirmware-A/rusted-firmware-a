@@ -9,7 +9,7 @@
 //! are ignored, so preservation of the register contents cannot be tested.
 
 use crate::framework::{TestError, TestResult, normal_world_test};
-use arm_sysregs::{read_id_aa64mmfr3_el1, read_sctlr2_el2};
+use arm_sysregs::{el1::accessors::read_id_aa64mmfr3_el1, el2::accessors::read_sctlr2_el2};
 use log::debug;
 
 normal_world_test!(test_sctlr2);

@@ -10,8 +10,11 @@ use crate::{
     naked_asm,
 };
 use arm_sysregs::{
-    CacheLevel, CacheType, CsselrEl1, MidrEl1, read_ccsidr_el1, read_clidr_el1,
-    read_id_aa64mmfr2_el1, write_csselr_el1,
+    el1::{
+        accessors::{read_ccsidr_el1, read_clidr_el1, read_id_aa64mmfr2_el1, write_csselr_el1},
+        registers::{CsselrEl1, MidrEl1},
+    },
+    types::{CacheLevel, CacheType},
 };
 use core::{arch::asm, ops::RangeInclusive};
 

@@ -162,7 +162,7 @@ mod asm {
         pagetable::{PAGE_TABLE_ADDR, enable_mmu},
         stacks::set_my_stack,
     };
-    use arm_sysregs::{Dit, SctlrEl3};
+    use arm_sysregs::{el0::registers::Dit, el3::registers::SctlrEl3};
     use core::arch::global_asm;
 
     const DAIF_ABT_BIT: u32 = 1 << 2;
@@ -251,15 +251,15 @@ macro_rules! main_asm {
                     include_str!("bl31_entrypoint.S"),
                     include_str!("asm_macros_common_purge.S"),
                     DEBUG = const $crate::debug::DEBUG as i32,
-                    SCTLR_M_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::M.bits(),
-                    SCTLR_C_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::C.bits(),
-                    SCTLR_WXN_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::WXN.bits(),
-                    SCTLR_IESB_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::IESB.bits(),
-                    SCTLR_A_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::A.bits(),
-                    SCTLR_SA_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::SA.bits(),
-                    SCTLR_I_BIT = const $crate::reexports::arm_sysregs::SctlrEl3::I.bits(),
+                    SCTLR_M_BIT = const $crate::reexports::arm_sysregs::el3::registers::SctlrEl3::M.bits(),
+                    SCTLR_C_BIT = const $crate::reexports::arm_sysregs::el3::registers::SctlrEl3::C.bits(),
+                    SCTLR_WXN_BIT = const $crate::reexports::arm_sysregs::el3::registers::SctlrEl3::WXN.bits(),
+                    SCTLR_IESB_BIT = const $crate::reexports::arm_sysregs::el3::registers::SctlrEl3::IESB.bits(),
+                    SCTLR_A_BIT = const $crate::reexports::arm_sysregs::el3::registers::SctlrEl3::A.bits(),
+                    SCTLR_SA_BIT = const $crate::reexports::arm_sysregs::el3::registers::SctlrEl3::SA.bits(),
+                    SCTLR_I_BIT = const $crate::reexports::arm_sysregs::el3::registers::SctlrEl3::I.bits(),
                     DAIF_ABT_BIT = const DAIF_ABT_BIT,
-                    DIT_BIT = const $crate::reexports::arm_sysregs::Dit::DIT.bits(),
+                    DIT_BIT = const $crate::reexports::arm_sysregs::el0::registers::Dit::DIT.bits(),
                     plat_cold_boot_handler = sym PlatformImpl::cold_boot_handler,
                     cpu_reset_handler = sym $crate::cpu::cpu_reset_handler::<PlatformImpl>,
                     init_early_page_tables = sym <PlatformImpl as $crate::pagetable::early_pagetable::PlatformEarlyPagetable>::init_early_page_tables,

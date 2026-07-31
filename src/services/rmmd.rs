@@ -33,7 +33,7 @@ use crate::{
     },
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
-use arm_sysregs::{SctlrEl3, read_sctlr_el3};
+use arm_sysregs::el3::{accessors::read_sctlr_el3, registers::SctlrEl3};
 
 const RMM_BOOT_VERSION: u64 = 0x5;
 /// Size in bytes of the EL3 - RMM shared area.

@@ -8,11 +8,22 @@ use crate::{
     smccc::SmcReturn,
 };
 use arm_sysregs::{
-    ElrEl1, ElrEl2, EsrEl1, EsrEl2, EsrEl3, ExceptionLevel, GcscrEl1, GcscrEl2, HcrEl2, ScrEl3,
-    SctlrEl1, SctlrEl2, SpsrEl1, SpsrEl2, SpsrEl3, StackPointer, read_gcscr_el1, read_gcscr_el2,
-    read_hcr_el2, read_id_aa64dfr1_el1, read_id_aa64mmfr1_el1, read_id_aa64pfr1_el1,
-    read_sctlr_el1, read_sctlr_el2, read_vbar_el1, read_vbar_el2, write_elr_el1, write_elr_el2,
-    write_esr_el1, write_esr_el2, write_spsr_el1, write_spsr_el2,
+    el1::{
+        accessors::{
+            read_gcscr_el1, read_id_aa64dfr1_el1, read_id_aa64mmfr1_el1, read_id_aa64pfr1_el1,
+            read_sctlr_el1, read_vbar_el1, write_elr_el1, write_esr_el1, write_spsr_el1,
+        },
+        registers::{ElrEl1, EsrEl1, GcscrEl1, SctlrEl1, SpsrEl1},
+    },
+    el2::{
+        accessors::{
+            read_gcscr_el2, read_hcr_el2, read_sctlr_el2, read_vbar_el2, write_elr_el2,
+            write_esr_el2, write_spsr_el2,
+        },
+        registers::{ElrEl2, EsrEl2, GcscrEl2, HcrEl2, SctlrEl2, SpsrEl2},
+    },
+    el3::registers::{EsrEl3, ScrEl3, SpsrEl3},
+    types::{ExceptionLevel, StackPointer},
 };
 #[cfg(not(any(test, feature = "fakes")))]
 use core::arch::asm;

@@ -15,7 +15,7 @@ use arm_gic::gicv3::{
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use arm_psci::PowerState;
-use arm_sysregs::MpidrEl1;
+use arm_sysregs::el1::registers::MpidrEl1;
 use core::{arch::global_asm, fmt::Write, ptr::NonNull};
 use spin::{
     Once,

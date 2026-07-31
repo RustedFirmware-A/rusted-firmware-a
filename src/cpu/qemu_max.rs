@@ -6,7 +6,7 @@
 
 use super::Cpu;
 use crate::naked_asm;
-use arm_sysregs::MidrEl1;
+use arm_sysregs::el1::registers::MidrEl1;
 
 /// CPU operations for the QEMU 'max' virtual CPU.
 pub struct QemuMax;

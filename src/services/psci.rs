@@ -19,7 +19,7 @@ use arm_psci::{
     Function, FunctionId, HwState, MemProtectRange, MigrateInfoType, Mpidr, PowerState,
     PsciFeature, ResetType, ReturnCode, SuspendMode, SystemOff2Type, Version,
 };
-use arm_sysregs::{MpidrEl1, read_isr_el1};
+use arm_sysregs::el1::{accessors::read_isr_el1, registers::MpidrEl1};
 use bitflags::bitflags;
 use core::{
     fmt::{self, Debug, Display, Formatter},
@@ -1618,7 +1618,7 @@ mod tests {
         services::ffa::spmd::TestSpm,
     };
     use arm_psci::ArchitecturalResetType;
-    use arm_sysregs::fake::SYSREGS;
+    use arm_sysregs::el1::fake::SYSREGS;
     use power_domain_tree::test_helpers::set_cpu_power_state_by_index;
     use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 

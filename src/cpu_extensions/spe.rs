@@ -6,7 +6,7 @@
 
 use super::CpuExtension;
 use crate::context::{CpuContext, World};
-use arm_sysregs::{MdcrEl3, read_id_aa64dfr0_el1};
+use arm_sysregs::{el1::accessors::read_id_aa64dfr0_el1, el3::registers::MdcrEl3};
 
 /// NSPB value to configure the Profiling Buffer to use Non-secure Virtual Addresses,
 /// enable Statistical Profiling in Non-secure state and disable it in Secure state,

@@ -30,7 +30,7 @@ use crate::{
     },
     smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
-use arm_sysregs::EsrEl3;
+use arm_sysregs::el3::registers::EsrEl3;
 use log::debug;
 
 /// Helper macro to define the range of SMC function ID values covered by a service

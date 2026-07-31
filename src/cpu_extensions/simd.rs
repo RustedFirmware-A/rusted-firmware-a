@@ -17,8 +17,14 @@ use crate::{
     context::{PerWorldContext, World},
 };
 use arm_sysregs::{
-    CptrEl3, IdAa64smfr0El1, ScrEl3, SmcrEl3, ZcrEl3, read_cptr_el3, read_id_aa64pfr0_el1,
-    read_id_aa64pfr1_el1, read_id_aa64smfr0_el1, write_cptr_el3, write_smcr_el3, write_zcr_el3,
+    el1::{
+        accessors::{read_id_aa64pfr0_el1, read_id_aa64pfr1_el1, read_id_aa64smfr0_el1},
+        registers::IdAa64smfr0El1,
+    },
+    el3::{
+        accessors::{read_cptr_el3, write_cptr_el3, write_smcr_el3, write_zcr_el3},
+        registers::{CptrEl3, ScrEl3, SmcrEl3, ZcrEl3},
+    },
 };
 #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
 use core::cell::RefCell;

@@ -29,7 +29,7 @@ use crate::{
 use aarch64_paging::paging::MemoryRegion;
 use arm_gic::IntId;
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
-use arm_sysregs::{MidrEl1, MpidrEl1};
+use arm_sysregs::el1::registers::{MidrEl1, MpidrEl1};
 use core::fmt;
 use std::io::{Write, stdout};
 use uuid::Uuid;

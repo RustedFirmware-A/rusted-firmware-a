@@ -39,8 +39,8 @@ pub fn current_el() -> u8 {
 /// Gets the key currently being used for PAuth.
 #[cfg(feature = "pauth")]
 pub fn get_pauth_key() -> u128 {
-    arm_sysregs::read_apiakeylo_el1().bits() as u128
-        | ((arm_sysregs::read_apiakeyhi_el1().bits() as u128) << 64)
+    arm_sysregs::el1::accessors::read_apiakeylo_el1().bits() as u128
+        | ((arm_sysregs::el1::accessors::read_apiakeyhi_el1().bits() as u128) << 64)
 }
 
 /// Enables PAuth at the current exception level using the provided key.
@@ -48,10 +48,18 @@ pub fn get_pauth_key() -> u128 {
 #[inline(always)]
 pub fn enable_pauth(key: u128) {
     use arm_sysregs::{
-        ApiakeyhiEl1, ApiakeyloEl1, Sctlr2El1, Sctlr2El2, SctlrEl1, SctlrEl2,
-        is_feat_pauth_lr_present, read_sctlr_el1, read_sctlr_el2, read_sctlr2_el1, read_sctlr2_el2,
-        write_apiakeyhi_el1, write_apiakeylo_el1, write_sctlr_el1, write_sctlr_el2,
-        write_sctlr2_el1, write_sctlr2_el2,
+        el1::{
+            accessors::{
+                read_sctlr_el1, read_sctlr2_el1, write_apiakeyhi_el1, write_apiakeylo_el1,
+                write_sctlr_el1, write_sctlr2_el1,
+            },
+            helpers::is_feat_pauth_lr_present,
+            registers::{ApiakeyhiEl1, ApiakeyloEl1, Sctlr2El1, SctlrEl1},
+        },
+        el2::{
+            accessors::{read_sctlr_el2, read_sctlr2_el2, write_sctlr_el2, write_sctlr2_el2},
+            registers::{Sctlr2El2, SctlrEl2},
+        },
     };
 
     unsafe {

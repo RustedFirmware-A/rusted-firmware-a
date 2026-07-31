@@ -6,7 +6,10 @@
 
 use super::{SCTLR2_CONTEXT, Sctlr2};
 use crate::{context::World, platform::exception_free};
-use arm_sysregs::{Sctlr2El1, read_sctlr2_el1, write_sctlr2_el1};
+use arm_sysregs::el1::{
+    accessors::{read_sctlr2_el1, write_sctlr2_el1},
+    registers::Sctlr2El1,
+};
 
 pub struct Sctlr2CpuContext {
     sctlr2_el1: Sctlr2El1,

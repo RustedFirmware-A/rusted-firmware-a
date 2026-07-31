@@ -12,7 +12,11 @@ use crate::{
     util::current_el,
 };
 use arm_sysregs::{
-    HcrxEl2, read_hcrx_el2, read_id_aa64mmfr1_el1, read_id_aa64pfr2_el1, write_hcrx_el2,
+    el1::accessors::{read_id_aa64mmfr1_el1, read_id_aa64pfr2_el1},
+    el2::{
+        accessors::{read_hcrx_el2, write_hcrx_el2},
+        registers::HcrxEl2,
+    },
 };
 use log::debug;
 

@@ -11,7 +11,10 @@ use crate::framework::{
     TestHelperProxy, TestHelperRequest, TestHelperResponse, TestResult, expect::expect_eq,
     normal_world_test,
 };
-use arm_sysregs::{Dit, read_dit, write_dit};
+use arm_sysregs::el0::{
+    accessors::{read_dit, write_dit},
+    registers::Dit,
+};
 
 /// Updates the secure-world DIT, and returns its value before the write.
 fn test_dit_helper([dit_value, ..]: TestHelperRequest) -> Result<TestHelperResponse, ()> {

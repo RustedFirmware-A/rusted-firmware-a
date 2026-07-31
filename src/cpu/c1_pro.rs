@@ -12,7 +12,7 @@ use crate::{
     },
     naked_asm,
 };
-use arm_sysregs::{MidrEl1, read_write_sysreg};
+use arm_sysregs::{el1::registers::MidrEl1, read_write_sysreg};
 
 /// CPU operations for the Arm C1-Pro CPU.
 pub struct C1Pro;

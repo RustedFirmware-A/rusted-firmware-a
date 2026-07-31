@@ -6,7 +6,10 @@
 
 use super::{HCX_CONTEXT, Hcx};
 use crate::{context::World, platform::exception_free};
-use arm_sysregs::{HcrxEl2, read_hcrx_el2, write_hcrx_el2};
+use arm_sysregs::el2::{
+    accessors::{read_hcrx_el2, write_hcrx_el2},
+    registers::HcrxEl2,
+};
 
 pub struct HcxCpuContext {
     hcrx_el2: HcrxEl2,

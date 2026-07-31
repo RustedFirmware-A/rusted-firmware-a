@@ -7,7 +7,14 @@
 //! PMU configuration is not optional so we do not implement `CpuExtension`
 //! for basic PMU configuration, only for MTPMU which is non-obligatory.
 
-use arm_sysregs::{MdcrEl3, PmcrEl0, read_id_aa64dfr0_el1, read_pmcr_el0, write_pmcr_el0};
+use arm_sysregs::{
+    el0::{
+        accessors::{read_pmcr_el0, write_pmcr_el0},
+        registers::PmcrEl0,
+    },
+    el1::accessors::read_id_aa64dfr0_el1,
+    el3::registers::MdcrEl3,
+};
 
 use crate::{
     context::{CpuContext, World},
@@ -55,7 +62,7 @@ pub(crate) fn init() {
 pub(crate) fn configure_per_cpu(ctx: &mut CpuContext) {
     #[cfg(feature = "sel2")]
     {
-        use arm_sysregs::read_mdcr_el2;
+        use arm_sysregs::el2::accessors::read_mdcr_el2;
 
         // Initialize MDCR_EL2.HPMN to its hardware reset value so we don't
         // throw anyone off who expects this to be sensible.

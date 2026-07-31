@@ -14,8 +14,15 @@
 
 use crate::{aarch64::isb, context::set_percore_pauth_apiakey, platform::Platform};
 use arm_sysregs::{
-    ApiakeyhiEl1, ApiakeyloEl1, Sctlr2El3, SctlrEl3, is_feat_pauth_lr_present, read_sctlr_el3,
-    read_sctlr2_el3, write_apiakeyhi_el1, write_apiakeylo_el1, write_sctlr_el3, write_sctlr2_el3,
+    el1::{
+        accessors::{write_apiakeyhi_el1, write_apiakeylo_el1},
+        helpers::is_feat_pauth_lr_present,
+        registers::{ApiakeyhiEl1, ApiakeyloEl1},
+    },
+    el3::{
+        accessors::{read_sctlr_el3, read_sctlr2_el3, write_sctlr_el3, write_sctlr2_el3},
+        registers::{Sctlr2El3, SctlrEl3},
+    },
 };
 
 /// Setup the PAuth registers and the CPU data with the PAuth key.

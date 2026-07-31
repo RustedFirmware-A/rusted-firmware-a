@@ -6,7 +6,10 @@
 
 use super::{TCR2_CONTEXT, Tcr2};
 use crate::{context::World, platform::exception_free};
-use arm_sysregs::{Tcr2El1, read_tcr2_el1, write_tcr2_el1};
+use arm_sysregs::el1::{
+    accessors::{read_tcr2_el1, write_tcr2_el1},
+    registers::Tcr2El1,
+};
 
 pub struct Tcr2CpuContext {
     tcr2_el1: Tcr2El1,

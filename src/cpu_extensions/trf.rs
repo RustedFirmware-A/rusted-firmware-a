@@ -8,7 +8,7 @@ use super::CpuExtension;
 
 use crate::context::{CpuContext, World};
 
-use arm_sysregs::{MdcrEl3, read_id_aa64dfr0_el1};
+use arm_sysregs::{el1::accessors::read_id_aa64dfr0_el1, el3::registers::MdcrEl3};
 
 /// Enables lower EL access to Trace Filter control registers.
 pub struct TraceFiltering;

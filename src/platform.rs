@@ -23,7 +23,7 @@ use crate::{
 };
 use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
-use arm_sysregs::MpidrEl1;
+use arm_sysregs::el1::registers::MpidrEl1;
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::my_core_pos;
 #[cfg(any(test, feature = "fakes"))]

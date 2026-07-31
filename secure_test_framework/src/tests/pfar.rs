@@ -11,7 +11,13 @@ use crate::{
     },
     util::current_el,
 };
-use arm_sysregs::{PfarEl2, read_id_aa64pfr1_el1, read_pfar_el2, write_pfar_el2};
+use arm_sysregs::{
+    el1::accessors::read_id_aa64pfr1_el1,
+    el2::{
+        accessors::{read_pfar_el2, write_pfar_el2},
+        registers::PfarEl2,
+    },
+};
 
 const TEST_PA48_NS: u64 = 0xfedc_ba98_7654;
 const TEST_PA48_S: u64 = 0xcba9_8765_4324;

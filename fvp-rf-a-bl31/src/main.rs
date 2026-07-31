@@ -27,7 +27,7 @@ use core::{
     ptr::NonNull,
 };
 #[cfg(feature = "pauth")]
-use rf_a_bl31::reexports::arm_sysregs::read_cntpct_el0;
+use rf_a_bl31::reexports::arm_sysregs::el0::accessors::read_cntpct_el0;
 #[cfg(feature = "rme")]
 use rf_a_bl31::services::rmmd::{
     RMM_SHARED_BUFFER_SIZE,
@@ -71,7 +71,11 @@ use rf_a_bl31::{
             },
         },
         arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState},
-        arm_sysregs::{CntfrqEl0, IccSreEl3, MpidrEl1, read_mpidr_el1, write_cntfrq_el0},
+        arm_sysregs::{
+            el0::{accessors::write_cntfrq_el0, registers::CntfrqEl0},
+            el1::{accessors::read_mpidr_el1, registers::MpidrEl1},
+            el3::registers::IccSreEl3,
+        },
         log,
         percore::Cores,
         spin::mutex::SpinMutex,

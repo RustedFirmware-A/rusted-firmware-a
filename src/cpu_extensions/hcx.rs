@@ -13,7 +13,11 @@ use super::CpuExtension;
 #[cfg(feature = "sel2")]
 use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld};
 use crate::context::{PerWorldContext, World};
-use arm_sysregs::{HcrxEl2, ScrEl3, read_id_aa64mmfr1_el1, write_hcrx_el2};
+use arm_sysregs::{
+    el1::accessors::read_id_aa64mmfr1_el1,
+    el2::{accessors::write_hcrx_el2, registers::HcrxEl2},
+    el3::registers::ScrEl3,
+};
 #[cfg(feature = "sel2")]
 use core::cell::RefCell;
 #[cfg(feature = "sel2")]

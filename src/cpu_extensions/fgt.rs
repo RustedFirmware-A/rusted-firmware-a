@@ -9,9 +9,9 @@ use self::fgt_el2::FgtCpuContext;
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, World};
 use crate::cpu_extensions::CpuExtension;
-use arm_sysregs::{HfgitrEl2, HfgrtrEl2, HfgwtrEl2};
 #[cfg(not(any(feature = "sel2", feature = "rme")))]
-use arm_sysregs::{write_hfgitr_el2, write_hfgrtr_el2, write_hfgwtr_el2};
+use arm_sysregs::el2::accessors::{write_hfgitr_el2, write_hfgrtr_el2, write_hfgwtr_el2};
+use arm_sysregs::el2::registers::{HfgitrEl2, HfgrtrEl2, HfgwtrEl2};
 #[cfg(any(feature = "sel2", feature = "rme"))]
 use core::cell::RefCell;
 #[cfg(any(feature = "sel2", feature = "rme"))]
@@ -36,10 +36,15 @@ const HFGWTR_EL2_INIT_VAL: HfgwtrEl2 = HfgwtrEl2::NACCDATA_EL1
 mod fgt_el2 {
     use crate::{context::World, platform::exception_free};
     use arm_sysregs::{
-        HafgrtrEl2, HdfgrtrEl2, HdfgwtrEl2, HfgitrEl2, HfgrtrEl2, HfgwtrEl2, read_hafgrtr_el2,
-        read_hdfgrtr_el2, read_hdfgwtr_el2, read_hfgitr_el2, read_hfgrtr_el2, read_hfgwtr_el2,
-        read_id_aa64pfr0_el1, write_hafgrtr_el2, write_hdfgrtr_el2, write_hdfgwtr_el2,
-        write_hfgitr_el2, write_hfgrtr_el2, write_hfgwtr_el2,
+        el1::accessors::read_id_aa64pfr0_el1,
+        el2::{
+            accessors::{
+                read_hafgrtr_el2, read_hdfgrtr_el2, read_hdfgwtr_el2, read_hfgitr_el2,
+                read_hfgrtr_el2, read_hfgwtr_el2, write_hafgrtr_el2, write_hdfgrtr_el2,
+                write_hdfgwtr_el2, write_hfgitr_el2, write_hfgrtr_el2, write_hfgwtr_el2,
+            },
+            registers::{HafgrtrEl2, HdfgrtrEl2, HdfgwtrEl2, HfgitrEl2, HfgrtrEl2, HfgwtrEl2},
+        },
     };
 
     pub struct FgtCpuContext {

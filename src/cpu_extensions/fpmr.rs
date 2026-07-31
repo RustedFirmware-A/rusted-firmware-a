@@ -6,7 +6,7 @@
 
 use super::CpuExtension;
 use crate::context::{PerWorldContext, World};
-use arm_sysregs::{ScrEl3, read_id_aa64pfr2_el1};
+use arm_sysregs::{el1::accessors::read_id_aa64pfr2_el1, el3::registers::ScrEl3};
 
 /// FEAT_FPMR introduces the Floating-point Mode Register, FPMR.
 ///

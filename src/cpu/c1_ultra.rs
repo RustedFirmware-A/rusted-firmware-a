@@ -12,7 +12,7 @@ use crate::{
     },
     naked_asm,
 };
-use arm_sysregs::{MidrEl1, read_write_sysreg};
+use arm_sysregs::{el1::registers::MidrEl1, read_write_sysreg};
 
 read_write_sysreg!(imp_cpupwrctlr_el1: s3_0_c15_c2_7, u64, safe_read, safe_write);
 const IMP_CPUPWRCTLR_EL1_CORE_PWRDN_EN_BIT: u64 = 0x1;

@@ -6,9 +6,12 @@
 
 use super::{MTE2_CONTEXT, MemoryTagging};
 use crate::{context::World, platform::exception_free};
-use arm_sysregs::{
-    GcrEl1, RgsrEl1, TfsrEl1, Tfsre0El1, read_gcr_el1, read_rgsr_el1, read_tfsr_el1,
-    read_tfsre0_el1, write_gcr_el1, write_rgsr_el1, write_tfsr_el1, write_tfsre0_el1,
+use arm_sysregs::el1::{
+    accessors::{
+        read_gcr_el1, read_rgsr_el1, read_tfsr_el1, read_tfsre0_el1, write_gcr_el1, write_rgsr_el1,
+        write_tfsr_el1, write_tfsre0_el1,
+    },
+    registers::{GcrEl1, RgsrEl1, TfsrEl1, Tfsre0El1},
 };
 
 pub struct Mte2CpuContext {

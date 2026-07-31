@@ -22,7 +22,7 @@ use crate::{
 use aarch64_rt::{enable_mmu, set_exception_vector};
 use arm_gic::{Trigger, irq_disable, irq_enable};
 use arm_psci::{ErrorCode, FunctionId, ReturnCode};
-use arm_sysregs::read_mpidr_el1;
+use arm_sysregs::el1::accessors::read_mpidr_el1;
 use core::{
     arch::naked_asm,
     hint::spin_loop,

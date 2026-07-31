@@ -6,7 +6,10 @@
 
 use super::{PFAR_CONTEXT, Pfar};
 use crate::{context::World, platform::exception_free};
-use arm_sysregs::{PfarEl1, read_pfar_el1, write_pfar_el1};
+use arm_sysregs::el1::{
+    accessors::{read_pfar_el1, write_pfar_el1},
+    registers::PfarEl1,
+};
 
 pub struct PfarContext {
     pfar_el1: PfarEl1,

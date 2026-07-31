@@ -11,7 +11,7 @@ use arm_gic::{
     IntId, InterruptGroup, Trigger,
     gicv3::{GicCpuInterface, GicV3, Group, HIGHEST_NS_PRIORITY, SecureIntGroup},
 };
-use arm_sysregs::read_mpidr_el1;
+use arm_sysregs::el1::accessors::read_mpidr_el1;
 use log::debug;
 use percore::{Cores, ExceptionLock, exception_free};
 use spin::{mutex::SpinMutex, once::Once};

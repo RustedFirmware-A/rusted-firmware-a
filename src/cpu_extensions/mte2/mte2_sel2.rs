@@ -6,7 +6,10 @@
 
 use super::{MTE2_CONTEXT, MemoryTagging};
 use crate::{context::World, platform::exception_free};
-use arm_sysregs::{TfsrEl2, read_tfsr_el2, write_tfsr_el2};
+use arm_sysregs::el2::{
+    accessors::{read_tfsr_el2, write_tfsr_el2},
+    registers::TfsrEl2,
+};
 
 pub struct Mte2CpuContext {
     tfsr_el2: TfsrEl2,

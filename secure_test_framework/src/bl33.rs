@@ -38,7 +38,7 @@ use crate::{
 };
 use aarch64_rt::{enable_mmu, entry, set_exception_vector};
 use arm_ffa::Interface;
-use arm_sysregs::MpidrEl1;
+use arm_sysregs::el1::registers::MpidrEl1;
 use core::panic::PanicInfo;
 use log::{debug, error, info, warn};
 use percore::Cores;

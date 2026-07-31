@@ -9,7 +9,7 @@ use crate::{
     services::{Service, owns},
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
-use arm_sysregs::ExceptionLevel;
+use arm_sysregs::types::ExceptionLevel;
 use core::marker::PhantomData;
 use log::trace;
 
@@ -140,7 +140,7 @@ mod tests {
         errata_framework::Erratum,
         platform::test::{TestMitigatedErratum, TestPlatform, TestUnneededErratum},
     };
-    use arm_sysregs::SpsrEl3;
+    use arm_sysregs::el3::registers::SpsrEl3;
 
     #[test]
     fn em_version_non_secure() {

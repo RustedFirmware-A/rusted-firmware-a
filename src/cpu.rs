@@ -16,7 +16,7 @@ add_cpu_mod!(c1_pro);
 add_cpu_mod!(c1_ultra);
 add_cpu_mod!(qemu_max);
 
-use arm_sysregs::MidrEl1;
+use arm_sysregs::el1::{accessors::read_midr_el1, registers::MidrEl1};
 
 /// The `Cpu` trait captures low level CPU specific operations.
 ///
@@ -121,7 +121,7 @@ pub unsafe trait PlatformCpuOps {
 ///
 /// Panics if none is found.
 fn find_cpu_ops<PlatformImpl: PlatformCpuOps>() -> &'static CpuOps {
-    let midr = arm_sysregs::read_midr_el1();
+    let midr = read_midr_el1();
     let ops = PlatformImpl::CPU_OPS
         .iter()
         .find(|i| i.has_matching_midr(midr));
@@ -288,8 +288,7 @@ pub fn cpu_handle_power_down_abandon<PlatformImpl: PlatformCpuOps>() {
 mod test {
     use super::*;
     use crate::platform::test::TestPlatform;
-    use arm_sysregs::MidrEl1;
-    use arm_sysregs::fake::SYSREGS;
+    use arm_sysregs::el1::{fake::SYSREGS, registers::MidrEl1};
 
     #[test]
     fn test_reset_handler() {

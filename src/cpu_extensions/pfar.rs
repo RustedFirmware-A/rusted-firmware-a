@@ -15,7 +15,7 @@ use self::pfar_sel1::PfarContext;
 use self::pfar_sel2::PfarContext;
 use super::CpuExtension;
 use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, PerWorldContext, World};
-use arm_sysregs::{ScrEl3, read_id_aa64pfr1_el1};
+use arm_sysregs::{el1::accessors::read_id_aa64pfr1_el1, el3::registers::ScrEl3};
 use core::cell::RefCell;
 use percore::{ExceptionLock, derive::percore};
 

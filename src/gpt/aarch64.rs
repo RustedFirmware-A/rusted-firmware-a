@@ -8,8 +8,11 @@ use super::{
 };
 use crate::aarch64::{dsb_sy, isb, tlbi_paallos};
 use arm_sysregs::{
-    Cacheability, GpccrEl3, GptbrEl3, Shareability, read_gpccr_el3, read_gptbr_el3,
-    write_gpccr_el3, write_gptbr_el3,
+    el3::{
+        accessors::{read_gpccr_el3, read_gptbr_el3, write_gpccr_el3, write_gptbr_el3},
+        registers::{GpccrEl3, GptbrEl3},
+    },
+    types::{Cacheability, Shareability},
 };
 #[cfg(all(target_arch = "aarch64", not(test)))]
 use core::arch::asm;

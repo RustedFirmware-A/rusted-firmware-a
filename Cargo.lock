@@ -143,13 +143,80 @@ dependencies = [
 
 [[package]]
 name = "arm-sysregs"
-version = "0.3.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8020ecabe88c86e2a7d9011e1a881827cc06ddbb0756339a7e474de25b67ade8"
+checksum = "377602e4256d8c07771de23f18deeec7e0b15e4b55f566c3f3bb2a1d6ee0da50"
 dependencies = [
+ "arm-sysregs-aarch32",
+ "arm-sysregs-common",
+ "arm-sysregs-el0",
+ "arm-sysregs-el1",
+ "arm-sysregs-el2",
+ "arm-sysregs-el3",
+]
+
+[[package]]
+name = "arm-sysregs-aarch32"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0bb51b52291b6fd6223bca38043e85ac9c18c0180a4098809e3b3954c2c0842"
+dependencies = [
+ "arm-sysregs-common",
  "bitflags",
+]
+
+[[package]]
+name = "arm-sysregs-common"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a4c8f79ed92200bf954b76d2eced94115b8f6677103652504eda1059a07739a"
+dependencies = [
  "num_enum",
  "paste",
+]
+
+[[package]]
+name = "arm-sysregs-el0"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "207069aab5de955e8f5f88c0cf64c8403084f650a7295524ea61220bea5c4f6c"
+dependencies = [
+ "arm-sysregs-aarch32",
+ "arm-sysregs-common",
+ "bitflags",
+]
+
+[[package]]
+name = "arm-sysregs-el1"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9baf952c54557a9d47cc268a72a27252af23b351df2d94a32f65160f1de79c77"
+dependencies = [
+ "arm-sysregs-common",
+ "arm-sysregs-el0",
+ "bitflags",
+]
+
+[[package]]
+name = "arm-sysregs-el2"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60dda76284ac8436ac6f44e5df401ffda12959102a762f76eafce65b5bac05c2"
+dependencies = [
+ "arm-sysregs-common",
+ "arm-sysregs-el1",
+ "bitflags",
+]
+
+[[package]]
+name = "arm-sysregs-el3"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86af579f5aa622669f0b13e8267e5362b4eb101aac4b59bb32ba6a5879c2fea5"
+dependencies = [
+ "arm-sysregs-common",
+ "arm-sysregs-el2",
+ "bitflags",
 ]
 
 [[package]]
@@ -171,9 +238,9 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "bitflags"
-version = "2.11.0"
+version = "2.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
+checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
 
 [[package]]
 name = "buddy_system_allocator"
@@ -317,7 +384,7 @@ dependencies = [
  "arm-ffa",
  "arm-gic",
  "arm-psci",
- "arm-sysregs 0.3.3",
+ "arm-sysregs 0.4.0",
  "arrayvec",
  "bitflags",
  "include-first",
@@ -345,7 +412,7 @@ dependencies = [
  "arm-gic",
  "arm-pl011-uart",
  "arm-psci",
- "arm-sysregs 0.3.3",
+ "arm-sysregs 0.4.0",
  "bitflags",
  "buddy_system_allocator",
  "linkme",

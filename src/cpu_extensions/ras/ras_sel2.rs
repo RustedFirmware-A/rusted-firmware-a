@@ -6,8 +6,9 @@
 
 use super::{RAS_CONTEXT, Ras};
 use crate::{context::World, platform::exception_free};
-use arm_sysregs::{
-    VdisrEl2, VsesrEl2, read_vdisr_el2, read_vsesr_el2, write_vdisr_el2, write_vsesr_el2,
+use arm_sysregs::el2::{
+    accessors::{read_vdisr_el2, read_vsesr_el2, write_vdisr_el2, write_vsesr_el2},
+    registers::{VdisrEl2, VsesrEl2},
 };
 
 pub struct RasCpuContext {

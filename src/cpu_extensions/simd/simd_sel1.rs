@@ -5,7 +5,13 @@
 //! SIMD and SVE context management for when Secure EL2 is not enabled.
 
 use crate::aarch64::isb;
-use arm_sysregs::{IdAa64smfr0El1, Svcr, read_id_aa64smfr0_el1, read_svcr, write_svcr};
+use arm_sysregs::{
+    el0::{
+        accessors::{read_svcr, write_svcr},
+        registers::Svcr,
+    },
+    el1::{accessors::read_id_aa64smfr0_el1, registers::IdAa64smfr0El1},
+};
 use core::arch::asm;
 
 #[repr(C)]

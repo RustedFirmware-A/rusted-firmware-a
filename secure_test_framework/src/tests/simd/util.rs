@@ -8,7 +8,7 @@ use crate::{
     framework::{TestHelperRequest, TestHelperResponse},
     util::current_el,
 };
-use arm_sysregs::read_id_aa64pfr0_el1;
+use arm_sysregs::el1::accessors::read_id_aa64pfr0_el1;
 use core::arch::asm;
 use log::warn;
 use spin::mutex::SpinMutex;

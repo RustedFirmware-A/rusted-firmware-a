@@ -18,42 +18,64 @@ use crate::{
     smccc::SmcReturn,
 };
 use arm_psci::EntryPoint;
-#[cfg(feature = "sel2")]
-use arm_sysregs::{
-    CnthctlEl2, CntvoffEl2, ContextidrEl2, CptrEl2, ElrEl2, EsrEl2, FarEl2, HcrEl2, HpfarEl2,
-    IccSreEl2, IchHcrEl2, IchVmcrEl2, MairEl2, MdcrEl2, SctlrEl2, SpEl2, SpsrEl2, TcrEl2, TpidrEl2,
-    Ttbr0El2, Ttbr1El2, VbarEl2, VmpidrEl2, VpidrEl2, VtcrEl2, VttbrEl2, read_actlr_el2,
-    read_afsr0_el2, read_afsr1_el2, read_amair_el2, read_cnthctl_el2, read_cntvoff_el2,
-    read_contextidr_el2, read_cptr_el2, read_elr_el2, read_esr_el2, read_far_el2, read_hacr_el2,
-    read_hcr_el2, read_hpfar_el2, read_hstr_el2, read_icc_sre_el2, read_ich_hcr_el2,
-    read_ich_vmcr_el2, read_id_aa64mmfr1_el1, read_mair_el2, read_mdcr_el2, read_scr_el3,
-    read_sctlr_el2, read_sp_el2, read_spsr_el2, read_tcr_el2, read_tpidr_el2, read_ttbr0_el2,
-    read_ttbr1_el2, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2, read_vtcr_el2, read_vttbr_el2,
-    write_actlr_el2, write_afsr0_el2, write_afsr1_el2, write_amair_el2, write_cnthctl_el2,
-    write_cntvoff_el2, write_contextidr_el2, write_cptr_el2, write_elr_el2, write_esr_el2,
-    write_far_el2, write_hacr_el2, write_hcr_el2, write_hpfar_el2, write_hstr_el2,
-    write_icc_sre_el2, write_ich_hcr_el2, write_ich_vmcr_el2, write_mair_el2, write_mdcr_el2,
-    write_sctlr_el2, write_sp_el2, write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2,
-    write_ttbr1_el2, write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2,
-    write_vttbr_el2,
-};
 #[cfg(not(feature = "sel2"))]
 use arm_sysregs::{
-    ContextidrEl1, CpacrEl1, CsselrEl1, ElrEl1, EsrEl1, FarEl1, MairEl1, MdccintEl1, MdscrEl1,
-    ParEl1, SctlrEl1, SpEl1, SpsrEl1, TcrEl1, TpidrEl0, TpidrEl1, TpidrroEl0, Ttbr0El1, Ttbr1El1,
-    VbarEl1, read_actlr_el1, read_afsr0_el1, read_afsr1_el1, read_amair_el1, read_contextidr_el1,
-    read_cpacr_el1, read_csselr_el1, read_elr_el1, read_esr_el1, read_far_el1, read_mair_el1,
-    read_mdccint_el1, read_mdscr_el1, read_par_el1, read_sctlr_el1, read_sp_el1, read_spsr_el1,
-    read_tcr_el1, read_tpidr_el0, read_tpidr_el1, read_tpidrro_el0, read_ttbr0_el1, read_ttbr1_el1,
-    read_vbar_el1, write_actlr_el1, write_afsr0_el1, write_afsr1_el1, write_amair_el1,
-    write_contextidr_el1, write_cpacr_el1, write_csselr_el1, write_elr_el1, write_esr_el1,
-    write_far_el1, write_mair_el1, write_mdccint_el1, write_mdscr_el1, write_par_el1,
-    write_sctlr_el1, write_sp_el1, write_spsr_el1, write_tcr_el1, write_tpidr_el0, write_tpidr_el1,
-    write_tpidrro_el0, write_ttbr0_el1, write_ttbr1_el1, write_vbar_el1,
+    el0::{
+        accessors::{read_tpidr_el0, read_tpidrro_el0, write_tpidr_el0, write_tpidrro_el0},
+        registers::{TpidrEl0, TpidrroEl0},
+    },
+    el1::{
+        accessors::{
+            read_actlr_el1, read_afsr0_el1, read_afsr1_el1, read_amair_el1, read_contextidr_el1,
+            read_cpacr_el1, read_csselr_el1, read_elr_el1, read_esr_el1, read_far_el1,
+            read_mair_el1, read_mdccint_el1, read_mdscr_el1, read_par_el1, read_sctlr_el1,
+            read_sp_el1, read_spsr_el1, read_tcr_el1, read_tpidr_el1, read_ttbr0_el1,
+            read_ttbr1_el1, read_vbar_el1, write_actlr_el1, write_afsr0_el1, write_afsr1_el1,
+            write_amair_el1, write_contextidr_el1, write_cpacr_el1, write_csselr_el1,
+            write_elr_el1, write_esr_el1, write_far_el1, write_mair_el1, write_mdccint_el1,
+            write_mdscr_el1, write_par_el1, write_sctlr_el1, write_sp_el1, write_spsr_el1,
+            write_tcr_el1, write_tpidr_el1, write_ttbr0_el1, write_ttbr1_el1, write_vbar_el1,
+        },
+        registers::{
+            ContextidrEl1, CpacrEl1, CsselrEl1, ElrEl1, EsrEl1, FarEl1, MairEl1, MdccintEl1,
+            MdscrEl1, ParEl1, SctlrEl1, SpEl1, SpsrEl1, TcrEl1, TpidrEl1, Ttbr0El1, Ttbr1El1,
+            VbarEl1,
+        },
+    },
+};
+#[cfg(feature = "sel2")]
+use arm_sysregs::{
+    el1::accessors::read_id_aa64mmfr1_el1,
+    el2::{
+        accessors::{
+            read_actlr_el2, read_afsr0_el2, read_afsr1_el2, read_amair_el2, read_cnthctl_el2,
+            read_cntvoff_el2, read_contextidr_el2, read_cptr_el2, read_elr_el2, read_esr_el2,
+            read_far_el2, read_hacr_el2, read_hcr_el2, read_hpfar_el2, read_hstr_el2,
+            read_icc_sre_el2, read_ich_hcr_el2, read_ich_vmcr_el2, read_mair_el2, read_mdcr_el2,
+            read_sctlr_el2, read_sp_el2, read_spsr_el2, read_tcr_el2, read_tpidr_el2,
+            read_ttbr0_el2, read_ttbr1_el2, read_vbar_el2, read_vmpidr_el2, read_vpidr_el2,
+            read_vtcr_el2, read_vttbr_el2, write_actlr_el2, write_afsr0_el2, write_afsr1_el2,
+            write_amair_el2, write_cnthctl_el2, write_cntvoff_el2, write_contextidr_el2,
+            write_cptr_el2, write_elr_el2, write_esr_el2, write_far_el2, write_hacr_el2,
+            write_hcr_el2, write_hpfar_el2, write_hstr_el2, write_icc_sre_el2, write_ich_hcr_el2,
+            write_ich_vmcr_el2, write_mair_el2, write_mdcr_el2, write_sctlr_el2, write_sp_el2,
+            write_spsr_el2, write_tcr_el2, write_tpidr_el2, write_ttbr0_el2, write_ttbr1_el2,
+            write_vbar_el2, write_vmpidr_el2, write_vpidr_el2, write_vtcr_el2, write_vttbr_el2,
+        },
+        registers::{
+            CnthctlEl2, CntvoffEl2, ContextidrEl2, CptrEl2, ElrEl2, EsrEl2, FarEl2, HcrEl2,
+            HpfarEl2, IccSreEl2, IchHcrEl2, IchVmcrEl2, MairEl2, MdcrEl2, SctlrEl2, SpEl2, SpsrEl2,
+            TcrEl2, TpidrEl2, Ttbr0El2, Ttbr1El2, VbarEl2, VmpidrEl2, VpidrEl2, VtcrEl2, VttbrEl2,
+        },
+    },
+    el3::accessors::read_scr_el3,
 };
 use arm_sysregs::{
-    CptrEl3, EsrEl3, MdcrEl3, Mpam3El3, ScrEl3, SpsrEl3, read_mpidr_el1, read_tpidr_el3,
-    write_cptr_el3, write_mpam3_el3, write_scr_el3,
+    el1::accessors::read_mpidr_el1,
+    el3::{
+        accessors::{read_tpidr_el3, write_cptr_el3, write_mpam3_el3, write_scr_el3},
+        registers::{CptrEl3, EsrEl3, MdcrEl3, Mpam3El3, ScrEl3, SpsrEl3},
+    },
 };
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::percore_init_offset;
@@ -1075,7 +1097,10 @@ mod asm {
         platform::my_core_pos,
         smccc::NOT_SUPPORTED,
     };
-    use arm_sysregs::{Dit, PmcrEl0, StackPointer};
+    use arm_sysregs::{
+        el0::registers::{Dit, PmcrEl0},
+        types::StackPointer,
+    };
     use core::{
         arch::global_asm,
         mem::{offset_of, size_of},

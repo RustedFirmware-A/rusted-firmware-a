@@ -7,13 +7,21 @@
 use super::{MPAM_CONTEXT, Mpam};
 use crate::{context::World, platform::exception_free};
 use arm_sysregs::{
-    Mpam2El2, MpamhcrEl2, MpamidrEl1, Mpamvpm0El2, Mpamvpm1El2, Mpamvpm2El2, Mpamvpm3El2,
-    Mpamvpm4El2, Mpamvpm5El2, Mpamvpm6El2, Mpamvpm7El2, MpamvpmvEl2, read_mpam2_el2,
-    read_mpamhcr_el2, read_mpamidr_el1, read_mpamvpm0_el2, read_mpamvpm1_el2, read_mpamvpm2_el2,
-    read_mpamvpm3_el2, read_mpamvpm4_el2, read_mpamvpm5_el2, read_mpamvpm6_el2, read_mpamvpm7_el2,
-    read_mpamvpmv_el2, write_mpam2_el2, write_mpamhcr_el2, write_mpamvpm0_el2, write_mpamvpm1_el2,
-    write_mpamvpm2_el2, write_mpamvpm3_el2, write_mpamvpm4_el2, write_mpamvpm5_el2,
-    write_mpamvpm6_el2, write_mpamvpm7_el2, write_mpamvpmv_el2,
+    el1::{accessors::read_mpamidr_el1, registers::MpamidrEl1},
+    el2::{
+        accessors::{
+            read_mpam2_el2, read_mpamhcr_el2, read_mpamvpm0_el2, read_mpamvpm1_el2,
+            read_mpamvpm2_el2, read_mpamvpm3_el2, read_mpamvpm4_el2, read_mpamvpm5_el2,
+            read_mpamvpm6_el2, read_mpamvpm7_el2, read_mpamvpmv_el2, write_mpam2_el2,
+            write_mpamhcr_el2, write_mpamvpm0_el2, write_mpamvpm1_el2, write_mpamvpm2_el2,
+            write_mpamvpm3_el2, write_mpamvpm4_el2, write_mpamvpm5_el2, write_mpamvpm6_el2,
+            write_mpamvpm7_el2, write_mpamvpmv_el2,
+        },
+        registers::{
+            Mpam2El2, MpamhcrEl2, Mpamvpm0El2, Mpamvpm1El2, Mpamvpm2El2, Mpamvpm3El2, Mpamvpm4El2,
+            Mpamvpm5El2, Mpamvpm6El2, Mpamvpm7El2, MpamvpmvEl2,
+        },
+    },
 };
 
 pub struct MpamCpuContext {

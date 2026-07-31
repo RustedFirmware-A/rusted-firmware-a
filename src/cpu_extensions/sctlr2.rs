@@ -19,7 +19,7 @@ use self::sctlr2_sel1::Sctlr2CpuContext;
 use self::sctlr2_sel2::Sctlr2CpuContext;
 use super::CpuExtension;
 use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld, PerWorldContext, World};
-use arm_sysregs::{ScrEl3, read_id_aa64mmfr3_el1};
+use arm_sysregs::{el1::accessors::read_id_aa64mmfr3_el1, el3::registers::ScrEl3};
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::init_sctlr2_el3;
 use core::cell::RefCell;
@@ -60,7 +60,7 @@ impl CpuExtension for Sctlr2 {
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 mod asm {
     use crate::naked_asm;
-    use arm_sysregs::{IdAa64mmfr3El1, Sctlr2El3};
+    use arm_sysregs::{el1::registers::IdAa64mmfr3El1, el3::registers::Sctlr2El3};
 
     /// Initialises the SCTLR2_EL3 register if FEAT_SCTLR2 is present.
     ///

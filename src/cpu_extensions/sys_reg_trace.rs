@@ -12,7 +12,7 @@ use super::CpuExtension;
 
 use crate::context::{PerWorldContext, World};
 
-use arm_sysregs::{CptrEl3, read_id_aa64dfr0_el1};
+use arm_sysregs::{el1::accessors::read_id_aa64dfr0_el1, el3::registers::CptrEl3};
 
 /// FEAT_SYS_REG_TRACE support
 ///

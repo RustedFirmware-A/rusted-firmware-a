@@ -15,7 +15,10 @@ use crate::{
         Level1DescriptorRefMut,
     },
 };
-use arm_sysregs::{GpccrEl3, read_gpccr_el3, read_id_aa64mmfr4_el1, read_id_aa64pfr0_el1};
+use arm_sysregs::{
+    el1::accessors::{read_id_aa64mmfr4_el1, read_id_aa64pfr0_el1},
+    el3::{accessors::read_gpccr_el3, registers::GpccrEl3},
+};
 use core::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 pub use table::GPIAccessType;
@@ -332,7 +335,16 @@ impl GranuleProtectionConfig {
 #[cfg(test)]
 mod test {
     use super::*;
-    use arm_sysregs::{GpccrEl3, GptbrEl3, IdAa64mmfr4El1, IdAa64pfr0El1, fake::SYSREGS};
+    use arm_sysregs::{
+        el1::{
+            fake::SYSREGS as EL1_SYSREGS,
+            registers::{IdAa64mmfr4El1, IdAa64pfr0El1},
+        },
+        el3::{
+            fake::SYSREGS as EL3_SYSREGS,
+            registers::{GpccrEl3, GptbrEl3},
+        },
+    };
     use table::Level0Descriptor;
 
     #[test]
@@ -404,8 +416,8 @@ mod test {
 
             let mut gptbr = GptbrEl3::empty();
             gptbr.set_baddr(base >> 12);
-            SYSREGS.lock().unwrap().gptbr_el3 = gptbr;
-            SYSREGS.lock().unwrap().gpccr_el3 = GpccrEl3::empty() | GpccrEl3::GPC;
+            EL3_SYSREGS.lock().unwrap().gptbr_el3 = gptbr;
+            EL3_SYSREGS.lock().unwrap().gpccr_el3 = GpccrEl3::empty() | GpccrEl3::GPC;
             let mut $name =
                 // SAFETY: Each test only calls this once.
                 unsafe { GranuleProtection::discover().expect("failed to discover GPT") };
@@ -423,7 +435,7 @@ mod test {
 
     #[test]
     fn gpt_uninit() {
-        SYSREGS.lock().unwrap().gpccr_el3 = GpccrEl3::empty();
+        EL3_SYSREGS.lock().unwrap().gpccr_el3 = GpccrEl3::empty();
         assert_eq!(
             Some(Error::GptNotInitialized),
             // SAFETY: only called once.
@@ -562,12 +574,12 @@ mod test {
         let mut gpccr = GpccrEl3::empty();
         let mut id_aa64mmfr4_el1 = IdAa64mmfr4El1::empty();
         id_aa64mmfr4_el1.set_rmegdi(0b0001);
-        SYSREGS.lock().unwrap().id_aa64mmfr4_el1 = id_aa64mmfr4_el1;
+        EL1_SYSREGS.lock().unwrap().id_aa64mmfr4_el1 = id_aa64mmfr4_el1;
 
         // enable FEAT_RME_GPC2
         let mut id_aa64pfr0_el1 = IdAa64pfr0El1::empty();
         id_aa64pfr0_el1.set_rme(0b0010);
-        SYSREGS.lock().unwrap().id_aa64pfr0_el1 = id_aa64pfr0_el1;
+        EL1_SYSREGS.lock().unwrap().id_aa64pfr0_el1 = id_aa64pfr0_el1;
 
         assert_eq!(Err(()), GPIAccessType::try_from(0b1_0000_0000u64));
 
@@ -576,7 +588,7 @@ mod test {
         assert_eq!(GPIAccessType::SystemAgent, gpi);
         assert!(!gpt.is_gpi_supported(gpi));
         gpccr |= GpccrEl3::SA;
-        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
         assert!(gpt.is_gpi_supported(gpi));
 
         let byte = GPIAccessType::NonSecureProtected as u8;
@@ -584,7 +596,7 @@ mod test {
         assert_eq!(GPIAccessType::NonSecureProtected, gpi);
         assert!(!gpt.is_gpi_supported(gpi));
         gpccr |= GpccrEl3::NSP;
-        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
         assert!(gpt.is_gpi_supported(gpi));
 
         let byte = GPIAccessType::NoAccess6 as u8;
@@ -592,7 +604,7 @@ mod test {
         assert_eq!(GPIAccessType::NoAccess6, gpi);
         assert!(!gpt.is_gpi_supported(gpi));
         gpccr |= GpccrEl3::NA6;
-        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
         assert!(gpt.is_gpi_supported(gpi));
 
         let byte = GPIAccessType::NoAccess7 as u8;
@@ -600,7 +612,7 @@ mod test {
         assert_eq!(GPIAccessType::NoAccess7, gpi);
         assert!(!gpt.is_gpi_supported(gpi));
         gpccr |= GpccrEl3::NA7;
-        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
         assert!(gpt.is_gpi_supported(gpi));
 
         let byte = GPIAccessType::NonSecureOnly as u8;
@@ -608,7 +620,7 @@ mod test {
         assert_eq!(GPIAccessType::NonSecureOnly, gpi);
         assert!(!gpt.is_gpi_supported(gpi));
         gpccr |= GpccrEl3::NSO;
-        SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
+        EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
         assert!(gpt.is_gpi_supported(gpi));
     }
 }

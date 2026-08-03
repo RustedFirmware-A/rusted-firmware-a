@@ -1769,7 +1769,7 @@ mod tests {
     }
 
     fn apply_coordinated_state_to_power_domain_tree_helper(
-        power_domain_tree: &mut PowerDomainTree<
+        power_domain_tree: &PowerDomainTree<
             { TestPlatform::CORE_COUNT },
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
@@ -2137,7 +2137,7 @@ mod tests {
     #[test]
     fn psci_composite_power_state_validate_state_coordination_lvl0_state_with_off_sibling_is_valid()
     {
-        let mut tree = PowerDomainTree::<
+        let tree = PowerDomainTree::<
             { TestPlatform::CORE_COUNT },
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
@@ -2149,7 +2149,7 @@ mod tests {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 0, LEVEL0_OFF.clone());
 
         let mut cpu1 = tree.locked_cpu_node(1);
         tree.with_ancestors_locked(&mut cpu1, |_cpu, ancestors| {
@@ -2166,7 +2166,7 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_lvl1_off_state_is_valid() {
-        let mut tree = PowerDomainTree::<
+        let tree = PowerDomainTree::<
             { TestPlatform::CORE_COUNT },
             { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
             PSCI_MAX_POWER_LEVEL,
@@ -2178,8 +2178,8 @@ mod tests {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 1, LEVEL0_OFF.clone());
 
         let mut cpu2 = tree.locked_cpu_node(2);
         tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
@@ -2196,14 +2196,14 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_shallower_lvl1_state_is_valid() {
-        let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 1, LEVEL0_OFF.clone());
 
         let mut cpu2 = tree.locked_cpu_node(2);
         tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
@@ -2220,31 +2220,31 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_all_off_is_valid() {
-        let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
         // Leftmost sub-cluster
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 2, LEVEL1_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 1, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 2, LEVEL1_OFF.clone());
 
         // Left cluster
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 3, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 4, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 5, LEVEL2_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 3, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 4, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 5, LEVEL2_OFF.clone());
 
         // Right, middle cluster
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 6, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 7, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 8, LEVEL1_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 6, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 7, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 8, LEVEL1_OFF.clone());
 
         // Off to cores in rightmost cluster, use 12 to enter root level off.
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 9, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 10, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 11, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 9, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 10, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 11, LEVEL0_OFF.clone());
 
         let mut cpu12 = tree.locked_cpu_node(12);
         tree.with_ancestors_locked(&mut cpu12, |_cpu, ancestors| {
@@ -2261,7 +2261,7 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_denies_if_not_last_at_level() {
-        let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2270,7 +2270,7 @@ mod tests {
         let mut level0_with_level1_last_at_level = LEVEL0_OFF.clone();
         level0_with_level1_last_at_level.last_at_power_level = Some(CPU_POWER_LEVEL + 1);
 
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 0, LEVEL0_OFF.clone());
 
         let mut cpu2 = tree.locked_cpu_node(2);
         tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
@@ -2287,13 +2287,13 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_denies_if_peer_still_running() {
-        let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 0, LEVEL0_OFF.clone());
 
         let mut cpu2 = tree.locked_cpu_node(2);
         tree.with_ancestors_locked(&mut cpu2, |_cpu, ancestors| {
@@ -2310,14 +2310,14 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_denies_lvl2_even_if_lv1_is_valid() {
-        let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 1, LEVEL0_OFF.clone());
 
         // A level 2 off command will also turn off level 1. However, we should still deny because
         // level 2 peers aren't off.
@@ -2337,14 +2337,14 @@ mod tests {
     #[test]
     fn psci_composite_power_state_validate_state_coordination_invalid_params_for_non_run_shallower_peer()
      {
-        let mut tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 0, LEVEL0_OFF.clone());
-        apply_coordinated_state_to_power_domain_tree_helper(&mut tree, 1, LEVEL0_STBY2.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 0, LEVEL0_OFF.clone());
+        apply_coordinated_state_to_power_domain_tree_helper(&tree, 1, LEVEL0_STBY2.clone());
 
         // A level 2 off command will also turn off level 1. However, we should still deny because
         // level 2 peers aren't off.

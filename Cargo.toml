@@ -83,6 +83,7 @@ max_log_trace = ["log/max_level_trace"]
 unreadable_literal = "deny"
 undocumented_unsafe_blocks = "deny"
 missing_safety_doc = "deny"
+needless_pass_by_ref_mut = "deny"
 
 [lints.rust]
 missing_docs = "deny"

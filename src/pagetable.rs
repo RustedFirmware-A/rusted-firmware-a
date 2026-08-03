@@ -298,7 +298,7 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
     ) {
         self.page_table.call_once(|| {
             let page_heap = page_heap.take();
-            let mut idmap = init_page_table::<PAGE_HEAP_PAGE_COUNT, PlatformImpl>(page_heap);
+            let idmap = init_page_table::<PAGE_HEAP_PAGE_COUNT, PlatformImpl>(page_heap);
 
             trace!("Page table: {idmap:?}");
 
@@ -573,7 +573,7 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> IdMap<PAGE_HEAP_PAGE_COUNT> {
         }
     }
 
-    fn mark_active(&mut self) {
+    fn mark_active(&self) {
         self.mapping.mark_active();
     }
 
@@ -671,7 +671,7 @@ mod tests {
 
         let page_heap = PAGE_HEAP.take();
 
-        let mut idmap =
+        let idmap =
             init_page_table::<{ TestPlatform::PAGE_HEAP_PAGE_COUNT }, TestPlatform>(page_heap);
         assert_ne!(idmap.root_address().0, 0);
         idmap.mark_active();

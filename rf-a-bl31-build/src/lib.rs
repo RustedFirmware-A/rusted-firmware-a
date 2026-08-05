@@ -55,7 +55,8 @@ fn define_linker_symbol(name: &str, value: u64) {
     println!("cargo:rustc-link-arg=--defsym=\"{name}\"={value}");
 }
 
-type BuildResult = Result<(), Box<dyn Error>>;
+/// Result type for platform build configurations.
+pub type BuildResult = Result<(), Box<dyn Error>>;
 
 /// Trait implemented by each platform.
 pub trait Builder {

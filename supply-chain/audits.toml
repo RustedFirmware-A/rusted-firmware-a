@@ -518,6 +518,17 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.10.0 -> 2.11.0"
 notes = "No unsafe code. Only substantial non-test change is adding some trivial methods."
 
+[[audits.bitflags]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
+delta = "2.11.0 -> 2.13.1"
+notes = """
+Adds a new flag renaming feature. Updates documentation on fields.
+"ub-risk-1"
+Missed in previous audits; since 2.2.0, unsafe impls for `Zeroable` and `Pod` are generated when
+feature `bytemuck` is enabled. The safety of these implementations is well-documented.
+"""
+
 [[audits.buddy_system_allocator]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"

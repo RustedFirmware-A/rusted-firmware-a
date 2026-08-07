@@ -403,15 +403,16 @@ mod tests {
 
             let gicd = UniqueMmioPointer::from(&mut self.gicd_regs);
             let gicr_base = NonNull::new(self.gicr_regs.as_mut_ptr()).unwrap();
-            // SAFETY: The gicr_base pointer comes from a reference to an array of fake registers which
-            // we don't otherwise access after this point, and the last entry is marked as such.
+            // SAFETY: The gicr_base pointer comes from a reference to an array of fake registers
+            // which we don't otherwise access as long as the returned `Gic` instance exists, and
+            // the last entry is marked as such.
             unsafe { Gic::new(gicd, gicr_base, false) }
         }
     }
 
     #[test]
     fn create_save_restore_off() {
-        let fake_gic = Box::leak(Box::new(FakeGic::new_zeroed()));
+        let mut fake_gic = Box::new(FakeGic::new_zeroed());
         let gic = fake_gic.build();
 
         let mut distributor_context = GicDistributorContext::<

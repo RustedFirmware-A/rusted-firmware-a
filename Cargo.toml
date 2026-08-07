@@ -66,6 +66,10 @@ rf-a-bl31-build = { version = "0.1.0", path = "rf-a-bl31-build" }
 arm-gic = { version = "0.8.1", features = ["fakes"] }
 arm-sysregs = { version = "0.4.0", features = ["fakes"] }
 
+[workspace.dependencies]
+rf-a-bl31 = { version = "0.1.0", default-features = false, path = "." }
+rf-a-bl31-build = { version = "0.1.0", path = "rf-a-bl31-build" }
+
 [features]
 default = ["sel2"]
 fakes = ["arm-gic/fakes", "arm-sysregs/fakes"]

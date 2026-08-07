@@ -14,10 +14,10 @@ description = "RF-A BL31 for QEMU"
 [dependencies]
 arm-pl011-uart = { version = "0.5.0", default-features = false }
 arm-pl061 = { version = "0.2.0", default-features = false }
-rf-a-bl31 = { version = "0.1.0", default-features = false, path = ".." }
+rf-a-bl31 = { workspace = true, default-features = false }
 
 [build-dependencies]
-rf-a-bl31-build = { version = "0.1.0", path = "../rf-a-bl31-build" }
+rf-a-bl31-build = { workspace = true }
 
 [features]
 default = ["sel2"]

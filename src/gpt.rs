@@ -19,6 +19,7 @@ use arm_sysregs::{
     },
 };
 use core::fmt::Debug;
+use core::ops::{Add, Sub};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 pub use table::GPIAccessType;
 
@@ -39,7 +40,40 @@ macro_rules! mask {
 }
 pub(crate) use mask;
 
-pub type PA = usize;
+/// Physical Address
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Ord, PartialOrd)]
+pub struct PA(pub usize);
+
+impl Sub for PA {
+    type Output = isize;
+
+    fn sub(self, other: Self) -> Self::Output {
+        (self.0 as isize) - (other.0 as isize)
+    }
+}
+
+impl Sub<usize> for PA {
+    type Output = Self;
+
+    fn sub(self, other: usize) -> Self::Output {
+        Self(self.0 - other)
+    }
+}
+
+impl Add<usize> for PA {
+    type Output = Self;
+
+    fn add(self, other: usize) -> Self::Output {
+        Self(self.0 + other)
+    }
+}
+
+impl PA {
+    const fn align_down(&self, alignment: usize) -> Self {
+        assert!(alignment.is_power_of_two());
+        PA(self.0 & !(alignment - 1))
+    }
+}
 
 /// Errors returned when manipulating the [`GranuleProtection`] object.
 #[allow(unused)]
@@ -224,7 +258,7 @@ impl<'a> GranuleProtection<'a> {
     /// - `base_pa`: Address of the granule whose GPI is updated.
     /// - `gpi`: Describes which Physical Address Space the granule will belong to.
     pub fn set(&mut self, base_pa: PA, gpi: GPIAccessType) -> Result<(), GranuleError> {
-        if base_pa >= self.config.pps.size() {
+        if base_pa.0 >= self.config.pps.size() {
             return Err(GranuleError::InvalidRequest);
         }
         // Do not allow setting to a currently unsupported GPI value.
@@ -253,7 +287,7 @@ impl<'a> GranuleProtection<'a> {
             dsb_oshst();
 
             // Ensure that all agents observe the new configuration.
-            tlbi_rpalos(base_pa, contig.size().into());
+            tlbi_rpalos(base_pa.0, contig.size().into());
             dsb_osh();
         }
 
@@ -265,7 +299,7 @@ impl<'a> GranuleProtection<'a> {
             dsb_oshst();
 
             // Ensure that all agents observe the new configuration.
-            tlbi_rpalos(base_pa, self.config.pgs.into());
+            tlbi_rpalos(base_pa.0, self.config.pgs.into());
             dsb_osh();
 
             self.fuse_descriptors(base_pa, gpi, l1_table)
@@ -277,7 +311,7 @@ impl<'a> GranuleProtection<'a> {
 
     /// Looks up the access control mapping of the memory region starting at `base_pa` from the GPT.
     pub fn lookup(&self, base_pa: PA) -> Result<GPIAccessType, GranuleError> {
-        if base_pa >= self.config.pps.size() {
+        if base_pa.0 >= self.config.pps.size() {
             return Err(GranuleError::InvalidRequest);
         }
         let l0_idx = self.config.l0_resolve(base_pa);
@@ -325,7 +359,7 @@ impl<'a> GranuleProtection<'a> {
 
     /// Align `base_pa` to `contig`, and fill the next `ContigSize` range with contiguous descriptors.
     fn fuse(&self, base_pa: PA, gpi: GPIAccessType, l1: &mut Level1Table, contig: ContigSize) {
-        let base_aligned = contig.align_pa(base_pa);
+        let base_aligned = base_pa.align_down(contig.size());
         let contig_desc = Level1Descriptor::contig(contig, gpi);
         self.fill_descs(base_aligned, contig.size() / self.pgs(), contig_desc, l1);
     }
@@ -359,7 +393,7 @@ impl<'a> GranuleProtection<'a> {
         l1: &Level1Table,
         contig: ContigSize,
     ) -> Result<bool, GranuleError> {
-        let base_aligned = contig.align_pa(base_pa);
+        let base_aligned = base_pa.align_down(contig.size());
         let step = 16 * self.pgs();
         for offset in (0..contig.size()).step_by(step) {
             let pa = base_aligned + offset;
@@ -381,8 +415,8 @@ impl<'a> GranuleProtection<'a> {
     /// - bits of `base_pa` selecting the L1 table are not checked, it is assumed to point to `l1`,
     fn fill_descs(&self, base_pa: PA, count: usize, desc: Level1Descriptor, l1: &mut Level1Table) {
         let end_pa = base_pa + count * self.pgs();
-        for pa in (base_pa..end_pa).step_by(16 * self.pgs()) {
-            let l1_idx = self.config.l1_resolve(pa);
+        for pa in (base_pa.0..end_pa.0).step_by(16 * self.pgs()) {
+            let l1_idx = self.config.l1_resolve(PA(pa));
             l1[l1_idx] = desc;
         }
     }
@@ -397,7 +431,7 @@ impl<'a> GranuleProtection<'a> {
         gpi: GPIAccessType,
         l1: &mut Level1Table,
     ) {
-        let base_aligned = size.align_pa(base_pa);
+        let base_aligned = base_pa.align_down(size.size());
         let Some(smaller) = size.next_smaller() else {
             // Shattering a 2 MB contiguous descriptor to granules.
             let desc = Level1Descriptor::granule(&[gpi; 16]);
@@ -405,11 +439,11 @@ impl<'a> GranuleProtection<'a> {
             return;
         };
 
-        let base_small_aligned = smaller.align_pa(base_pa);
+        let base_small_aligned = base_pa.align_down(smaller.size());
         // Fill with the smaller ContigSize variant
         let desc = Level1Descriptor::contig(smaller, gpi);
         // 1. fill before
-        let bytes_pre = base_small_aligned - base_aligned;
+        let bytes_pre: usize = (base_small_aligned - base_aligned).try_into().unwrap();
         self.fill_descs(base_aligned, bytes_pre / self.pgs(), desc, l1);
         // 2. shatter the middle part
         self.shatter_contig(base_pa, smaller, gpi, l1);
@@ -555,17 +589,17 @@ struct GranuleProtectionConfig {
 impl GranuleProtectionConfig {
     /// Retrieve the index of the L0 entry referencing the given PA.
     fn l0_resolve(&self, pa: PA) -> usize {
-        (pa & mask!(self.pps.width())) >> (self.l0gptsz.width())
+        (pa.0 & mask!(self.pps.width())) >> (self.l0gptsz.width())
     }
 
     /// Retrieve the index of the L1 entry referencing the given PA.
     fn l1_resolve(&self, pa: PA) -> usize {
-        (pa & mask!(self.l0gptsz.width())) >> (self.pgs.width() + 4)
+        (pa.0 & mask!(self.l0gptsz.width())) >> (self.pgs.width() + 4)
     }
 
     /// Retrieve the index inside a granule referencing the given PA.
     fn granule_resolve(&self, pa: PA) -> usize {
-        (pa >> self.pgs.width()) & 0xF
+        (pa.0 >> self.pgs.width()) & 0xF
     }
 }
 #[cfg(test)]
@@ -590,12 +624,12 @@ mod test {
             l0gptsz: Level0GptSize::GB1,
             pgs: PhysicalGranuleSize::KB4,
         };
-        assert_eq!(gpc.l0_resolve(0xabcd_f432_9876), 0x3);
-        assert_eq!(gpc.l0_resolve(0xabcd_5432_9876), 0x1);
-        assert_eq!(gpc.l1_resolve(0xf432_abcd), 0x3432);
-        assert_eq!(gpc.l1_resolve(0xabcd_1234_9876), 0x1234);
-        assert_eq!(gpc.granule_resolve(0xabcd_1234_9876), 0x9);
-        assert_eq!(gpc.granule_resolve(0xf432_abcd), 0xa);
+        assert_eq!(gpc.l0_resolve(PA(0xabcd_f432_9876)), 0x3);
+        assert_eq!(gpc.l0_resolve(PA(0xabcd_5432_9876)), 0x1);
+        assert_eq!(gpc.l1_resolve(PA(0xf432_abcd)), 0x3432);
+        assert_eq!(gpc.l1_resolve(PA(0xabcd_1234_9876)), 0x1234);
+        assert_eq!(gpc.granule_resolve(PA(0xabcd_1234_9876)), 0x9);
+        assert_eq!(gpc.granule_resolve(PA(0xf432_abcd)), 0xa);
     }
 
     #[test]
@@ -605,12 +639,12 @@ mod test {
             l0gptsz: Level0GptSize::GB16,
             pgs: PhysicalGranuleSize::KB64,
         };
-        assert_eq!(gpc.l0_resolve(0xabcd_f432_9876), 0x33);
-        assert_eq!(gpc.l0_resolve(0xcdab_5432_9876), 0x2a);
-        assert_eq!(gpc.l1_resolve(0xf432_abcd), 0xf43);
-        assert_eq!(gpc.l1_resolve(0xabcd_1234_9876), 0x1123);
-        assert_eq!(gpc.granule_resolve(0xabcd_1234_9876), 0x4);
-        assert_eq!(gpc.granule_resolve(0xf432_abcd), 0x2);
+        assert_eq!(gpc.l0_resolve(PA(0xabcd_f432_9876)), 0x33);
+        assert_eq!(gpc.l0_resolve(PA(0xcdab_5432_9876)), 0x2a);
+        assert_eq!(gpc.l1_resolve(PA(0xf432_abcd)), 0xf43);
+        assert_eq!(gpc.l1_resolve(PA(0xabcd_1234_9876)), 0x1123);
+        assert_eq!(gpc.granule_resolve(PA(0xabcd_1234_9876)), 0x4);
+        assert_eq!(gpc.granule_resolve(PA(0xf432_abcd)), 0x2);
     }
 
     /// Dynamically allocates a 'static buffer for `elems` entries of `size` bytes. The resulting
@@ -682,7 +716,7 @@ mod test {
     macro_rules! add_table_at_idx {
         ($gpt:ident, $l1name:ident, $idx:expr) => {
             declare_l1!($l1name, $gpt.config.pgs, $gpt.config.l0gptsz, 1);
-            $gpt.level0.0[$idx] = Level0Descriptor::table($l1name.as_ptr() as u64);
+            $gpt.level0.0[$idx] = Level0Descriptor::table(PA($l1name.as_ptr() as usize));
         };
     }
 
@@ -842,20 +876,20 @@ mod test {
         // Set first descriptor to Block::NoAccess
         write_block!(l0table, 0, GPIAccessType::NoAccess);
 
-        let addr_0 = (1 << gpc.l0gptsz.width()) - 1;
+        let addr_0 = PA(1 << gpc.l0gptsz.width()) - 1;
         assert_eq!(gpc.l0_resolve(addr_0), 0);
         assert_eq!(gpt.lookup(addr_0), Ok(GPIAccessType::NoAccess));
 
         // Create secure block
-        let addr_1 = 1 << gpc.l0gptsz.width();
+        let addr_1 = PA(1 << gpc.l0gptsz.width());
         assert_eq!(gpc.l0_resolve(addr_1), 1);
         write_block!(l0table, 1, GPIAccessType::Secure);
         assert_eq!(gpt.lookup(addr_1), Ok(GPIAccessType::Secure));
 
         // Create L1 table
-        let addr_2 = 2 << gpc.l0gptsz.width();
+        let addr_2 = PA(2 << gpc.l0gptsz.width());
         declare_l1!(l1table, gpc.pgs, gpc.l0gptsz, 32);
-        let base = l1table.as_ptr() as u64;
+        let base = PA(l1table.as_ptr() as usize);
         let desc = Level0Descriptor::table(base);
         let offset = 2 * size_of::<Level0Descriptor>();
         let bytes = desc.as_bytes();
@@ -901,7 +935,7 @@ mod test {
 
         declare_empty_gpt!(gpt, l0table, gpc);
 
-        let addr_0 = (1 << 30) - 1;
+        let addr_0 = PA(1 << 30) - 1;
         assert_eq!(gpc.l0_resolve(addr_0), 0);
 
         assert_eq!(gpt.lookup(addr_0), Err(GranuleError::InvalidL0Entry));
@@ -917,7 +951,7 @@ mod test {
 
         declare_gpt_noaccess!(gpt, l0table, gpc);
         // Create L1 table
-        let addr_1 = 1 << gpc.l0gptsz.width();
+        let addr_1 = PA(1 << gpc.l0gptsz.width());
         add_table_at_idx!(gpt, l1table, 1);
 
         // L1 table initialized with zeros means they are granules with NoAccess GPI.
@@ -1032,10 +1066,10 @@ mod test {
         declare_gpt_noaccess!(gpt, l0, gpc);
         add_table_at_idx!(gpt, l1, 0);
 
-        gpt.set(0, GPIAccessType::Root)?;
-        gpt.set(1 * gpt.pgs(), GPIAccessType::Realm)?;
-        gpt.set(2 * gpt.pgs(), GPIAccessType::Secure)?;
-        gpt.set(3 * gpt.pgs(), GPIAccessType::NonSecure)?;
+        gpt.set(PA(0), GPIAccessType::Root)?;
+        gpt.set(PA(1 * gpt.pgs()), GPIAccessType::Realm)?;
+        gpt.set(PA(2 * gpt.pgs()), GPIAccessType::Secure)?;
+        gpt.set(PA(3 * gpt.pgs()), GPIAccessType::NonSecure)?;
 
         assert_gpt_eq(
             &gpt,
@@ -1066,7 +1100,7 @@ mod test {
         add_table_at_idx!(gpt, l1, 0);
 
         for pa in (0..0x20_0000).step_by(gpt.pgs()) {
-            gpt.set(pa, GPIAccessType::Root)?;
+            gpt.set(PA(pa), GPIAccessType::Root)?;
         }
 
         assert_gpt_eq(
@@ -1091,10 +1125,10 @@ mod test {
         add_table_at_idx!(gpt, l1, 0);
 
         for pa in (0..0x20_0000).step_by(gpt.pgs()) {
-            gpt.set(pa, GPIAccessType::Root)?;
+            gpt.set(PA(pa), GPIAccessType::Root)?;
         }
         for pa in (0x20_0000..0x40_0000).step_by(gpt.pgs()) {
-            gpt.set(pa, GPIAccessType::Realm)?;
+            gpt.set(PA(pa), GPIAccessType::Realm)?;
         }
 
         assert_gpt_eq(
@@ -1122,7 +1156,7 @@ mod test {
         add_table_at_idx!(gpt, l1, 0);
 
         for pa in (0..0x20_0000).step_by(gpt.pgs()) {
-            gpt.set(pa, GPIAccessType::Root)?;
+            gpt.set(PA(pa), GPIAccessType::Root)?;
         }
 
         assert_gpt_eq(
@@ -1133,8 +1167,8 @@ mod test {
             )],
         );
 
-        gpt.set(0x10_0000, GPIAccessType::Secure)?;
-        gpt.set(0x10_0000 + 4 * gpt.pgs(), GPIAccessType::Secure)?;
+        gpt.set(PA(0x10_0000), GPIAccessType::Secure)?;
+        gpt.set(PA(0x10_0000) + 4 * gpt.pgs(), GPIAccessType::Secure)?;
 
         assert_gpt_eq(
             &gpt,
@@ -1182,7 +1216,7 @@ mod test {
         add_table_at_idx!(gpt, l1, 0);
 
         for pa in (0..0x4000_0000).step_by(gpt.pgs()) {
-            gpt.set(pa, GPIAccessType::Root)?;
+            gpt.set(PA(pa), GPIAccessType::Root)?;
         }
 
         assert_gpt_eq(
@@ -1196,7 +1230,7 @@ mod test {
             )],
         );
 
-        gpt.set(0x0, GPIAccessType::Realm)?;
+        gpt.set(PA(0x0), GPIAccessType::Realm)?;
 
         assert_gpt_eq(
             &gpt,
@@ -1266,7 +1300,7 @@ mod test {
         );
 
         // Check if changing back to Root triggers fusing back to 512MB contigs
-        gpt.set(0x0, GPIAccessType::Root)?;
+        gpt.set(PA(0x0), GPIAccessType::Root)?;
 
         assert_gpt_eq(
             &gpt,
@@ -1282,7 +1316,7 @@ mod test {
         // Check that overwriting the whole range with granules works.
 
         for pa in (0..0x4000_0000).step_by(gpt.pgs()) {
-            gpt.set(pa, GPIAccessType::Secure)?;
+            gpt.set(PA(pa), GPIAccessType::Secure)?;
         }
 
         assert_gpt_eq(

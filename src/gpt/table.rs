@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::{GranuleError, GranuleProtectionConfig, mask};
+use super::{GranuleError, GranuleProtectionConfig, PA, mask};
 use core::fmt::Debug;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -128,11 +128,6 @@ impl ContigSize {
         1 << self.shift()
     }
 
-    /// Aligns `addr` to ContigSize.
-    pub const fn align_pa(&self, addr: usize) -> usize {
-        addr / self.size() * self.size()
-    }
-
     /// Returns the `ContigSize` smaller than `self`, or None if `self` is 2 MB.
     pub const fn next_smaller(&self) -> Option<ContigSize> {
         match self {
@@ -202,7 +197,8 @@ impl Level0Descriptor {
     /// Creates a Table Descriptor pointing to `addr`.
     /// Used only for manually creating L1 tables in unittests.
     #[allow(unused)]
-    pub const fn table(addr: u64) -> Self {
+    pub const fn table(addr: PA) -> Self {
+        let addr: u64 = addr.0 as u64;
         let mask = Self::TABLE_ADDR_MASK as u64;
         assert!(addr & mask == addr);
         Self(Self::TABLE_TAG | (addr & mask))
@@ -214,8 +210,8 @@ pub(crate) struct TableDescriptorRef<'a>(&'a Level0Descriptor);
 
 impl<'a> TableDescriptorRef<'a> {
     /// Returns the index of the table referenced by this descriptor within the provided L1 buffer.
-    pub fn address(&self) -> usize {
-        self.0.0 as usize & Level0Descriptor::TABLE_ADDR_MASK
+    pub fn address(&self) -> PA {
+        PA(self.0.0 as usize & Level0Descriptor::TABLE_ADDR_MASK)
     }
 
     /// Returns the `Level1Table` corresponding to this `TableDescriptorRef`.
@@ -234,7 +230,7 @@ impl<'a> TableDescriptorRef<'a> {
         // - It is assumed that only one GranuleProtection object is created.
         unsafe {
             from_raw_parts_mut(
-                self.address() as *mut _,
+                self.address().0 as *mut Level1Descriptor,
                 1 << (config.l0gptsz.width() - (config.pgs.width() + 4)),
             )
         }
@@ -256,7 +252,7 @@ impl<'a> TableDescriptorRef<'a> {
         // - It is assumed that only one GranuleProtection object is created.
         unsafe {
             from_raw_parts(
-                self.address() as *const _,
+                self.address().0 as *const Level1Descriptor,
                 1 << (config.l0gptsz.width() - (config.pgs.width() + 4)),
             )
         }
@@ -536,10 +532,10 @@ mod tests {
     #[test]
     fn create_table() {
         assert_valid_descriptor!(
-            &Level0Descriptor::table(0x1234_0000),
+            &Level0Descriptor::table(PA(0x1234_0000)),
             Level0DescriptorRef::Table(table) =>
             {
-                assert_eq!(table.address(), 0x1234_0000);
+                assert_eq!(table.address().0, 0x1234_0000);
             }
         );
     }
@@ -562,7 +558,7 @@ mod tests {
             &Level0Descriptor(0x1000_0000_2003),
             Level0DescriptorRef::Table(desc) =>
             {
-                assert_eq!(desc.address(), 0x1000_0000_2000);
+                assert_eq!(desc.address().0, 0x1000_0000_2000);
             }
         );
 
@@ -570,7 +566,7 @@ mod tests {
             &Level0Descriptor(0x1000_0001_0003),
             Level0DescriptorRef::Table(desc) =>
             {
-                assert_eq!(desc.address(), 0x1000_0001_0000);
+                assert_eq!(desc.address().0, 0x1000_0001_0000);
             }
         );
     }

@@ -21,7 +21,7 @@ use spin::{Once, mutex::SpinMutex};
 use crate::{
     aarch64::dsb_osh,
     context::{CoresImpl, World},
-    gpt::{GPIAccessType, GranuleProtection},
+    gpt::{GPIAccessType, GranuleProtection, PA},
     pagetable::flush_dcache_to_popa_range,
     platform::{Platform, exception_free},
     services::{
@@ -376,7 +376,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 let sctlr = read_sctlr_el3();
                 assert!(sctlr.contains(SctlrEl3::C));
 
-                let gpi = match gpt.lookup(base_pa) {
+                let gpi = match gpt.lookup(PA(base_pa)) {
                     Ok(gpi) => gpi,
                     Err(crate::gpt::GranuleError::InvalidRequest) => {
                         regs.set_from(RmmCommandReturnCode::BadAddress);
@@ -403,7 +403,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 // physical address space (realm PAS in this case).
                 flush_dcache_to_popa_range(base_pa, pgs, GPIAccessType::Realm)
                     .map_err(|_| RmmCommandReturnCode::BadAddress)?;
-                match gpt.set(base_pa, GPIAccessType::Realm) {
+                match gpt.set(PA(base_pa), GPIAccessType::Realm) {
                     Ok(_) => (),
                     Err(crate::gpt::GranuleError::InvalidRequest) => {
                         regs.set_from(RmmCommandReturnCode::BadAddress);
@@ -438,7 +438,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 let sctlr = read_sctlr_el3();
                 assert!(sctlr.contains(SctlrEl3::C));
 
-                let gpi = match gpt.lookup(base_pa) {
+                let gpi = match gpt.lookup(PA(base_pa)) {
                     Ok(gpi) => gpi,
                     Err(crate::gpt::GranuleError::InvalidRequest) => {
                         regs.set_from(RmmCommandReturnCode::BadAddress);
@@ -464,7 +464,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 // states, remove access now, in order to guarantee that writes
                 // to the currently-accessible physical address space will not
                 // later become observable.
-                match gpt.set(base_pa, GPIAccessType::NoAccess) {
+                match gpt.set(PA(base_pa), GPIAccessType::NoAccess) {
                     Ok(_) => (),
                     Err(crate::gpt::GranuleError::InvalidRequest) => {
                         regs.set_from(RmmCommandReturnCode::BadAddress);
@@ -486,7 +486,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 flush_dcache_to_popa_range(base_pa, pgs, GPIAccessType::NonSecure)
                     .map_err(|_| RmmCommandReturnCode::BadAddress)?;
                 dsb_osh();
-                match gpt.set(base_pa, GPIAccessType::NonSecure) {
+                match gpt.set(PA(base_pa), GPIAccessType::NonSecure) {
                     Ok(_) => (),
                     Err(crate::gpt::GranuleError::InvalidRequest) => {
                         regs.set_from(RmmCommandReturnCode::BadAddress);

@@ -116,7 +116,11 @@ It implements the TRNG SMCs as defined by Arm document DEN0098.
 
 ## RMM-EL3 Interface (`src/services/rmmd.rs`)
 
-This service is available to normal and realm worlds. The normal world interface validates RMI calls, and forwards them to the realm world. The realm world interface implements the following calls:
+This service is available to normal and realm worlds. The normal world interface forwards RMI calls
+to the realm world. Currently, RF-A does not validate RMI arguments: all calls with function ids in
+the RMI range are forwarded. The RMI functions are based on the [RMM specification][1] version 2.0-bet3.
+
+The realm world interface implements the following calls:
 
 | Interface                             | Support       | Notes                                                        |
 | ------------------------------------- | ------------- | ------------------------------------------------------------ |
@@ -140,5 +144,7 @@ Platforms may implement their own SMC service, which can internally further disp
 if needed.
 
 ---
+
+[1]: https://support.arm.com/documentation/den0137/2-0bet3
 
 _Copyright The Rusted Firmware-A Contributors._

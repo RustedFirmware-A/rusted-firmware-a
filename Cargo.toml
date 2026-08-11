@@ -31,6 +31,7 @@ aarch64-paging = { version = "0.12.1", default-features = false }
 arm-ffa = "0.5.0"
 arm-gic = { version = "0.10.0", features = ["el3"] }
 arm-psci = "0.2.0"
+arm-rmi = { version = "0.1.0", path = "arm-rmi", optional = true }
 arm-sysregs = { version = "0.5.1", features = ["el3"] }
 arrayvec = { version = "0.7.8", default-features = false }
 bitflags = "2.13.1"
@@ -65,7 +66,7 @@ rf-a-build = { version = "0.1.0", path = "rf-a-build" }
 default = ["sel2"]
 fakes = ["arm-gic/fakes", "arm-sysregs/fakes"]
 pauth = []
-rme = ["sel2"]
+rme = ["dep:arm-rmi", "sel2"]
 sel2 = []
 max_log_off = ["log/max_level_off"]
 max_log_error = ["log/max_level_error"]

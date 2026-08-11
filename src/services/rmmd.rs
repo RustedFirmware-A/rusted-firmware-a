@@ -7,6 +7,7 @@
 pub mod manifest;
 pub mod svc;
 
+use arm_rmi::RmiFuncId;
 use core::{
     cell::RefCell,
     marker::PhantomData,
@@ -14,7 +15,6 @@ use core::{
     sync::atomic::{AtomicU8, Ordering},
 };
 use log::{debug, error, warn};
-use num_enum::TryFromPrimitive;
 use percore::{Cores, ExceptionLock, derive::percore};
 use spin::{Once, mutex::SpinMutex};
 
@@ -186,34 +186,6 @@ enum RmmBootState {
 
 static GRANULE_PROTECTION_TABLE: Once<SpinMutex<GranuleProtection>> = Once::new();
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
-#[repr(u32)]
-enum RmiFuncId {
-    DataCreate = 0xC400_0153,
-    DataCreateUnknown = 0xC400_0154,
-    DataDestroy = 0xC400_0155,
-    Features = 0xC400_0165,
-    GranuleDelegate = 0xC400_0151,
-    GranuleUndelegate = 0xC400_0152,
-    PsciComplete = 0xC400_0164,
-    RealmActivate = 0xC400_0157,
-    RealmCreate = 0xC400_0158,
-    RealmDestroy = 0xC400_0159,
-    RmmAuxCount = 0xC400_0167,
-    RmmCreate = 0xC400_015A,
-    RmmDestroy = 0xC400_015B,
-    RmmEnter = 0xC400_015C,
-    RttCreate = 0xC400_015D,
-    RttDestroy = 0xC400_015E,
-    RttFold = 0xC400_0166,
-    RttInitRipas = 0xC400_0168,
-    RttMapUnprotected = 0xC400_015F,
-    RttReadEntry = 0xC400_0161,
-    RttSetRipas = 0xC400_0169,
-    RttUnmapUnprotected = 0xC400_0162,
-    Version = 0xC400_0150,
-}
-
 #[percore]
 static RMMD_CORE_LOCAL: ExceptionLock<RefCell<RmmdLocal>> =
     ExceptionLock::new(RefCell::new(RmmdLocal::new()));
@@ -231,7 +203,7 @@ pub struct Rmmd<PlatformImpl: Platform> {
 }
 
 impl<PlatformImpl: Platform> Service for Rmmd<PlatformImpl> {
-    owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x01CF}
+    owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x0211}
 
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
         // Only forward RMI calls, if the RMM successfully booted.

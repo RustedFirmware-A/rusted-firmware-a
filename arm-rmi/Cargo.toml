@@ -1,0 +1,16 @@
+# Copyright The Rusted Firmware-A Contributors.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[package]
+name = "arm-rmi"
+version = "0.1.0"
+edition = "2024"
+license = "BSD-3-Clause"
+description = "Definitions for the Realm Management Interface"
+keywords = []
+categories = ["embedded", "no-std", "no-std::no-alloc"]
+rust-version = "1.90"
+
+[dependencies]
+num_enum = { version = "0.7.4", default-features = false }

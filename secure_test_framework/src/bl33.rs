@@ -17,8 +17,6 @@ mod heap;
 mod logger;
 mod pagetable;
 mod platform;
-#[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]
-mod rmi;
 mod secondary;
 mod tests;
 mod util;

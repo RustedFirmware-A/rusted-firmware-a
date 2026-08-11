@@ -120,6 +120,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "arm-rmi"
+version = "0.1.0"
+dependencies = [
+ "num_enum",
+]
+
+[[package]]
 name = "arm-sp805"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -349,6 +356,7 @@ dependencies = [
  "arm-ffa",
  "arm-gic",
  "arm-psci",
+ "arm-rmi",
  "arm-sysregs",
  "arrayvec",
  "bitflags",
@@ -393,6 +401,7 @@ dependencies = [
  "arm-gic",
  "arm-pl011-uart",
  "arm-psci",
+ "arm-rmi",
  "arm-sysregs",
  "bitflags",
  "buddy_system_allocator",

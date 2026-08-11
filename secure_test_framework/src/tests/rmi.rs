@@ -11,9 +11,15 @@ use crate::{
     expect,
     framework::expect::fail,
     platform::{Platform, PlatformImpl},
-    rmi::{RMI_GRANULE_DELEGATE, RMI_GRANULE_UNDELEGATE, RMI_VERSION, RmiStatusCode},
+};
+use arm_rmi::{
+    RmiFuncId::{GranuleRangeDelegate, GranuleRangeUndelegate, Version},
+    RmiStatusCode,
 };
 use smccc::smc64;
+
+// TODO: use RMI_RMM_CONFIG_GET to retrieve the RmiGranuleSize.
+const FVP_PGS: u64 = 0x1000;
 
 macro_rules! check_rmi_status {
     ($status:expr, $expected:expr) => {
@@ -46,7 +52,7 @@ fn test_rmm_version() -> TestResult {
     let mut args = [0; 17];
     args[0] = REQUESTED_VERSION;
 
-    let ret = smc64(RMI_VERSION, args);
+    let ret = smc64(Version as u32, args);
 
     if ret[0] == u64::MAX {
         fail!("RMI_VERSION returned 0x{:x}", ret[0]);
@@ -79,12 +85,13 @@ fn test_granule_delegate() -> TestResult {
         .try_into()
         .unwrap();
     args[0] = addr;
+    args[1] = addr + 2 * FVP_PGS;
 
-    let ret = smc64(RMI_GRANULE_DELEGATE, args);
+    let ret = smc64(GranuleRangeDelegate as u32, args);
     check_rmi_status!(ret[0], RmiStatusCode::Success);
 
     // Undo changes and test undelegation
-    let ret = smc64(RMI_GRANULE_UNDELEGATE, args);
+    let ret = smc64(GranuleRangeUndelegate as u32, args);
     check_rmi_status!(ret[0], RmiStatusCode::Success);
 
     Ok(())
@@ -95,8 +102,9 @@ fn test_granule_delegate_badpas_any() -> TestResult {
     let mut args = [0; 17];
     let addr: u64 = PlatformImpl::PAS_CONFIG.any_start.try_into().unwrap();
     args[0] = addr;
+    args[1] = addr + 2 * FVP_PGS;
 
-    let ret = smc64(RMI_GRANULE_DELEGATE, args);
+    let ret = smc64(GranuleRangeDelegate as u32, args);
     check_rmi_status!(ret[0], RmiStatusCode::ErrorInput);
 
     Ok(())
@@ -107,8 +115,9 @@ fn test_granule_delegate_badpas_realm() -> TestResult {
     let mut args = [0; 17];
     let addr: u64 = PlatformImpl::PAS_CONFIG.realm_start.try_into().unwrap();
     args[0] = addr;
+    args[1] = addr + 2 * FVP_PGS;
 
-    let ret = smc64(RMI_GRANULE_DELEGATE, args);
+    let ret = smc64(GranuleRangeDelegate as u32, args);
     check_rmi_status!(ret[0], RmiStatusCode::ErrorInput);
 
     Ok(())
@@ -119,8 +128,9 @@ fn test_granule_delegate_badpas_secure() -> TestResult {
     let mut args = [0; 17];
     let addr: u64 = PlatformImpl::PAS_CONFIG.secure_start.try_into().unwrap();
     args[0] = addr;
+    args[1] = addr + 2 * FVP_PGS;
 
-    let ret = smc64(RMI_GRANULE_DELEGATE, args);
+    let ret = smc64(GranuleRangeDelegate as u32, args);
     check_rmi_status!(ret[0], RmiStatusCode::ErrorInput);
 
     Ok(())
@@ -131,8 +141,9 @@ fn test_granule_delegate_badpas_root() -> TestResult {
     let mut args = [0; 17];
     let addr: u64 = PlatformImpl::PAS_CONFIG.root_start.try_into().unwrap();
     args[0] = addr;
+    args[1] = addr + 2 * FVP_PGS;
 
-    let ret = smc64(RMI_GRANULE_DELEGATE, args);
+    let ret = smc64(GranuleRangeDelegate as u32, args);
     check_rmi_status!(ret[0], RmiStatusCode::ErrorInput);
 
     Ok(())
@@ -145,8 +156,9 @@ fn test_granule_delegate_unaligned() -> TestResult {
         .try_into()
         .unwrap();
     args[0] = addr;
+    args[1] = addr + 2 * FVP_PGS;
 
-    let ret = smc64(RMI_GRANULE_DELEGATE, args);
+    let ret = smc64(GranuleRangeDelegate as u32, args);
     check_rmi_status!(ret[0], RmiStatusCode::ErrorInput);
 
     Ok(())
@@ -158,8 +170,9 @@ fn test_granule_delegate_oom() -> TestResult {
     // Based on current GPT config, this is the first address outside of the range covered by the GPT.
     let addr: u64 = 0x100_0000_0000;
     args[0] = addr;
+    args[1] = addr + 2 * FVP_PGS;
 
-    let ret = smc64(RMI_GRANULE_DELEGATE, args);
+    let ret = smc64(GranuleRangeDelegate as u32, args);
     check_rmi_status!(ret[0], RmiStatusCode::ErrorInput);
 
     Ok(())

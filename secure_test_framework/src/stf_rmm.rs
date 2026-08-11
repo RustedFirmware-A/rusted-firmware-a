@@ -17,7 +17,6 @@ mod heap;
 mod logger;
 mod pagetable;
 mod platform;
-mod rmi;
 mod rmm;
 mod secondary;
 mod tests;
@@ -29,12 +28,12 @@ use aarch64_paging::paging::PAGE_SIZE;
 #[cfg(not(feature = "test_rmm_fail"))]
 use aarch64_rt::set_exception_vector;
 use aarch64_rt::{enable_mmu, entry};
+use arm_rmi::{RmiFunction, RmiStatusCode};
 use log::{error, info};
 use smccc::{arch::error::NOT_SUPPORTED, psci, smc64};
 
 use crate::{
     platform::{Platform, PlatformImpl, RMM_IDMAP},
-    rmi::{RMI_GRANULE_DELEGATE, RMI_GRANULE_UNDELEGATE, RMI_VERSION, RmiStatusCode},
     rmm::{RMM_BOOT_COMPLETE, RMM_RMI_REQ_COMPLETE, RmmCommandReturnCode},
     secondary::secondary_entry,
     util::current_el,
@@ -46,6 +45,9 @@ const SUPPORTED_RMM_MANIFEST_VERSION: RmmBootManifestVersion =
 
 const GTSI_DELEGATE: u32 = 0xC400_01B0;
 const GTSI_UNDELEGATE: u32 = 0xC400_01B1;
+
+// TODO: use FIRME_SERVICE_FEATURES to get actual size.
+const FVP_PGS: usize = 0x1000;
 
 enable_mmu!(RMM_IDMAP);
 
@@ -172,31 +174,32 @@ fn handle_incoming_calls(mut regs: [u64; 18]) -> ! {
 }
 
 /// Handles a single RMI call from NS world.
-fn handle_rmi_call(regs: &[u64]) -> [u64; 17] {
+fn handle_rmi_call(regs: &[u64; 18]) -> [u64; 17] {
     let not_supported = || {
         let mut ret = [0; 17];
         ret[0] = (NOT_SUPPORTED as i64) as u64;
         return ret;
     };
 
-    let Ok(func_id): Result<u32, _> = regs[0].try_into() else {
+    let Ok(function): Result<RmiFunction, _> = regs.try_into() else {
         return not_supported();
     };
 
-    match func_id {
-        RMI_VERSION => rmi_version(&regs[1..]),
-        RMI_GRANULE_DELEGATE => rmi_granule_delegate(&regs[1..]),
-        RMI_GRANULE_UNDELEGATE => rmi_granule_undelegate(&regs[1..]),
-        _ => {
-            return not_supported();
+    match function {
+        RmiFunction::Version { req } => rmi_version(req),
+        RmiFunction::GranuleRangeDelegate { base_pa, top_pa } => {
+            rmi_granule_range_delegate(base_pa, top_pa, GTSI_DELEGATE)
+        }
+        RmiFunction::GranuleRangeUndelegate { base_pa, top_pa } => {
+            rmi_granule_range_delegate(base_pa, top_pa, GTSI_UNDELEGATE)
         }
     }
 }
 
-fn rmi_version(args: &[u64]) -> [u64; 17] {
+fn rmi_version(req: u64) -> [u64; 17] {
     let mut ret = [0; 17];
 
-    let Ok(requested) = RmmBootManifestVersion::try_from(args[0] as u32) else {
+    let Ok(requested) = RmmBootManifestVersion::try_from(req as u32) else {
         ret[0] = RmiCommandReturnCode::new(RmiStatusCode::ErrorInput, None).into();
         return ret;
     };
@@ -217,31 +220,31 @@ fn rmi_version(args: &[u64]) -> [u64; 17] {
     ret
 }
 
-fn rmi_granule_delegate(args: &[u64]) -> [u64; 17] {
+/// Same helper is used both for delegation and undelegation, based on the `func_id` parameter.
+fn rmi_granule_range_delegate(base_pa: u64, top_pa: u64, func_id: u32) -> [u64; 17] {
     let mut ret = [0; 17];
-    let base_pa = args[0];
-    let mut smc_args: [u64; 17] = [0; 17];
-    smc_args[0] = base_pa;
-    let el3_ret = smc64(GTSI_DELEGATE, smc_args);
-    if el3_ret[0] == u64::from(RmmCommandReturnCode::Ok) {
-        ret[0] = RmiCommandReturnCode::new(RmiStatusCode::Success, None).into()
-    } else {
-        ret[0] = RmiCommandReturnCode::new(RmiStatusCode::ErrorInput, None).into()
+    // x1 should hold top_pa of the delegated range, which is base_pa before starting the
+    // operation.
+    ret[1] = base_pa;
+    // TODO: use FIRME_GM_GPI_SET to set the whole range in one call.
+    for pa in (base_pa..top_pa).step_by(FVP_PGS) {
+        let mut smc_args: [u64; 17] = [0; 17];
+        smc_args[0] = pa;
+        let el3_ret = smc64(func_id, smc_args);
+        if el3_ret[0] != u64::from(RmmCommandReturnCode::Ok) {
+            let status = if pa == base_pa {
+                RmiStatusCode::ErrorInput
+            } else {
+                RmiStatusCode::Success
+            };
+            ret[0] = RmiCommandReturnCode::new(status, None).into();
+            return ret;
+        }
+        // after each successful delegation, bump top_pa.
+        ret[1] = pa;
     }
-    ret
-}
 
-fn rmi_granule_undelegate(args: &[u64]) -> [u64; 17] {
-    let mut ret = [0; 17];
-    let base_pa = args[0];
-    let mut smc_args: [u64; 17] = [0; 17];
-    smc_args[0] = base_pa;
-    let el3_ret = smc64(GTSI_UNDELEGATE, smc_args);
-    if el3_ret[0] == u64::from(RmmCommandReturnCode::Ok) {
-        ret[0] = RmiCommandReturnCode::new(RmiStatusCode::Success, None).into()
-    } else {
-        ret[0] = RmiCommandReturnCode::new(RmiStatusCode::ErrorInput, None).into()
-    }
+    ret[0] = RmiCommandReturnCode::new(RmiStatusCode::Success, None).into();
     ret
 }
 

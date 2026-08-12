@@ -477,6 +477,48 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.1 -> 0.3.3"
 notes = "Adds additional registers, feature checker functions, and fixes compile flags."
 
+[[audits.arm-sysregs]]
+who = "Gergely Bálint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.3 -> 0.4.0"
+notes = "Moves parts of arm-sysregs 0.3.3 into new dependency crates."
+
+[[audits.arm-sysregs-aarch32]]
+who = "Gergely Bálint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.4.0"
+notes = "Refactor: contains aarch32 registers from arm-sysregs 0.3.3."
+
+[[audits.arm-sysregs-common]]
+who = "Gergely Bálint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.4.0"
+notes = "Refactor: contains code that was previously in arm-sysregs 0.3.3 version."
+
+[[audits.arm-sysregs-el0]]
+who = "Gergely Bálint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.4.0"
+notes = "Refactor: contains EL0 registers from arm-sysregs 0.3.3. Adds one more register."
+
+[[audits.arm-sysregs-el1]]
+who = "Gergely Bálint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.4.0"
+notes = "Refactor: contains EL1 registers from arm-sysregs 0.3.3, and adds one more register."
+
+[[audits.arm-sysregs-el2]]
+who = "Gergely Bálint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.4.0"
+notes = "Refactor: contains EL2 registers from arm-sysregs 0.3.3."
+
+[[audits.arm-sysregs-el3]]
+who = "Gergely Bálint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.4.0"
+notes = "Refactor: contains EL3 registers from arm-sysregs 0.3.3."
+
 [[audits.arm-tzc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

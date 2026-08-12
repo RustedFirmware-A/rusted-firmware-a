@@ -17,7 +17,7 @@ mod pan3;
 mod pfar;
 mod psci;
 mod psci_osi;
-#[cfg(feature = "rme")]
+#[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]
 mod rmi;
 #[cfg(any(not(feature = "rme"), feature = "test_rmm_fail"))]
 mod rmi_fail;

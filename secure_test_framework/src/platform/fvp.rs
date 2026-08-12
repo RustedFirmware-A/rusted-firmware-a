@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use super::Platform;
-#[cfg(feature = "rme")]
+#[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]
 use crate::platform::PasConfig;
 use crate::{
     pagetable::{DEVICE_ATTRIBUTES, MEMORY_ATTRIBUTES},
@@ -53,7 +53,7 @@ unsafe impl Platform for Fvp {
 
     // Set by BL2 in
     // trusted-firmware-a/plat/arm/board/fvp/include/fvp_pas_def.h
-    #[cfg(feature = "rme")]
+    #[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]
     const PAS_CONFIG: PasConfig = PasConfig {
         any_start: 0x0,
         non_secure_start: 0x8000_0000,

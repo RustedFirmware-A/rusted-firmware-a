@@ -47,7 +47,9 @@ pub unsafe trait Platform {
     /// The number of CPU cores.
     const CORE_COUNT: usize;
 
-    #[cfg(feature = "rme")]
+    /// Physical Address Space layout of the current platform. Contains start addresses of regions
+    /// with different PAS.
+    #[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]
     const PAS_CONFIG: PasConfig;
 
     /// Returns something to which logs should be sent.

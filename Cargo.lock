@@ -395,6 +395,7 @@ dependencies = [
  "aarch64-paging",
  "aarch64-rt",
  "arm-ffa",
+ "arm-generic-timer",
  "arm-gic",
  "arm-pl011-uart",
  "arm-psci",

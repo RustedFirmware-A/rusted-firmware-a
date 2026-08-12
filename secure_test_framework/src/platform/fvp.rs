@@ -179,8 +179,8 @@ unsafe impl Platform for Fvp {
         Self::STATE_ID_CORE_STANDBY
     }
 
-    fn osi_suspend_duration_ticks() -> u32 {
-        20_000
+    fn osi_suspend_duration_us() -> u32 {
+        200
     }
 
     fn osi_suspend_entry_delay_us() -> u64 {

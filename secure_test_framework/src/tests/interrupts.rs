@@ -17,7 +17,10 @@ use crate::{
 };
 use arm_ffa::Interface;
 use arm_gic::{Trigger, wfi};
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 use log::debug;
 
 /// Generic response to just indicate that the secure world helper
@@ -85,7 +88,13 @@ fn timer_helper<TIMER: Timer>(request: TestHelperRequest) -> Result<TestHelperRe
 
         let timer_handler = || {
             debug!("Stopping timer");
-            TIMER::stop();
+
+            // SAFETY: the setup timer instance has been dropped before the interrupt can be
+            // handled, and this handler is the only code accessing this timer's system registers.
+            let mut timer = unsafe { TIMER::timer() };
+
+            timer.disable_interrupt();
+
             TIMER_HANDLED.store(true, Ordering::Release);
         };
 
@@ -93,8 +102,13 @@ fn timer_helper<TIMER: Timer>(request: TestHelperRequest) -> Result<TestHelperRe
         // The closure can be passed as a function pointer.
         set_interrupt_handler(TIMER::INTERRUPT_ID, Trigger::Level, Some(timer_handler));
 
-        // Configure the specific timer `TIMER`.
-        TIMER::set(1_000_000);
+        // SAFETY: this helper does not create another `TIMER` instance or concurrently access this
+        // timer's system registers while configuring it.
+        let mut timer = unsafe { TIMER::timer() };
+
+        timer.set_remaining_time(Duration::from_millis(1));
+        timer.enable_interrupt();
+        timer.enable();
 
         Ok(PHASE_SUCCESS)
     };

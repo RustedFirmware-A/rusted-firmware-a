@@ -18,6 +18,7 @@ aarch64-rt = { version = "0.4.3", default-features = false, features = [
 aarch64-paging = { version = "0.12.1", default-features = false }
 arm-ffa = "0.5.0"
 arm-psci = "0.2.0"
+arm-generic-timer = { version = "0.3.0", default-features = false, features = ["el2"] }
 arm-gic = { version = "0.9.1", features = ["el2"] }
 arm-pl011-uart = { version = "0.5.0", default-features = false }
 arm-sysregs = { version = "0.4.0", features = ["el2"] }

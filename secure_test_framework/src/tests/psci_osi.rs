@@ -27,6 +27,7 @@ use core::{
     arch::naked_asm,
     hint::spin_loop,
     sync::atomic::{AtomicBool, AtomicU32, Ordering},
+    time::Duration,
 };
 use log::trace;
 use smccc::{
@@ -195,7 +196,13 @@ static OSI_CORES: [OsiCoreState; PlatformImpl::CORE_COUNT] =
 
 /// Interrupt handler for the non-secure timer. Signals completion of the suspend duration.
 fn timer_handler() {
-    NonSecureTimer::stop();
+    // SAFETY: the timer instance used to program this PE's timer is dropped before interrupts are
+    // re-enabled and the handler can run. This handler is the only code accessing this PE's CNTP_*
+    // system registers while handling the timer interrupt.
+    let mut timer = unsafe { NonSecureTimer::timer() };
+
+    timer.disable_interrupt();
+
     let core_idx = PlatformImpl::core_position(read_mpidr_el1());
     OSI_CORES[core_idx]
         .irq_received
@@ -211,7 +218,12 @@ fn set_timer_handler() {
 }
 
 fn teardown_timer() {
-    NonSecureTimer::stop();
+    // SAFETY: teardown runs after suspend/resume has completed, so there is no other
+    // `PhysicalTimer` instance and no concurrent access to this PE's CNTP_* system registers.
+    let mut timer = unsafe { NonSecureTimer::timer() };
+
+    timer.disable_interrupt();
+
     set_interrupt_handler(NonSecureTimer::INTERRUPT_ID, Trigger::Level, None);
 }
 
@@ -227,8 +239,22 @@ fn suspend_and_resume(core_idx: usize, retry_on_denied: bool) -> i32 {
     // Disable IRQs before programming the timer.
     irq_disable();
 
+    // Keep the timer wrapper in this scope so it is dropped before the interrupt handler can create
+    // another wrapper for the same PE-local timer registers.
+    {
+        // SAFETY: this function creates the only `PhysicalTimer` instance for the current PE while
+        // programming its timer. This scope ends before the interrupt handler can access the timer.
+        let mut timer = unsafe { NonSecureTimer::timer() };
+
+        let suspend_duration = u64::from(OSI_CORES[core_idx].duration.load(Ordering::SeqCst));
+
+        timer.set_remaining_time(Duration::from_micros(suspend_duration));
+        timer.enable_interrupt();
+
+        timer.enable();
+    }
+
     set_timer_handler();
-    NonSecureTimer::set(OSI_CORES[core_idx].duration.load(Ordering::SeqCst));
 
     trace!("suspend_and_resume[{core_idx}]: pstate = {pstate:#x}");
 
@@ -326,9 +352,9 @@ fn run_osi_suspend_test(
         core.state_id.store(target_state_id, Ordering::SeqCst);
         // Default last level = 0 (CPU level).
         core.last_level.store(0, Ordering::SeqCst);
-        // Default duration approx 10ms.
+        // Default suspend duration.
         core.duration
-            .store(PlatformImpl::osi_suspend_duration_ticks(), Ordering::SeqCst);
+            .store(PlatformImpl::osi_suspend_duration_us(), Ordering::SeqCst);
 
         let should_suspend = core_to_keep_awake != Some(i);
         core.should_suspend.store(should_suspend, Ordering::SeqCst);
@@ -384,8 +410,7 @@ fn run_osi_suspend_test(
                     core.last_level.store(local_lvl, Ordering::SeqCst);
                     // Sleep longer to allow Primary to check status and suspend.
                     core.duration.store(
-                        PlatformImpl::osi_suspend_duration_ticks()
-                            * PlatformImpl::CORE_COUNT as u32,
+                        PlatformImpl::osi_suspend_duration_us() * PlatformImpl::CORE_COUNT as u32,
                         Ordering::SeqCst,
                     );
                 }
@@ -425,18 +450,31 @@ fn run_osi_suspend_test(
         }
     }
 
-    // Signal each secondary core to suspend itself (if requested).
-    for (i, core) in OSI_CORES
-        .iter()
-        .enumerate()
-        .take(PlatformImpl::CORE_COUNT)
-        .skip(1)
+    // Keep the timer wrapper in this scope so it is dropped before `suspend_and_resume` creates
+    // another wrapper for the same PE-local timer registers.
     {
-        if !PlatformImpl::osi_should_wake_core(i) {
-            continue;
+        // SAFETY: this creates the only `PhysicalTimer` instance on the primary PE while enabling
+        // the timer and waiting between secondary-core wakeups. No other code accesses this PE's
+        // CNTP_* system registers while it is live.
+        let mut timer = unsafe { NonSecureTimer::timer() };
+        timer.enable();
+
+        // Signal each secondary core to suspend itself (if requested).
+        for (i, core) in OSI_CORES
+            .iter()
+            .enumerate()
+            .take(PlatformImpl::CORE_COUNT)
+            .skip(1)
+        {
+            if !PlatformImpl::osi_should_wake_core(i) {
+                continue;
+            }
+            core.ready.store(true, Ordering::SeqCst);
+
+            timer.wait(Duration::from_micros(
+                PlatformImpl::osi_suspend_entry_delay_us(),
+            ));
         }
-        core.ready.store(true, Ordering::SeqCst);
-        NonSecureTimer::delay_us(PlatformImpl::osi_suspend_entry_delay_us());
     }
 
     // Suspend the primary core.

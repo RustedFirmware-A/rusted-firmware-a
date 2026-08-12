@@ -122,11 +122,11 @@ pub unsafe trait Platform {
         unimplemented!("OSI state ID not implemented")
     }
 
-    /// Returns the duration in timer ticks for which the test should suspend the CPU.
+    /// Returns the duration in microseconds for which the test should suspend the CPU.
     ///
     /// This value is used to program the wake-up timer.
-    fn osi_suspend_duration_ticks() -> u32 {
-        200_000
+    fn osi_suspend_duration_us() -> u32 {
+        10_000
     }
 
     /// Returns the delay in microseconds to wait before a secondary core enters suspend.

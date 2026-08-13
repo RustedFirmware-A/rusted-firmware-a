@@ -73,7 +73,10 @@ STF_FEATURES += max_log_$(STF_LOG_LEVEL)
 TARGET := aarch64-unknown-none-softfloat
 CARGO_FLAGS += --target $(TARGET)
 
-TARGET_RUSTFLAGS = -D warnings
+TARGET_RUSTFLAGS = -D warnings \
+	--remap-path-prefix=$(PWD)= \
+	--remap-path-prefix=$${CARGO_HOME:-$$HOME/.cargo}=/cargo \
+	--remap-path-prefix=$${RUSTUP_HOME:-$$HOME/.rustup}=/rustup
 
 # Whether to build core + friends. Primarily needed for special sanitizers or
 # optimizations. Requires a nightly Cargo.

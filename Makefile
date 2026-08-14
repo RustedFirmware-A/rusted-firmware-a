@@ -89,6 +89,15 @@ PAUTH_EL3 ?= 0
 PAUTH_LR_EL3 ?= 0
 BTI_EL3 ?= 0
 
+# Enable compiling with FEAT_LSE for more efficient atomics.
+#
+# FEAT_LSE is a mandatory feature from v8.1, however some platforms may face issues when enabling it.
+# For this reason, it is on by default, but platforms may choose to build with LSE=0.
+LSE ?= 1
+ifeq ($(LSE), 1)
+	TARGET_RUSTFLAGS += -C target-feature=+lse
+endif
+
 ifeq ($(PAUTH_EL3), 1)
 	BP_OPTIONS += pac-ret
 	FEATURES += pauth

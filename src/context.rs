@@ -176,23 +176,46 @@ impl CpuContext {
         el1_sysregs: El1Sysregs::EMPTY,
     };
 
-    fn save_lower_el_sysregs(&mut self, world: World, errata_list: &'static [ErratumEntry]) {
+    fn save_lower_el_sysregs(
+        &mut self,
+        world: World,
+        errata_list: &'static [ErratumEntry],
+        save_gic: bool,
+    ) {
         #[cfg(feature = "sel2")]
-        self.el2_sysregs.save(world, errata_list);
+        {
+            self.el2_sysregs.save();
+            if save_gic {
+                self.el2_sysregs.save_gic(world, errata_list);
+            }
+        }
         #[cfg(not(feature = "sel2"))]
         {
             self.el1_sysregs.save();
             let _ = world;
             let _ = errata_list;
+            let _ = save_gic;
         }
     }
 
-    fn restore_lower_el_sysregs(&self, world: World, errata_list: &'static [ErratumEntry]) {
+    fn restore_lower_el_sysregs(
+        &self,
+        world: World,
+        errata_list: &'static [ErratumEntry],
+        restore_gic: bool,
+    ) {
         #[cfg(feature = "sel2")]
-        self.el2_sysregs.restore(world, errata_list);
+        {
+            self.el2_sysregs.restore();
+
+            if restore_gic {
+                self.el2_sysregs.restore_gic(world, errata_list);
+            }
+        }
         #[cfg(not(feature = "sel2"))]
         {
             self.el1_sysregs.restore();
+            let _ = restore_gic;
             let _ = world;
             let _ = errata_list;
         }
@@ -503,7 +526,7 @@ impl El2Sysregs {
     };
 
     /// Reads the current values from the system registers to save them.
-    fn save(&mut self, world: World, errata_list: &'static [ErratumEntry]) {
+    fn save(&mut self) {
         self.actlr_el2 = read_actlr_el2();
         self.afsr0_el2 = read_afsr0_el2();
         self.afsr1_el2 = read_afsr1_el2();
@@ -518,31 +541,6 @@ impl El2Sysregs {
         self.hcr_el2 = read_hcr_el2();
         self.hpfar_el2 = read_hpfar_el2();
         self.hstr_el2 = read_hstr_el2();
-        self.icc_sre_el2 = read_icc_sre_el2();
-        self.ich_hcr_el2 = read_ich_hcr_el2();
-
-        let scr_el3 = read_scr_el3();
-        let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies(errata_list);
-        if apply_ich_vmcr_el2_errata {
-            // Use a value of SCR_EL3.NS that reflects the security state that owned the value
-            // of ICH_VMCR_EL2 we are going to save aside.
-            let mut temp_scr_el3 = scr_el3;
-            temp_scr_el3.set(ScrEl3::NS, world != World::Secure);
-            // SAFETY: We are only changing the NS bit, which affects lower ELs only.
-            unsafe {
-                write_scr_el3(temp_scr_el3);
-            }
-            isb();
-        }
-        self.ich_vmcr_el2 = read_ich_vmcr_el2();
-        if apply_ich_vmcr_el2_errata {
-            // SAFETY: We are restoring the original value of SCR_EL3, which was valid.
-            unsafe {
-                write_scr_el3(scr_el3);
-            }
-            isb();
-        }
-
         self.mair_el2 = read_mair_el2();
         self.mdcr_el2 = read_mdcr_el2();
         self.sctlr_el2 = read_sctlr_el2();
@@ -563,7 +561,7 @@ impl El2Sysregs {
     }
 
     /// Writes the saved register values to the system registers.
-    fn restore(&self, world: World, errata_list: &'static [ErratumEntry]) {
+    fn restore(&self) {
         // SAFETY: We're restoring the values previously saved, so they must be valid.
         unsafe {
             write_actlr_el2(self.actlr_el2);
@@ -580,28 +578,6 @@ impl El2Sysregs {
             write_hcr_el2(self.hcr_el2);
             write_hpfar_el2(self.hpfar_el2);
             write_hstr_el2(self.hstr_el2);
-            write_icc_sre_el2(self.icc_sre_el2);
-            write_ich_hcr_el2(self.ich_hcr_el2);
-
-            let scr_el3 = read_scr_el3();
-            let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies(errata_list);
-            if apply_ich_vmcr_el2_errata {
-                // Use a value of SCR_EL3.NS that reflects the security state that owned the value
-                // of ICH_VMCR_EL2 we are going to restore.
-                if world == World::Secure {
-                    write_scr_el3(scr_el3 - ScrEl3::NS);
-                } else {
-                    write_scr_el3(scr_el3 | ScrEl3::NS);
-                }
-                isb();
-            }
-            write_ich_vmcr_el2(self.ich_vmcr_el2);
-            if apply_ich_vmcr_el2_errata {
-                // Restore the original SCR_EL3 value.
-                write_scr_el3(scr_el3);
-                isb();
-            }
-
             write_mair_el2(self.mair_el2);
             write_mdcr_el2(self.mdcr_el2);
             write_sctlr_el2(self.sctlr_el2);
@@ -632,6 +608,80 @@ impl El2Sysregs {
         // SAFETY: We're restoring the value previously saved, so it must be valid.
         unsafe {
             write_ttbr1_el2(self.ttbr1_el2);
+        }
+    }
+
+    /// Saves the EL2 GIC state.
+    ///
+    /// Note that the RMM v2.0 spec requires that ICH_HCR_EL2, ICH_VMCR_EL2, and other GIC registers
+    /// remain preserved when entering the REC. Therefore, this method should *not* be called when
+    /// transitioning between Realm and Normal worlds.
+    ///
+    /// See RMM v2.0 A6.1 Realm Interrupts, GICv3 and v4.
+    fn save_gic(&mut self, world: World, errata_list: &'static [ErratumEntry]) {
+        self.icc_sre_el2 = read_icc_sre_el2();
+
+        self.ich_hcr_el2 = read_ich_hcr_el2();
+
+        let scr_el3 = read_scr_el3();
+        let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies(errata_list);
+        if apply_ich_vmcr_el2_errata {
+            // Use a value of SCR_EL3.NS that reflects the security state that owned the value
+            // of ICH_VMCR_EL2 we are going to save aside.
+            let mut temp_scr_el3 = scr_el3;
+            temp_scr_el3.set(ScrEl3::NS, world != World::Secure);
+            // SAFETY: We are only changing the NS bit, which affects lower ELs only.
+            unsafe {
+                write_scr_el3(temp_scr_el3);
+            }
+            isb();
+        }
+        self.ich_vmcr_el2 = read_ich_vmcr_el2();
+        if apply_ich_vmcr_el2_errata {
+            // SAFETY: We are restoring the original value of SCR_EL3, which was valid.
+            unsafe {
+                write_scr_el3(scr_el3);
+            }
+            isb();
+        }
+    }
+
+    /// Restores the EL2 GIC state.
+    ///
+    /// Note that the RMM v2.0 spec requires that ICH_HCR_EL2, ICH_VMCR_EL2, and other GIC registers
+    /// remain preserved when entering the REC. Therefore, this method should *not* be called when
+    /// transitioning between Realm and Normal worlds.
+    ///
+    /// See RMM v2.0 A6.1 Realm Interrupts, GICv3 and v4.
+    fn restore_gic(&self, world: World, errata_list: &'static [ErratumEntry]) {
+        // SAFETY: We're restoring the values previously saved, so they must be valid.
+        unsafe {
+            write_icc_sre_el2(self.icc_sre_el2);
+            write_ich_hcr_el2(self.ich_hcr_el2);
+        }
+
+        let scr_el3 = read_scr_el3();
+        let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies(errata_list);
+        if apply_ich_vmcr_el2_errata {
+            // Use a value of SCR_EL3.NS that reflects the security state that owned the value
+            // of ICH_VMCR_EL2 we are going to restore.
+            let mut temp_scr_el3 = scr_el3;
+            temp_scr_el3.set(ScrEl3::NS, world != World::Secure);
+            // SAFETY: We are only changing the NS bit, which affects lower ELs only.
+            unsafe {
+                write_scr_el3(temp_scr_el3);
+            }
+            isb();
+        }
+
+        write_ich_vmcr_el2(self.ich_vmcr_el2);
+
+        if apply_ich_vmcr_el2_errata {
+            // SAFETY: We are restoring the original value of SCR_EL3, which was valid.
+            unsafe {
+                write_scr_el3(scr_el3);
+            }
+            isb();
         }
     }
 }
@@ -849,15 +899,15 @@ impl CpuStates {
     }
 
     /// Saves the context for the given world.
-    fn save_world(&self, world: World, context: &mut CpuContext) {
-        context.save_lower_el_sysregs(world, self.errata_list);
+    fn save_world(&self, world: World, context: &mut CpuContext, save_gic: bool) {
+        context.save_lower_el_sysregs(world, self.errata_list, save_gic);
         for ext in self.cpu_extensions {
             ext.save_context(world);
         }
     }
 
     /// Restores the context for the given world.
-    fn restore_world(&self, world: World, context: &CpuContext) {
+    fn restore_world(&self, world: World, context: &CpuContext, restore_gic: bool) {
         let world_context = world_context(world);
 
         // Restore EL3 sysregs first, e.g. to allow SVE register access before restoring SVE context.
@@ -867,7 +917,7 @@ impl CpuStates {
             ext.restore_context(world);
         }
 
-        context.restore_lower_el_sysregs(world, self.errata_list);
+        context.restore_lower_el_sysregs(world, self.errata_list, restore_gic);
     }
 
     /// Saves lower EL system registers from the current world, restores lower EL and some per-world
@@ -876,8 +926,14 @@ impl CpuStates {
         assert_ne!(old_world, new_world);
         exception_free(|token| {
             let mut cpu_state = CpuStates::cpu_state(token);
-            self.save_world(old_world, &mut cpu_state[old_world]);
-            self.restore_world(new_world, &cpu_state[new_world]);
+
+            // GICv3 treats Non-Secure and Realm accesses identically, so GIC state should only be
+            // context saved/restored when switching to/from Secure world.
+            let switch_gic =
+                !cfg!(feature = "rme") || old_world == World::Secure || new_world == World::Secure;
+
+            self.save_world(old_world, &mut cpu_state[old_world], switch_gic);
+            self.restore_world(new_world, &cpu_state[new_world], switch_gic);
         });
     }
 
@@ -899,7 +955,7 @@ impl CpuStates {
             }
             isb();
 
-            self.restore_world(world, context);
+            self.restore_world(world, context, true);
         });
     }
 

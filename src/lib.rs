@@ -40,7 +40,7 @@ use crate::{
     gicv3::Gic,
     pagetable::{IdMap, OncePageTable, PageHeap},
     platform::Platform,
-    services::{Services, psci::PsciPlatformInterface, trng::TrngPlatformInterface},
+    services::{Services, psci::PsciPlatformInterface},
 };
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::bl31_warm_entrypoint;
@@ -59,8 +59,6 @@ pub fn coldboot<
     const PSCI_STATE_COUNT: usize,
     const PSCI_MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
-    const REQ_WORDS: usize,
-    const WORDS_IN_POOL: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
     PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>> + PlatformCpuOps + PlatformErrata,
 >(
@@ -73,8 +71,6 @@ pub fn coldboot<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
             NON_CPU_DOMAIN_COUNT,
-            REQ_WORDS,
-            WORDS_IN_POOL,
             PlatformImpl,
         >,
     >,
@@ -90,7 +86,6 @@ where
             CORE_COUNT,
             NON_CPU_DOMAIN_COUNT,
         >,
-    <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
 {
     PlatformImpl::init_with_early_mapping(arg0, arg1, arg2, arg3);
 
@@ -367,21 +362,29 @@ macro_rules! statics {
         pub const NON_CPU_DOMAIN_COUNT: usize =
             <$platform as $crate::platform::Platform>::PsciPlatformImpl::POWER_DOMAIN_COUNT
                 - <$platform as $crate::platform::Platform>::CORE_COUNT;
-        /// The number of 64-bit words to keep space for in the TRNG entropy pool.
-        pub const TRNG_WORDS_IN_POOL: usize = $crate::services::trng::words_in_pool(TRNG_REQ_WORDS);
-        static SERVICES: $crate::reexports::spin::Lazy<
+
+        static CORE_SERVICES: $crate::reexports::spin::Lazy<
+            $crate::services::CoreServices<
+                { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                PSCI_STATE_COUNT,
+                MAX_POWER_LEVEL_,
+                NON_CPU_DOMAIN_COUNT,
+                $platform,
+            >,
+        > = $crate::reexports::spin::Lazy::new(|| {
+            $crate::services::CoreServices::new(|| &CORE_SERVICES.spmd)
+        });
+
+        /// Instance of core and platform services.
+        pub(crate) static SERVICES: $crate::reexports::spin::Lazy<
             $crate::services::Services<
                 { <$platform as $crate::platform::Platform>::CORE_COUNT },
                 PSCI_STATE_COUNT,
                 MAX_POWER_LEVEL_,
                 NON_CPU_DOMAIN_COUNT,
-                TRNG_REQ_WORDS,
-                TRNG_WORDS_IN_POOL,
                 $platform,
             >,
-        > = $crate::reexports::spin::Lazy::new(|| {
-            $crate::services::Services::new(|| &SERVICES.spmd)
-        });
+        > = $crate::reexports::spin::Lazy::new(|| $crate::services::Services::new(&*CORE_SERVICES));
 
         impl $crate::WarmbootEntrypoint for $platform {
             fn warmboot() -> ! {
@@ -396,8 +399,6 @@ macro_rules! statics {
                 PSCI_STATE_COUNT,
                 MAX_POWER_LEVEL_,
                 NON_CPU_DOMAIN_COUNT,
-                TRNG_REQ_WORDS,
-                TRNG_WORDS_IN_POOL,
                 { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
                 $platform,
             >(

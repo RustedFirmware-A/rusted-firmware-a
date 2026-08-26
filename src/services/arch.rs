@@ -54,8 +54,15 @@ impl<PlatformImpl: Platform> Service for Arch<PlatformImpl> {
     }
 }
 
+impl<PlatformImpl: Platform> Default for Arch<PlatformImpl> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<PlatformImpl: Platform> Arch<PlatformImpl> {
-    pub(super) fn new() -> Self {
+    /// Creates a new instance of the `Arch` service.
+    pub const fn new() -> Self {
         Self {
             _platform: PhantomData,
         }

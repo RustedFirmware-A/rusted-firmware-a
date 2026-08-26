@@ -19,7 +19,6 @@ use crate::{
     logger::LogSink,
     pagetable::MAIR_IWBRWA_OWBRWA_NTR,
     services::{Service, arch::WorkaroundSupport},
-    smccc::FunctionId,
 };
 use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
@@ -41,16 +40,6 @@ pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
     // hardware exceptions nor multiple threads.
     let token = unsafe { ExceptionFree::new() };
     f(token)
-}
-
-/// For platforms that do not want to implement any custom SMC handlers.
-pub struct DummyService;
-
-impl Service for DummyService {
-    fn owns(&self, _function: FunctionId) -> bool {
-        // Does not own any function id.
-        false
-    }
 }
 
 /// The hooks implemented by all platforms.
@@ -112,12 +101,6 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// Platform dependent `PsciPlatformInterface` implementation type.
     type PsciPlatformImpl;
 
-    /// Platform dependent `TrngPlatformInterface` implementation type.
-    type TrngPlatformImpl;
-
-    /// Service that handles platform-specific SMC calls.
-    type PlatformServiceImpl: Service;
-
     /// Performs early platform-specific initialisation. This will be called while the early
     /// pagetable mapping defined by `define_early_mapping!` is active, so anything only mapped by
     /// `map_extra_regions` will not be available.
@@ -148,14 +131,10 @@ pub unsafe trait Platform: Sized + Send + Sync {
     #[cfg(feature = "pauth")]
     fn init_apkey() -> u128;
 
-    /// Creates instance of PlatformServiceImpl.
-    ///
-    /// This is used for dispatching platform-specific SMCs.
-    ///
-    /// TODO: provide default implementation with DummyService
-    /// once associated type defaults become stable
-    /// see issue #29661 <https://github.com/rust-lang/rust/issues/29661>
-    fn create_service() -> Self::PlatformServiceImpl;
+    /// Returns the list of optional services implemented by this platform.
+    fn services() -> &'static [&'static dyn Service] {
+        &[]
+    }
 
     /// Handles a Group 0 interrupt.
     ///

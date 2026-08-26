@@ -113,7 +113,7 @@ pub fn erratum_applies(errata_list: &[ErratumEntry], id: ErratumId) -> bool {
 ///
 /// Other than in unit tests, the `apply_reset_errata` method must be implemented as a naked
 /// function which doesn't use the stack or clobber any registers other than x0-x11.
-pub unsafe trait PlatformErrata {
+pub unsafe trait PlatformErrata: Send + Sync {
     /// The list of all errata workarounds which may need to be applied on the platform.
     const ERRATA_LIST: &'static [ErratumEntry];
 

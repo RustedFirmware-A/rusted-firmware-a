@@ -77,6 +77,8 @@ pub trait NodeIndexInterface:
     + PartialOrd
     + Sub<Output = Self>
     + TryFrom<usize, Error: Debug>
+    + Send
+    + Sync
     + 'static
 {
     /// The highest possible value of the type.
@@ -99,7 +101,7 @@ impl NodeIndexInterface for u16 {
 /// The type has to implement the `Ord` trait in a way the states are in ascending order from
 /// running state to power down state.
 pub trait PlatformPowerStateInterface:
-    Debug + Clone + Copy + PartialEq + Ord + Into<usize>
+    Debug + Clone + Copy + PartialEq + Ord + Into<usize> + Send + Sync
 {
     /// The power state for a CPU turned off.
     const OFF: Self;
@@ -122,7 +124,7 @@ pub trait PsciPlatformInterface<
     const MAX_POWER_LEVEL: usize,
     const CPU_DOMAIN_COUNT: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
->
+>: Send + Sync
 {
     /// Count of all power domains
     const POWER_DOMAIN_COUNT: usize;
@@ -335,7 +337,7 @@ pub trait PsciPlatformInterface<
 ///
 /// Contains the callbacks that the PSCI implementation uses to inform the Secure World about power
 /// management events.
-pub trait PsciSpmInterface {
+pub trait PsciSpmInterface: Send + Sync {
     /// Forward a PSCI request to the SPM.
     ///
     /// The request should be forwarded by the SPMD to the SPMC if it resides in a separate

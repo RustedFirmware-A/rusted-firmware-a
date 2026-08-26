@@ -56,7 +56,7 @@ use rf_a_bl31::{
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
     panic_handler,
-    platform::{DummyService, Platform},
+    platform::Platform,
     reexports::{
         aarch64_paging::{
             descriptor::VirtualAddress,
@@ -81,12 +81,13 @@ use rf_a_bl31::{
         spin::mutex::SpinMutex,
     },
     services::{
-        arch::WorkaroundSupport,
+        Service,
+        arch::{Arch, WorkaroundSupport},
+        errata_management::ErrataManagement,
         psci::{
             CPU_POWER_LEVEL, PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
-        trng::NotSupportedTrngPlatformImpl,
     },
     statics,
 };
@@ -329,6 +330,11 @@ const ATTESTATION_TOKEN: [u8; 1518] = [
     0x11, 0xd8, 0x3e, 0x23, 0xe3, 0x1f, 0x7f, 0x62, 0x32, 0x9d, 0xe3, 0x0c, 0x1c, 0xc8,
 ];
 
+static ARCH: Arch<Fvp> = Arch::new();
+static ERRATA_MANAGEMENT: ErrataManagement<Fvp> = ErrataManagement::new();
+
+static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
+
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0-x5, and returns a unique core index as long as `FVP_MAX_CPUS_PER_CLUSTER` and
 // `FVP_MAX_PE_PER_CPU` are correct.
@@ -344,10 +350,6 @@ unsafe impl Platform for Fvp {
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
-    // TODO: Implement TRNG for FVP.
-    type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
-
-    type PlatformServiceImpl = DummyService;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[
@@ -464,8 +466,8 @@ unsafe impl Platform for Fvp {
         ((key_hi as u128) << 64) | (key_lo as u128)
     }
 
-    fn create_service() -> Self::PlatformServiceImpl {
-        DummyService
+    fn services() -> &'static [&'static dyn Service] {
+        &PLATFORM_SERVICES
     }
 
     fn handle_group0_interrupt(int_id: IntId) {
@@ -500,7 +502,7 @@ unsafe impl Platform for Fvp {
     fn realm_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0xfdc0_0000,
-            args: SERVICES.rmmd.entrypoint_args(),
+            args: CORE_SERVICES.rmmd.entrypoint_args(),
         }
     }
 
@@ -717,8 +719,6 @@ unsafe impl Platform for Fvp {
         Ok((hunk_size, ATTESTATION_TOKEN.len() - end_index))
     }
 }
-
-const TRNG_REQ_WORDS: usize = 1;
 
 #[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
 enum FvpPowerState {

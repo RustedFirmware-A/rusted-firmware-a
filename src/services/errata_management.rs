@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! Errata management service.
+
 use crate::{
     context::{CpuStates, World},
     errata_framework::PlatformErrata,
@@ -56,6 +58,7 @@ pub struct ErrataManagement<PlatformImpl> {
 }
 
 impl<PlatformImpl> ErrataManagement<PlatformImpl> {
+    /// Creates a new instance of the `ErrataManagement` service.
     pub const fn new() -> Self {
         Self {
             _platform: PhantomData,
@@ -81,6 +84,12 @@ impl<PlatformImpl: PlatformErrata> Service for ErrataManagement<PlatformImpl> {
             _ => regs.set_from(NOT_SUPPORTED),
         }
         World::NonSecure
+    }
+}
+
+impl<PlatformImpl> Default for ErrataManagement<PlatformImpl> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

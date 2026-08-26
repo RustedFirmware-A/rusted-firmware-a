@@ -66,12 +66,9 @@ const fn bits_in_pool(words_in_pool: usize) -> usize {
 }
 
 /// Platform-specific TRNG interface.
-/// The platform must provide an implementation for this trait. If the platform
-/// does not have a TRNG source, then it can use the default implementation,
-/// `NotSupportedTrngPlatformImpl`
 ///
 /// `REQ_WORDS` is the number of 64-bit words per request from the TRNG.
-pub trait TrngPlatformInterface<const REQ_WORDS: usize> {
+pub trait TrngPlatformInterface<const REQ_WORDS: usize>: Send + Sync {
     /// A UUID for the entropy source, or nil (all-zero) if not implemented.
     const TRNG_UUID: Uuid = Uuid::nil();
 
@@ -83,11 +80,6 @@ pub trait TrngPlatformInterface<const REQ_WORDS: usize> {
         Err(TrngError::NotSupported)
     }
 }
-
-/// Default implementation of TrngPlatformInterface for platforms that do not
-/// have a TRNG source.
-pub struct NotSupportedTrngPlatformImpl;
-impl TrngPlatformInterface<1> for NotSupportedTrngPlatformImpl {}
 
 /// Entropy pool is implemented with a ring buffer of bits, so that requests for
 /// abitrary numbers of bits of entropy can be handled without throwing away the
@@ -324,9 +316,21 @@ impl<
     const REQ_WORDS: usize,
     const WORDS_IN_POOL: usize,
     TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
+> Default for Trng<REQ_WORDS, WORDS_IN_POOL, TrngPlatformImpl>
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<
+    const REQ_WORDS: usize,
+    const WORDS_IN_POOL: usize,
+    TrngPlatformImpl: TrngPlatformInterface<REQ_WORDS>,
 > Trng<REQ_WORDS, WORDS_IN_POOL, TrngPlatformImpl>
 {
-    pub(super) fn new() -> Self {
+    /// Creates a new instance of the `Trng` service.
+    pub fn new() -> Self {
         TrngPlatformImpl::entropy_setup();
         Self {
             pool: SpinMutex::new(EntropyPool::new()),

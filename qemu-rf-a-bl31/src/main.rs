@@ -31,7 +31,7 @@ use rf_a_bl31::{
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
     panic_handler,
-    platform::{DummyService, Platform, my_core_pos},
+    platform::{Platform, my_core_pos},
     reexports::{
         aarch64_paging::paging::MemoryRegion,
         arm_gic::{
@@ -44,12 +44,13 @@ use rf_a_bl31::{
         spin::mutex::{SpinMutex, SpinMutexGuard},
     },
     services::{
-        arch::WorkaroundSupport,
+        Service,
+        arch::{Arch, WorkaroundSupport},
+        errata_management::ErrataManagement,
         psci::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
             PsciPlatformInterface, PsciPlatformOptionalFeatures, try_get_cpu_index_by_mpidr,
         },
-        trng::NotSupportedTrngPlatformImpl,
     },
     statics,
 };
@@ -111,8 +112,6 @@ const CLUSTER_COUNT: usize = 1;
 const PLATFORM_CPU_PER_CLUSTER_SHIFT: usize = 2;
 /// The maximum number of CPUs in each cluster.
 const MAX_CPUS_PER_CLUSTER: usize = 1 << PLATFORM_CPU_PER_CLUSTER_SHIFT;
-
-const TRNG_REQ_WORDS: usize = 1;
 
 /// The per-core log buffer size in bytes. We subtract the size of the metadata so that the total
 /// size of each `MemoryLogger` will be 1024 bytes.
@@ -200,6 +199,11 @@ statics!(Qemu);
 all_asm!(Qemu);
 panic_handler!();
 
+static ARCH: Arch<Qemu> = Arch::new();
+static ERRATA_MANAGEMENT: ErrataManagement<Qemu> = ErrataManagement::new();
+
+static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
+
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0 and x1, and returns a unique index as long as `PLATFORM_CPU_PER_CLUSTER_SHIFT`
 // is correct.
@@ -213,10 +217,6 @@ unsafe impl Platform for Qemu {
     >;
     type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
-    // QEMU does not have a TRNG.
-    type TrngPlatformImpl = NotSupportedTrngPlatformImpl;
-
-    type PlatformServiceImpl = DummyService;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],
@@ -288,8 +288,8 @@ unsafe impl Platform for Qemu {
         ((key_hi as u128) << 64) | (key_lo as u128)
     }
 
-    fn create_service() -> Self::PlatformServiceImpl {
-        DummyService
+    fn services() -> &'static [&'static dyn rf_a_bl31::services::Service] {
+        &PLATFORM_SERVICES
     }
 
     fn handle_group0_interrupt(int_id: IntId) {

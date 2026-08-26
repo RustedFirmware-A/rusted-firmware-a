@@ -5,7 +5,7 @@
 //! Runtime services which handle SMCs from lower ELs.
 
 pub mod arch;
-mod errata_management;
+pub mod errata_management;
 pub mod ffa;
 pub mod psci;
 #[cfg(feature = "rme")]
@@ -22,11 +22,8 @@ use crate::{
     gicv3::{self, InterruptType},
     platform::{Platform, exception_free},
     services::{
-        arch::Arch,
-        errata_management::ErrataManagement,
         ffa::spmd::Spmd,
         psci::{Psci, PsciPlatformInterface, WakeUpReason},
-        trng::{Trng, TrngPlatformInterface},
     },
     smccc::{FunctionId, NOT_SUPPORTED, SetFrom, SmcReturn},
 };
@@ -66,7 +63,7 @@ pub(crate) use owns;
 ///
 /// According to SMCCC v1.3+ the implementation must disregard the SVE hint bit in the function ID
 /// and consider it to be 0 for the purpose of function identification.
-pub trait Service {
+pub trait Service: Sync {
     /// Returns whether this service is intended to handle the given function ID.
     fn owns(&self, function: FunctionId) -> bool;
 
@@ -90,15 +87,13 @@ pub trait Service {
     }
 }
 
-/// Contains an instance of all of the currently implemented services.
-pub struct Services<
+/// Contains an instance of the core services.
+pub struct CoreServices<
     const CORE_COUNT: usize,
     const PSCI_STATE_COUNT: usize,
     const PSCI_MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
-    const TRNG_REQ_WORDS: usize,
-    const TRNG_WORDS_IN_POOL: usize,
-    PlatformImpl: Platform + PlatformErrata + 'static,
+    PlatformImpl: Platform + 'static,
 > where
     <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
             PSCI_STATE_COUNT,
@@ -106,10 +101,7 @@ pub struct Services<
             CORE_COUNT,
             NON_CPU_DOMAIN_COUNT,
         >,
-    <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<TRNG_REQ_WORDS>,
 {
-    cpu_states: CpuStates,
-    arch: Arch<PlatformImpl>,
     psci: Psci<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
@@ -119,14 +111,11 @@ pub struct Services<
         PlatformImpl::PsciPlatformImpl,
         Spmd,
     >,
-    platform: PlatformImpl::PlatformServiceImpl,
     /// The FF-A SPMD service.
     pub spmd: Spmd,
     /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
     pub rmmd: Rmmd<PlatformImpl>,
-    trng: Trng<TRNG_REQ_WORDS, TRNG_WORDS_IN_POOL, PlatformImpl::TrngPlatformImpl>,
-    errata_management: ErrataManagement<PlatformImpl>,
 }
 
 impl<
@@ -134,38 +123,94 @@ impl<
     const STATE_COUNT: usize,
     const MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
-    const TRNG_REQ_WORDS: usize,
-    const TRNG_WORDS_IN_POOL: usize,
     PlatformImpl: Platform + PlatformCpuOps + PlatformErrata,
->
-    Services<
-        CORE_COUNT,
-        STATE_COUNT,
-        MAX_POWER_LEVEL,
-        NON_CPU_DOMAIN_COUNT,
-        TRNG_REQ_WORDS,
-        TRNG_WORDS_IN_POOL,
-        PlatformImpl,
-    >
+> CoreServices<CORE_COUNT, STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>
 where
     <PlatformImpl as Platform>::PsciPlatformImpl:
         PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, CORE_COUNT, NON_CPU_DOMAIN_COUNT>,
-    <PlatformImpl as Platform>::TrngPlatformImpl: TrngPlatformInterface<TRNG_REQ_WORDS>,
 {
     /// Constructs a new instance of the services.
     pub fn new(get_spm: fn() -> &'static Spmd) -> Self {
-        let cpu_states = CpuStates::get::<PlatformImpl>();
-
         Self {
-            cpu_states: cpu_states.clone(),
-            arch: Arch::new(),
             psci: Psci::new(PlatformImpl::psci_platform().unwrap(), get_spm),
-            platform: PlatformImpl::create_service(),
-            spmd: Spmd::new(cpu_states),
+            spmd: Spmd::new(CpuStates::get::<PlatformImpl>().clone()),
             #[cfg(feature = "rme")]
             rmmd: Rmmd::new(),
-            trng: Trng::new(),
-            errata_management: ErrataManagement::new(),
+        }
+    }
+
+    fn get_owner(&self, function: FunctionId) -> Option<&dyn Service> {
+        if self.psci.owns(function) {
+            return Some(&self.psci);
+        }
+
+        if self.spmd.owns(function) {
+            return Some(&self.spmd);
+        }
+
+        #[cfg(feature = "rme")]
+        if self.rmmd.owns(function) {
+            return Some(&self.rmmd);
+        }
+
+        None
+    }
+}
+
+/// Contains an instance of all of the currently implemented services.
+pub struct Services<
+    const CORE_COUNT: usize,
+    const PSCI_STATE_COUNT: usize,
+    const PSCI_MAX_POWER_LEVEL: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    PlatformImpl: Platform + 'static,
+> where
+    <PlatformImpl as Platform>::PsciPlatformImpl: PsciPlatformInterface<
+            PSCI_STATE_COUNT,
+            PSCI_MAX_POWER_LEVEL,
+            CORE_COUNT,
+            NON_CPU_DOMAIN_COUNT,
+        >,
+{
+    cpu_states: CpuStates,
+    core_services: &'static CoreServices<
+        CORE_COUNT,
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        NON_CPU_DOMAIN_COUNT,
+        PlatformImpl,
+    >,
+    platform_services: &'static [&'static dyn Service],
+}
+
+impl<
+    const CORE_COUNT: usize,
+    const STATE_COUNT: usize,
+    const MAX_POWER_LEVEL: usize,
+    const NON_CPU_DOMAIN_COUNT: usize,
+    PlatformImpl: Platform + PlatformCpuOps + PlatformErrata,
+> Services<CORE_COUNT, STATE_COUNT, MAX_POWER_LEVEL, NON_CPU_DOMAIN_COUNT, PlatformImpl>
+where
+    <PlatformImpl as Platform>::PsciPlatformImpl:
+        PsciPlatformInterface<STATE_COUNT, MAX_POWER_LEVEL, CORE_COUNT, NON_CPU_DOMAIN_COUNT>,
+{
+    /// Constructs a new instance of the services.
+    pub fn new(
+        core_services: &'static CoreServices<
+            CORE_COUNT,
+            STATE_COUNT,
+            MAX_POWER_LEVEL,
+            NON_CPU_DOMAIN_COUNT,
+            PlatformImpl,
+        >,
+    ) -> Self {
+        let cpu_states = CpuStates::get::<PlatformImpl>().clone();
+        let platform_services = PlatformImpl::services();
+
+        Self {
+            cpu_states,
+            core_services,
+            platform_services,
         }
     }
 
@@ -177,32 +222,14 @@ where
             return world;
         }
 
-        let service: &dyn Service = if self.arch.owns(function) {
-            &self.arch
-        } else if self.psci.owns(function) {
-            &self.psci
-        } else if self.platform.owns(function) {
-            &self.platform
-        } else if self.spmd.owns(function) {
-            &self.spmd
-        } else if self.errata_management.owns(function) {
-            &self.errata_management
-        } else if self.trng.owns(function) {
-            &self.trng
-        } else {
-            #[cfg(feature = "rme")]
-            if self.rmmd.owns(function) {
-                &self.rmmd
-            } else {
-                regs.set_from(NOT_SUPPORTED);
-                return world;
-            }
-
-            #[cfg(not(feature = "rme"))]
-            {
-                regs.set_from(NOT_SUPPORTED);
-                return world;
-            }
+        let Some(service) = self.core_services.get_owner(function).or_else(|| {
+            self.platform_services
+                .iter()
+                .copied()
+                .find(|s| s.owns(function))
+        }) else {
+            regs.set_from(NOT_SUPPORTED);
+            return world;
         };
 
         match world {
@@ -217,7 +244,9 @@ where
         let interrupt_type = gicv3::get_pending_interrupt_type();
 
         match (interrupt_type, world) {
-            (InterruptType::Secure, World::NonSecure) => self.spmd.forward_secure_interrupt(regs),
+            (InterruptType::Secure, World::NonSecure) => {
+                self.core_services.spmd.forward_secure_interrupt(regs)
+            }
             // TODO:
             // Group 0 interrupts hitting in SWd should be catched by the SPMC and passed to EL3
             // synchronously, by invoking FFA_EL3_INTR_HANDLE.
@@ -304,7 +333,7 @@ where
         #[cfg(feature = "rme")]
         {
             // If the RMM boot failed, do not try to boot Realm world again.
-            if !self.rmmd.boot_failure() {
+            if !self.core_services.rmmd.boot_failure() {
                 debug!("Booting Realm World");
                 self.cpu_states.switch_world(current_world, World::Realm);
                 current_world = World::Realm;
@@ -332,7 +361,7 @@ where
     /// Warm boot is any time a core is turned on or resumed from suspend other than the initial
     /// cold boot of the first core.
     pub fn warmboot(&self) -> ! {
-        match self.psci.handle_cpu_boot() {
+        match self.core_services.psci.handle_cpu_boot() {
             WakeUpReason::CpuOn(psci_entrypoint) => {
                 // Power on for the first time or after CPU_OFF
                 debug!("Wakeup from CPU_OFF");
@@ -346,9 +375,9 @@ where
                 non_secure_entry_point.args[0] = psci_entrypoint.context_id();
 
                 let mut secure_entry_point = PlatformImpl::secure_entry_point();
-                secure_entry_point.pc = self.spmd.secondary_ep();
+                secure_entry_point.pc = self.core_services.spmd.secondary_ep();
                 secure_entry_point.args.fill(0);
-                self.spmd.handle_wake_from_cpu_off();
+                self.core_services.spmd.handle_wake_from_cpu_off();
 
                 #[cfg(feature = "rme")]
                 let realm_entry_point = PlatformImpl::realm_entry_point();
@@ -363,10 +392,10 @@ where
             WakeUpReason::SuspendFinished(psci_entrypoint) => {
                 debug!("Wakeup from CPU_SUSPEND");
 
-                let secure_args = self.spmd.handle_wake_from_cpu_suspend();
+                let secure_args = self.core_services.spmd.handle_wake_from_cpu_suspend();
 
                 #[cfg(feature = "rme")]
-                let realm_args = self.rmmd.handle_wake_from_cpu_suspend();
+                let realm_args = self.core_services.rmmd.handle_wake_from_cpu_suspend();
 
                 // TODO: instead of modifying the context directly, should we rather pass the initial
                 // gpregs of each world as arguments to run_loop()?
@@ -387,7 +416,7 @@ where
 mod tests {
     use super::*;
     use crate::{
-        platform::test::{NON_CPU_DOMAIN_COUNT, TRNG_WORDS_IN_POOL, TestPlatform},
+        platform::test::SERVICES,
         services::arch::{SMCCC_VERSION, SMCCC_VERSION_1_5},
         smccc::FunctionId,
     };
@@ -398,11 +427,6 @@ mod tests {
     /// `handle_smc` works. Individual SMC calls can be tested directly within their modules.
     #[test]
     fn handle_smc_arch_version() {
-        let services =
-            Services::<_, _, _, NON_CPU_DOMAIN_COUNT, _, TRNG_WORDS_IN_POOL, TestPlatform>::new(
-                || unimplemented!(),
-            );
-
         let mut function = FunctionId(SMCCC_VERSION);
 
         // Set the SVE hint bit to test if the handler will can treat this correctly.
@@ -411,7 +435,7 @@ mod tests {
         let mut regs = SmcReturn::EMPTY;
         regs.set_from(function.0);
 
-        let new_world = services.handle_smc(&mut regs, World::NonSecure);
+        let new_world = SERVICES.handle_smc(&mut regs, World::NonSecure);
 
         assert_eq!(new_world, World::NonSecure);
         assert_eq!(regs.values(), [SMCCC_VERSION_1_5 as u64]);

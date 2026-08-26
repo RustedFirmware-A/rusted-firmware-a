@@ -4,7 +4,7 @@
 
 //! Fake platform for testing.
 
-use super::{DummyService, Platform};
+use super::Platform;
 #[cfg(feature = "rme")]
 use crate::services::rmmd::svc::{EccCurve, RmmCommandReturnCode};
 use crate::{
@@ -17,12 +17,14 @@ use crate::{
     logger::LogSink,
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
     services::{
-        arch::WorkaroundSupport,
+        Service,
+        arch::{Arch, WorkaroundSupport},
+        errata_management::ErrataManagement,
         psci::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
             PsciPlatformInterface, PsciPlatformOptionalFeatures,
         },
-        trng::{TrngError, TrngPlatformInterface},
+        trng::{Trng, TrngError, TrngPlatformInterface, words_in_pool},
     },
     statics,
 };
@@ -31,6 +33,7 @@ use arm_gic::IntId;
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use arm_sysregs::el1::registers::{MidrEl1, MpidrEl1};
 use core::fmt;
+use spin::Lazy;
 use std::io::{Write, stdout};
 use uuid::Uuid;
 
@@ -105,9 +108,6 @@ unsafe impl Platform for TestPlatform {
     type LogSinkImpl = StdOutSink;
     type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = TestPsciPlatformImpl;
-    type TrngPlatformImpl = TestTrngPlatformImpl;
-
-    type PlatformServiceImpl = DummyService;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],
@@ -133,8 +133,8 @@ unsafe impl Platform for TestPlatform {
         0
     }
 
-    fn create_service() -> Self::PlatformServiceImpl {
-        DummyService
+    fn services() -> &'static [&'static dyn Service] {
+        &*PLATFORM_SERVICES
     }
 
     fn handle_group0_interrupt(int_id: IntId) {
@@ -159,7 +159,7 @@ unsafe impl Platform for TestPlatform {
     fn realm_entry_point() -> EntryPointInfo {
         EntryPointInfo {
             pc: 0xfdc0_0000,
-            args: SERVICES.rmmd.entrypoint_args(),
+            args: Default::default(),
         }
     }
 
@@ -569,6 +569,7 @@ pub struct TestTrngPlatformImpl;
 
 /// TRNG request size in words for fake test TRNG.
 pub const TRNG_REQ_WORDS: usize = 1;
+const WORDS_IN_POOL: usize = words_in_pool(TRNG_REQ_WORDS);
 
 impl TrngPlatformInterface<TRNG_REQ_WORDS> for TestTrngPlatformImpl {
     const TRNG_UUID: Uuid = Uuid::from_bytes([
@@ -581,6 +582,13 @@ impl TrngPlatformInterface<TRNG_REQ_WORDS> for TestTrngPlatformImpl {
         Ok([0xFFFF_FFFF_FFFF_FFFF])
     }
 }
+
+static ARCH: Arch<TestPlatform> = Arch::new();
+static ERRATA_MANAGEMENT: ErrataManagement<TestPlatform> = ErrataManagement::new();
+static TRNG: Lazy<Trng<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>> = Lazy::new(Trng::new);
+
+static PLATFORM_SERVICES: Lazy<[&'static dyn Service; 3]> =
+    Lazy::new(|| [&ARCH, &ERRATA_MANAGEMENT, &*TRNG]);
 
 struct TestCpu;
 

@@ -9,6 +9,7 @@ pub mod inmemory;
 use core::{
     fmt::{Arguments, Write},
     sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use spin::{Once, mutex::SpinMutex};
@@ -141,5 +142,110 @@ impl<P: LogSink, S: LogSink> LogSink for HybridLogger<P, S> {
     fn flush(&self) {
         self.primary.flush();
         self.secondary.flush();
+    }
+}
+
+/// A [`LogSink`] decorator that prepends timestamps to log messages.
+///
+/// If the timestamp function returns `Some(duration)`, the duration is formatted
+/// as seconds and microseconds: `[{:>4}.{:06}] <message>`. If `None` is returned,
+/// the message is passed through without modification.
+///
+/// # Example
+///
+/// ```
+/// use core::fmt::Write;
+/// use core::time::Duration;
+/// use rf_a_bl31::logger::{LogSink, LockedWriter, TimestampedLogger};
+///
+/// struct FakeUart;
+/// impl Write for FakeUart {
+///     fn write_str(&mut self, _s: &str) -> core::fmt::Result {
+///         Ok(())
+///     }
+/// }
+///
+/// let sink = LockedWriter::new(FakeUart);
+/// let logger = TimestampedLogger::new(sink, || Some(Duration::from_micros(1_234_567)));
+///
+/// // Prepends timestamp: "[   1.234567] System initialized\n"
+/// logger.write_fmt(format_args!("System initialized\n"));
+/// ```
+pub struct TimestampedLogger<S: LogSink, F: Fn() -> Option<Duration>> {
+    sink: S,
+    get_timestamp: F,
+}
+
+impl<S: LogSink, F: Fn() -> Option<Duration>> TimestampedLogger<S, F> {
+    /// Creates a new `TimestampedLogger` wrapping the given [`LogSink`].
+    pub const fn new(sink: S, get_timestamp: F) -> Self {
+        Self {
+            sink,
+            get_timestamp,
+        }
+    }
+
+    /// Gets a reference to the inner log sink.
+    pub fn inner(&self) -> &S {
+        &self.sink
+    }
+}
+
+impl<S: LogSink, F: Fn() -> Option<Duration> + Send + Sync> LogSink for TimestampedLogger<S, F> {
+    fn write_fmt(&self, args: Arguments) {
+        if let Some(timestamp) = (self.get_timestamp)() {
+            let seconds = timestamp.as_secs();
+            let microseconds = timestamp.subsec_micros();
+            self.sink.write_fmt(format_args!(
+                "[{:>4}.{:06}] {}",
+                seconds, microseconds, args
+            ));
+        } else {
+            self.sink.write_fmt(args);
+        }
+    }
+
+    fn flush(&self) {
+        self.sink.flush();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::fmt::Write;
+    use spin::Mutex;
+
+    struct BufferSink(Mutex<String>);
+
+    impl LogSink for BufferSink {
+        fn write_fmt(&self, args: Arguments) {
+            self.0.lock().write_fmt(args).unwrap();
+        }
+
+        fn flush(&self) {}
+    }
+
+    #[test]
+    fn test_timestamped_logger_with_timestamp() {
+        let sink = BufferSink(Mutex::new(String::new()));
+        let logger = TimestampedLogger::new(sink, || Some(Duration::from_micros(1_234_567)));
+
+        logger.write_fmt(format_args!("Test message\n"));
+
+        assert_eq!(
+            logger.inner().0.lock().as_str(),
+            "[   1.234567] Test message\n"
+        );
+    }
+
+    #[test]
+    fn test_timestamped_logger_without_timestamp() {
+        let sink = BufferSink(Mutex::new(String::new()));
+        let logger = TimestampedLogger::new(sink, || None);
+
+        logger.write_fmt(format_args!("Test message\n"));
+
+        assert_eq!(logger.inner().0.lock().as_str(), "Test message\n");
     }
 }

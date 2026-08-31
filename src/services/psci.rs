@@ -115,8 +115,8 @@ pub trait PlatformPowerStateInterface:
 /// PSCI platform interface
 ///
 /// The interface contains mandatory and optional constants and functions. Whether the platform
-/// implements the optional functions has to be in sync with the reported optional features in the
-/// `FEATURES` constant.
+/// implements the optional functions has to be in sync with the features reported by
+/// `is_feature_supported()`.
 ///
 /// STATE_COUNT = MAX_POWER_LEVEL + 1
 pub trait PsciPlatformInterface<
@@ -129,7 +129,9 @@ pub trait PsciPlatformInterface<
     /// Count of all power domains
     const POWER_DOMAIN_COUNT: usize;
 
-    /// Flags for describing optional features implemented by the platform.
+    /// Flags for describing optional features implemented by the platform. If runtime feature
+    /// detection is required, implement it in the optional `is_feature_supported()` function of
+    /// this trait.
     const FEATURES: PsciPlatformOptionalFeatures;
 
     /// Platform-specific power state type
@@ -330,6 +332,12 @@ pub trait PsciPlatformInterface<
     /// Checks if the CPU has pending interrupts
     fn has_pending_interrupts(&self) -> bool {
         !read_isr_el1().is_empty()
+    }
+
+    /// Optional function that can implement runtime feature detection. Returns true if an optional
+    /// feature is supported by the platform.
+    fn is_feature_supported(&self, feature: PsciPlatformOptionalFeatures) -> bool {
+        Self::FEATURES.contains(feature)
     }
 }
 
@@ -1193,7 +1201,10 @@ impl<
     /// Handles `SYSTEM_OFF2` PSCI call.
     /// Suspends system to disk and never returns on success.
     fn system_off2(&self, off_type: SystemOff2Type, cookie: Cookie) -> Result<(), ErrorCode> {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::SYSTEM_OFF2) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::SYSTEM_OFF2)
+        {
             return Err(ErrorCode::NotSupported);
         }
 
@@ -1211,7 +1222,10 @@ impl<
     /// Handles `SYSTEM_RESET2` PSCI call.
     /// Initiates an architectural or vendor specific system reset. Does not return on success.
     fn system_reset2(&self, reset_type: ResetType, cookie: Cookie) -> Result<(), ErrorCode> {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::SYSTEM_RESET2) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::SYSTEM_RESET2)
+        {
             return Err(ErrorCode::NotSupported);
         }
 
@@ -1221,7 +1235,10 @@ impl<
 
     /// Handles `MEM_PROTECT` PSCI call.
     fn mem_protect(&self, enabled: bool) -> Result<bool, ErrorCode> {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::MEM_PROTECT) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::MEM_PROTECT)
+        {
             return Err(ErrorCode::NotSupported);
         }
 
@@ -1230,8 +1247,9 @@ impl<
 
     /// Handles `MEM_PROTECT_CHECK_RANGE` PSCI call.
     fn mem_protect_check_range(&self, range: MemProtectRange) -> Result<(), ErrorCode> {
-        if !PsciPlatformImpl::FEATURES
-            .contains(PsciPlatformOptionalFeatures::MEM_PROTECT_CHECK_RANGE)
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::MEM_PROTECT_CHECK_RANGE)
         {
             return Err(ErrorCode::NotSupported);
         }
@@ -1244,7 +1262,7 @@ impl<
         const SUCCESS: u64 = 0;
 
         let check_optional_feature = |feature| {
-            if PsciPlatformImpl::FEATURES.contains(feature) {
+            if self.platform.is_feature_supported(feature) {
                 Ok(SUCCESS)
             } else {
                 Err(ErrorCode::NotSupported)
@@ -1267,8 +1285,9 @@ impl<
                 // CPU suspend features
                 FunctionId::CpuSuspend32 | FunctionId::CpuSuspend64 => {
                     let flags = FeatureFlagsCpuSuspend::EXTENDED_POWER_STATE
-                        | (if PsciPlatformImpl::FEATURES
-                            .contains(PsciPlatformOptionalFeatures::OS_INITIATED_MODE)
+                        | (if self
+                            .platform
+                            .is_feature_supported(PsciPlatformOptionalFeatures::OS_INITIATED_MODE)
                         {
                             FeatureFlagsCpuSuspend::OS_INITIATED_MODE
                         } else {
@@ -1284,8 +1303,9 @@ impl<
                 | FunctionId::MigrateInfoUpCpu64 => Err(ErrorCode::NotSupported),
                 FunctionId::MigrateInfoType => Ok(SUCCESS),
                 FunctionId::SystemOff232 | FunctionId::SystemOff264 => {
-                    if PsciPlatformImpl::FEATURES
-                        .contains(PsciPlatformOptionalFeatures::SYSTEM_OFF2)
+                    if self
+                        .platform
+                        .is_feature_supported(PsciPlatformOptionalFeatures::SYSTEM_OFF2)
                     {
                         let flags = FeatureFlagsSystemOff2::HIBERNATE_OFF;
                         Ok(u32::from(flags) as u64)
@@ -1331,7 +1351,10 @@ impl<
     /// Handles `CPU_FREEZE` PSCI call.
     /// Does not return on success.
     fn cpu_freeze(&self) -> Result<(), ErrorCode> {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::CPU_FREEZE) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::CPU_FREEZE)
+        {
             return Err(ErrorCode::NotSupported);
         }
 
@@ -1342,7 +1365,10 @@ impl<
     /// Places a core into an implementation defined low-power state. It might not return if the
     /// default state is a power down state.
     fn cpu_default_suspend(&self, entry: EntryPoint) -> Result<(), ErrorCode> {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::CPU_DEFAULT_SUSPEND) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::CPU_DEFAULT_SUSPEND)
+        {
             return Err(ErrorCode::NotSupported);
         }
 
@@ -1352,7 +1378,10 @@ impl<
 
     /// Handles `NODE_HW_STATE` PSCI call.
     fn node_hw_state(&self, target_cpu: Mpidr, power_level: u32) -> Result<HwState, ErrorCode> {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::NODE_HW_STATE) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::NODE_HW_STATE)
+        {
             return Err(ErrorCode::NotSupported);
         }
 
@@ -1369,7 +1398,10 @@ impl<
     /// Handles `SYSTEM_SUSPEND` PSCI call.
     /// Suspends system into RAM, does not return on success.
     fn system_suspend(&self, entry: EntryPoint) -> Result<(), ErrorCode> {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND)
+        {
             return Err(ErrorCode::NotSupported);
         }
 
@@ -1398,7 +1430,10 @@ impl<
     }
 
     fn set_suspend_mode(&self, mode: SuspendMode) -> Result<u64, ErrorCode> {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::OS_INITIATED_MODE) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::OS_INITIATED_MODE)
+        {
             return Err(ErrorCode::NotSupported);
         }
         if *self.suspend_mode.lock() == mode {
@@ -1425,7 +1460,10 @@ impl<
 
     /// Returns true if this Psci instance is in OS-initiated mode.
     fn is_in_osi_mode(&self) -> bool {
-        if !PsciPlatformImpl::FEATURES.contains(PsciPlatformOptionalFeatures::OS_INITIATED_MODE) {
+        if !self
+            .platform
+            .is_feature_supported(PsciPlatformOptionalFeatures::OS_INITIATED_MODE)
+        {
             return false;
         }
         *self.suspend_mode.lock() == SuspendMode::OsInitiated

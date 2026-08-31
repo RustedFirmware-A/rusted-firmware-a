@@ -6,7 +6,6 @@
 
 use crate::{
     context::World,
-    platform::Platform,
     services::{Service, owns},
     smccc::{
         FunctionId, INVALID_PARAMETER, NOT_SUPPORTED, OwningEntityNumber, SUCCESS, SetFrom,
@@ -29,12 +28,44 @@ const SMCCC_ARCH_WORKAROUND_4: u32 = 0x8000_0004;
 
 pub(crate) const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
 
-/// Arm architecture SMCs.
-pub struct Arch<PlatformImpl: Platform> {
-    _platform: PhantomData<PlatformImpl>,
+/// Platform dependent Arch service interface.
+pub trait ArchPlatform: Sync {
+    /// Returns whether this platform supports the arch WORKAROUND_1 SMC.
+    fn arch_workaround_1_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    /// If safe and necessary, performs the workaround specified for the WORKAROUND_1 SMC.
+    fn arch_workaround_1() {}
+
+    /// Returns whether this platform supports the arch WORKAROUND_2 SMC.
+    fn arch_workaround_2_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    /// If safe and necessary, performs the workaround specified for the WORKAROUND_2 SMC.
+    fn arch_workaround_2() {}
+
+    /// Returns whether this platform supports the arch WORKAROUND_3 SMC.
+    fn arch_workaround_3_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
+
+    /// If safe and necessary, performs the workaround specified for the WORKAROUND_3 SMC.
+    fn arch_workaround_3() {}
+
+    /// Returns whether this platform supports the arch WORKAROUND_4 SMC.
+    fn arch_workaround_4_supported() -> WorkaroundSupport {
+        WorkaroundSupport::SafeButNotRequired
+    }
 }
 
-impl<PlatformImpl: Platform> Service for Arch<PlatformImpl> {
+/// Arm architecture SMCs.
+pub struct Arch<ArchPlatformImpl: ArchPlatform> {
+    _platform: PhantomData<ArchPlatformImpl>,
+}
+
+impl<ArchPlatformImpl: ArchPlatform> Service for Arch<ArchPlatformImpl> {
     owns!(OwningEntityNumber::ARM_ARCHITECTURE);
 
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
@@ -54,13 +85,13 @@ impl<PlatformImpl: Platform> Service for Arch<PlatformImpl> {
     }
 }
 
-impl<PlatformImpl: Platform> Default for Arch<PlatformImpl> {
+impl<ArchPlatformImpl: ArchPlatform> Default for Arch<ArchPlatformImpl> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<PlatformImpl: Platform> Arch<PlatformImpl> {
+impl<ArchPlatformImpl: ArchPlatform> Arch<ArchPlatformImpl> {
     /// Creates a new instance of the `Arch` service.
     pub const fn new() -> Self {
         Self {
@@ -102,10 +133,10 @@ impl<PlatformImpl: Platform> Arch<PlatformImpl> {
             SMCCC_VERSION | SMCCC_ARCH_FEATURES | SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => {
                 SUCCESS
             }
-            SMCCC_ARCH_WORKAROUND_1 => PlatformImpl::arch_workaround_1_supported() as i32,
-            SMCCC_ARCH_WORKAROUND_2 => PlatformImpl::arch_workaround_2_supported() as i32,
-            SMCCC_ARCH_WORKAROUND_3 => PlatformImpl::arch_workaround_3_supported() as i32,
-            SMCCC_ARCH_WORKAROUND_4 => PlatformImpl::arch_workaround_4_supported() as i32,
+            SMCCC_ARCH_WORKAROUND_1 => ArchPlatformImpl::arch_workaround_1_supported() as i32,
+            SMCCC_ARCH_WORKAROUND_2 => ArchPlatformImpl::arch_workaround_2_supported() as i32,
+            SMCCC_ARCH_WORKAROUND_3 => ArchPlatformImpl::arch_workaround_3_supported() as i32,
+            SMCCC_ARCH_WORKAROUND_4 => ArchPlatformImpl::arch_workaround_4_supported() as i32,
             _ => NOT_SUPPORTED,
         };
 
@@ -114,23 +145,23 @@ impl<PlatformImpl: Platform> Arch<PlatformImpl> {
 
     /// Execute the mitigation for CVE-2017-5715 on the calling PE.
     fn arch_workaround_1() {
-        if PlatformImpl::arch_workaround_1_supported() == WorkaroundSupport::Required {
-            PlatformImpl::arch_workaround_1()
+        if ArchPlatformImpl::arch_workaround_1_supported() == WorkaroundSupport::Required {
+            ArchPlatformImpl::arch_workaround_1()
         }
     }
 
     /// Enable the mitigation for CVE-2018-3639 on the calling PE. (Contrary to the
     /// latest specification as of January 2025, the argument is ignored.)
     fn arch_workaround_2(_: u32) {
-        if PlatformImpl::arch_workaround_2_supported() == WorkaroundSupport::Required {
-            PlatformImpl::arch_workaround_2()
+        if ArchPlatformImpl::arch_workaround_2_supported() == WorkaroundSupport::Required {
+            ArchPlatformImpl::arch_workaround_2()
         }
     }
 
     /// Execute the mitigation for CVE-2017-5715 and CVE-2022-23960 on the calling PE.
     fn arch_workaround_3() {
-        if PlatformImpl::arch_workaround_3_supported() == WorkaroundSupport::Required {
-            PlatformImpl::arch_workaround_3()
+        if ArchPlatformImpl::arch_workaround_3_supported() == WorkaroundSupport::Required {
+            ArchPlatformImpl::arch_workaround_3()
         }
     }
 }

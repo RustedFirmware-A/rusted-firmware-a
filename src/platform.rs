@@ -13,12 +13,8 @@ use crate::services::rmmd::{
     svc::{EccCurve, RmmCommandReturnCode},
 };
 use crate::{
-    context::EntryPointInfo,
-    cpu_extensions::CpuExtension,
-    gicv3,
-    logger::LogSink,
-    pagetable::MAIR_IWBRWA_OWBRWA_NTR,
-    services::{Service, arch::WorkaroundSupport},
+    context::EntryPointInfo, cpu_extensions::CpuExtension, gicv3, logger::LogSink,
+    pagetable::MAIR_IWBRWA_OWBRWA_NTR, services::Service,
 };
 use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
@@ -158,27 +154,6 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// Returns an option with a PSCI platform implementation handle. The function should only be
     /// called once, when it returns `Some`. All subsequent calls must return `None`.
     fn psci_platform() -> Option<Self::PsciPlatformImpl>;
-
-    /// Returns whether this platform supports the arch WORKAROUND_1 SMC.
-    fn arch_workaround_1_supported() -> WorkaroundSupport;
-
-    /// If safe and necessary, performs the workaround specified for the WORKAROUND_1 SMC.
-    fn arch_workaround_1();
-
-    /// Returns whether this platform supports the arch WORKAROUND_2 SMC.
-    fn arch_workaround_2_supported() -> WorkaroundSupport;
-
-    /// If safe and necessary, performs the workaround specified for the WORKAROUND_2 SMC.
-    fn arch_workaround_2();
-
-    /// Returns whether this platform supports the arch WORKAROUND_3 SMC.
-    fn arch_workaround_3_supported() -> WorkaroundSupport;
-
-    /// If safe and necessary, performs the workaround specified for the WORKAROUND_3 SMC.
-    fn arch_workaround_3();
-
-    /// Returns whether this platform supports the arch WORKAROUND_4 SMC.
-    fn arch_workaround_4_supported() -> WorkaroundSupport;
 
     /// Given a valid MPIDR value, returns the corresponding linear core index.
     ///

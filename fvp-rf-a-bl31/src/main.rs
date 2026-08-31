@@ -82,7 +82,7 @@ use rf_a_bl31::{
     },
     services::{
         Service,
-        arch::{Arch, WorkaroundSupport},
+        arch::{Arch, ArchPlatform},
         errata_management::ErrataManagement,
         psci::{
             CPU_POWER_LEVEL, PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
@@ -330,7 +330,11 @@ const ATTESTATION_TOKEN: [u8; 1518] = [
     0x11, 0xd8, 0x3e, 0x23, 0xe3, 0x1f, 0x7f, 0x62, 0x32, 0x9d, 0xe3, 0x0c, 0x1c, 0xc8,
 ];
 
-static ARCH: Arch<Fvp> = Arch::new();
+struct ArchPlatformImpl;
+
+impl ArchPlatform for ArchPlatformImpl {}
+
+static ARCH: Arch<ArchPlatformImpl> = Arch::new();
 static ERRATA_MANAGEMENT: ErrataManagement<Fvp> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
@@ -522,28 +526,6 @@ unsafe impl Platform for Fvp {
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
         FVP_PSCI_PLATFORM_IMPL.lock().take()
-    }
-
-    fn arch_workaround_1_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_1() {}
-
-    fn arch_workaround_2_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_2() {}
-
-    fn arch_workaround_3_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_3() {}
-
-    fn arch_workaround_4_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
     }
 
     /// Calculates core linear index as: ClusterId * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU +

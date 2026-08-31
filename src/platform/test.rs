@@ -18,7 +18,7 @@ use crate::{
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
     services::{
         Service,
-        arch::{Arch, WorkaroundSupport},
+        arch::{Arch, ArchPlatform},
         errata_management::ErrataManagement,
         psci::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
@@ -189,28 +189,6 @@ unsafe impl Platform for TestPlatform {
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
         Some(TestPsciPlatformImpl::new())
-    }
-
-    fn arch_workaround_1_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_1() {}
-
-    fn arch_workaround_2_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_2() {}
-
-    fn arch_workaround_3_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_3() {}
-
-    fn arch_workaround_4_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
     }
 
     extern "C" fn core_position(mpidr: u64) -> usize {
@@ -564,6 +542,11 @@ impl
     }
 }
 
+/// Fake Arch platform implementation for tests.
+pub struct ArchPlatformImpl;
+
+impl ArchPlatform for ArchPlatformImpl {}
+
 /// Fake TRNG implementation for tests.
 pub struct TestTrngPlatformImpl;
 
@@ -583,7 +566,7 @@ impl TrngPlatformInterface<TRNG_REQ_WORDS> for TestTrngPlatformImpl {
     }
 }
 
-static ARCH: Arch<TestPlatform> = Arch::new();
+static ARCH: Arch<ArchPlatformImpl> = Arch::new();
 static ERRATA_MANAGEMENT: ErrataManagement<TestPlatform> = ErrataManagement::new();
 static TRNG: Lazy<Trng<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>> = Lazy::new(Trng::new);
 

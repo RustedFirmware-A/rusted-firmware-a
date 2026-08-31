@@ -45,7 +45,7 @@ use rf_a_bl31::{
     },
     services::{
         Service,
-        arch::{Arch, WorkaroundSupport},
+        arch::{Arch, ArchPlatform},
         errata_management::ErrataManagement,
         psci::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
@@ -199,7 +199,11 @@ statics!(Qemu);
 all_asm!(Qemu);
 panic_handler!();
 
-static ARCH: Arch<Qemu> = Arch::new();
+struct ArchPlatformImpl;
+
+impl ArchPlatform for ArchPlatformImpl {}
+
+static ARCH: Arch<ArchPlatformImpl> = Arch::new();
 static ERRATA_MANAGEMENT: ErrataManagement<Qemu> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
@@ -332,28 +336,6 @@ unsafe impl Platform for Qemu {
             per_cpu_powerdown_kinds: [const { SpinMutex::new(PowerDownKind::Off) };
                 Qemu::CORE_COUNT],
         })
-    }
-
-    fn arch_workaround_1_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_1() {}
-
-    fn arch_workaround_2_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_2() {}
-
-    fn arch_workaround_3_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
-    }
-
-    fn arch_workaround_3() {}
-
-    fn arch_workaround_4_supported() -> WorkaroundSupport {
-        WorkaroundSupport::SafeButNotRequired
     }
 
     #[unsafe(naked)]

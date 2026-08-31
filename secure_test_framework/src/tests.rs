@@ -13,6 +13,7 @@ mod hcx;
 mod interrupts;
 mod nmi;
 mod pan;
+mod pan3;
 mod pfar;
 mod psci;
 mod psci_osi;

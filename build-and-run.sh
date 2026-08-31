@@ -115,6 +115,8 @@ case "$PLAT" in
         -C cluster1.has_amu=1 \
         -C cluster0.has_branch_target_exception=1 \
         -C cluster1.has_branch_target_exception=1 \
+        -C cluster0.has_enhanced_pan=2 \
+        -C cluster1.has_enhanced_pan=2 \
         -C cluster0.has_ete=1 \
         -C cluster1.has_ete=1 \
         -C cluster0.has_fgt2=2 \

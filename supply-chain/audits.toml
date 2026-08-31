@@ -929,6 +929,28 @@ The diff introduces the following changes:
   SharedMmioPointerIterator::next safety comments but the implementation itself is sound).
 """
 
+[[audits.safe-mmio]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.0 -> 0.3.1"
+notes = """
+"safe-to-deploy"
+No change to this criteria.
+
+"does-not-implement-crypto"
+No change to this criteria.
+
+"ub-risk-2"
+The diff introduces a backend refactoring, and support for custom MMIO backends. Backends contain
+unsafe MMIO read and write functions, which are identical in function to the previous
+implementation.
+The new unsafe code stems from refactoring the crate; it did not change in functionality, and it is
+paired with verbose safety comments.
+
+Changed the trait bounds on the read_unsafe methods of UniqueMmioPointer and SharedMmioPointer. No
+new unsafe code.
+"""
+
 [[audits.scopeguard]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"

@@ -6,7 +6,8 @@ This document defines the requirements the target system must meet to ensure cor
 
 The CPUs must implement the Armv9.0 extension or later. All CPU features made mandatory from the
 Armv9.0 extension are assumed to be present ; RF-A might make use of them without querying their
-support through id registers.
+support through id registers. Architecture extension requirements are outlined in
+[Architecture Extensions][2].
 
 Also, the SoC must implement hardware-assisted power management. This is the case for all recent
 Arm A-class CPUs, as they implement Arm DynamIQ Shared Unit (DSU). This greatly simplifies power
@@ -29,3 +30,4 @@ RF-A won't work correctly with software that only supports the old, "original" f
 version 0.2.
 
 [1]: https://developer.arm.com/documentation/den0077/latest
+[2]: ./architecture-extensions.md

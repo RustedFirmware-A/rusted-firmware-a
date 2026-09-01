@@ -68,6 +68,9 @@ to save and restore additional context if necessary.
 
 Platforms list the CPU extensions they want to enable in the `Platform::CPU_EXTENSIONS` constant.
 
+For a list of architecture extensions supported by the project, see
+[Architecture Extensions](./architecture-extensions.md).
+
 ### `dram`
 
 The [`dram`] module has some abstractions for storing static variables in different sections of

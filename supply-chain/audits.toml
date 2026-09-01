@@ -276,6 +276,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.1.1 -> 0.2.1"
 notes = "Refactors MMIO based access into a dedicated module and adds sysreg based access. No new unsafe code."
 
+[[audits.arm-generic-timer]]
+who = "Gergely Balint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.1 -> 0.3.0"
+notes = "Adds new unsafe APIs, where safety requirements are delegated to the caller. Does not contain code calling these new unsafe APIs."
+
 [[audits.arm-gic]]
 who = "Jeremi Miller <jeremimiller@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

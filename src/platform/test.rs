@@ -12,6 +12,7 @@ use crate::{
     context::EntryPointInfo,
     cpu::{Cpu, CpuOps, PlatformCpuOps},
     cpu_extensions::CpuExtension,
+    crash_console::CrashConsole,
     errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
     gicv3::GicConfig,
     logger::LogSink,
@@ -108,6 +109,7 @@ unsafe impl Platform for TestPlatform {
     type LogSinkImpl = StdOutSink;
     type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = TestPsciPlatformImpl;
+    type CrashConsoleImpl = DummyCrashConsole;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],
@@ -205,6 +207,14 @@ unsafe impl Platform for TestPlatform {
 
     unsafe extern "C" fn cold_boot_handler() {}
 
+    unsafe extern "C" fn dump_registers() {}
+}
+
+/// Dummy crash console implementation.
+pub struct DummyCrashConsole;
+
+/// SAFETY: Only used for testing.
+unsafe impl CrashConsole for DummyCrashConsole {
     extern "C" fn crash_console_init() -> u32 {
         1
     }
@@ -214,8 +224,6 @@ unsafe impl Platform for TestPlatform {
     }
 
     extern "C" fn crash_console_flush() {}
-
-    unsafe extern "C" fn dump_registers() {}
 }
 
 /// A log sink for tests which writes logs to standard output.

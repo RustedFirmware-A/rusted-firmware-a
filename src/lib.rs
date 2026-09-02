@@ -11,8 +11,7 @@ pub mod aarch64;
 pub mod context;
 pub mod cpu;
 pub mod cpu_extensions;
-#[cfg(not(any(test, feature = "fakes")))]
-mod crash_console;
+pub mod crash_console;
 pub mod debug;
 pub mod dram;
 pub mod errata_framework;

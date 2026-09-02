@@ -13,8 +13,8 @@ use crate::services::rmmd::{
     svc::{EccCurve, RmmCommandReturnCode},
 };
 use crate::{
-    context::EntryPointInfo, cpu_extensions::CpuExtension, gicv3, logger::LogSink,
-    pagetable::MAIR_IWBRWA_OWBRWA_NTR, services::Service,
+    context::EntryPointInfo, cpu_extensions::CpuExtension, crash_console::CrashConsole, gicv3,
+    logger::LogSink, pagetable::MAIR_IWBRWA_OWBRWA_NTR, services::Service,
 };
 use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
@@ -47,9 +47,9 @@ pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
 /// `CORE_COUNT`, and must return a different index for different MPIDR values. The index must be 0
 /// for the primary core that boots first on cold boot.
 ///
-/// The implementations of `cold_boot_handler`, `crash_console_init`, `crash_console_putc`,
-/// `crash_console_flush`, `dump_registers` and `panic_handler` must be naked functions which
-/// doesn't use the stack, and only clobber the registers they are documented to clobber.
+/// The implementations of `cold_boot_handler`, `dump_registers` and `panic_handler` must be naked
+/// functions which don't use the stack, and only clobber the registers they are documented to
+/// clobber.
 ///
 /// `NORMAL_MEMORY_MAIR_ATTRIBUTE` must be a normal memory type with cache enabled, so that atomic
 /// operations work correctly.
@@ -96,6 +96,9 @@ pub unsafe trait Platform: Sized + Send + Sync {
 
     /// Platform dependent `PsciPlatformInterface` implementation type.
     type PsciPlatformImpl;
+
+    /// Platform dependent `CrashConsole` implementation type.
+    type CrashConsoleImpl: CrashConsole;
 
     /// Performs early platform-specific initialisation. This will be called while the early
     /// pagetable mapping defined by `define_early_mapping!` is active, so anything only mapped by
@@ -172,30 +175,6 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// any Rust code runs.
     #[cfg_attr(test, allow(unused))]
     unsafe extern "C" fn cold_boot_handler();
-
-    /// Initialises the crash console to print a crash report.
-    ///
-    /// This may be called without a Rust runtime, e.g. with no stack.
-    ///
-    /// May clobber x0-x2.
-    #[cfg_attr(test, allow(unused))]
-    extern "C" fn crash_console_init() -> u32;
-
-    /// Prints a character on the crash console.
-    ///
-    /// This may be called without a Rust runtime, e.g. with no stack.
-    ///
-    /// May clobber x1-x2.
-    #[cfg_attr(test, allow(unused))]
-    extern "C" fn crash_console_putc(char: u32) -> i32;
-
-    /// Forces a write of all buffered data that hasn't been output.
-    ///
-    /// This may be called without a Rust runtime, e.g. with no stack.
-    ///
-    /// May clobber x0-x1.
-    #[cfg_attr(test, allow(unused))]
-    extern "C" fn crash_console_flush();
 
     /// Handles a panic from assembly code.
     ///

@@ -16,6 +16,7 @@ use rf_a_bl31::{
     context::{CoresImpl, EntryPointInfo},
     cpu::qemu_max::QemuMax,
     cpu_extensions::{CpuExtension, simd::Simd},
+    crash_console::pl011::Pl011CrashConsole,
     debug::DEBUG,
     define_cpu_ops, define_errata_list,
     dram::zeroed_mut,
@@ -221,6 +222,7 @@ unsafe impl Platform for Qemu {
     >;
     type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
+    type CrashConsoleImpl = Pl011CrashConsole<UART1_BASE, 1, 115_200>;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],
@@ -355,46 +357,6 @@ unsafe impl Platform for Qemu {
     #[unsafe(naked)]
     unsafe extern "C" fn cold_boot_handler() {
         naked_asm!("ret");
-    }
-
-    #[unsafe(naked)]
-    extern "C" fn crash_console_init() -> u32 {
-        naked_asm!(
-            asm_macros_common!(),
-            "mov_imm	x0, {PLAT_QEMU_CRASH_UART_BASE}",
-            "mov_imm	x1, {PLAT_QEMU_CRASH_UART_CLK_IN_HZ}",
-            "mov_imm	x2, {PLAT_QEMU_CONSOLE_BAUDRATE}",
-            "b	console_pl011_core_init",
-            asm_macros_common_purge!(),
-            DEBUG = const DEBUG as i32,
-            PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
-            PLAT_QEMU_CRASH_UART_CLK_IN_HZ = const 1,
-            PLAT_QEMU_CONSOLE_BAUDRATE = const 115_200,
-        );
-    }
-
-    #[unsafe(naked)]
-    extern "C" fn crash_console_putc(char: u32) -> i32 {
-        naked_asm!(
-            asm_macros_common!(),
-            "mov_imm	x1, {PLAT_QEMU_CRASH_UART_BASE}",
-            "b	console_pl011_core_putc",
-            asm_macros_common_purge!(),
-            DEBUG = const DEBUG as i32,
-            PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
-        );
-    }
-
-    #[unsafe(naked)]
-    extern "C" fn crash_console_flush() {
-        naked_asm!(
-            asm_macros_common!(),
-            "mov_imm	x0, {PLAT_QEMU_CRASH_UART_BASE}",
-            "b	console_pl011_core_flush",
-            asm_macros_common_purge!(),
-            DEBUG = const DEBUG as i32,
-            PLAT_QEMU_CRASH_UART_BASE = const UART1_BASE,
-        );
     }
 
     /// Dumps relevant GIC and CCI registers.

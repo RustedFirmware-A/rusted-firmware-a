@@ -45,6 +45,7 @@ use rf_a_bl31::{
         simd::Simd, spe::StatisticalProfiling, sys_reg_trace::SysRegTrace, tcr2::Tcr2,
         trbe::TraceBufferNonSecure, trf::TraceFiltering,
     },
+    crash_console::pl011::Pl011CrashConsole,
     debug::DEBUG,
     errata_framework::define_errata_list,
     gic_debug_macros, gic_debug_macros_purge,
@@ -354,6 +355,7 @@ unsafe impl Platform for Fvp {
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
+    type CrashConsoleImpl = Pl011CrashConsole<CRASH_UART_BASE, 24_000_000, 115_200>;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[
@@ -561,46 +563,6 @@ unsafe impl Platform for Fvp {
     #[unsafe(naked)]
     unsafe extern "C" fn cold_boot_handler() {
         naked_asm!("ret");
-    }
-
-    #[unsafe(naked)]
-    extern "C" fn crash_console_init() -> u32 {
-        naked_asm!(
-            asm_macros_common!(),
-            "mov_imm	x0, {PLAT_ARM_CRASH_UART_BASE}",
-            "mov_imm	x1, {PLAT_ARM_CRASH_UART_CLK_IN_HZ}",
-            "mov_imm	x2, {ARM_CONSOLE_BAUDRATE}",
-            "b	console_pl011_core_init",
-            asm_macros_common_purge!(),
-            DEBUG = const DEBUG as i32,
-            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
-            PLAT_ARM_CRASH_UART_CLK_IN_HZ = const 24_000_000,
-            ARM_CONSOLE_BAUDRATE = const 115_200,
-        );
-    }
-
-    #[unsafe(naked)]
-    extern "C" fn crash_console_putc(char: u32) -> i32 {
-        naked_asm!(
-            asm_macros_common!(),
-            "mov_imm	x1, {PLAT_ARM_CRASH_UART_BASE}",
-            "b	console_pl011_core_putc",
-            asm_macros_common_purge!(),
-            DEBUG = const DEBUG as i32,
-            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
-        );
-    }
-
-    #[unsafe(naked)]
-    extern "C" fn crash_console_flush() {
-        naked_asm!(
-            asm_macros_common!(),
-            "mov_imm	x0, {PLAT_ARM_CRASH_UART_BASE}",
-            "b	console_pl011_core_flush",
-            asm_macros_common_purge!(),
-            DEBUG = const DEBUG as i32,
-            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
-        );
     }
 
     /// Dumps relevant GIC registers.

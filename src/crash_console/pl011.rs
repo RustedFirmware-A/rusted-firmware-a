@@ -4,7 +4,11 @@
 
 //! PL011 crash console driver.
 
-use crate::debug::{DEBUG, ENABLE_ASSERTIONS};
+use crate::{
+    crash_console::CrashConsole,
+    debug::{DEBUG, ENABLE_ASSERTIONS},
+    naked_asm,
+};
 use core::arch::global_asm;
 
 /// Enable FIFOs.
@@ -32,3 +36,56 @@ global_asm!(
     PL011_LINE_CONTROL = const PL011_UARTLCR_H_FEN | PL011_UARTLCR_H_WLEN_8,
     PL011_GENERIC_UART = const 0,
 );
+
+/// PL011 UART based crash console implementation.
+pub struct Pl011CrashConsole<
+    const CRASH_UART_BASE: usize,
+    const UART_CLK: u32,
+    const UART_BAUDRATE: u32,
+>;
+
+/// SAFETY: The required functions are naked functions that don't use the stack and only clobber the
+/// specified registers.
+unsafe impl<const CRASH_UART_BASE: usize, const UART_CLK: u32, const UART_BAUDRATE: u32>
+    CrashConsole for Pl011CrashConsole<CRASH_UART_BASE, UART_CLK, UART_BAUDRATE>
+{
+    #[unsafe(naked)]
+    extern "C" fn crash_console_init() -> u32 {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x0, {PLAT_ARM_CRASH_UART_BASE}",
+            "mov_imm	x1, {PLAT_ARM_CRASH_UART_CLK_IN_HZ}",
+            "mov_imm	x2, {ARM_CONSOLE_BAUDRATE}",
+            "b	console_pl011_core_init",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
+            PLAT_ARM_CRASH_UART_CLK_IN_HZ = const UART_CLK,
+            ARM_CONSOLE_BAUDRATE = const UART_BAUDRATE,
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn crash_console_putc(char: u32) -> i32 {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x1, {PLAT_ARM_CRASH_UART_BASE}",
+            "b	console_pl011_core_putc",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
+        );
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn crash_console_flush() {
+        naked_asm!(
+            include_str!("../asm_macros_common.S"),
+            "mov_imm	x0, {PLAT_ARM_CRASH_UART_BASE}",
+            "b	console_pl011_core_flush",
+            include_str!("../asm_macros_common_purge.S"),
+            DEBUG = const DEBUG as i32,
+            PLAT_ARM_CRASH_UART_BASE = const CRASH_UART_BASE,
+        );
+    }
+}

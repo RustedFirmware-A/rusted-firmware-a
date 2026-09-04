@@ -126,7 +126,7 @@ pub const MT_DEVICE: El23Attributes = DEVICE.union(BASE_EL3).union(El23Attribute
 /// - `MT_CODE`
 macro_rules! make_memory_attributes {
     ($name:ident, $base:expr) => {
-        paste::paste! {
+        pastey::paste! {
             #[doc = "Attributes used for non-cacheable memory mappings in "]
             #[doc = stringify!($name)]
             #[doc = " world."]

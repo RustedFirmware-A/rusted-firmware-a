@@ -46,7 +46,7 @@ bitflags = "2.10.0"
 include-first = "0.1.0"
 log = "0.4.29"
 num_enum = { version = "0.7.4", default-features = false }
-paste = "1.0.14"
+pastey = "0.2.3"
 percore = { version = "0.3.0", default-features = false, features = [
   "derive",
   "zerocopy",

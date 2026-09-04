@@ -11,24 +11,24 @@ rust-version = "1.88"
 license = "BSD-3-Clause"
 
 [dependencies]
-aarch64-rt = { version = "0.4.2", default-features = false, features = [
+aarch64-rt = { version = "0.4.3", default-features = false, features = [
   "exceptions",
   "initial-pagetable",
 ] }
-aarch64-paging = { version = "0.12.0", default-features = false }
+aarch64-paging = { version = "0.12.1", default-features = false }
 arm-ffa = "0.5.0"
 arm-psci = "0.2.0"
 arm-gic = { version = "0.8.1", features = ["el2"] }
 arm-pl011-uart = { version = "0.5.0", default-features = false }
 arm-sysregs = { version = "0.4.0", features = ["el2"] }
-bitflags = "2.9.4"
-buddy_system_allocator = { version = "0.11.0", default-features = false, features = [
+bitflags = "2.13.1"
+buddy_system_allocator = { version = "0.13.0", default-features = false, features = [
   "alloc",
   "use_spin",
 ] }
-linkme = "0.3.33"
-log = "0.4.19"
-num_enum = { version = "0.7.4", default-features = false }
+linkme = "0.3.37"
+log = "0.4.34"
+num_enum = { version = "0.7.6", default-features = false }
 pastey = "0.2.3"
 percore = { version = "0.3.0", default-features = false, features = [
   "zerocopy",
@@ -38,8 +38,8 @@ spin = { version = "0.12.3", default-features = false, features = [
   "once",
   "spin_mutex",
 ] }
-smccc = "0.2.2"
-thiserror = { version = "2.0.17", default-features = false }
+smccc = "0.2.3"
+thiserror = { version = "2.0.20", default-features = false }
 
 [features]
 pauth = []

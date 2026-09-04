@@ -1127,7 +1127,7 @@ delta = "0.9.8 -> 0.10.0"
 
 [[audits.spin]]
 who = "Imre Kis <imre.kis@arm.com>"
-criteria = "safe-to-run"
+criteria = ["safe-to-run", "safe-to-deploy"]
 delta = "0.10.0 -> 0.10.1"
 notes = "Fixes unsoundness in Once::force_into_inner."
 

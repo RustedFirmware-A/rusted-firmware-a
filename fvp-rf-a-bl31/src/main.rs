@@ -37,7 +37,7 @@ use rf_a_bl31::{
     context::{CoresImpl, EntryPointInfo},
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
     cpu_extensions::{
-        CpuExtension, amu::Amu, fgt::Fgt, fgt2::Fgt2, fpmr::Fpmr, hcx::Hcx, mpam::Mpam,
+        CpuExtension, amu::Amu, fgt::Fgt, fgt2::Fgt2, fpmr::Fpmr, gcs::Gcs, hcx::Hcx, mpam::Mpam,
         mte2::MemoryTagging, pfar::Pfar, pmuv3::MultiThreadedPmu, ras::Ras, sctlr2::Sctlr2,
         simd::Simd, spe::StatisticalProfiling, sys_reg_trace::SysRegTrace, tcr2::Tcr2,
         trbe::TraceBufferNonSecure, trf::TraceFiltering,
@@ -259,6 +259,7 @@ unsafe impl Platform for Fvp {
         &Fgt,
         &Fgt2,
         &Fpmr,
+        &Gcs,
         &Hcx,
         &MemoryTagging,
         &Mpam,

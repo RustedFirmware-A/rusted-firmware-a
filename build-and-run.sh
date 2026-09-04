@@ -141,6 +141,8 @@ case "$PLAT" in
         -C cluster1.amu_num_auxiliary_counters=16 \
         -C cluster0.has_ras_pfar=2 \
         -C cluster1.has_ras_pfar=2 \
+        -C cluster0.has_gcs=2 \
+        -C cluster1.has_gcs=2 \
         -C gic_distributor.ARE-fixed-to-one=1 \
         -C gic_distributor.extended-ppi-count=64 \
         -C gic_distributor.extended-spi-count=1024 \
@@ -202,6 +204,8 @@ case "$PLAT" in
             -C cluster1.has_arm_v8-8=1 \
             -C cluster0.has_arm_v9-2=1 \
             -C cluster1.has_arm_v9-2=1 \
+            -C cluster0.has_arm_v9-3=1 \
+            -C cluster1.has_arm_v9-3=1 \
             -C cluster0.max_32bit_el=0 \
             -C cluster1.max_32bit_el=0 \
             -C cluster0.has_tcr2=2 \
@@ -225,6 +229,8 @@ case "$PLAT" in
         FVP_Base_RevC-2xAEMvA \
             -C cluster0.has_arm_v9-0=1 \
             -C cluster1.has_arm_v9-0=1 \
+            -C cluster0.has_arm_v9-3=1 \
+            -C cluster1.has_arm_v9-3=1 \
             -C bp.dram_metadata.is_enabled=1 \
             -C pci.pci_smmuv3.mmu.SMMU_AIDR=0x2 \
             -C pci.pci_smmuv3.mmu.SMMU_IDR0=0x0046123B \

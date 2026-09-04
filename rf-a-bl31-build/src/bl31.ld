@@ -60,25 +60,21 @@ SECTIONS
 		__DATA_END__ = .;
 	} >image
 
-	.percore : ALIGN(CACHE_WRITEBACK_GRANULE) {
-		__PERCORE_START__ = .;
-		*(SORT_BY_ALIGNMENT(.percore .percore.*))
+	percore : ALIGN(CACHE_WRITEBACK_GRANULE) {
+		*(SORT_BY_ALIGNMENT(percore percore.*))
 
 		/*
-		 * Round up the section size to the actual alignment of the `.percore` section.
-		 * This ensures that we can conceptually have an array of .percore sections inside the
-		 * .percore_secondary section.
+		 * Round up the section size to the actual alignment of the `percore` section.
+		 * This ensures that we can conceptually have an array of percore sections inside the
+		 * percore_secondary section.
 		 */
-		. = ALIGN(ALIGNOF(.percore));
-		__PERCORE_END__ = .;
+		. = ALIGN(ALIGNOF(percore));
 	} >image
 
 	/* Everything beyond this point will not be included in the binary. */
 
-	.percore_secondary (NOLOAD) : ALIGN(ALIGNOF(.percore)) {
-		__PERCORE_SECONDARY_START__ = .;
-		. += (__PERCORE_END__ - __PERCORE_START__) * (CORE_COUNT - 1);
-		__PERCORE_SECONDARY_END__ = .;
+	percore_secondary (NOLOAD) : ALIGN(ALIGNOF(percore)) {
+		. += (__stop_percore - __start_percore) * (CORE_COUNT - 1);
 	} >image
 
 	/* The entry point code assumes that .bss is 16-byte aligned. */

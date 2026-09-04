@@ -298,9 +298,9 @@ late initialisation.
 [`platform`]: ../src/platform.rs
 [`services`]: ../src/services.rs
 [`percore`]: https://crates.io/crates/percore
-[percore-attribute]: https://docs.rs/percore/0.2.5/percore/derive/attr.percore.html
+[percore-attribute]: https://docs.rs/percore/0.3.0/percore/derive/attr.percore.html
 [`PerCore`]: https://docs.rs/percore/0.2.5/percore/struct.PerCore.html
-[`ExceptionLock`]: https://docs.rs/percore/0.2.5/percore/struct.ExceptionLock.html
+[`ExceptionLock`]: https://docs.rs/percore/0.3.0/percore/struct.ExceptionLock.html
 [`SpinMutex`]: https://docs.rs/spin/latest/spin/mutex/spin/struct.SpinMutex.html
 [`spin`]: https://crates.io/crates/spin
 [`Once`]: https://docs.rs/spin/latest/spin/type.Once.html

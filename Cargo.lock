@@ -330,9 +330,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "percore"
-version = "0.2.5"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524734e7f004e6ac6ff2fdabfa28c80bbfd1a65b8399f7a44f90fa59992fdadd"
+checksum = "4b9f4bb4c8c288e534c1f96a3c51e718d04a3b602709120ea4b65075d6e4bbd1"
 dependencies = [
  "percore-derive",
  "zerocopy",
@@ -340,9 +340,9 @@ dependencies = [
 
 [[package]]
 name = "percore-derive"
-version = "0.2.5"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa0918b8a5642c5721269964fe5044e5cc6a3b4a5db5afc7297c8d6c3bb86377"
+checksum = "6265cf1b39f789c41f528be540f1abedc856d5cccecc95bd4d84affbebd1ef9b"
 dependencies = [
  "quote",
  "syn 3.0.3",

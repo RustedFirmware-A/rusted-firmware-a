@@ -170,6 +170,12 @@ criteria = "safe-to-run"
 delta = "0.3.0 -> 0.4.2"
 notes = "build.rs has not changed and it only accesses files in the project directory and in OUT_DIR."
 
+[[audits.aarch64-rt]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-run"
+delta = "0.4.2 -> 0.4.3"
+notes = "Added suspend_core PSCI function and warm boot handling. Fixed example."
+
 [[audits.arm-cci]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -352,6 +358,16 @@ delta = "0.7.2 -> 0.8.1"
 notes = """
 Replaces sysreg access functions with using arm-sysregs, optimizes distributor/redistributor setup
 to use 32-bit MMIO writes. Small changes to unsafe code, safety comments are correct.
+"""
+
+[[audits.arm-gic]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.8.1 -> 0.9.1"
+notes = """
+Changes redistributor frame size detection and the related register layout, which also affects the
+external API. Fixes the AArch32 build and testing on AArch64 hosts. Also fixes the interrupt disable
+code and includes some refactoring.
 """
 
 [[audits.arm-pl011-uart]]
@@ -582,6 +598,15 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.2.0 -> 0.2.1"
 notes = "No code changes. Dependency update only."
 
+[[audits.arrayvec]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.7.6 -> 0.7.8"
+notes = """
+The changes include a couple of fixes for 16- and 32-bit targets, a lifetime warning, and a fix for
+a double-free issue.
+"""
+
 [[audits.autocfg]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
@@ -628,6 +653,14 @@ criteria = "safe-to-run"
 version = "0.11.0"
 notes = "Fairly straightforward code, doesn't access any local or remote resources."
 
+[[audits.buddy_system_allocator]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-run"
+delta = "0.11.0 -> 0.13.0"
+notes = """
+Adds fixed address allocation, fixes frame bugs, and improves safety and Rust 2024 support.
+"""
+
 [[audits.cc]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"
@@ -651,6 +684,12 @@ criteria = "safe-to-run"
 delta = "0.3.33 -> 0.3.35"
 notes = "Build script just checks Rust toolchain version, nothing else surprising."
 
+[[audits.linkme]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-run"
+delta = "0.3.35 -> 0.3.37"
+notes = "Dependency update and MSRV change to 1.71. Fixed issue when building for Windows/UEFI."
+
 [[audits.linkme-impl]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
@@ -662,6 +701,12 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
 delta = "0.3.33 -> 0.3.35"
 notes = "Fairly straightforward macro changes, nothing surprisingly run locally."
+
+[[audits.linkme-impl]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-run"
+delta = "0.3.35 -> 0.3.37"
+notes = "Dependency update and MSRV change to 1.71. Fixed issue when building for Windows/UEFI."
 
 [[audits.lock_api]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -691,6 +736,15 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.4.28 -> 0.4.29"
 notes = "No unsafe code, mostly minor refactoring and lint fixes."
+
+[[audits.log]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
+delta = "0.4.29 -> 0.4.34"
+notes = """
+Changed MSRV to 1.71, support was added for handling std::net types, key handling was optimized and
+a key comparison bug was fixed. The small amount of unsafe code is sound and well documented.
+"""
 
 [[audits.num_enum]]
 who = "Chris Palmer <palmer@google.com>"
@@ -758,6 +812,18 @@ who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
 delta = "1.0.14 -> 1.0.15"
 notes = "No substantial changes."
+
+[[audits.pastey]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+version = "0.2.3"
+notes = """
+The crate is the successor to paste and was forked after version 1.0.15.
+Since then, it has added camel case and replace modifiers, introduced a raw mode, and increased test
+coverage. It does not contain any unsafe code, and it does not access any external resources during
+proc macro evaluation, except for environment variables accessed when using the [<A env!(VAR) B>]
+syntax in the consuming project.
+"""
 
 [[audits.percore]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -835,10 +901,24 @@ The remaining changes add the get_mut and into_inner methods, tests, documentati
 updates.
 '''
 
+[[audits.percore]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.5 -> 0.3.0"
+notes = "Fixed pointer provenance issue and refactored/simplified derive feature."
+
 [[audits.percore-derive]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.2.5"
+
+[[audits.percore-derive]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.5 -> 0.3.0"
+notes = """
+Prohibits having unsafe code in percore variable init, and adds support for various build targets.
+"""
 
 [[audits.proc-macro2]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -1019,6 +1099,12 @@ criteria = "safe-to-run"
 version = "0.2.2"
 notes = "safe-to-run: The crate is safe to run. It contains no code that accesses the filesystem, network, or other ambient capabilities during the build process."
 
+[[audits.smccc]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-run"
+delta = "0.2.2 -> 0.2.3"
+notes = "Simplifies AArch32 build by using raw opcodes."
+
 [[audits.spin]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "ub-risk-2"]
@@ -1038,6 +1124,21 @@ mut`.
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.9.8 -> 0.10.0"
+
+[[audits.spin]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-run"
+delta = "0.10.0 -> 0.10.1"
+notes = "Fixes unsoundness in Once::force_into_inner."
+
+[[audits.spin]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.10.0 -> 0.12.3"
+notes = """
+Renamed Lazy to LazyLock, fixed several unsoundness issues and added new functions to lock_api and
+Once. Also updated MSRV to 1.71 and updated the dependencies.
+"""
 
 [[audits.syn]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -1103,6 +1204,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.17 -> 2.0.18"
 notes = "Updated thiserror-impl."
 
+[[audits.thiserror]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "2.0.18 -> 2.0.20"
+notes = "Dependency update and MSRV change to 1.71."
+
 [[audits.thiserror-impl]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -1136,6 +1243,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "2.0.17 -> 2.0.18"
 notes = "Fixed issue with clippy."
+
+[[audits.thiserror-impl]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "2.0.18 -> 2.0.20"
+notes = "Dependency update, MSRV change to 1.71 and Clippy warning fixes."
 
 [[audits.unicode-ident]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -1188,6 +1301,12 @@ who = "Balint Dobszay <balint.dobszay@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "1.19.0 -> 1.23.0"
 notes = "Small correctness fixes, API cleanup and test refactoring. No new unsafe code."
+
+[[audits.uuid]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "1.23.0 -> 1.26.0"
+notes = "Improved parsing and formatting logic along with several smaller changes."
 
 [[audits.zerocopy]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -1265,3 +1384,9 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.8.48 -> 0.8.55"
 notes = "Adds IntoBytes support for homogeneous generic structs and the experimental most_traits derive."
+
+[[audits.zerocopy-derive]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.8.55 -> 0.8.56"
+notes = 'Fixes #[zerocopy(crate = "...")] path parsing.'

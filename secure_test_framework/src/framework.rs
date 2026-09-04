@@ -12,7 +12,7 @@ use alloc::boxed::Box;
 use arm_ffa::Interface;
 use linkme::distributed_slice;
 use log::{error, info, trace};
-use spin::Lazy;
+use spin::LazyLock;
 
 /// The normal world tests.
 #[distributed_slice]
@@ -22,13 +22,13 @@ pub static NORMAL_WORLD_TESTS: [NormalWorldTest];
 #[distributed_slice]
 pub static SECURE_WORLD_TESTS: [SecureWorldTest];
 
-static NORMAL_WORLD_TESTS_SORTED: Lazy<Box<[&'static NormalWorldTest]>> = Lazy::new(|| {
+static NORMAL_WORLD_TESTS_SORTED: LazyLock<Box<[&'static NormalWorldTest]>> = LazyLock::new(|| {
     let mut tests = NORMAL_WORLD_TESTS.iter().collect::<Box<[_]>>();
     tests.sort_by_key(|test| test.name);
     tests
 });
 
-static SECURE_WORLD_TESTS_SORTED: Lazy<Box<[&'static SecureWorldTest]>> = Lazy::new(|| {
+static SECURE_WORLD_TESTS_SORTED: LazyLock<Box<[&'static SecureWorldTest]>> = LazyLock::new(|| {
     let mut tests = SECURE_WORLD_TESTS.iter().collect::<Box<[_]>>();
     tests.sort_by_key(|test| test.name);
     tests

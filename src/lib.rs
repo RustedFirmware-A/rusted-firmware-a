@@ -49,7 +49,7 @@ use core::arch::global_asm;
 use include_first::include_first;
 use log::{debug, info};
 use percore::Cores;
-use spin::{Lazy, Once};
+use spin::{LazyLock, Once};
 
 /// Handles early initialisation at the start of a cold boot, and then runs the main loop.
 #[expect(clippy::too_many_arguments)]
@@ -64,7 +64,7 @@ pub fn coldboot<
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
     gic: &'static Once<Gic<'static, CORE_COUNT, PlatformImpl>>,
-    el3_runtime: &'static Lazy<
+    el3_runtime: &'static LazyLock<
         El3Runtime<
             CORE_COUNT,
             PSCI_STATE_COUNT,
@@ -362,7 +362,7 @@ macro_rules! statics {
             <$platform as $crate::platform::Platform>::PsciPlatformImpl::POWER_DOMAIN_COUNT
                 - <$platform as $crate::platform::Platform>::CORE_COUNT;
 
-        static CORE_SERVICES: $crate::reexports::spin::Lazy<
+        static CORE_SERVICES: $crate::reexports::spin::LazyLock<
             $crate::services::CoreServices<
                 { <$platform as $crate::platform::Platform>::CORE_COUNT },
                 PSCI_STATE_COUNT,
@@ -370,12 +370,12 @@ macro_rules! statics {
                 NON_CPU_DOMAIN_COUNT,
                 $platform,
             >,
-        > = $crate::reexports::spin::Lazy::new(|| {
+        > = $crate::reexports::spin::LazyLock::new(|| {
             $crate::services::CoreServices::new(|| &CORE_SERVICES.spmd)
         });
 
         /// The EL3 runtime instance.
-        pub(crate) static EL3_RUNTIME: $crate::reexports::spin::Lazy<
+        pub(crate) static EL3_RUNTIME: $crate::reexports::spin::LazyLock<
             $crate::services::El3Runtime<
                 { <$platform as $crate::platform::Platform>::CORE_COUNT },
                 PSCI_STATE_COUNT,
@@ -383,7 +383,7 @@ macro_rules! statics {
                 NON_CPU_DOMAIN_COUNT,
                 $platform,
             >,
-        > = $crate::reexports::spin::Lazy::new(|| {
+        > = $crate::reexports::spin::LazyLock::new(|| {
             $crate::services::El3Runtime::new(&*CORE_SERVICES)
         });
 

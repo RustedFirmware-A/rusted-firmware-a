@@ -210,13 +210,14 @@ The `PerCoreState` type provides a separate instance for each CPU core in an arr
 [`PerCore`] and [`ExceptionLock`] with [`RefCell`]. It remains useful when the per-core instances
 need to be constructed or placed in memory as a group, such as for per-core in-memory loggers.
 
-### `Once` and `Lazy`
+### `Once` and `LazyLock`
 
 Sometimes it is necessary to store something in a static variable that can't be initialised with a
 constant at compile time, either simply because the initialisation expression isn't `const` or
 because it needs to be provided by the platform sometime early in the boot process. In these cases,
-use the [`Once`] or [`Lazy`] types from the `spin` crate. If the initialisation doesn't depend on
-anything else that can't be obtained by calling a function then use `Lazy`, otherwise use `Once`.
+use the [`Once`] or [`LazyLock`] types from the `spin` crate. If the initialisation doesn't depend
+on anything else that can't be obtained by calling a function then use `LazyLock`, otherwise use
+`Once`.
 
 ### `zeroed_mut!` and `lazy_indirect!` <a name="dram-abstractions"></a>
 
@@ -233,7 +234,7 @@ To use this safely from Rust two macros are provided.
   variable which can be placed in the desired linker section, along with a `SpinMutex` wrapping a
   mutable reference to it, providing safe mutable access.
 - If the type can't safely be initialised as all zeroes, then use `lazy_indirect!` instead. This
-  takes an expression which is used with a `Lazy` wrapper to initialise the value. It doesn't
+  takes an expression which is used with a `LazyLock` wrapper to initialise the value. It doesn't
   directly provide mutability, so if you need mutable access then use a `SpinMutex` or
   `PerCoreState` within this.
 
@@ -280,7 +281,7 @@ context which we save and restore for lower ELs.
 ### `spin`
 
 `spin` provides a number of basic synchronisation primitives based on spinlocks and atomic operations.
-We use `SpinMutex`, `Once` and `Lazy` across the codebase for safe shared state across CPU cores and
+We use `SpinMutex`, `Once` and `LazyLock` across the codebase for safe shared state across CPU cores and
 late initialisation.
 
 [`main.rs`]: ../src/main.rs
@@ -303,7 +304,7 @@ late initialisation.
 [`SpinMutex`]: https://docs.rs/spin/latest/spin/mutex/spin/struct.SpinMutex.html
 [`spin`]: https://crates.io/crates/spin
 [`Once`]: https://docs.rs/spin/latest/spin/type.Once.html
-[`Lazy`]: https://docs.rs/spin/latest/spin/type.Lazy.html
+[`LazyLock`]: https://docs.rs/spin/latest/spin/type.LazyLock.html
 [`log`]: https://crates.io/crates/log
 [`log::Log`]: https://docs.rs/log/latest/log/trait.Log.html
 [`RefCell`]: https://doc.rust-lang.org/stable/core/cell/struct.RefCell.html

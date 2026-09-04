@@ -51,8 +51,8 @@ percore = { version = "0.2.5", default-features = false, features = [
   "derive",
   "zerocopy",
 ] }
-spin = { version = "0.10.0", default-features = false, features = [
-  "lazy",
+spin = { version = "0.12.3", default-features = false, features = [
+  "lazylock",
   "once",
   "spin_mutex",
 ] }

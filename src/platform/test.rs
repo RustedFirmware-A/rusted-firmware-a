@@ -37,7 +37,7 @@ use arm_gic::IntId;
 use arm_psci::{Cookie, ErrorCode, HwState, Mpidr, PowerState, SystemOff2Type};
 use arm_sysregs::el1::registers::{MidrEl1, MpidrEl1};
 use core::fmt;
-use spin::Lazy;
+use spin::LazyLock;
 use std::io::{Write, stdout};
 use uuid::Uuid;
 
@@ -586,10 +586,11 @@ impl TrngPlatformInterface<TRNG_REQ_WORDS> for TestTrngPlatformImpl {
 
 static ARCH: Arch<ArchPlatformImpl> = Arch::new();
 static ERRATA_MANAGEMENT: ErrataManagement<TestPlatform> = ErrataManagement::new();
-static TRNG: Lazy<Trng<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>> = Lazy::new(Trng::new);
+static TRNG: LazyLock<Trng<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>> =
+    LazyLock::new(Trng::new);
 
-static PLATFORM_SERVICES: Lazy<[&'static dyn Service; 3]> =
-    Lazy::new(|| [&ARCH, &ERRATA_MANAGEMENT, &*TRNG]);
+static PLATFORM_SERVICES: LazyLock<[&'static dyn Service; 3]> =
+    LazyLock::new(|| [&ARCH, &ERRATA_MANAGEMENT, &*TRNG]);
 
 struct TestCpu;
 

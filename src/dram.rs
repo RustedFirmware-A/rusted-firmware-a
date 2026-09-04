@@ -71,12 +71,12 @@ pub use zeroed_mut;
 /// will create
 ///
 /// ```compile_fail
-/// static FOO: Lazy<&u64> = ...;
+/// static FOO: LazyLock<&u64> = ...;
 /// ```
 ///
-/// The indirection (via the reference stored in the `Lazy`) allows the value itself to be stored in
-/// a different section of memory. Attributes can optionally be provided both for the underlying
-/// static and for the `Lazy` wrapper, e.g.:
+/// The indirection (via the reference stored in the `LazyLock`) allows the value itself to be
+/// stored in a different section of memory. Attributes can optionally be provided both for the
+/// underlying static and for the `LazyLock` wrapper, e.g.:
 ///
 /// ```
 /// use rf_a_bl31::dram::lazy_indirect;
@@ -91,12 +91,12 @@ pub use zeroed_mut;
 macro_rules! lazy_indirect {
     ($(#[$attributes:meta])* $visibility:vis $name:ident, $t:ty, $init:expr $(, $raw_attributes:meta)*) => {
         $(#[$attributes])*
-        $visibility static $name: $crate::reexports::spin::Lazy<&$t> = $crate::reexports::spin::Lazy::new(|| {
+        $visibility static $name: $crate::reexports::spin::LazyLock<&$t> = $crate::reexports::spin::LazyLock::new(|| {
             $(#[$raw_attributes])*
             static mut RAW: core::mem::MaybeUninit<$t> =
                 $crate::dram::const_zeroed();
             // SAFETY: This is the only place where we create a reference to the contents of this
-            // static mut, and it only happens once during the initialisation of the `Lazy`.
+            // static mut, and it only happens once during the initialisation of the `LazyLock`.
             unsafe { &mut *&raw mut RAW }.write($init)
         });
     };

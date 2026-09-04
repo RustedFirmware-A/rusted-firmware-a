@@ -434,7 +434,7 @@ unsafe impl Platform for Fvp {
             let mut gicr = map_peripheral(peripherals.gicr);
             // SAFETY: `gicr` points to a continuously mapped GIC redistributor memory area until
             // the last redistributor block. There are no other references to this address range.
-            unsafe { Gic::new(gicd, gicr.ptr_nonnull(), false) }
+            unsafe { Gic::new(gicd, gicr.ptr_nonnull()).unwrap() }
         });
     }
 

@@ -83,8 +83,8 @@ unsafe impl Platform for Fvp {
                 UniqueMmioPointer::new(GICD_BASE),
                 GICR_BASE,
                 Fvp::CORE_COUNT,
-                false,
             )
+            .unwrap()
         }
     }
 

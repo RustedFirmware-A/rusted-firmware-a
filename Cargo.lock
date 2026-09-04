@@ -20,9 +20,9 @@ checksum = "c11ec2f9c11149816e7f9461f894b04dec5be5b8d87fedb0884b1c60f9dba00c"
 
 [[package]]
 name = "arm-cci"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3caf7c9089f0aa62f78768e897cc7e0ee624f42c99fd434a3ed263caa2d69e70"
+checksum = "f5f7b32f9264ec553ed51f23dd96c1916891b95fc4d75ce91f55757421a0e08f"
 dependencies = [
  "bitflags",
  "safe-mmio",
@@ -43,9 +43,9 @@ dependencies = [
 
 [[package]]
 name = "arm-fvp-base-pac"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37459343bcbc38cace97288f75cfd1e481d932711ec5a42959f3022aaacaa733"
+checksum = "44519ed0c714bdf7a64f573d0050d742cbf17601b017acb5bb69b48e6dc09954"
 dependencies = [
  "arm-cci",
  "arm-generic-timer",
@@ -55,17 +55,17 @@ dependencies = [
  "arm-tzc",
  "bitflags",
  "safe-mmio",
- "spin 0.10.1",
+ "spin 0.12.3",
  "zerocopy",
 ]
 
 [[package]]
 name = "arm-generic-timer"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3824e9440c3f0345bc802b539062d38b6cb720821a6fabb1299ef87689c9f58"
+checksum = "af74f13d21b735db0941079c2dbae0cecb4e7882a169007935741c69751a51a8"
 dependencies = [
- "arm-sysregs 0.2.7",
+ "arm-sysregs",
  "bitflags",
  "safe-mmio",
  "zerocopy",
@@ -73,11 +73,11 @@ dependencies = [
 
 [[package]]
 name = "arm-gic"
-version = "0.8.1"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84372c6068152f635a04870779f0fa0d1b0273dd09dbe1c6747688693d061f06"
+checksum = "007c3bfede5b50718883ac44325b75603136f656e2b53f04c920ba09936ab216"
 dependencies = [
- "arm-sysregs 0.2.7",
+ "arm-sysregs",
  "bitflags",
  "safe-mmio",
  "thiserror",
@@ -86,9 +86,9 @@ dependencies = [
 
 [[package]]
 name = "arm-pl011-uart"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b24c708955a2b308f2ef06b78c1e676d69870773f78ccf78aff6ffdd6136d90"
+checksum = "da0601ab96b18e55589d286dc635d1aac547e266aeaf3393813bb37c79318a71"
 dependencies = [
  "bitflags",
  "safe-mmio",
@@ -121,24 +121,13 @@ dependencies = [
 
 [[package]]
 name = "arm-sp805"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8dc3f6873cd65bb78ce3a1dac3aebf1cd323d96f396f9ac28bf454ae58195e63"
+checksum = "a973638999d9c50b4255e5d1b4c498c6aea297f897d9812a68ff7e447681f014"
 dependencies = [
  "bitflags",
  "safe-mmio",
  "zerocopy",
-]
-
-[[package]]
-name = "arm-sysregs"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7df3fc5d821089c553fa32966bbe7defbd23d857756a5091ecb094de5e18d1ac"
-dependencies = [
- "bitflags",
- "num_enum",
- "paste",
 ]
 
 [[package]]
@@ -221,9 +210,9 @@ dependencies = [
 
 [[package]]
 name = "arm-tzc"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53c658412e6afc6f4871684b7e82ed1984bd28658639435b39a2d08627c96d6b"
+checksum = "024e9392429e7446ba6f5122047754078aa48024f5ee81d41592f991419b27d1"
 dependencies = [
  "bitflags",
  "safe-mmio",
@@ -381,7 +370,7 @@ dependencies = [
  "arm-ffa",
  "arm-gic",
  "arm-psci",
- "arm-sysregs 0.4.0",
+ "arm-sysregs",
  "arrayvec",
  "bitflags",
  "include-first",
@@ -409,7 +398,7 @@ dependencies = [
  "arm-gic",
  "arm-pl011-uart",
  "arm-psci",
- "arm-sysregs 0.4.0",
+ "arm-sysregs",
  "bitflags",
  "buddy_system_allocator",
  "linkme",
@@ -430,9 +419,9 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "safe-mmio"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4813ee49326057f105d6d8ca3d8f9265095f26aa7b42094e487028403a594f4c"
+checksum = "ce5e4ed477d6ebc07e01ce97b87fe319e6b62d0ab2564594db6a8c4cdc29ffd9"
 dependencies = [
  "zerocopy",
 ]

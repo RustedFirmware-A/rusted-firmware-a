@@ -71,8 +71,8 @@ unsafe impl Platform for Qemu {
                 UniqueMmioPointer::new(GICD_BASE),
                 GICR_BASE,
                 Qemu::CORE_COUNT,
-                false,
             )
+            .unwrap()
         }
     }
 

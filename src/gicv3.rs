@@ -13,7 +13,7 @@ use crate::{
 use arm_gic::{
     IntId, InterruptGroup, Trigger, UniqueMmioPointer,
     gicv3::{
-        GicCpuInterface, GicDistributor, GicDistributorContext, GicRedistributor,
+        GicCpuInterface, GicDistributor, GicDistributorContext, GicError, GicRedistributor,
         GicRedistributorContext, GicRedistributorIterator, Group, HIGHEST_NS_PRIORITY,
         SecureIntGroup,
         registers::{Gicd, GicdCtlr, GicrSgi},
@@ -107,11 +107,11 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform>
     /// The caller must ensure that `base` points to a continiously mapped GIC redistributor memory
     /// area that spans until the last redistributor block where GICR_TYPER.Last is set. There must
     /// be no other references to this address.
-    pub unsafe fn new(base: NonNull<GicrSgi>, gic_v4: bool) -> Self {
+    pub unsafe fn new(base: NonNull<GicrSgi>) -> Result<Self, GicError> {
         let mut redistributors = [const { None }; CORE_COUNT];
 
         // Safety: The function propagates the safety requirements to the caller.
-        for redist in unsafe { GicRedistributorIterator::new(base, gic_v4) } {
+        for redist in unsafe { GicRedistributorIterator::new(base)? } {
             let mpidr = MpidrEl1::from_psci_mpidr(redist.typer().core_mpidr());
             assert!(PlatformImpl::mpidr_is_valid(mpidr));
 
@@ -120,10 +120,10 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform>
             redistributors[core_index] = Some(SpinMutex::new(redist));
         }
 
-        Self {
+        Ok(Self {
             redistributors: redistributors.map(|r| r.unwrap()),
             _platform: PhantomData,
-        }
+        })
     }
 
     /// Get redistributor by linear index.
@@ -153,14 +153,13 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, Pl
     pub unsafe fn new(
         gicd: UniqueMmioPointer<'a, Gicd>,
         gicr_base: NonNull<GicrSgi>,
-        gic_v4: bool,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, GicError> {
+        Ok(Self {
             distributor: SpinMutex::new(GicDistributor::new(gicd)),
             // Safety:  Our caller promised that `gicr_base` is a valid and unique pointer to a GIC
             // redistributor block.
-            redistributors: unsafe { GicRedistributorRegistry::new(gicr_base, gic_v4) },
-        }
+            redistributors: unsafe { GicRedistributorRegistry::new(gicr_base)? },
+        })
     }
 
     /// Initializes the GIC by configuring the distributor, redistributor and cpu interface.
@@ -379,7 +378,7 @@ pub fn handle_group0_interrupt<PlatformImpl: Platform>() {
 mod tests {
     use super::*;
     use crate::platform::test::TestPlatform;
-    use arm_gic::gicv3::registers::Waker;
+    use arm_gic::gicv3::registers::{Pidr2, Waker};
     use zerocopy::{FromBytes, FromZeros, transmute_mut};
 
     /// A fake GICv3 for unit tests.
@@ -402,6 +401,8 @@ mod tests {
                     *typer |= 1 << 4;
                 }
                 self.gicr_regs[core_index].gicr.waker.0 = Waker::CHILDREN_ASLEEP;
+                self.gicr_regs[core_index].gicr.pidr2.0 =
+                    *Pidr2::mut_from_bytes(&mut [0x30, 0, 0, 0]).unwrap();
             }
 
             let gicd = UniqueMmioPointer::from(&mut self.gicd_regs);
@@ -409,7 +410,7 @@ mod tests {
             // SAFETY: The gicr_base pointer comes from a reference to an array of fake registers
             // which we don't otherwise access as long as the returned `Gic` instance exists, and
             // the last entry is marked as such.
-            unsafe { Gic::new(gicd, gicr_base, false) }
+            unsafe { Gic::new(gicd, gicr_base).unwrap() }
         }
     }
 

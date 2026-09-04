@@ -259,7 +259,7 @@ unsafe impl Platform for Qemu {
             // SAFETY: `gicr_base` points to a continuously mapped GIC redistributor memory area
             // until the last redistributor block. There are no other references to this address
             // range.
-            unsafe { Gic::new(gicd, gicr_base, false) }
+            unsafe { Gic::new(gicd, gicr_base).unwrap() }
         });
     }
 

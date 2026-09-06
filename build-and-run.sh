@@ -125,6 +125,8 @@ case "$PLAT" in
         -C cluster1.has_fpmr=1 \
         -C cluster0.has_mpam=2 \
         -C cluster1.has_mpam=2 \
+        -C cluster0.has_nmi=2 \
+        -C cluster1.has_nmi=2 \
         -C cluster0.has_sctlr2=2 \
         -C cluster1.has_sctlr2=2 \
         -C cluster0.has_self_hosted_trace_extension=2 \

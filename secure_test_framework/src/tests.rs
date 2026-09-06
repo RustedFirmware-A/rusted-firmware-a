@@ -9,6 +9,7 @@ mod ffa_spmd;
 mod gcs;
 mod hcx;
 mod interrupts;
+mod nmi;
 mod pfar;
 mod psci;
 mod psci_osi;

@@ -30,7 +30,7 @@ use core::{
 use rf_a_bl31::reexports::arm_sysregs::el0::accessors::read_cntpct_el0;
 #[cfg(feature = "rme")]
 use rf_a_bl31::services::rmmd::{
-    RMM_SHARED_BUFFER_SIZE,
+    RMM_SHARED_BUFFER_SIZE, RmmdPlatform,
     manifest::{RmmBootManifest, RmmConsoleInfo, RmmMemoryBank},
     svc::{EccCurve, RmmCommandReturnCode},
 };
@@ -349,12 +349,11 @@ unsafe impl Platform for Fvp {
 
     const PAGE_HEAP_PAGE_COUNT: usize = 6;
 
-    #[cfg(feature = "rme")]
-    const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
-
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
+    #[cfg(feature = "rme")]
+    type RmmdPlatformImpl = FvpRmmdPlatformImpl;
     type CrashConsoleImpl = Pl011CrashConsole<CRASH_UART_BASE, 24_000_000, 115_200>;
 
     const GIC_CONFIG: GicConfig = GicConfig {
@@ -585,8 +584,16 @@ unsafe impl Platform for Fvp {
             GICD_BASE = const *MemoryMap::GICD.start(),
         );
     }
+}
 
-    #[cfg(feature = "rme")]
+#[cfg(feature = "rme")]
+struct FvpRmmdPlatformImpl;
+
+#[cfg(feature = "rme")]
+// Safety: The implementation only accesses the buffer via the caller provided parameter.
+unsafe impl RmmdPlatform for FvpRmmdPlatformImpl {
+    const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
+
     fn rme_prepare_manifest(buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]) {
         use rf_a_bl31::services::rmmd::manifest::{
             RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION, RMM_BOOT_MANIFEST_VERSION,
@@ -628,7 +635,6 @@ unsafe impl Platform for Fvp {
         manifest.pack(buf, buf.as_ptr() as usize);
     }
 
-    #[cfg(feature = "rme")]
     fn read_attestation_key(
         buf: &mut [u8],
         curve: EccCurve,
@@ -645,7 +651,6 @@ unsafe impl Platform for Fvp {
         Ok(ATTESTATION_KEY_ECC_SECP384R1.len())
     }
 
-    #[cfg(feature = "rme")]
     fn read_attestation_token(
         buf: &mut [u8],
         _hash: &[u8],

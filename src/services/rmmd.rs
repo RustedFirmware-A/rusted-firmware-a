@@ -27,7 +27,7 @@ use crate::{
     services::{
         Service, owns,
         rmmd::svc::{
-            Error, RmmAttestGetPlatTokenResponse, RmmAttestGetRealmKeyResponse, RmmCall,
+            EccCurve, Error, RmmAttestGetPlatTokenResponse, RmmAttestGetRealmKeyResponse, RmmCall,
             RmmCommandReturnCode, RmmEl3FeaturesResponse,
         },
     },
@@ -49,7 +49,8 @@ pub const RMM_SHARED_BUFFER_SIZE: usize = 0x1000;
 /// 2. After calling `get_shared_buffer`, the return reference must be dropped before any other call
 ///    to it is made.
 /// 3. No PE is running in Realm World while the reference is held, otherwise see [`get_shared_buffer_slice`].
-unsafe fn get_shared_buffer<PlatformImpl: Platform>() -> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
+unsafe fn get_shared_buffer<RmmdPlatformImpl: RmmdPlatform>()
+-> &'static mut [u8; RMM_SHARED_BUFFER_SIZE] {
     // Safety: (relative to [`slice::from_raw_parts_mut`][https://doc.rust-lang.org/stable/core/slice/fn.from_raw_parts_mut.html])
     // - Condition #1 ensures that the location is valid, and as it occupies exactly one page, it
     //   will always be aligned.
@@ -60,7 +61,7 @@ unsafe fn get_shared_buffer<PlatformImpl: Platform>() -> &'static mut [u8; RMM_S
     // - Follows from the soundness of the layout defined in `layout.rs`.
     unsafe {
         from_raw_parts_mut(
-            PlatformImpl::RMM_SHARED_BUFFER_START as *mut u8,
+            RmmdPlatformImpl::RMM_SHARED_BUFFER_START as *mut u8,
             RMM_SHARED_BUFFER_SIZE,
         )
         .try_into()
@@ -79,11 +80,11 @@ unsafe fn get_shared_buffer<PlatformImpl: Platform>() -> &'static mut [u8; RMM_S
 /// 2. The `address` and `len` parameter must be provided by RMM.
 /// 3. The returned reference must be dropped before any other call is made with overlapping parameters.
 /// 4. The reference must be dropped before switching to Realm World.
-unsafe fn get_shared_buffer_slice<PlatformImpl: Platform>(
+unsafe fn get_shared_buffer_slice<RmmdPlatformImpl: RmmdPlatform>(
     address: usize,
     len: usize,
 ) -> Result<&'static mut [u8], RmmCommandReturnCode> {
-    check_shared_buffer_range::<PlatformImpl>(address, len)?;
+    check_shared_buffer_range::<RmmdPlatformImpl>(address, len)?;
     // Safety: (relative to [`slice::from_raw_parts_mut`][https://doc.rust-lang.org/stable/core/slice/fn.from_raw_parts_mut.html])
     // - Condition #1 of `get_shared_buffer()` ensures that the location is valid, and as it
     //   occupies exactly one page, it will always be aligned.
@@ -98,12 +99,12 @@ unsafe fn get_shared_buffer_slice<PlatformImpl: Platform>(
 }
 
 /// Checks that `buf_pa..buf_size` is a valid subrange of the shared buffer.
-fn check_shared_buffer_range<PlatformImpl: Platform>(
+fn check_shared_buffer_range<RmmdPlatformImpl: RmmdPlatform>(
     buf_pa: usize,
     buf_size: usize,
 ) -> Result<(), RmmCommandReturnCode> {
-    let shared_buffer_range = PlatformImpl::RMM_SHARED_BUFFER_START
-        ..PlatformImpl::RMM_SHARED_BUFFER_START + RMM_SHARED_BUFFER_SIZE;
+    let shared_buffer_range = RmmdPlatformImpl::RMM_SHARED_BUFFER_START
+        ..RmmdPlatformImpl::RMM_SHARED_BUFFER_START + RMM_SHARED_BUFFER_SIZE;
 
     if !shared_buffer_range.contains(&buf_pa) {
         Err(RmmCommandReturnCode::BadAddress)
@@ -114,6 +115,37 @@ fn check_shared_buffer_range<PlatformImpl: Platform>(
     } else {
         Ok(())
     }
+}
+
+/// Platform dependent Rmmd service interface.
+///
+/// # Safety
+///
+/// The implementations of all functions receiving the buffer shared between EL3 and R-EL2 (RMM) as
+/// parameter must never directly access that buffer other than through the reference provided and
+/// must not yield into R-EL2.
+pub unsafe trait RmmdPlatform: Send + Sync {
+    /// Base address for the EL3 - RMM shared area.
+    #[cfg(feature = "rme")]
+    const RMM_SHARED_BUFFER_START: usize;
+
+    /// Platform dependent part of the RMM Boot Manifest. Entries within the range `0..RMM_<NAME>`
+    /// (see above) are allocated to be filled by this function. Any extra entry is reserved for
+    /// platform independent data.
+    fn rme_prepare_manifest(_buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]);
+
+    /// Reads the Realm Attestation Key into the given buffer, returning the key size on success.
+    fn read_attestation_key(buf: &mut [u8], curve: EccCurve)
+    -> Result<usize, RmmCommandReturnCode>;
+
+    /// Computes if needed and writes a slice of the Platform Attestation Token into the shared
+    /// buffer. The slice range within the Token is `start_index..`, clamped at either the end of
+    /// the Token or the end of the buffer, whichever is shorter.
+    fn read_attestation_token(
+        buf: &mut [u8],
+        hash: &[u8],
+        start_index: usize,
+    ) -> Result<(usize, usize), RmmCommandReturnCode>;
 }
 
 const RMM_BOOT_COMPLETE: u32 = 0xC400_01CF;
@@ -195,7 +227,7 @@ pub struct Rmmd<PlatformImpl: Platform> {
     // Boot status of RMM across all cores.
     // If RMM fails to boot on any core then it is disabled for all cores.
     rmm_boot_state: AtomicU8,
-    _phantom: PhantomData<PlatformImpl>,
+    _platform: PhantomData<PlatformImpl>,
 }
 
 impl<PlatformImpl: Platform> Service for Rmmd<PlatformImpl> {
@@ -235,8 +267,8 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
         //   upon return, before another call is made.
         // - This function is called before the first switch to Realm world and, similarly to above,
         //   the reference is dropped before that switch.
-        let buf = unsafe { get_shared_buffer::<PlatformImpl>() };
-        PlatformImpl::rme_prepare_manifest(buf);
+        let buf = unsafe { get_shared_buffer::<PlatformImpl::RmmdPlatformImpl>() };
+        PlatformImpl::RmmdPlatformImpl::rme_prepare_manifest(buf);
         debug!("RMM Boot Manifest ready");
 
         #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
@@ -251,7 +283,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
         Self {
             attestation_token_read_index: SpinMutex::new(0),
             rmm_boot_state: AtomicU8::new(RmmBootState::Unknown as u8),
-            _phantom: PhantomData,
+            _platform: PhantomData,
         }
     }
 
@@ -484,10 +516,12 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 // - This function never calls again `get_shared_buffer()`, thus the reference will
                 //   be dropped upon return, before another call is made.
                 // - Similarly to the above, this function does not switch to the Realm World.
-                let shared_buffer =
-                    unsafe { get_shared_buffer_slice::<PlatformImpl>(buf_pa, buf_size)? };
+                let shared_buffer = unsafe {
+                    get_shared_buffer_slice::<PlatformImpl::RmmdPlatformImpl>(buf_pa, buf_size)?
+                };
 
-                let key_size = PlatformImpl::read_attestation_key(shared_buffer, ecc_curve)?;
+                let key_size =
+                    PlatformImpl::RmmdPlatformImpl::read_attestation_key(shared_buffer, ecc_curve)?;
 
                 regs.set_from(RmmAttestGetRealmKeyResponse { key_size });
                 Ok(World::Realm)
@@ -516,15 +550,18 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 //   be dropped upon return, before another call is made.
                 // - Similarly to the above, this function does not switch to the Realm World.
                 let shared_buffer = unsafe {
-                    get_shared_buffer_slice::<PlatformImpl>(buf_pa, buf_size.max(c_size))?
+                    get_shared_buffer_slice::<PlatformImpl::RmmdPlatformImpl>(
+                        buf_pa,
+                        buf_size.max(c_size),
+                    )?
                 };
 
                 // If not generating the first chunck, `c_size` will be zero and the hash will not
-                // written nor passed to `PlatformImpl::read_attestation_token`.
+                // written nor passed to `RmmdPlatformImpl::read_attestation_token`.
                 let mut hash = [0u8; MAX_HASH_SIZE];
                 hash[..c_size].copy_from_slice(&shared_buffer[..c_size]);
 
-                let (size, rem) = PlatformImpl::read_attestation_token(
+                let (size, rem) = PlatformImpl::RmmdPlatformImpl::read_attestation_token(
                     &mut shared_buffer[..buf_size],
                     &hash[..c_size],
                     *idx,
@@ -616,7 +653,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 core_linear_id,
                 RMM_BOOT_VERSION,
                 PlatformImpl::CORE_COUNT as u64,
-                PlatformImpl::RMM_SHARED_BUFFER_START as u64,
+                PlatformImpl::RmmdPlatformImpl::RMM_SHARED_BUFFER_START as u64,
                 0,
                 0,
                 0,

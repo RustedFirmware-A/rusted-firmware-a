@@ -6,7 +6,10 @@
 
 use super::Platform;
 #[cfg(feature = "rme")]
-use crate::services::rmmd::svc::{EccCurve, RmmCommandReturnCode};
+use crate::services::rmmd::{
+    RmmdPlatform,
+    svc::{EccCurve, RmmCommandReturnCode},
+};
 use crate::{
     aarch64::sev,
     context::EntryPointInfo,
@@ -84,31 +87,11 @@ unsafe impl Platform for TestPlatform {
 
     const PAGE_HEAP_PAGE_COUNT: usize = 6;
 
-    #[cfg(feature = "rme")]
-    const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
-
-    #[cfg(feature = "rme")]
-    fn rme_prepare_manifest(_buf: &mut [u8; crate::services::rmmd::RMM_SHARED_BUFFER_SIZE]) {}
-
-    #[cfg(feature = "rme")]
-    fn read_attestation_key(
-        _buf: &mut [u8],
-        _curve: EccCurve,
-    ) -> Result<usize, RmmCommandReturnCode> {
-        Ok(0)
-    }
-    #[cfg(feature = "rme")]
-    fn read_attestation_token(
-        _buf: &mut [u8],
-        _hash: &[u8],
-        _start_index: usize,
-    ) -> Result<(usize, usize), RmmCommandReturnCode> {
-        Ok((0, 0))
-    }
-
     type LogSinkImpl = StdOutSink;
     type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = TestPsciPlatformImpl;
+    #[cfg(feature = "rme")]
+    type RmmdPlatformImpl = TestRmmdPlatformImpl;
     type CrashConsoleImpl = DummyCrashConsole;
 
     const GIC_CONFIG: GicConfig = GicConfig {
@@ -208,6 +191,33 @@ unsafe impl Platform for TestPlatform {
     unsafe extern "C" fn cold_boot_handler() {}
 
     unsafe extern "C" fn dump_registers() {}
+}
+
+/// Dummy Rmmd platform interface implementation.
+#[cfg(feature = "rme")]
+pub struct TestRmmdPlatformImpl;
+
+#[cfg(feature = "rme")]
+/// Safety: Does not access the buffer at all.
+unsafe impl RmmdPlatform for TestRmmdPlatformImpl {
+    const RMM_SHARED_BUFFER_START: usize = 0xffbf_f000;
+
+    fn rme_prepare_manifest(_buf: &mut [u8; crate::services::rmmd::RMM_SHARED_BUFFER_SIZE]) {}
+
+    fn read_attestation_key(
+        _buf: &mut [u8],
+        _curve: EccCurve,
+    ) -> Result<usize, RmmCommandReturnCode> {
+        Ok(0)
+    }
+
+    fn read_attestation_token(
+        _buf: &mut [u8],
+        _hash: &[u8],
+        _start_index: usize,
+    ) -> Result<(usize, usize), RmmCommandReturnCode> {
+        Ok((0, 0))
+    }
 }
 
 /// Dummy crash console implementation.

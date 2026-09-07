@@ -16,8 +16,9 @@ use crate::{
 };
 #[cfg(feature = "rme")]
 use crate::{
-    cpu_extensions::mte2::mte2_is_present, gpt::GPIAccessType,
-    services::rmmd::RMM_SHARED_BUFFER_SIZE,
+    cpu_extensions::mte2::mte2_is_present,
+    gpt::GPIAccessType,
+    services::rmmd::{RMM_SHARED_BUFFER_SIZE, RmmdPlatform},
 };
 use aarch64_paging::{
     Mapping,
@@ -475,8 +476,8 @@ fn init_page_table<
         #[cfg(feature = "rme")]
         idmap.map_region(
             &MemoryRegion::new(
-                PlatformImpl::RMM_SHARED_BUFFER_START,
-                PlatformImpl::RMM_SHARED_BUFFER_START + RMM_SHARED_BUFFER_SIZE,
+                PlatformImpl::RmmdPlatformImpl::RMM_SHARED_BUFFER_START,
+                PlatformImpl::RmmdPlatformImpl::RMM_SHARED_BUFFER_START + RMM_SHARED_BUFFER_SIZE,
             ),
             MT_RW_DATA_REALM,
         );

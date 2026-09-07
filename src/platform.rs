@@ -8,10 +8,7 @@
 pub mod test;
 
 #[cfg(feature = "rme")]
-use crate::services::rmmd::{
-    RMM_SHARED_BUFFER_SIZE,
-    svc::{EccCurve, RmmCommandReturnCode},
-};
+use crate::services::rmmd::RmmdPlatform;
 use crate::{
     context::EntryPointInfo, cpu_extensions::CpuExtension, crash_console::CrashConsole, gicv3,
     logger::LogSink, pagetable::MAIR_IWBRWA_OWBRWA_NTR, services::Service,
@@ -54,10 +51,6 @@ pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
 /// `NORMAL_MEMORY_MAIR_ATTRIBUTE` must be a normal memory type with cache enabled, so that atomic
 /// operations work correctly.
 ///
-/// The implementations of all functions receiving the buffer shared between EL3 and R-EL2 (RMM) as
-/// parameter must never directly access that buffer other than through the reference provided and
-/// must not yield into R-EL2.
-///
 /// (These requirements don't apply to the test platform, as it is only used in unit tests.)
 pub unsafe trait Platform: Sized + Send + Sync {
     /// The number of CPU cores.
@@ -82,10 +75,6 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// enabled so that atomics operations work correctly.
     const NORMAL_MEMORY_MAIR_ATTRIBUTE: MairAttribute = MAIR_IWBRWA_OWBRWA_NTR;
 
-    /// Base address for the EL3 - RMM shared area.
-    #[cfg(feature = "rme")]
-    const RMM_SHARED_BUFFER_START: usize;
-
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;
 
@@ -96,6 +85,10 @@ pub unsafe trait Platform: Sized + Send + Sync {
 
     /// Platform dependent `PsciPlatformInterface` implementation type.
     type PsciPlatformImpl;
+
+    #[cfg(feature = "rme")]
+    /// Platform dependent `RmmdPlatform` implementation type.
+    type RmmdPlatformImpl: RmmdPlatform;
 
     /// Platform dependent `CrashConsole` implementation type.
     type CrashConsoleImpl: CrashConsole;
@@ -198,27 +191,6 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// Should only be called from assembly as it doesn't follow the standard calling convention.
     #[cfg_attr(test, allow(unused))]
     unsafe extern "C" fn dump_registers();
-
-    /// Platform dependent part of the RMM Boot Manifest. Entries within the range `0..RMM_<NAME>`
-    /// (see above) are allocated to be filled by this function. Any extra entry is reserved for
-    /// platform independent data.
-    #[cfg(feature = "rme")]
-    fn rme_prepare_manifest(_buf: &mut [u8; RMM_SHARED_BUFFER_SIZE]);
-
-    /// Reads the Realm Attestation Key into the given buffer, returning the key size on success.
-    #[cfg(feature = "rme")]
-    fn read_attestation_key(buf: &mut [u8], curve: EccCurve)
-    -> Result<usize, RmmCommandReturnCode>;
-
-    /// Computes if needed and writes a slice of the Platform Attestation Token into the shared
-    /// buffer. The slice range within the Token is `start_index..`, clamped at either the end of
-    /// the Token or the end of the buffer, whichever is shorter.
-    #[cfg(feature = "rme")]
-    fn read_attestation_token(
-        buf: &mut [u8],
-        hash: &[u8],
-        start_index: usize,
-    ) -> Result<(usize, usize), RmmCommandReturnCode>;
 }
 
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]

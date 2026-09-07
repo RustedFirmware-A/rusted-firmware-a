@@ -371,6 +371,19 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.4.0 -> 0.5.0"
 notes = "Dependency update only."
 
+[[audits.arm-pl011-uart]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
+delta = "0.5.0 -> 0.5.1"
+notes = """
+Minimal code change: made `Uart::new` const. Dependency updates and MSRV bump.
+
+"ub-risk-1"
+
+The crate contains an unsafe `Sync` implementation for `Uart` since the 0.1.0 release. The attached
+safety comment justifies the implementation.
+"""
+
 [[audits.arm-pl061]]
 who = "Jim Ray <jimray@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

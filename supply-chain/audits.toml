@@ -537,6 +537,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.0 -> 0.2.0"
 notes = "Dependency update only."
 
+[[audits.arm-tzc]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.2.0 -> 0.2.1"
+notes = "No code changes. Dependency update only."
+
 [[audits.autocfg]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"

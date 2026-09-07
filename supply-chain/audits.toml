@@ -437,6 +437,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.2 -> 0.2.0"
 notes = "Dependency update only."
 
+[[audits.arm-sp805]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.2.0 -> 0.2.1"
+notes = "No code changes, only dependency updates and MSRV bump."
+
 [[audits.arm-sysregs]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

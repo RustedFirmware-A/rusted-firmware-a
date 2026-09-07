@@ -192,6 +192,20 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.1 -> 0.2.0"
 notes = "Depedency update only."
 
+[[audits.arm-cci]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.0 -> 0.2.1"
+notes = """
+No code changes, only dependency updates and MSRV bump.
+
+"ub-risk-2"
+
+The crate contains functionality for the master to be added to and be removed from cache coherency
+domain since version 0.1.0. These functions are unsafe and require care from the caller when
+handling shareable data in the cache. The actions to be taken are described by safety comments.
+"""
+
 [[audits.arm-ffa]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

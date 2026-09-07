@@ -269,6 +269,12 @@ Updates the dependencies and delegates dependency feature selection to the crate
 The only unsafe-related change is the addition of an unsafe block, required by the mandatory unsafe_op_in_unsafe_fn rule in Rust 2024.
 """
 
+[[audits.arm-fvp-base-pac]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.0 -> 0.3.0"
+notes = "No code changes, only dependency updates."
+
 [[audits.arm-generic-timer]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]

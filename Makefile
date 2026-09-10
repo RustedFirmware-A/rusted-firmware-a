@@ -126,8 +126,8 @@ else
 	CARGO ?= cargo
 endif
 
-RFA_CARGO_FLAGS += --features "$(FEATURES)"
-STF_CARGO_FLAGS += --features "$(STF_FEATURES)"
+RFA_CARGO_FLAGS += --target-dir $(OUT)/rfa --features "$(FEATURES)"
+STF_CARGO_FLAGS += --target-dir $(OUT)/stf --features "$(STF_FEATURES)"
 TARGET_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) -C target-feature=+vh -C link-arg=-Map=$(BL31_MAP)" $(CARGO)
 STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) --cfg platform=\"${PLAT}\" -C link-args=-znostart-stop-gc" $(CARGO)
 
@@ -135,7 +135,7 @@ all: images
 
 build:
 	$(TARGET_CARGO) build --package $(PLAT)-rf-a-bl31 $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
-	ln -fsr $(OUT)/$(TARGET)/$(BUILDTYPE)/$(PLAT)-rf-a-bl31 $(BL31_ELF)
+	ln -fsr $(OUT)/rfa/$(TARGET)/$(BUILDTYPE)/$(PLAT)-rf-a-bl31 $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
 	$(OBJDUMP) -dC $(BL31_ELF) > $(BL31_DUMP)
 
@@ -146,11 +146,11 @@ build-stf:
 		$(STF_CARGO_FLAGS) \
 		$(STF_IMAGES_FLAGS)
 $(BL32): build-stf
-	$(OBJCOPY) $(OUT)/$(TARGET)/release/bl32 -O binary $@
+	$(OBJCOPY) $(OUT)/stf/$(TARGET)/release/bl32 -O binary $@
 $(BL33): build-stf
-	$(OBJCOPY) $(OUT)/$(TARGET)/release/bl33 -O binary $@
+	$(OBJCOPY) $(OUT)/stf/$(TARGET)/release/bl33 -O binary $@
 $(STF_RMM): build-stf
-	$(OBJCOPY) $(OUT)/$(TARGET)/release/stf_rmm -O binary $@
+	$(OBJCOPY) $(OUT)/stf/$(TARGET)/release/stf_rmm -O binary $@
 
 clippy-test:
 	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --features "$(FEATURES)"

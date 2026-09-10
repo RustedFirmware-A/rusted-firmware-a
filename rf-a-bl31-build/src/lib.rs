@@ -4,7 +4,7 @@
 
 //! Build script helpers for RF-A BL31.
 
-use std::{env, error::Error, fs::File, io::Write, path::Path};
+use std::{env, error::Error, path::Path};
 
 /// One page of memory has 4KiB.
 const PAGE_SIZE: u64 = 0x1000;
@@ -35,12 +35,9 @@ fn setup_linker(builder: &dyn Builder) {
         builder.cache_writeback_granule() as u64,
     );
 
-    // Write linker script to the out directory, so that the binary build can find it.
-    let linker_script_path = Path::new(&env::var_os("OUT_DIR").unwrap()).join("bl31.ld");
-    File::create(&linker_script_path)
-        .unwrap()
-        .write_all(include_bytes!("bl31.ld"))
-        .unwrap();
+    let linker_script_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("bl31.ld");
     add_linker_script(&linker_script_path);
 }
 

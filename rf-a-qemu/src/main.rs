@@ -52,7 +52,7 @@ use rf_a_core::{
     },
     services::{
         Service,
-        arch::{Arch, ArchPlatform},
+        arch::{Arch, ArchPlatform, SocVersion},
         errata_management::ErrataManagement,
         psci::PsciPlatformInterface,
     },
@@ -138,9 +138,17 @@ panic_handler!();
 
 struct ArchPlatformImpl;
 
-impl ArchPlatform for ArchPlatformImpl {}
+impl ArchPlatform for ArchPlatformImpl {
+    fn soc_version(&self) -> SocVersion {
+        SocVersion::new(0, 0, 0)
+    }
 
-static ARCH: Arch<ArchPlatformImpl> = Arch::new();
+    fn soc_revision(&self) -> u32 {
+        0
+    }
+}
+
+static ARCH: Arch<ArchPlatformImpl> = Arch::new(ArchPlatformImpl);
 static ERRATA_MANAGEMENT: ErrataManagement<Qemu> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];

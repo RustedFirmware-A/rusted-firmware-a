@@ -128,6 +128,21 @@ panic_handler!();
 
 TODO: Explain `mpidr_is_valid` and `core_position`.
 
+## Architecture service and SoC identification
+
+Implement `rf_a_core::services::arch::ArchPlatform`, construct `Arch::new(platform)` with an
+instance of that implementation, and include the service in the list returned by
+`Platform::services`. The service now owns the platform instance, allowing it to hold SoC
+identification data.
+
+`ArchPlatform` requires `soc_version()` and `soc_revision()` function implementations. The version
+and revision must together uniquely identify the SoC, and the revision must fit in bits [30:0].
+
+Optionally implement `soc_name`. The name must be at most 135 bytes and must not convey SoC
+identifying information beyond the version and revision. It is available only through the 64-bit
+SOC ID call. See the FVP implementation for a platform-provided name and revision, or QEMU for an
+implementation without a name.
+
 ## Memory mapping
 
 TODO: Explain `map_extra_regions`, `define_early_mapping!` and `cold_boot_handler` vs.

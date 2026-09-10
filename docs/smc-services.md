@@ -23,8 +23,12 @@ features, provides the SoC identification, and optionally provides CPU vulnerabi
 | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------- |
 | `SMCCC_VERSION`               | Supported        | Returns 1.5.                                                                                        |
 | `SMCCC_ARCH_FEATURES`         | Supported        | Reports support for version/features/SoC-ID, and for workarounds 1–4 if advertised by the platform. |
-| `SMCCC_ARCH_SOC_ID_32/64`     | Supported (stub) | Returns placeholder version/revision and a hard-coded name.                                         |
+| `SMCCC_ARCH_SOC_ID_32/64`     | Supported        | Returns SoC version/revision and platform name.                                                     |
 | `SMCCC_ARCH_WORKAROUND_1/2/3` | Supported        | Executes platform-provided mitigations.                                                             |
+
+Platforms supply SoC identification through `ArchPlatform`. If no name is supplied, the name
+query returns `INVALID_PARAMETER`. QEMU currently uses this default. See the
+[porting guide](porting.md#architecture-service-and-soc-identification) for implementation details.
 
 ## PSCI (`src/services/psci.rs`)
 

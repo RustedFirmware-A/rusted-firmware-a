@@ -71,11 +71,11 @@ use rf_a_core::{
             el0::registers::Amcntenset1El0, el1::registers::MpidrEl1, el3::registers::IccSreEl3,
         },
         percore::Cores,
-        spin::mutex::SpinMutex,
+        spin::{Once, mutex::SpinMutex},
     },
     services::{
         Service,
-        arch::{Arch, ArchPlatform},
+        arch::{Arch, ArchPlatform, SocVersion},
         errata_management::ErrataManagement,
         psci::PsciPlatformInterface,
     },
@@ -219,14 +219,34 @@ struct Fvp;
 
 struct ArchPlatformImpl;
 
-impl ArchPlatform for ArchPlatformImpl {}
+impl ArchPlatformImpl {
+    const ARM_BANK_INDEX: u8 = 0x04;
+    const ARM_ID_CODE: u8 = 0x3b;
+    const FVP_SOC_ID: u16 = 0;
+}
 
-static ARCH: Arch<ArchPlatformImpl> = Arch::new();
+impl ArchPlatform for ArchPlatformImpl {
+    fn soc_version(&self) -> SocVersion {
+        SocVersion::new(Self::ARM_BANK_INDEX, Self::ARM_ID_CODE, Self::FVP_SOC_ID)
+    }
+
+    fn soc_revision(&self) -> u32 {
+        *SYSTEM_REVISION.get().unwrap()
+    }
+
+    fn soc_name(&self) -> Option<&'static str> {
+        Some("Armv-A Base RevC AEM FVP")
+    }
+}
+
+static ARCH: Arch<ArchPlatformImpl> = Arch::new(ArchPlatformImpl);
 static ERRATA_MANAGEMENT: ErrataManagement<Fvp> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
 
 static AMU: Amu<CORE_COUNT, CoresImpl<Fvp>> = Amu::new([Amcntenset1El0::empty(); CORE_COUNT], true);
+
+static SYSTEM_REVISION: Once<u32> = Once::new();
 
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0-x5, and returns a unique core index as long as `FVP_MAX_CPUS_PER_CLUSTER` and
@@ -303,6 +323,12 @@ unsafe impl Platform for Fvp {
         );
 
         psci_platform.init_generic_timer();
+
+        SYSTEM_REVISION.call_once(|| {
+            psci_platform
+                .get_system_revision()
+                .expect("Failed to read system revision")
+        });
 
         *FVP_PSCI_PLATFORM_IMPL.lock() = Some(psci_platform);
 

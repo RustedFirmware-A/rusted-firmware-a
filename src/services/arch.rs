@@ -12,7 +12,7 @@ use crate::{
         SmcReturn, SmcccCallType,
     },
 };
-use core::marker::PhantomData;
+use zerocopy::IntoBytes;
 
 pub(crate) const SMCCC_VERSION: u32 = 0x8000_0000;
 const SMCCC_ARCH_FEATURES: u32 = 0x8000_0001;
@@ -28,8 +28,66 @@ const SMCCC_ARCH_WORKAROUND_4: u32 = 0x8000_0004;
 
 pub(crate) const SMCCC_VERSION_1_5: i32 = 0x0001_0005;
 
+/// SoC version, including JEDEC JEP-106 Manufacturer ID Code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SocVersion {
+    bank_index: u8,
+    id_code: u8,
+    soc_id: u16,
+}
+
+impl SocVersion {
+    const BANK_INDEX_MASK: u32 = 0x7f;
+    const BANK_INDEX_SHIFT: u32 = 24;
+    const ID_CODE_SHIFT: u32 = 16;
+    const SOC_ID_SHIFT: u32 = 0;
+
+    /// Creates new instance from JEP106 code and implementation defined SoC ID.
+    pub const fn new(bank_index: u8, id_code: u8, soc_id: u16) -> Self {
+        assert!(bank_index as u32 & !Self::BANK_INDEX_MASK == 0);
+
+        Self {
+            bank_index,
+            id_code,
+            soc_id,
+        }
+    }
+}
+
+impl From<SocVersion> for u32 {
+    fn from(value: SocVersion) -> Self {
+        (u32::from(value.bank_index) << SocVersion::BANK_INDEX_SHIFT)
+            | (u32::from(value.id_code) << SocVersion::ID_CODE_SHIFT)
+            | (u32::from(value.soc_id) << SocVersion::SOC_ID_SHIFT)
+    }
+}
+
+/// Whether a particular arch workaround SMC is required or not.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(i32)]
+pub enum WorkaroundSupport {
+    /// The workaround call is required.
+    Required = 0,
+    /// The workaround is safe to call but not required.
+    SafeButNotRequired = 1,
+}
+
 /// Platform dependent Arch service interface.
 pub trait ArchPlatform: Sync {
+    /// Returns the SiP defined SoC version. The SoC version and revision must uniquely identify the
+    /// SoC.
+    fn soc_version(&self) -> SocVersion;
+
+    /// Returns the SiP defined SoC revision in bits \[30:0\].  The SoC version and revision must
+    /// uniquely identify the SoC.
+    fn soc_revision(&self) -> u32;
+
+    /// Optionally returns the SiP-defined SoC name. The maximum length is 135 bytes. The SoC name
+    /// must not contain SoC identifying information not captured by <SoC version, SoC revision>.
+    fn soc_name(&self) -> Option<&'static str> {
+        None
+    }
+
     /// Returns whether this platform supports the arch WORKAROUND_1 SMC.
     fn arch_workaround_1_supported() -> WorkaroundSupport {
         WorkaroundSupport::SafeButNotRequired
@@ -62,7 +120,7 @@ pub trait ArchPlatform: Sync {
 
 /// Arm architecture SMCs.
 pub struct Arch<ArchPlatformImpl: ArchPlatform> {
-    _platform: PhantomData<ArchPlatformImpl>,
+    platform: ArchPlatformImpl,
 }
 
 impl<ArchPlatformImpl: ArchPlatform> Service for Arch<ArchPlatformImpl> {
@@ -74,10 +132,10 @@ impl<ArchPlatformImpl: ArchPlatform> Service for Arch<ArchPlatformImpl> {
         function.clear_sve_hint();
 
         match function.0 {
-            SMCCC_VERSION => regs.set_from(version()),
+            SMCCC_VERSION => regs.set_from(Self::SMCCC_VERSION),
             SMCCC_ARCH_FEATURES => Self::arch_features(regs),
             SMCCC_ARCH_SOC_ID_32 | SMCCC_ARCH_SOC_ID_64 => {
-                arch_soc_id(regs, function.call_type());
+                self.arch_soc_id(regs, function.call_type());
             }
             SMCCC_ARCH_WORKAROUND_1 => {
                 Self::arch_workaround_1();
@@ -98,18 +156,12 @@ impl<ArchPlatformImpl: ArchPlatform> Service for Arch<ArchPlatformImpl> {
     }
 }
 
-impl<ArchPlatformImpl: ArchPlatform> Default for Arch<ArchPlatformImpl> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<ArchPlatformImpl: ArchPlatform> Arch<ArchPlatformImpl> {
+    const SMCCC_VERSION: i32 = SMCCC_VERSION_1_5;
+
     /// Creates a new instance of the `Arch` service.
-    pub const fn new() -> Self {
-        Self {
-            _platform: PhantomData,
-        }
+    pub const fn new(platform: ArchPlatformImpl) -> Self {
+        Self { platform }
     }
 
     fn arch_features(regs: &mut SmcReturn) {
@@ -127,6 +179,32 @@ impl<ArchPlatformImpl: ArchPlatform> Arch<ArchPlatformImpl> {
         };
 
         regs.set_from(result);
+    }
+
+    /// This SMC is specified in §7.4 of [the Arm SMC Calling
+    /// Convention](https://developer.arm.com/documentation/den0028/galp1/?lang=en).
+    fn arch_soc_id(&self, regs: &mut SmcReturn, call_type: SmcccCallType) {
+        let soc_id_type = regs.values()[1] as u32;
+
+        match soc_id_type {
+            SMCCC_ARCH_SOC_ID_VERSION => regs.set_from(u32::from(self.platform.soc_version())),
+            SMCCC_ARCH_SOC_ID_REVISION => regs.set_from(self.platform.soc_revision()),
+            SMCCC_ARCH_SOC_ID_NAME if call_type == SmcccCallType::Fast64 => {
+                if let Some(name) = self.platform.soc_name() {
+                    let args = regs.mark_all_used();
+                    args[0] = SUCCESS as u64;
+
+                    let bytes = &mut args[1..].as_mut_bytes();
+                    assert!(name.len() < bytes.len());
+
+                    bytes[0..name.len()].copy_from_slice(name.as_bytes());
+                    bytes[name.len()..].fill(0);
+                } else {
+                    regs.set_from(INVALID_PARAMETER)
+                }
+            }
+            _ => regs.set_from(INVALID_PARAMETER),
+        }
     }
 
     /// Execute the mitigation for CVE-2017-5715 on the calling PE.
@@ -149,45 +227,5 @@ impl<ArchPlatformImpl: ArchPlatform> Arch<ArchPlatformImpl> {
         if ArchPlatformImpl::arch_workaround_3_supported() == WorkaroundSupport::Required {
             ArchPlatformImpl::arch_workaround_3()
         }
-    }
-}
-
-/// Whether a particular arch workaround SMC is required or not.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(i32)]
-pub enum WorkaroundSupport {
-    /// The workaround call is required.
-    Required = 0,
-    /// The workaround is safe to call but not required.
-    SafeButNotRequired = 1,
-}
-
-fn version() -> i32 {
-    SMCCC_VERSION_1_5
-}
-
-/// This SMC is specified in §7.4 of [the Arm SMC Calling
-/// Convention](https://developer.arm.com/documentation/den0028/galp1/?lang=en).
-fn arch_soc_id(regs: &mut SmcReturn, call_type: SmcccCallType) {
-    let soc_id_type = regs.values()[1] as u32;
-
-    // TODO/NOTE: Note that according to the SMCCC spec, section 7.4.6: we "must
-    // ensure that SoC version and revision uniquely identify the SoC", and "SoC
-    // name must not contain SoC identifying information not captured by <SoC
-    // version, SoC revision>."
-    match soc_id_type {
-        SMCCC_ARCH_SOC_ID_VERSION => regs.set_from(0), // TODO: Implement this properly.
-        SMCCC_ARCH_SOC_ID_REVISION => regs.set_from(0), // TODO: Implement this properly.
-        SMCCC_ARCH_SOC_ID_NAME if call_type == SmcccCallType::Fast64 => {
-            regs.set_args5(
-                // TODO: Implement this properly.
-                0u64, // w0
-                u64::from_le_bytes([b'm', b'I', b' ', b':', b'O', b'D', b'O', b'T']),
-                u64::from_le_bytes([b' ', b't', b'n', b'e', b'm', b'e', b'l', b'p']),
-                u64::from_le_bytes([b'o', b'r', b'p', b' ', b's', b'i', b'h', b't']),
-                u64::from_le_bytes([0x00, 0x00, b'.', b'y', b'l', b'r', b'e', b'p']),
-            );
-        }
-        _ => regs.set_from(INVALID_PARAMETER),
     }
 }

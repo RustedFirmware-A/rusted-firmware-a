@@ -22,7 +22,7 @@ use crate::{
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
     services::{
         Service,
-        arch::{Arch, ArchPlatform},
+        arch::{Arch, ArchPlatform, SocVersion},
         errata_management::ErrataManagement,
         psci::{
             PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
@@ -561,7 +561,15 @@ impl
 /// Fake Arch platform implementation for tests.
 pub struct ArchPlatformImpl;
 
-impl ArchPlatform for ArchPlatformImpl {}
+impl ArchPlatform for ArchPlatformImpl {
+    fn soc_version(&self) -> SocVersion {
+        SocVersion::new(0, 0, 0)
+    }
+
+    fn soc_revision(&self) -> u32 {
+        0
+    }
+}
 
 /// Fake TRNG implementation for tests.
 pub struct TestTrngPlatformImpl;
@@ -582,7 +590,7 @@ impl TrngPlatformInterface<TRNG_REQ_WORDS> for TestTrngPlatformImpl {
     }
 }
 
-static ARCH: Arch<ArchPlatformImpl> = Arch::new();
+static ARCH: Arch<ArchPlatformImpl> = Arch::new(ArchPlatformImpl);
 static ERRATA_MANAGEMENT: ErrataManagement<TestPlatform> = ErrataManagement::new();
 static TRNG: LazyLock<Trng<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>> =
     LazyLock::new(Trng::new);

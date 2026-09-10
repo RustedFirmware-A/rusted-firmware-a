@@ -175,6 +175,11 @@ impl FvpPsciPlatformImpl<'_> {
 
         self.init_generic_timer();
     }
+
+    pub fn get_system_revision(&self) -> Result<u32, arm_fvp_base_pac::system::Error> {
+        let system_id = self.system.lock().system_id()?;
+        Ok(system_id.revision as u32)
+    }
 }
 
 const _: () = assert!(

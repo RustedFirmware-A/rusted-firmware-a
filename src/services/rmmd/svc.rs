@@ -129,7 +129,7 @@ pub enum RmmCall {
     /// Notifies the completion of an RMI call to the Non-Secure world.
     RmiReqComplete {
         /// Register values.
-        regs: [u64; 6],
+        regs: [u64; 8],
     },
     /// Delegates a memory granule by changing its PAS from Non-Secure to Realm.
     GtsiDelegate {
@@ -261,7 +261,7 @@ impl RmmCall {
 
         Ok(match fid {
             RmmFuncId::RmiReqComplete => Self::RmiReqComplete {
-                regs: regs[1..7].try_into().unwrap(),
+                regs: regs[1..9].try_into().unwrap(),
             },
             RmmFuncId::GtsiDelegate => Self::GtsiDelegate {
                 base_pa: regs[1] as usize,

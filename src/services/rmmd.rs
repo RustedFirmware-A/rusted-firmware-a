@@ -26,16 +26,19 @@ use crate::{
     platform::{Platform, exception_free},
     services::{
         Service, owns,
-        rmmd::svc::{
-            EccCurve, Error, RmmAttestGetPlatTokenResponse, RmmAttestGetRealmKeyResponse, RmmCall,
-            RmmCommandReturnCode, RmmEl3FeaturesResponse,
+        rmmd::{
+            manifest::RmmEl3Version,
+            svc::{
+                EccCurve, Error, RmmAttestGetPlatTokenResponse, RmmAttestGetRealmKeyResponse,
+                RmmCall, RmmCommandReturnCode, RmmEl3FeaturesResponse,
+            },
         },
     },
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
 };
 use arm_sysregs::el3::{accessors::read_sctlr_el3, registers::SctlrEl3};
 
-const RMM_BOOT_VERSION: u64 = 0x5;
+const RMM_EL3_INTERFACE_VERSION: RmmEl3Version = RmmEl3Version { major: 2, minor: 0 };
 /// Size in bytes of the EL3 - RMM shared area.
 pub const RMM_SHARED_BUFFER_SIZE: usize = 0x1000;
 
@@ -358,10 +361,9 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
 
         match command {
             RmmCall::RmiReqComplete { regs: req_regs } => {
-                // Only x1-x6 are used for RMI return values, the remaining ones MBZ.
-                regs.values_mut()[..6].copy_from_slice(&req_regs);
-                regs.values_mut()[6..].fill(0);
-
+                // Copy the RMI response registers from x1-x8 to x0-x7, and leave the rest
+                // untouched.
+                regs.mark_used::<8>().copy_from_slice(&req_regs);
                 Ok(World::NonSecure)
             }
             RmmCall::GtsiDelegate { base_pa } => {
@@ -655,7 +657,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
             // args.
             [
                 core_linear_id,
-                RMM_BOOT_VERSION,
+                RMM_EL3_INTERFACE_VERSION.into(),
                 PlatformImpl::CORE_COUNT as u64,
                 PlatformImpl::RmmdPlatformImpl::RMM_SHARED_BUFFER_START as u64,
                 0,

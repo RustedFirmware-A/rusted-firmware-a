@@ -39,7 +39,7 @@ use crate::{
     util::current_el,
 };
 
-const SUPPORTED_RMM_VERSION: RmmBootManifestVersion = RmmBootManifestVersion { major: 0, minor: 8 };
+const SUPPORTED_RMM_VERSION: RmmBootManifestVersion = RmmBootManifestVersion { major: 2, minor: 0 };
 const SUPPORTED_RMM_MANIFEST_VERSION: RmmBootManifestVersion =
     RmmBootManifestVersion { major: 0, minor: 5 };
 

@@ -167,14 +167,20 @@ struct RmmBootManifestHeader {
     plat_root_complex: RmmRootComplexListInternal,
 }
 
-/// Boot Manifest version number.
+/// Version type describing both the RMM-EL3 interface version and the RMM Boot manifest version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RmmBootManifestVersion {
+pub struct RmmVersion {
     pub(crate) major: u16,
     pub(crate) minor: u16,
 }
 
-impl TryFrom<u32> for RmmBootManifestVersion {
+/// RMM Boot manifest version type
+pub type RmmBootManifestVersion = RmmVersion;
+
+/// RMM-EL3 boot and runtime interface version
+pub type RmmEl3Version = RmmVersion;
+
+impl TryFrom<u32> for RmmVersion {
     type Error = ();
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
@@ -191,13 +197,19 @@ impl TryFrom<u32> for RmmBootManifestVersion {
     }
 }
 
-impl From<RmmBootManifestVersion> for u32 {
-    fn from(value: RmmBootManifestVersion) -> Self {
+impl From<RmmVersion> for u32 {
+    fn from(value: RmmVersion) -> Self {
         (value.major as u32) << 16 | value.minor as u32
     }
 }
 
-impl Display for RmmBootManifestVersion {
+impl From<RmmVersion> for u64 {
+    fn from(value: RmmVersion) -> Self {
+        u32::from(value).into()
+    }
+}
+
+impl Display for RmmVersion {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("v{}.{}", self.major, self.minor))
     }

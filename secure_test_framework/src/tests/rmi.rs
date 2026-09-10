@@ -47,7 +47,7 @@ macro_rules! check_rmi_status {
 
 normal_world_test!(test_rmm_version);
 fn test_rmm_version() -> TestResult {
-    const REQUESTED_VERSION: u64 = 0x8;
+    const REQUESTED_VERSION: u64 = 0x2 << 16;
 
     let mut args = [0; 17];
     args[0] = REQUESTED_VERSION;
@@ -68,9 +68,11 @@ fn test_rmm_version() -> TestResult {
 
     match ret[0] {
         0 => {
+            // The STF_RMM returns the same version number as the lower and higher supported
+            // versions.
             expect_eq!(lower, REQUESTED_VERSION);
+            expect_eq!(higher, REQUESTED_VERSION);
         }
-        1 => expect!(lower != REQUESTED_VERSION),
         v => fail!("Invalid return code from RMI_VERSION: {v}"),
     }
 

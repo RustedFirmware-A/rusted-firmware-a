@@ -63,7 +63,7 @@ pub(crate) const MAIR_IWBRWA_OWBRWA_NTR: MairAttribute = MairAttribute::normal(
 const MAIR_NON_CACHEABLE: MairAttribute =
     MairAttribute::normal(NormalMemory::NonCacheable, NormalMemory::NonCacheable);
 
-#[cfg_attr(test, allow(unused))]
+#[cfg_attr(any(test, feature = "fakes"), allow(unused))]
 const TCR: u64 = (0b101 << 16) // 48 bit physical address size (256 TiB).
         | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
 
@@ -183,7 +183,7 @@ make_memory_attributes!(REALM, BASE.union(El23Attributes::NS).union(NSE));
 /// it set its TTBR.
 pub static mut PAGE_TABLE_ADDR: usize = 0;
 
-#[cfg_attr(test, allow(unused))]
+#[cfg_attr(any(test, feature = "fakes"), allow(unused))]
 const fn mair<PlatformImpl: Platform>() -> Mair {
     Mair::EMPTY
         .with_attribute(MAIR_DEVICE_INDEX, MAIR_DEVICE)

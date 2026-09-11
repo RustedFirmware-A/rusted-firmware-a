@@ -128,7 +128,7 @@ pub trait WarmbootEntrypoint {
     fn warmboot() -> !;
 }
 
-#[cfg_attr(test, allow(unused))]
+#[cfg_attr(any(test, feature = "fakes"), allow(unused))]
 extern "C" fn psci_warmboot_entrypoint<PlatformImpl: Platform + WarmbootEntrypoint>() -> ! {
     debug!(
         "Warmboot on core #{}",

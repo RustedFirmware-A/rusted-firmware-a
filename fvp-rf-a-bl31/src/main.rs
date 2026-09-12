@@ -113,7 +113,8 @@ const fn aligned_range_covering(
     start_address..end_address
 }
 
-const UART_RANGE: Range<usize> = from_inclusive_range(&MemoryMap::UART0);
+const UART0_RANGE: Range<usize> = from_inclusive_range(&MemoryMap::UART0);
+const UART1_RANGE: Range<usize> = from_inclusive_range(&MemoryMap::UART1);
 
 const CRASH_UART_BASE: usize = *MemoryMap::UART1.start();
 
@@ -173,13 +174,17 @@ const NT_FW_CONFIG_ADDRESS: u64 = 0x8000_0000;
 const HW_CONFIG_ADDRESS: u64 = 0x07f0_0000;
 const HW_CONFIG_ADDRESS_NS: u64 = 0x8200_0000;
 
-const EARLY_REGIONS: [EarlyRegion; 2] = [
+const EARLY_REGIONS: [EarlyRegion; 3] = [
     EarlyRegion {
         address_range: ARM_TRUSTED_SRAM_RANGE,
         attributes: MT_MEMORY_EL3,
     },
     EarlyRegion {
-        address_range: UART_RANGE,
+        address_range: UART0_RANGE,
+        attributes: MT_DEVICE,
+    },
+    EarlyRegion {
+        address_range: UART1_RANGE,
         attributes: MT_DEVICE,
     },
 ];
@@ -615,7 +620,7 @@ unsafe impl RmmdPlatform for FvpRmmdPlatformImpl {
             ],
             plat_console: &[RmmConsoleInfo {
                 // Value from the pl011_uart crate.
-                base: UART_RANGE.start,
+                base: UART0_RANGE.start,
                 // Values from TF-A.
                 map_pages: 0x1,
                 name: *b"pl011\0\0\0",

@@ -1,7 +1,17 @@
 # RF-A architecture overview
 
-RF-A is implemented as a Rust binary crate in a workspace. As well as RF-A itself the workspace
-contains STF (the Secure Testing Framework).
+RF-A is implemented as two Rust library crates in a workspace:
+
+- `rf-a-core` contains the main implementation of RF-A.
+- `rf-a-build` is a small library to be used in build scripts.
+
+Each platform or set of related platforms is implemented as a binary crate which depends on these
+libraries. For example `rf-a-fvp` is the reference implementation for the Arm Fixed Virtual
+Platform. These platform implementations may be part of the same workspace or entirely separate. See
+the [Porting Guide] for details of how to implement your own platform.
+
+As well as RF-A itself the workspace contains the Secure Testing Framework (STF) as a standalone
+binary crate `secure_test_framework`.
 
 ## Modules
 
@@ -308,3 +318,4 @@ late initialisation.
 [`log`]: https://crates.io/crates/log
 [`log::Log`]: https://docs.rs/log/latest/log/trait.Log.html
 [`RefCell`]: https://doc.rust-lang.org/stable/core/cell/struct.RefCell.html
+[Porting Guide]: porting.md

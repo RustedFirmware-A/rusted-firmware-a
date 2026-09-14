@@ -48,6 +48,8 @@ See our [Getting Started Guide][3].
 
 See the [RF-A architecture overview][14] for an overview of the code structure.
 
+See the [Porting Guide][16] if you want to port RF-A to a new platform.
+
 ## License
 
 The project is provided under the BSD-3-Clause license, see [LICENSE][4]. Contributions to this
@@ -94,6 +96,7 @@ Arm word trademark.
 [13]: https://developer.arm.com/documentation/den0098/latest
 [14]: docs/architecture.md
 [15]: https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html
+[16]: docs/porting.md
 
 ---
 

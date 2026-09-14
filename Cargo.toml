@@ -4,7 +4,13 @@
 
 [workspace]
 resolver = "3"
-members = ["rf-a-fvp", "rf-a-qemu", "rf-a-build", "secure_test_framework"]
+members = [
+  "rf-a-arm-common",
+  "rf-a-fvp",
+  "rf-a-qemu",
+  "rf-a-build",
+  "secure_test_framework",
+]
 
 [package]
 name = "rf-a-core"
@@ -59,6 +65,7 @@ arm-gic = { version = "0.10.0", features = ["fakes"] }
 arm-sysregs = { version = "0.5.2", features = ["fakes"] }
 
 [workspace.dependencies]
+rf-a-arm-common = { version = "0.1.0", default-features = false, path = "rf-a-arm-common" }
 rf-a-core = { version = "0.1.0", default-features = false, path = "." }
 rf-a-build = { version = "0.1.0", path = "rf-a-build" }
 

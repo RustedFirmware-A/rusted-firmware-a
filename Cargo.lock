@@ -346,6 +346,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rf-a-arm-common"
+version = "0.1.0"
+dependencies = [
+ "rf-a-core",
+]
+
+[[package]]
 name = "rf-a-build"
 version = "0.1.0"
 

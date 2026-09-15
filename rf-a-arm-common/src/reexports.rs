@@ -5,3 +5,5 @@
 //! Reexports the driver dependencies.
 
 pub use arm_generic_timer;
+pub use arm_mhu;
+pub use arm_scmi;

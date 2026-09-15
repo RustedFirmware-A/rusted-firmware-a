@@ -85,6 +85,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "arm-mhu"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "609c1aefcb7bc4435df2b70624205380c1edee4b9a4543a8b665a36d610c7d54"
+dependencies = [
+ "bitflags",
+ "num_enum",
+ "safe-mmio",
+ "zerocopy",
+]
+
+[[package]]
 name = "arm-pl011-uart"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -123,6 +135,19 @@ name = "arm-rmi"
 version = "0.1.0"
 dependencies = [
  "num_enum",
+]
+
+[[package]]
+name = "arm-scmi"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ab5618965f0ab5a95f169f4de6a26ff46b7a64a98f42b8c808548a01184ba5a"
+dependencies = [
+ "bitflags",
+ "num_enum",
+ "pastey",
+ "thiserror",
+ "zerocopy",
 ]
 
 [[package]]
@@ -349,6 +374,9 @@ name = "rf-a-arm-common"
 version = "0.1.0"
 dependencies = [
  "arm-generic-timer",
+ "arm-mhu",
+ "arm-scmi",
+ "num_enum",
  "rf-a-core",
  "safe-mmio",
  "zerocopy",

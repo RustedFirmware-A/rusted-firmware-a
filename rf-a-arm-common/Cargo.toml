@@ -14,7 +14,10 @@ description = "Common components specific to Arm platforms."
 arm-generic-timer = { version = "0.4.0", default-features = false, features = [
     "el2",
 ] }
+arm-mhu = "0.2.0"
+arm-scmi = "0.2.1"
 rf-a-core = { workspace = true, default-features = false }
+num_enum = { version = "0.7.6", default-features = false }
 safe-mmio = "0.4.0"
 zerocopy = { version = "0.8", features = ["derive"] }
 

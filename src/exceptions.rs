@@ -195,13 +195,18 @@ fn create_spsr(old_spsr: SpsrEl3, target_el: ExceptionLevel) -> SpsrEl3 {
 
     // If FEAT_GCS is implemented, update EXLOCK bit
     if read_id_aa64pfr1_el1().is_feat_gcs_present() {
-        let gcscr_exlocken = if target_el == ExceptionLevel::El2 {
-            read_gcscr_el2().contains(GcscrEl2::EXLOCKEN)
-        } else {
-            read_gcscr_el1().contains(GcscrEl1::EXLOCKEN)
-        };
-        if gcscr_exlocken {
-            new_spsr |= SpsrEl3::EXLOCK;
+        // RWTXBY: If taking an exception to a higher EL, set
+        // EXLOCK == 0. Otherwise set it to GCSCR_ELx.EXLOCKEN
+        if old_spsr.exception_level() == target_el {
+            let gcscr_exlocken = if target_el == ExceptionLevel::El2 {
+                read_gcscr_el2().contains(GcscrEl2::EXLOCKEN)
+            } else {
+                read_gcscr_el1().contains(GcscrEl1::EXLOCKEN)
+            };
+
+            if gcscr_exlocken {
+                new_spsr |= SpsrEl3::EXLOCK;
+            }
         }
     }
 

@@ -4,14 +4,15 @@
 
 //! SIMD and SVE context management for when Secure EL2 is not enabled.
 
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use crate::aarch64::isb;
+use arm_sysregs::el0::registers::Svcr;
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use arm_sysregs::{
-    el0::{
-        accessors::{read_svcr, write_svcr},
-        registers::Svcr,
-    },
+    el0::accessors::{read_svcr, write_svcr},
     el1::{accessors::read_id_aa64smfr0_el1, registers::IdAa64smfr0El1},
 };
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use core::arch::asm;
 
 #[repr(C)]
@@ -27,7 +28,10 @@ impl SimdCpuContext {
         fpsr: 0,
         fpcr: 0,
     };
+}
 
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+impl SimdCpuContext {
     /// Saves the 32 SIMD/FP (Q) registers using the optimized ARM64 STP (Store Pair) instruction
     /// with post-indexing and saves the FP state registers.
     pub fn save(&mut self) {
@@ -135,7 +139,10 @@ impl SveCpuContext {
         fpcr: 0,
         svcr: Svcr::empty(),
     };
+}
 
+#[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+impl SveCpuContext {
     fn should_save_restore_ffr(&self, has_sme: bool) -> bool {
         if has_sme {
             let streaming = self.svcr.contains(Svcr::SM);
@@ -457,4 +464,20 @@ impl SveCpuContext {
         self.restore_vectors();
         self.restore_fp_state();
     }
+}
+
+#[cfg(any(not(target_arch = "aarch64"), test, feature = "fakes"))]
+impl SimdCpuContext {
+    /// Saves the SIMD/FP context. This is a no-op for testing.
+    pub fn save(&self) {}
+    /// Restores the SIMD/FP context. This is a no-op for testing.
+    pub fn restore(&self) {}
+}
+
+#[cfg(any(not(target_arch = "aarch64"), test, feature = "fakes"))]
+impl SveCpuContext {
+    /// Saves the SVE context. This is a no-op for testing.
+    pub fn save(&self, _has_sme: bool) {}
+    /// Restores the SVE context. This is a no-op for testing.
+    pub fn restore(&self, _has_sme: bool) {}
 }

@@ -4,13 +4,13 @@
 
 //! SIMD, SVE and SME support.
 
-#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+#[cfg(not(feature = "sel2"))]
 mod simd_sel1;
 
-#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+#[cfg(not(feature = "sel2"))]
 use self::simd_sel1::{SimdCpuContext, SveCpuContext};
 use super::CpuExtension;
-#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+#[cfg(not(feature = "sel2"))]
 use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld};
 use crate::{
     aarch64::isb,
@@ -26,9 +26,9 @@ use arm_sysregs::{
         registers::{CptrEl3, ScrEl3, SmcrEl3, ZcrEl3},
     },
 };
-#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+#[cfg(not(feature = "sel2"))]
 use core::cell::RefCell;
-#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+#[cfg(not(feature = "sel2"))]
 use percore::{ExceptionLock, derive::percore};
 
 const FP_NOT_SUPPORTED: u8 = 0xf;
@@ -47,12 +47,12 @@ fn needs_sve_sme(world: World) -> bool {
     }
 }
 
-#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+#[cfg(not(feature = "sel2"))]
 #[percore]
 static SVE_NS_CONTEXT: ExceptionLock<RefCell<SveCpuContext>> =
     ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY));
 
-#[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+#[cfg(not(feature = "sel2"))]
 #[percore]
 static SIMD_CONTEXT: ExceptionLock<RefCell<PerWorld<SimdCpuContext>>> = ExceptionLock::new(
     RefCell::new(PerWorld([SimdCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
@@ -245,7 +245,7 @@ impl CpuExtension for Simd {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+    #[cfg(not(feature = "sel2"))]
     fn save_context(&self, world: World) {
         use crate::platform::exception_free;
 
@@ -277,7 +277,7 @@ impl CpuExtension for Simd {
         isb();
     }
 
-    #[cfg(all(target_arch = "aarch64", not(feature = "sel2")))]
+    #[cfg(not(feature = "sel2"))]
     fn restore_context(&self, world: World) {
         use crate::platform::exception_free;
 

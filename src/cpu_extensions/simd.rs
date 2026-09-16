@@ -8,7 +8,7 @@
 pub mod simd_sel1;
 
 #[cfg(not(feature = "sel2"))]
-use self::simd_sel1::{SimdCpuContext, SveCpuContext};
+use self::simd_sel1::{NwdContext, SWD_SIMD_CONTEXT, SimdCpuContext, SveCpuContext};
 use super::CpuExtension;
 #[cfg(not(feature = "sel2"))]
 use crate::platform::exception_free;
@@ -29,10 +29,7 @@ use arm_sysregs::{
 #[cfg(not(feature = "sel2"))]
 use core::cell::RefCell;
 #[cfg(not(feature = "sel2"))]
-use percore::{
-    ExceptionLock,
-    derive::{LinkedPerCore, percore},
-};
+use percore::{ExceptionLock, derive::LinkedPerCore};
 
 const FP_NOT_SUPPORTED: u8 = 0xf;
 const ADVSIMD_NOT_SUPPORTED: u8 = 0xf;
@@ -47,42 +44,6 @@ fn needs_sve_sme(world: World) -> bool {
         World::Realm => true,
 
         _ => false,
-    }
-}
-
-#[cfg(not(feature = "sel2"))]
-#[percore]
-static SWD_SIMD_CONTEXT: ExceptionLock<RefCell<SimdCpuContext>> =
-    ExceptionLock::new(RefCell::new(SimdCpuContext::EMPTY));
-
-#[cfg(not(feature = "sel2"))]
-enum NwdContext {
-    Simd(&'static LinkedPerCore<ExceptionLock<RefCell<SimdCpuContext>>>),
-    Sve(&'static LinkedPerCore<ExceptionLock<RefCell<SveCpuContext>>>),
-}
-
-#[cfg(not(feature = "sel2"))]
-impl NwdContext {
-    fn save(&self, has_sme: bool) {
-        match self {
-            NwdContext::Simd(exception_lock) => exception_free(|token| {
-                exception_lock.get().borrow_mut(token).save();
-            }),
-            NwdContext::Sve(exception_lock) => exception_free(|token| {
-                exception_lock.get().borrow_mut(token).save(has_sme);
-            }),
-        }
-    }
-
-    fn restore(&self, has_sme: bool) {
-        match self {
-            NwdContext::Simd(exception_lock) => exception_free(|token| {
-                exception_lock.get().borrow(token).borrow().restore();
-            }),
-            NwdContext::Sve(exception_lock) => exception_free(|token| {
-                exception_lock.get().borrow(token).borrow().restore(has_sme);
-            }),
-        }
     }
 }
 

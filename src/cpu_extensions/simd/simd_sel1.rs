@@ -6,6 +6,7 @@
 
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use crate::aarch64::isb;
+use crate::platform::exception_free;
 use arm_sysregs::el0::registers::Svcr;
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use arm_sysregs::{
@@ -14,6 +15,44 @@ use arm_sysregs::{
 };
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use core::arch::asm;
+use core::cell::RefCell;
+use percore::{
+    ExceptionLock,
+    derive::{LinkedPerCore, percore},
+};
+
+#[percore]
+pub(super) static SWD_SIMD_CONTEXT: ExceptionLock<RefCell<SimdCpuContext>> =
+    ExceptionLock::new(RefCell::new(SimdCpuContext::EMPTY));
+
+pub(super) enum NwdContext {
+    Simd(&'static LinkedPerCore<ExceptionLock<RefCell<SimdCpuContext>>>),
+    Sve(&'static LinkedPerCore<ExceptionLock<RefCell<SveCpuContext>>>),
+}
+
+impl NwdContext {
+    pub(super) fn save(&self, has_sme: bool) {
+        match self {
+            NwdContext::Simd(exception_lock) => exception_free(|token| {
+                exception_lock.get().borrow_mut(token).save();
+            }),
+            NwdContext::Sve(exception_lock) => exception_free(|token| {
+                exception_lock.get().borrow_mut(token).save(has_sme);
+            }),
+        }
+    }
+
+    pub(super) fn restore(&self, has_sme: bool) {
+        match self {
+            NwdContext::Simd(exception_lock) => exception_free(|token| {
+                exception_lock.get().borrow(token).borrow().restore();
+            }),
+            NwdContext::Sve(exception_lock) => exception_free(|token| {
+                exception_lock.get().borrow(token).borrow().restore(has_sme);
+            }),
+        }
+    }
+}
 
 /// Represents the CPU context for SIMD and FP registers.
 #[repr(C)]

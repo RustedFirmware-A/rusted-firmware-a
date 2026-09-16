@@ -15,6 +15,8 @@ use self::{
     psci::{PSCI_STATE_COUNT, QemuPsciPlatformImpl, gpio_init},
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
+#[cfg(not(feature = "sel2"))]
+use core::cell::RefCell;
 use core::{mem::offset_of, ptr::NonNull};
 use rf_a_core::{
     all_asm, asm_macros_common, asm_macros_common_purge,
@@ -56,6 +58,11 @@ use rf_a_core::{
         psci::PsciPlatformInterface,
     },
     statics,
+};
+#[cfg(not(feature = "sel2"))]
+use rf_a_core::{
+    cpu_extensions::simd::simd_sel1::SveCpuContext,
+    reexports::percore::{self, ExceptionLock, derive::percore},
 };
 
 const DEVICE0_BASE: usize = 0x0800_0000;
@@ -182,6 +189,17 @@ static ERRATA_MANAGEMENT: ErrataManagement<Qemu> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
 
+#[cfg(not(feature = "sel2"))]
+#[percore]
+static NWD_SVE_CONTEXT: ExceptionLock<RefCell<SveCpuContext>> =
+    ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY));
+
+#[cfg(not(feature = "sel2"))]
+static SIMD: Simd = Simd::sve(512, false, &NWD_SVE_CONTEXT);
+
+#[cfg(feature = "sel2")]
+static SIMD: Simd = Simd::sve(512, false);
+
 // SAFETY: `dump_registers` is a naked function which doesn't use the stack, and only clobbers the
 // registers it is documented to clobber.
 unsafe impl Platform for Qemu {
@@ -201,7 +219,7 @@ unsafe impl Platform for Qemu {
     };
 
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] =
-        &[&Csv2_2, &Gcs, &Hcx, &Simd::sve(512, false), &Sctlr2];
+        &[&Csv2_2, &Gcs, &Hcx, &Sctlr2, &SIMD];
 
     fn init_with_early_mapping(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else

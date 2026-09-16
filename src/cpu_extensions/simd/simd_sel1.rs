@@ -15,6 +15,7 @@ use arm_sysregs::{
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 use core::arch::asm;
 
+/// Represents the CPU context for SIMD and FP registers.
 #[repr(C)]
 pub struct SimdCpuContext {
     vectors: [u128; 32],
@@ -23,6 +24,7 @@ pub struct SimdCpuContext {
 }
 
 impl SimdCpuContext {
+    /// An empty SIMD/FP context with all registers set to zero.
     pub const EMPTY: Self = Self {
         vectors: [0; 32],
         fpsr: 0,
@@ -34,7 +36,7 @@ impl SimdCpuContext {
 impl SimdCpuContext {
     /// Saves the 32 SIMD/FP (Q) registers using the optimized ARM64 STP (Store Pair) instruction
     /// with post-indexing and saves the FP state registers.
-    pub fn save(&mut self) {
+    pub(super) fn save(&mut self) {
         // Get a mutable pointer to the start of the vector storage.
         let dest = self.vectors.as_mut_ptr();
         let fpsr_value;
@@ -80,7 +82,7 @@ impl SimdCpuContext {
 
     /// Restores the 32 SIMD/FP (Q) registers using the optimized ARM64 LDP (Load Pair) instruction
     /// with post-indexing and restores the FP state registers.
-    pub fn restore(&self) {
+    pub(super) fn restore(&self) {
         // Get a pointer to the start of the vector storage.
         let src = self.vectors.as_ptr();
 
@@ -120,6 +122,7 @@ impl SimdCpuContext {
     }
 }
 
+/// Represents the CPU context for SVE registers.
 #[repr(C)]
 pub struct SveCpuContext {
     vectors: [[u128; 16]; 32], // TODO: [u128; 16] is the MAX capacity. Allow platforms to adjust.
@@ -131,6 +134,7 @@ pub struct SveCpuContext {
 }
 
 impl SveCpuContext {
+    /// An empty SVE context with all registers set to zero.
     pub const EMPTY: Self = Self {
         vectors: [[0; 16]; 32],
         predicates: [0; 256 / 8],
@@ -428,7 +432,7 @@ impl SveCpuContext {
         }
     }
 
-    pub fn save(&mut self, has_sme: bool) {
+    pub(super) fn save(&mut self, has_sme: bool) {
         self.save_predicates();
 
         if has_sme {
@@ -447,7 +451,7 @@ impl SveCpuContext {
         self.save_fp_state();
     }
 
-    pub fn restore(&self, has_sme: bool) {
+    pub(super) fn restore(&self, has_sme: bool) {
         if has_sme {
             // SAFETY: This is the first step of SVE state restoration.
             unsafe { self.restore_svcr() };

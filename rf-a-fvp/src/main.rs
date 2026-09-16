@@ -27,6 +27,8 @@ use arm_fvp_base_pac::{
 };
 #[cfg(feature = "pauth")]
 use core::arch::asm;
+#[cfg(not(feature = "sel2"))]
+use core::cell::RefCell;
 use core::{
     mem::offset_of,
     ops::{Range, RangeInclusive},
@@ -80,6 +82,11 @@ use rf_a_core::{
         psci::PsciPlatformInterface,
     },
     statics,
+};
+#[cfg(not(feature = "sel2"))]
+use rf_a_core::{
+    cpu_extensions::simd::simd_sel1::SimdCpuContext,
+    reexports::percore::{self, ExceptionLock, derive::percore},
 };
 
 /// Converts `RangeInclusive` into `Range`.
@@ -247,6 +254,17 @@ static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT
 static AMU: Amu<FVP_CORE_COUNT, FvpCoreIndex> =
     Amu::new([Amcntenset1El0::empty(); FVP_CORE_COUNT], true);
 
+#[cfg(not(feature = "sel2"))]
+#[percore]
+static NWD_SIMD_CONTEXT: ExceptionLock<RefCell<SimdCpuContext>> =
+    ExceptionLock::new(RefCell::new(SimdCpuContext::EMPTY));
+
+#[cfg(not(feature = "sel2"))]
+static SIMD: Simd = Simd::simd(&NWD_SIMD_CONTEXT);
+
+#[cfg(feature = "sel2")]
+static SIMD: Simd = Simd::simd();
+
 static SYSTEM_REVISION: Once<u32> = Once::new();
 
 struct FvpCoreIndex;
@@ -344,7 +362,7 @@ unsafe impl Platform for Fvp {
         &MultiThreadedPmu,
         &Ras,
         &Sctlr2,
-        &Simd::simd(),
+        &SIMD,
         &StatisticalProfiling,
         &SysRegTrace,
         &Tcr2,

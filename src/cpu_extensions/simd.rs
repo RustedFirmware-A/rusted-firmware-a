@@ -5,11 +5,13 @@
 //! SIMD, SVE and SME support.
 
 #[cfg(not(feature = "sel2"))]
-mod simd_sel1;
+pub mod simd_sel1;
 
 #[cfg(not(feature = "sel2"))]
 use self::simd_sel1::{SimdCpuContext, SveCpuContext};
 use super::CpuExtension;
+#[cfg(not(feature = "sel2"))]
+use crate::platform::exception_free;
 use crate::{
     aarch64::isb,
     context::{PerWorldContext, World},
@@ -27,7 +29,10 @@ use arm_sysregs::{
 #[cfg(not(feature = "sel2"))]
 use core::cell::RefCell;
 #[cfg(not(feature = "sel2"))]
-use percore::{ExceptionLock, derive::percore};
+use percore::{
+    ExceptionLock,
+    derive::{LinkedPerCore, percore},
+};
 
 const FP_NOT_SUPPORTED: u8 = 0xf;
 const ADVSIMD_NOT_SUPPORTED: u8 = 0xf;
@@ -47,18 +52,39 @@ fn needs_sve_sme(world: World) -> bool {
 
 #[cfg(not(feature = "sel2"))]
 #[percore]
-static SVE_NS_CONTEXT: ExceptionLock<RefCell<SveCpuContext>> =
-    ExceptionLock::new(RefCell::new(SveCpuContext::EMPTY));
-
-#[cfg(not(feature = "sel2"))]
-#[percore]
 static SWD_SIMD_CONTEXT: ExceptionLock<RefCell<SimdCpuContext>> =
     ExceptionLock::new(RefCell::new(SimdCpuContext::EMPTY));
 
 #[cfg(not(feature = "sel2"))]
-#[percore]
-static NWD_SIMD_CONTEXT: ExceptionLock<RefCell<SimdCpuContext>> =
-    ExceptionLock::new(RefCell::new(SimdCpuContext::EMPTY));
+enum NwdContext {
+    Simd(&'static LinkedPerCore<ExceptionLock<RefCell<SimdCpuContext>>>),
+    Sve(&'static LinkedPerCore<ExceptionLock<RefCell<SveCpuContext>>>),
+}
+
+#[cfg(not(feature = "sel2"))]
+impl NwdContext {
+    fn save(&self, has_sme: bool) {
+        match self {
+            NwdContext::Simd(exception_lock) => exception_free(|token| {
+                exception_lock.get().borrow_mut(token).save();
+            }),
+            NwdContext::Sve(exception_lock) => exception_free(|token| {
+                exception_lock.get().borrow_mut(token).save(has_sme);
+            }),
+        }
+    }
+
+    fn restore(&self, has_sme: bool) {
+        match self {
+            NwdContext::Simd(exception_lock) => exception_free(|token| {
+                exception_lock.get().borrow(token).borrow().restore();
+            }),
+            NwdContext::Sve(exception_lock) => exception_free(|token| {
+                exception_lock.get().borrow(token).borrow().restore(has_sme);
+            }),
+        }
+    }
+}
 
 /// FEAT_SVE support.
 ///
@@ -183,15 +209,23 @@ impl Sme {
 pub struct Simd {
     sve: Option<Sve>,
     sme: Option<Sme>,
+    #[cfg(not(feature = "sel2"))]
+    nwd_context: NwdContext,
 }
 
 impl Simd {
     /// Creates a new `Simd` extension with SVE and SME disabled.
     #[allow(clippy::self_named_constructors)]
-    pub const fn simd() -> Self {
+    pub const fn simd(
+        #[cfg(not(feature = "sel2"))] nwd_context: &'static LinkedPerCore<
+            ExceptionLock<RefCell<SimdCpuContext>>,
+        >,
+    ) -> Self {
         Self {
             sve: None,
             sme: None,
+            #[cfg(not(feature = "sel2"))]
+            nwd_context: NwdContext::Simd(nwd_context),
         }
     }
 
@@ -201,7 +235,13 @@ impl Simd {
     ///
     /// If `enable_sme` is set, SME extension is enabled as well and SSVE vector length is also set
     /// to `vector_length`.
-    pub const fn sve(vector_length: u64, enable_sme: bool) -> Self {
+    pub const fn sve(
+        vector_length: u64,
+        enable_sme: bool,
+        #[cfg(not(feature = "sel2"))] nwd_context: &'static LinkedPerCore<
+            ExceptionLock<RefCell<SveCpuContext>>,
+        >,
+    ) -> Self {
         Self {
             sve: Some(Sve::new(vector_length)),
             sme: if enable_sme {
@@ -209,6 +249,8 @@ impl Simd {
             } else {
                 None
             },
+            #[cfg(not(feature = "sel2"))]
+            nwd_context: NwdContext::Sve(nwd_context),
         }
     }
 }
@@ -249,8 +291,6 @@ impl CpuExtension for Simd {
 
     #[cfg(not(feature = "sel2"))]
     fn save_context(&self, world: World) {
-        use crate::platform::exception_free;
-
         let has_sme = self.sme.is_some() && Sme::is_present();
 
         // Temporarily allow access to save context
@@ -265,14 +305,7 @@ impl CpuExtension for Simd {
             World::Secure => exception_free(|token| {
                 SWD_SIMD_CONTEXT.get().borrow_mut(token).save();
             }),
-            World::NonSecure if self.sve.is_some() && Sve::is_present() => {
-                exception_free(|token| {
-                    SVE_NS_CONTEXT.get().borrow_mut(token).save(has_sme);
-                })
-            }
-            World::NonSecure => exception_free(|token| {
-                NWD_SIMD_CONTEXT.get().borrow_mut(token).save();
-            }),
+            World::NonSecure => self.nwd_context.save(has_sme),
         }
 
         // Restore Architectural Feature Trap Register.
@@ -285,8 +318,6 @@ impl CpuExtension for Simd {
 
     #[cfg(not(feature = "sel2"))]
     fn restore_context(&self, world: World) {
-        use crate::platform::exception_free;
-
         let has_sme = self.sme.is_some() && Sme::is_present();
 
         // Temporarily allow access to restore context
@@ -301,14 +332,7 @@ impl CpuExtension for Simd {
             World::Secure => exception_free(|token| {
                 SWD_SIMD_CONTEXT.get().borrow(token).borrow().restore();
             }),
-            World::NonSecure if self.sve.is_some() && Sve::is_present() => {
-                exception_free(|token| {
-                    SVE_NS_CONTEXT.get().borrow(token).borrow().restore(has_sme);
-                })
-            }
-            World::NonSecure => exception_free(|token| {
-                NWD_SIMD_CONTEXT.get().borrow(token).borrow().restore();
-            }),
+            World::NonSecure => self.nwd_context.restore(has_sme),
         }
 
         // Restore Architectural Feature Trap Register.

@@ -37,7 +37,7 @@ IFS=" " read -a all_features <<< "$(make --silent list_test_features)"
 for features in "${all_features[@]}"; do
     features=$(echo $features | sed "s/'//g")
 
-    must cargo test --features=$features
+    must cargo test --no-default-features --features=$features
 done
 
 declare -a all_platforms=($(make --silent list_platforms))

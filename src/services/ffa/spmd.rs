@@ -100,7 +100,7 @@ impl Service for Spmd {
                     arm_ffa::Error::InvalidVersion(_)
                     | arm_ffa::Error::InvalidVersionFlags(_)
                     | arm_ffa::Error::InvalidVersionQueryType(_) => Interface::VersionOut {
-                        output_version: VersionOut::NotSupported,
+                        output_version: VersionOut::InvalidParameter,
                     },
                     error => Interface::error((*error).into(), true),
                 };

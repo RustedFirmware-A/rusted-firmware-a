@@ -183,11 +183,11 @@ list_features:
 ifeq (${PLAT}, qemu)
 	@echo "''  'sel2'"
 else ifeq (${PLAT}, fvp)
-	@echo "'' 'sel2' 'rme' 'sel2,rme'"
+	@echo "'' 'sel2' 'sel2,rme'"
 endif
 
 list_test_features:
-	@echo "'fakes' 'fakes,sel2' 'fakes,rme' 'fakes,sel2,rme'"
+	@echo "'fakes' 'fakes,sel2' 'fakes,sel2,rme'"
 
 help:
 	@echo "usage: ${MAKE} PLAT=<platform> [VAR=<value> [...]] <target> [...]"

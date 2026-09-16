@@ -74,7 +74,7 @@ rf-a-bl31-build = { version = "0.1.0", path = "rf-a-bl31-build" }
 default = ["sel2"]
 fakes = ["arm-gic/fakes", "arm-sysregs/fakes"]
 pauth = []
-rme = []
+rme = ["sel2"]
 sel2 = []
 max_log_off = ["log/max_level_off"]
 max_log_error = ["log/max_level_error"]

@@ -24,7 +24,7 @@ rf-a-bl31-build = { workspace = true }
 [features]
 default = ["sel2"]
 pauth = ["rf-a-bl31/pauth"]
-rme = ["rf-a-bl31/rme"]
+rme = ["rf-a-bl31/rme", "sel2"]
 sel2 = ["rf-a-bl31/sel2"]
 max_log_off = ["rf-a-bl31/max_log_off"]
 max_log_error = ["rf-a-bl31/max_log_error"]

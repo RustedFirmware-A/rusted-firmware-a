@@ -10,8 +10,6 @@ mod simd_sel1;
 #[cfg(not(feature = "sel2"))]
 use self::simd_sel1::{SimdCpuContext, SveCpuContext};
 use super::CpuExtension;
-#[cfg(not(feature = "sel2"))]
-use crate::context::{CPU_DATA_CONTEXT_NUM, PerWorld};
 use crate::{
     aarch64::isb,
     context::{PerWorldContext, World},
@@ -54,9 +52,13 @@ static SVE_NS_CONTEXT: ExceptionLock<RefCell<SveCpuContext>> =
 
 #[cfg(not(feature = "sel2"))]
 #[percore]
-static SIMD_CONTEXT: ExceptionLock<RefCell<PerWorld<SimdCpuContext>>> = ExceptionLock::new(
-    RefCell::new(PerWorld([SimdCpuContext::EMPTY; CPU_DATA_CONTEXT_NUM])),
-);
+static SWD_SIMD_CONTEXT: ExceptionLock<RefCell<SimdCpuContext>> =
+    ExceptionLock::new(RefCell::new(SimdCpuContext::EMPTY));
+
+#[cfg(not(feature = "sel2"))]
+#[percore]
+static NWD_SIMD_CONTEXT: ExceptionLock<RefCell<SimdCpuContext>> =
+    ExceptionLock::new(RefCell::new(SimdCpuContext::EMPTY));
 
 /// FEAT_SVE support.
 ///
@@ -259,14 +261,18 @@ impl CpuExtension for Simd {
         }
         isb();
 
-        if world == World::NonSecure && self.sve.is_some() && Sve::is_present() {
-            exception_free(|token| {
-                SVE_NS_CONTEXT.get().borrow_mut(token).save(has_sme);
-            })
-        } else {
-            exception_free(|token| {
-                SIMD_CONTEXT.get().borrow_mut(token)[world].save();
-            })
+        match world {
+            World::Secure => exception_free(|token| {
+                SWD_SIMD_CONTEXT.get().borrow_mut(token).save();
+            }),
+            World::NonSecure if self.sve.is_some() && Sve::is_present() => {
+                exception_free(|token| {
+                    SVE_NS_CONTEXT.get().borrow_mut(token).save(has_sme);
+                })
+            }
+            World::NonSecure => exception_free(|token| {
+                NWD_SIMD_CONTEXT.get().borrow_mut(token).save();
+            }),
         }
 
         // Restore Architectural Feature Trap Register.
@@ -291,14 +297,18 @@ impl CpuExtension for Simd {
         }
         isb();
 
-        if world == World::NonSecure && self.sve.is_some() && Sve::is_present() {
-            exception_free(|token| {
-                SVE_NS_CONTEXT.get().borrow_mut(token).restore(has_sme);
-            })
-        } else {
-            exception_free(|token| {
-                SIMD_CONTEXT.get().borrow_mut(token)[world].restore();
-            })
+        match world {
+            World::Secure => exception_free(|token| {
+                SWD_SIMD_CONTEXT.get().borrow(token).borrow().restore();
+            }),
+            World::NonSecure if self.sve.is_some() && Sve::is_present() => {
+                exception_free(|token| {
+                    SVE_NS_CONTEXT.get().borrow(token).borrow().restore(has_sme);
+                })
+            }
+            World::NonSecure => exception_free(|token| {
+                NWD_SIMD_CONTEXT.get().borrow(token).borrow().restore();
+            }),
         }
 
         // Restore Architectural Feature Trap Register.

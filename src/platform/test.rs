@@ -341,7 +341,7 @@ impl
 
     type NodeIndex = u8;
 
-    fn topology() -> &'static [usize] {
+    fn topology(&self) -> &'static [usize] {
         &[1, 2, 2, 2, 3, 3, 3, 4]
     }
 

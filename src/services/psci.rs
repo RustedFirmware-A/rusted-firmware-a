@@ -144,7 +144,7 @@ pub trait PsciPlatformInterface<
     type NodeIndex: NodeIndexInterface;
 
     /// Returns the power domain topology as the count of child nodes in a BFS traversal order.
-    fn topology() -> &'static [usize];
+    fn topology(&self) -> &'static [usize];
 
     /// Tries to convert extended PSCI power state value into `PsciCompositePowerState`.
     fn try_parse_power_state(
@@ -820,7 +820,7 @@ impl<
 
         debug!("Initializing PSCI");
 
-        let power_domain_tree = PowerDomainTree::new(PsciPlatformImpl::topology());
+        let power_domain_tree = PowerDomainTree::new(platform.topology());
 
         {
             // Init primary CPU
@@ -2010,7 +2010,7 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             u8,
             _,
-        >::new(TestPsciPlatformImpl::topology());
+        >::new(TestPsciPlatformImpl.topology());
 
         let mut cpu = tree.locked_cpu_node(2);
         tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
@@ -2044,7 +2044,7 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             u8,
             _,
-        >::new(TestPsciPlatformImpl::topology());
+        >::new(TestPsciPlatformImpl.topology());
 
         let mut cpu = tree.locked_cpu_node(0);
         tree.with_ancestors_locked(&mut cpu, |cpu, mut ancestors| {
@@ -2139,7 +2139,7 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             u8,
             _,
-        >::new(TestPsciPlatformImpl::topology());
+        >::new(TestPsciPlatformImpl.topology());
 
         let mut cpu = tree.locked_cpu_node(2);
         tree.with_ancestors_locked(&mut cpu, |_cpu, mut ancestors| {
@@ -2155,7 +2155,7 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             u8,
             _,
-        >::new(TestPsciPlatformImpl::topology());
+        >::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2183,7 +2183,7 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             u8,
             _,
-        >::new(TestPsciPlatformImpl::topology());
+        >::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2212,7 +2212,7 @@ mod tests {
             PSCI_MAX_POWER_LEVEL,
             u8,
             _,
-        >::new(TestPsciPlatformImpl::topology());
+        >::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2236,7 +2236,7 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_shallower_lvl1_state_is_valid() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2260,7 +2260,7 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_all_off_is_valid() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2301,7 +2301,7 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_denies_if_not_last_at_level() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2327,7 +2327,7 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_denies_if_peer_still_running() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2350,7 +2350,7 @@ mod tests {
 
     #[test]
     fn psci_composite_power_state_validate_state_coordination_denies_lvl2_even_if_lv1_is_valid() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2377,7 +2377,7 @@ mod tests {
     #[test]
     fn psci_composite_power_state_validate_state_coordination_invalid_params_for_non_run_shallower_peer()
      {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
@@ -2404,7 +2404,7 @@ mod tests {
     #[test]
     fn psci_composite_power_state_validate_state_coordination_invalid_params_for_state_without_last_at_power_level()
      {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl::topology());
+        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
 
         for index in 0..TestPlatform::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);

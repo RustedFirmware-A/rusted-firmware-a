@@ -220,7 +220,7 @@ impl
 
     type NodeIndex = NodeIndex;
 
-    fn topology() -> &'static [usize] {
+    fn topology(&self) -> &'static [usize] {
         const TOPOLOGY: [usize; 2 + FVP_CLUSTER_COUNT] = {
             let mut topology = [0; 2 + FVP_CLUSTER_COUNT];
 

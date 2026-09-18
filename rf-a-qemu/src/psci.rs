@@ -107,7 +107,7 @@ impl
 
     type NodeIndex = u8;
 
-    fn topology() -> &'static [usize] {
+    fn topology(&self) -> &'static [usize] {
         &[1, CLUSTER_COUNT, MAX_CPUS_PER_CLUSTER]
     }
 

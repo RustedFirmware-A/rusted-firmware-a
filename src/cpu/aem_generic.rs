@@ -43,7 +43,7 @@ fn read_cache_size(level: CacheLevel) -> CacheSize {
     // Read and extract the fields of CCSIDR_EL1 according to the presence of CCIDX feature.
     let ccsidr = read_ccsidr_el1();
 
-    let (num_sets, associativity) = if read_id_aa64mmfr2_el1().has_64_bit_ccsidr_el1() {
+    let (num_sets, associativity) = if read_id_aa64mmfr2_el1().is_feat_ccidx_present() {
         (
             ((ccsidr.bits() >> 32) & 0x00ff_ffff) as u32,
             ((ccsidr.bits() >> 3) & 0x001f_ffff) as u32,

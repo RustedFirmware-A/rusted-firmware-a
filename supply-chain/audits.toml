@@ -544,11 +544,30 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.3 -> 0.4.0"
 notes = "Moves parts of arm-sysregs 0.3.3 into new dependency crates."
 
+[[audits.arm-sysregs]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.5.1"
+notes = """
+Updates changelog and dependency versions.
+Adds example code for the newly supported registers.
+"""
+
 [[audits.arm-sysregs-aarch32]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.4.0"
 notes = "Refactor: contains aarch32 registers from arm-sysregs 0.3.3."
+
+[[audits.arm-sysregs-aarch32]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.5.1"
+notes = """
+Timer registers were marked safe to write, not requiring an unsafe block for writing.
+Timer value changed to signed integer. Some redundant assertions were removed.
+Many trivial refactors.
+"""
 
 [[audits.arm-sysregs-common]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
@@ -556,11 +575,29 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.4.0"
 notes = "Refactor: contains code that was previously in arm-sysregs 0.3.3 version."
 
+[[audits.arm-sysregs-common]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.5.1"
+notes = """
+The crate's dependency on the paste crate has been replaced with the pastey crate.
+Also adds a helper macro for masking values.
+"""
+
 [[audits.arm-sysregs-el0]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.4.0"
 notes = "Refactor: contains EL0 registers from arm-sysregs 0.3.3. Adds one more register."
+
+[[audits.arm-sysregs-el0]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.5.1"
+notes = """
+The change adds two new registers, and some test code. Also contains some trivial refactors.
+Timer value changed to signed integer.
+"""
 
 [[audits.arm-sysregs-el1]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
@@ -568,17 +605,38 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.4.0"
 notes = "Refactor: contains EL1 registers from arm-sysregs 0.3.3, and adds one more register."
 
+[[audits.arm-sysregs-el1]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.5.1"
+notes = """
+The change adds 1 new register, multiple feature query accessors, and many trivial refactors.
+Timer value changed to signed integer. Renames a public function.
+"""
+
 [[audits.arm-sysregs-el2]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.4.0"
 notes = "Refactor: contains EL2 registers from arm-sysregs 0.3.3."
 
+[[audits.arm-sysregs-el2]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.5.1"
+notes = "Adds one new register. Many trivial refactors. Timer value changed to signed integer."
+
 [[audits.arm-sysregs-el3]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 version = "0.4.0"
 notes = "Refactor: contains EL3 registers from arm-sysregs 0.3.3."
+
+[[audits.arm-sysregs-el3]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.5.1"
+notes = "The change adds one new register. Contains some trivial refactors."
 
 [[audits.arm-tzc]]
 who = "Andrew Walbran <qwandor@google.com>"

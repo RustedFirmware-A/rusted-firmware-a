@@ -2,65 +2,28 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::{
-    Fvp, FvpCoreIndex, GIC,
-    config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER},
-    map_peripheral,
-};
+use crate::{Fvp, FvpCoreIndex, GIC, config::FVP_CLUSTER_COUNT};
 use arm_fvp_base_pac::{
-    MemoryMap, PhysicalInstance,
-    arm_generic_timer::memory_mapped::{
-        CntAcr, CntControlBase, CntCtlBase, GenericTimerControl, GenericTimerCtl,
-    },
-    power_controller::{FvpPowerController, FvpPowerControllerRegisters, SystemStatus},
-    system::{FvpSystemPeripheral, FvpSystemRegisters, SystemConfigFunction},
+    power_controller::{FvpPowerController, SystemStatus},
+    system::{FvpSystemPeripheral, SystemConfigFunction},
+};
+use rf_a_arm_common::power_management::{
+    ArmPowerState, ArmPsciPlatform, GicInterface, PowerControllerInterface,
+    generic_timer::GenericMmioTimer,
 };
 use rf_a_core::{
-    aarch64::{dsb_ish, wfi},
     context::CoreIndex,
     platform::Platform,
     reexports::{
         arm_gic::gicv3::{GicDistributorContext, GicRedistributorContext},
-        arm_psci::{EntryPoint, ErrorCode, HwState, Mpidr, PowerState},
-        arm_sysregs::{
-            el0::{accessors::write_cntfrq_el0, registers::CntfrqEl0},
-            el1::accessors::read_mpidr_el1,
-        },
-        log,
+        arm_psci::{ErrorCode, HwState, Mpidr, PowerState},
+        arm_sysregs::el1::accessors::read_mpidr_el1,
         spin::mutex::SpinMutex,
     },
-    services::psci::{
-        CPU_POWER_LEVEL, PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
-        PsciPlatformInterface, PsciPlatformOptionalFeatures,
-    },
+    services::psci::{CPU_POWER_LEVEL, PsciCompositePowerState, PsciPlatformOptionalFeatures},
 };
 
-#[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
-pub enum FvpPowerState {
-    Run = 0,
-    Retention = 1,
-    Off = 2,
-}
-
-impl PlatformPowerStateInterface for FvpPowerState {
-    const OFF: Self = Self::Off;
-    const RUN: Self = Self::Run;
-
-    fn power_state_type(&self) -> PowerStateType {
-        match self {
-            Self::Run => PowerStateType::Run,
-            Self::Retention => PowerStateType::StandbyOrRetention,
-            Self::Off => PowerStateType::PowerDown,
-        }
-    }
-}
-
-impl From<FvpPowerState> for usize {
-    fn from(value: FvpPowerState) -> Self {
-        value as usize
-    }
-}
-
+/// GIC context to save on different levels of power down.
 struct FvpGicContext {
     distributor_context: GicDistributorContext<
         { GicDistributorContext::spi_count(988) },
@@ -70,6 +33,7 @@ struct FvpGicContext {
 }
 
 impl FvpGicContext {
+    /// Creates new instance.
     const fn new() -> Self {
         Self {
             distributor_context: GicDistributorContext::new(),
@@ -80,106 +44,44 @@ impl FvpGicContext {
 
 static GIC_CONTEXT: SpinMutex<FvpGicContext> = SpinMutex::new(FvpGicContext::new());
 
-pub struct FvpPsciPlatformImpl<'a> {
-    power_controller: SpinMutex<FvpPowerController<'a>>,
-    system: SpinMutex<FvpSystemPeripheral<'a>>,
-    timer_control: SpinMutex<GenericTimerControl<'a>>,
-    timer_ctl: SpinMutex<GenericTimerCtl<'a>>,
-}
+/// `GicInterface` for the FVP platform.
+pub struct FvpGic;
 
-impl FvpPsciPlatformImpl<'_> {
-    const CLUSTER_POWER_LEVEL: usize = 1;
-    const NS_TIMER_INDEX: usize = 1;
-
-    pub fn new(
-        power_controller: PhysicalInstance<FvpPowerControllerRegisters>,
-        system: PhysicalInstance<FvpSystemRegisters>,
-        timer_control: PhysicalInstance<CntControlBase>,
-        timer_ctl: PhysicalInstance<CntCtlBase>,
-    ) -> Self {
-        Self {
-            power_controller: SpinMutex::new(FvpPowerController::new(map_peripheral(
-                power_controller,
-            ))),
-            system: SpinMutex::new(FvpSystemPeripheral::new(map_peripheral(system))),
-            timer_control: SpinMutex::new(GenericTimerControl::new(map_peripheral(timer_control))),
-            timer_ctl: SpinMutex::new(GenericTimerCtl::new(map_peripheral(timer_ctl))),
-        }
+impl GicInterface for FvpGic {
+    fn cpu_interface_enable(&self) {
+        GIC.get().unwrap().cpu_interface_enable();
     }
 
-    fn power_domain_on_finish_common(&self, previous_state: &FvpCompositePowerState) {
-        assert_eq!(previous_state.cpu_level_state(), FvpPowerState::Off);
-
-        let mpidr = read_mpidr_el1().bits() as u32;
-
-        // Perform the common cluster specific operations.
-        if previous_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
-            // This CPU might have woken up whilst the cluster was attempting to power down. In
-            // this case the FVP power controller will have a pending cluster power off request
-            // which needs to be cleared by writing to the PPONR register. This prevents the power
-            // controller from interpreting a subsequent entry of this cpu into a simple wfi as a
-            // power down request.
-            self.power_controller.lock().power_on_processor(mpidr);
-        }
-
-        // Perform the common system specific operations.
-        if previous_state.highest_level_state() == FvpPowerState::Off {
-            self.restore_system_power_domain();
-        }
-
-        // Clear PWKUPR.WEN bit to ensure interrupts do not interfere with a cpu power down unless
-        // the bit is set again.
-        self.power_controller.lock().disable_wakeup_requests(mpidr);
-
-        let frequency = self.timer_control.lock().base_frequency();
-        write_cntfrq_el0(CntfrqEl0::from_bits_retain(frequency.into()));
+    fn cpu_interface_disable(&self) {
+        GIC.get().unwrap().cpu_interface_disable();
     }
 
-    // Enable and initialize the system level generic timer
-    pub fn init_generic_timer(&self) {
-        let mut timer_control = self.timer_control.lock();
-
-        timer_control.set_enable(true);
-
-        let frequency = timer_control.base_frequency();
-
-        let mut timer_ctl = self.timer_ctl.lock();
-
-        timer_ctl.set_access_control(Self::NS_TIMER_INDEX, CntAcr::all());
-        timer_ctl.set_non_secure_access(Self::NS_TIMER_INDEX, true);
-        timer_ctl.set_frequency(frequency);
-
-        write_cntfrq_el0(CntfrqEl0::from_bits_retain(frequency.into()));
+    fn cpu_init(&self) {
+        let gic = GIC.get().unwrap();
+        gic.redistributor_init(&Fvp::GIC_CONFIG);
+        gic.cpu_interface_enable();
     }
 
-    fn save_system_power_domain() {
+    fn cpu_deinit(&self) {
+        let gic = GIC.get().unwrap();
+        gic.cpu_interface_disable();
+        gic.redistributor_off();
+    }
+
+    fn system_save(&self) {
         let mut context = GIC_CONTEXT.lock();
         let gic = GIC.get().unwrap();
 
         gic.redistributor_save(&mut context.redistributor_context);
         gic.distributor_save(&mut context.distributor_context);
-
-        log::logger().flush();
-
-        // All the other peripheral which are configured by ARM TF are re-initialized on resume
-        // from system suspend. Hence we don't save their state here.
     }
 
-    fn restore_system_power_domain(&self) {
+    fn system_restore(&self) {
         let context = GIC_CONTEXT.lock();
         let gic = GIC.get().unwrap();
 
         gic.distributor_restore(&context.distributor_context);
         gic.redistributor_restore(&context.redistributor_context);
-
-        // TODO: plat_arm_security_setup();
-
-        self.init_generic_timer();
-    }
-
-    pub fn get_system_revision(&self) -> Result<u32, arm_fvp_base_pac::system::Error> {
-        let system_id = self.system.lock().system_id()?;
-        Ok(system_id.revision as u32)
     }
 }
 
@@ -192,58 +94,85 @@ const PSCI_MAX_POWER_LEVEL: usize = 2;
 pub const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
 const PSCI_NON_CPU_DOMAIN_COUNT: usize = 1 + FVP_CLUSTER_COUNT;
 
-type NodeIndex = u8;
-
 type FvpCompositePowerState = PsciCompositePowerState<
     PSCI_STATE_COUNT,
     PSCI_MAX_POWER_LEVEL,
     { FvpCoreIndex::CORE_COUNT },
     PSCI_NON_CPU_DOMAIN_COUNT,
-    NodeIndex,
-    FvpPowerState,
+    u8,
+    ArmPowerState,
 >;
 
-impl
-    PsciPlatformInterface<
-        PSCI_STATE_COUNT,
-        PSCI_MAX_POWER_LEVEL,
-        { <<Fvp as Platform>::CoreIndexImpl as CoreIndex>::CORE_COUNT },
-        PSCI_NON_CPU_DOMAIN_COUNT,
-    > for FvpPsciPlatformImpl<'_>
-{
-    const POWER_DOMAIN_COUNT: usize =
-        PSCI_NON_CPU_DOMAIN_COUNT + <<Fvp as Platform>::CoreIndexImpl as CoreIndex>::CORE_COUNT;
+pub type FvpPsciPlatformImpl<'a> = ArmPsciPlatform<
+    PSCI_STATE_COUNT,
+    PSCI_MAX_POWER_LEVEL,
+    { FvpCoreIndex::CORE_COUNT },
+    PSCI_NON_CPU_DOMAIN_COUNT,
+    u8,
+    ArmPowerState,
+    FvpPsciPowerController<'a>,
+    FvpGic,
+    GenericMmioTimer<'a>,
+>;
 
-    const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::NODE_HW_STATE
-        .union(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND)
-        .union(PsciPlatformOptionalFeatures::OS_INITIATED_MODE);
+/// `FvpPsciPowerController` error type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FvpPsciPowerControllerError(ErrorCode);
 
-    type PlatformPowerState = FvpPowerState;
+impl From<FvpPsciPowerControllerError> for ErrorCode {
+    fn from(value: FvpPsciPowerControllerError) -> Self {
+        value.0
+    }
+}
 
-    type NodeIndex = NodeIndex;
+/// `PowerControllerInterface` implementation for FVP that uses the power controller for CPU and
+/// cluster level power management and the system peripheral for system level power management.
+pub struct FvpPsciPowerController<'a> {
+    power_controller: SpinMutex<FvpPowerController<'a>>,
+    system: SpinMutex<FvpSystemPeripheral<'a>>,
+}
 
-    fn topology(&self) -> &'static [usize] {
-        const TOPOLOGY: [usize; 2 + FVP_CLUSTER_COUNT] = {
-            let mut topology = [0; 2 + FVP_CLUSTER_COUNT];
+impl<'a> FvpPsciPowerController<'a> {
+    const CLUSTER_POWER_LEVEL: usize = 1;
 
-            topology[0] = 1;
-            topology[1] = FVP_CLUSTER_COUNT;
-
-            let mut i = 0;
-            loop {
-                if i >= FVP_CLUSTER_COUNT {
-                    break;
-                }
-                topology[i + 2] = FVP_MAX_CPUS_PER_CLUSTER;
-                i += 1;
-            }
-            topology
-        };
-
-        &TOPOLOGY
+    pub fn new(power_controller: FvpPowerController<'a>, system: FvpSystemPeripheral<'a>) -> Self {
+        Self {
+            power_controller: SpinMutex::new(power_controller),
+            system: SpinMutex::new(system),
+        }
     }
 
-    /// Based on 6.5 Recommended StateID Encoding
+    fn power_domain_on_finish_common(&self, previous_state: &FvpCompositePowerState) {
+        let mpidr = read_mpidr_el1().bits() as u32;
+
+        // Perform the common cluster specific operations.
+        if previous_state.states[Self::CLUSTER_POWER_LEVEL] == ArmPowerState::Off {
+            // This CPU might have woken up whilst the cluster was attempting to power down. In
+            // this case the FVP power controller will have a pending cluster power off request
+            // which needs to be cleared by writing to the PPONR register. This prevents the power
+            // controller from interpreting a subsequent entry of this cpu into a simple wfi as a
+            // power down request.
+            self.power_controller.lock().power_on_processor(mpidr);
+        }
+
+        // Clear PWKUPR.WEN bit to ensure interrupts do not interfere with a cpu power down unless
+        // the bit is set again.
+        self.power_controller.lock().disable_wakeup_requests(mpidr);
+    }
+}
+
+impl<'a>
+    PowerControllerInterface<
+        PSCI_STATE_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        { FvpCoreIndex::CORE_COUNT },
+        PSCI_NON_CPU_DOMAIN_COUNT,
+        u8,
+        ArmPowerState,
+    > for FvpPsciPowerController<'a>
+{
+    type Error = FvpPsciPowerControllerError;
+
     fn try_parse_power_state(power_state: PowerState) -> Option<FvpCompositePowerState> {
         const POWER_LEVEL_STATE_MASK: u32 = 0x0000_0fff;
         const ARM_LOCAL_PSTATE_WIDTH: u32 = 4;
@@ -254,9 +183,9 @@ impl
 
         if let PowerState::StandbyOrRetention(0x01) = power_state {
             return Some(PsciCompositePowerState::new([
-                FvpPowerState::Retention,
-                FvpPowerState::Run,
-                FvpPowerState::Run,
+                ArmPowerState::Retention,
+                ArmPowerState::Run,
+                ArmPowerState::Run,
             ]));
         }
 
@@ -266,12 +195,12 @@ impl
         };
 
         let states = match value & POWER_LEVEL_STATE_MASK {
-            0x002 => [FvpPowerState::Off, FvpPowerState::Run, FvpPowerState::Run],
-            0x022 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
+            0x002 => [ArmPowerState::Off, ArmPowerState::Run, ArmPowerState::Run],
+            0x022 => [ArmPowerState::Off, ArmPowerState::Off, ArmPowerState::Run],
             // Ensure that the system power domain level is never suspended via PSCI
             // CPU_SUSPEND API. System suspend is only supported via PSCI SYSTEM_SUSPEND
             // API.
-            0x222 => [FvpPowerState::Off, FvpPowerState::Off, FvpPowerState::Run],
+            0x222 => [ArmPowerState::Off, ArmPowerState::Off, ArmPowerState::Run],
             _ => return None,
         };
 
@@ -288,73 +217,54 @@ impl
         ))
     }
 
-    fn cpu_standby(&self, cpu_state: FvpPowerState) {
-        assert!(cpu_state.power_state_type() == PowerStateType::StandbyOrRetention);
-
-        // Enter standby state. DSB is good practice before using WFI to enter low power states.
-        dsb_ish();
-        wfi();
-    }
-
-    fn power_domain_suspend(&self, target_state: &FvpCompositePowerState) {
-        // FVP has retention only at cpu level. Just return as nothing is to be done for retention.
-        if target_state.cpu_level_state() == FvpPowerState::Retention {
-            return;
-        }
-
-        assert_eq!(target_state.cpu_level_state(), FvpPowerState::Off);
-
+    fn power_domain_suspend(
+        &self,
+        target_state: &FvpCompositePowerState,
+    ) -> Result<(), Self::Error> {
         let mpidr = read_mpidr_el1().bits() as u32;
 
         self.power_controller.lock().enable_wakeup_requests(mpidr);
 
-        // Prevent interrupts from spuriously waking up this cpu.
-        GIC.get().unwrap().cpu_interface_disable();
-
-        // The Redistributor is not powered off as it can potentially prevent wake up events
-        // reaching the CPUIF and/or might lead to losing register context.
-
-        if target_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
+        if target_state.states[Self::CLUSTER_POWER_LEVEL] == ArmPowerState::Off {
             self.power_controller.lock().power_off_cluster(mpidr);
         }
 
-        // Perform the common system specific operations.
-        if target_state.highest_level_state() == FvpPowerState::Off {
-            Self::save_system_power_domain();
-        }
-
         self.power_controller.lock().power_off_processor(mpidr);
+
+        Ok(())
     }
 
-    fn power_domain_suspend_finish(&self, previous_state: &FvpCompositePowerState) {
-        // Nothing to be done on waking up from retention at CPU level.
-        if previous_state.cpu_level_state() == FvpPowerState::Retention {
-            return;
-        }
-
+    fn power_domain_suspend_finish(
+        &self,
+        previous_state: &FvpCompositePowerState,
+    ) -> Result<(), Self::Error> {
         self.power_domain_on_finish_common(previous_state);
-        GIC.get().unwrap().cpu_interface_enable();
+
+        Ok(())
     }
 
-    fn power_domain_off(&self, target_state: &FvpCompositePowerState) {
-        assert_eq!(FvpPowerState::Off, target_state.cpu_level_state());
+    fn power_domain_validate_suspend(
+        &self,
+        _target_state: &FvpCompositePowerState,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
 
-        let gic = GIC.get().unwrap();
-        gic.cpu_interface_disable();
-        gic.redistributor_off();
-
+    fn power_domain_off(&self, target_state: &FvpCompositePowerState) -> Result<(), Self::Error> {
         let mpidr = read_mpidr_el1().bits() as u32;
         self.power_controller.lock().power_off_processor(mpidr);
 
-        if target_state.states[Self::CLUSTER_POWER_LEVEL] == FvpPowerState::Off {
+        if target_state.states[Self::CLUSTER_POWER_LEVEL] == ArmPowerState::Off {
             self.power_controller.lock().power_off_cluster(mpidr);
         }
+
+        Ok(())
     }
 
-    fn power_domain_power_down(&self, _target_state: &FvpCompositePowerState) {}
-
-    fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode> {
-        let raw_mpidr: u32 = mpidr.try_into().map_err(ErrorCode::from)?;
+    fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), Self::Error> {
+        let raw_mpidr: u32 = mpidr
+            .try_into()
+            .map_err(|err| FvpPsciPowerControllerError(ErrorCode::from(err)))?;
 
         // Ensure that we do not cancel an inflight power off request for the
         // target cpu. That would leave it in a zombie wfi. Wait for it to power
@@ -373,29 +283,28 @@ impl
 
     fn power_domain_on_finish(&self, previous_state: &FvpCompositePowerState) {
         self.power_domain_on_finish_common(previous_state);
-        let gic = GIC.get().unwrap();
-        gic.redistributor_init(&Fvp::GIC_CONFIG);
-        gic.cpu_interface_enable();
     }
 
-    fn system_off(&self) -> ! {
+    fn system_off(&self) -> Result<(), Self::Error> {
         self.system
             .lock()
             .write_system_configuration(SystemConfigFunction::Shutdown);
-        wfi();
-        unreachable!("expected system off did not happen");
+
+        Ok(())
     }
 
-    fn system_reset(&self) -> ! {
+    fn system_reset(&self) -> Result<(), Self::Error> {
         self.system
             .lock()
             .write_system_configuration(SystemConfigFunction::Reboot);
-        wfi();
-        unreachable!("expected system reset did not happen");
+
+        Ok(())
     }
 
-    fn node_hw_state(&self, target_cpu: Mpidr, power_level: u32) -> Result<HwState, ErrorCode> {
-        let raw_mpidr: u32 = target_cpu.try_into().map_err(ErrorCode::from)?;
+    fn node_hw_state(&self, mpidr: Mpidr, power_level: u32) -> Result<HwState, Self::Error> {
+        let raw_mpidr: u32 = mpidr
+            .try_into()
+            .map_err(|err| FvpPsciPowerControllerError(ErrorCode::from(err)))?;
 
         let status_flag = match power_level as usize {
             CPU_POWER_LEVEL => SystemStatus::L0,
@@ -407,7 +316,7 @@ impl
                     SystemStatus::L2
                 }
             }
-            _ => return Err(ErrorCode::InvalidParameters),
+            _ => return Err(FvpPsciPowerControllerError(ErrorCode::InvalidParameters)),
         };
 
         let psysr = self.power_controller.lock().system_status(raw_mpidr);
@@ -422,17 +331,10 @@ impl
         PsciCompositePowerState::OFF
     }
 
-    /// Validates a non-secure entry point, optional.
-    fn is_valid_ns_entrypoint(&self, entry: &EntryPoint) -> bool {
-        let entrypoint = entry.entry_point_address() as usize;
-
-        MemoryMap::DRAM0.contains(&entrypoint) || MemoryMap::DRAM1.contains(&entrypoint)
-    }
-
-    fn power_domain_validate_suspend(
-        &self,
-        _target_state: &FvpCompositePowerState,
-    ) -> Result<(), ErrorCode> {
-        Ok(())
+    fn is_feature_supported(&self, feature: PsciPlatformOptionalFeatures) -> bool {
+        const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::NODE_HW_STATE
+            .union(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND)
+            .union(PsciPlatformOptionalFeatures::OS_INITIATED_MODE);
+        FEATURES.contains(feature)
     }
 }

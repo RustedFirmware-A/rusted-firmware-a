@@ -414,6 +414,7 @@ name = "rf-a-fvp"
 version = "0.1.0"
 dependencies = [
  "arm-fvp-base-pac",
+ "rf-a-arm-common",
  "rf-a-build",
  "rf-a-core",
 ]

@@ -16,6 +16,7 @@ arm-fvp-base-pac = { version = "0.5.0", default-features = false, features = [
     "base-revc",
     "el3",
 ] }
+rf-a-arm-common = { workspace = true }
 rf-a-core = { workspace = true, default-features = false }
 
 [build-dependencies]

@@ -12,18 +12,19 @@ mod psci_platform;
 #[cfg(feature = "rme")]
 mod rmmd_platform;
 
+use crate::config::{
+    CACHE_WRITEBACK_GRANULE, FVP_CLUSTER_COUNT, FVP_CORE_COUNT, FVP_MAX_CPUS_PER_CLUSTER,
+    FVP_MAX_PE_PER_CPU,
+};
+use crate::psci_platform::{FvpGic, FvpPsciPlatformImpl, FvpPsciPowerController, PSCI_STATE_COUNT};
 #[cfg(feature = "rme")]
 use crate::rmmd_platform::FvpRmmdPlatformImpl;
-use crate::{
-    config::{
-        CACHE_WRITEBACK_GRANULE, FVP_CLUSTER_COUNT, FVP_CORE_COUNT, FVP_MAX_CPUS_PER_CLUSTER,
-        FVP_MAX_PE_PER_CPU,
-    },
-    psci_platform::{FvpPsciPlatformImpl, PSCI_STATE_COUNT},
-};
 use arm_fvp_base_pac::{
     MemoryMap, Peripherals, PhysicalInstance,
+    arm_generic_timer::memory_mapped::{GenericTimerControl, GenericTimerCtl},
     arm_pl011_uart::{Uart, UniqueMmioPointer},
+    power_controller::FvpPowerController,
+    system::FvpSystemPeripheral,
 };
 #[cfg(feature = "pauth")]
 use core::arch::asm;
@@ -33,6 +34,11 @@ use core::{
     mem::offset_of,
     ops::{Range, RangeInclusive},
     ptr::NonNull,
+};
+use rf_a_arm_common::{
+    core_index::UniformCoreIndex,
+    power_management::{ArmPsciPlatform, generic_timer::GenericMmioTimer},
+    topology,
 };
 #[cfg(feature = "pauth")]
 use rf_a_core::reexports::arm_sysregs::el0::accessors::read_cntpct_el0;
@@ -70,9 +76,7 @@ use rf_a_core::{
             IntId, Trigger,
             gicv3::{Group, HIGHEST_S_PRIORITY, SecureIntGroup, registers::Gicd},
         },
-        arm_sysregs::{
-            el0::registers::Amcntenset1El0, el1::registers::MpidrEl1, el3::registers::IccSreEl3,
-        },
+        arm_sysregs::{el0::registers::Amcntenset1El0, el3::registers::IccSreEl3},
         spin::{Once, mutex::SpinMutex},
     },
     services::{
@@ -184,6 +188,13 @@ const EARLY_REGIONS: [EarlyRegion; 3] = [
 
 define_early_mapping!(Fvp, EARLY_REGIONS);
 
+const NS_TIMER_INDEX: usize = 1;
+
+static VALID_NS_ENTRYPOINT_RANGES: [Range<usize>; 2] = [
+    from_inclusive_range(&MemoryMap::DRAM0),
+    from_inclusive_range(&MemoryMap::DRAM1),
+];
+
 const fn secure_sgi_configuration(index: u32) -> (IntId, InterruptConfig) {
     (
         IntId::sgi(index),
@@ -267,58 +278,8 @@ static SIMD: Simd = Simd::simd();
 
 static SYSTEM_REVISION: Once<u32> = Once::new();
 
-struct FvpCoreIndex;
-
-// SAFETY: `mpidr_to_index` is indeed a naked function, doesn't access the stack or any other memory,
-// only clobbers x0-x5, and returns a unique core index as long as `FVP_MAX_CPUS_PER_CLUSTER` and
-// `FVP_MAX_PE_PER_CPU` are correct.
-unsafe impl CoreIndex for FvpCoreIndex {
-    const CORE_COUNT: usize = FVP_CORE_COUNT;
-
-    fn is_valid_mpidr(mpidr: MpidrEl1) -> bool {
-        if mpidr.contains(MpidrEl1::MT) {
-            mpidr.aff3() == 0
-                && usize::from(mpidr.aff2()) < FVP_CLUSTER_COUNT
-                && usize::from(mpidr.aff1()) < FVP_MAX_CPUS_PER_CLUSTER
-                && usize::from(mpidr.aff0()) < FVP_MAX_PE_PER_CPU
-        } else {
-            mpidr.aff3() == 0
-                && mpidr.aff2() == 0
-                && usize::from(mpidr.aff1()) < FVP_CLUSTER_COUNT
-                && usize::from(mpidr.aff0()) < FVP_MAX_CPUS_PER_CLUSTER
-        }
-    }
-
-    /// Calculates core linear index as: ClusterId * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU +
-    /// CPUId * FVP_MAX_PE_PER_CPU + ThreadId
-    #[unsafe(naked)]
-    extern "C" fn mpidr_to_index(mpidr: MpidrEl1) -> usize {
-        naked_asm!(
-            // Check for MT bit in MPIDR. If not set, shift MPIDR to left to make it look as if in a
-            // multi-threaded implementation.
-            "tst	x0, #{MPIDR_MT_MASK}",
-            "lsl	x3, x0, #{MPIDR_AFFINITY_BITS}",
-            "csel	x3, x3, x0, eq",
-            // Extract individual affinity fields from MPIDR.
-            "ubfx	x0, x3, #{MPIDR_AFF0_SHIFT}, #{MPIDR_AFFINITY_BITS}",
-            "ubfx	x1, x3, #{MPIDR_AFF1_SHIFT}, #{MPIDR_AFFINITY_BITS}",
-            "ubfx	x2, x3, #{MPIDR_AFF2_SHIFT}, #{MPIDR_AFFINITY_BITS}",
-            // Compute linear position.
-            "mov	x4, #{FVP_MAX_CPUS_PER_CLUSTER}",
-            "madd	x1, x2, x4, x1",
-            "mov	x5, #{FVP_MAX_PE_PER_CPU}",
-            "madd	x0, x1, x5, x0",
-            "ret",
-            MPIDR_MT_MASK = const MpidrEl1::MT.bits(),
-            MPIDR_AFF0_SHIFT = const MpidrEl1::AFF0_SHIFT,
-            MPIDR_AFF1_SHIFT = const MpidrEl1::AFF1_SHIFT,
-            MPIDR_AFF2_SHIFT = const MpidrEl1::AFF2_SHIFT,
-            FVP_MAX_CPUS_PER_CLUSTER = const FVP_MAX_CPUS_PER_CLUSTER,
-            MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
-            FVP_MAX_PE_PER_CPU = const FVP_MAX_PE_PER_CPU,
-        );
-    }
-}
+type FvpCoreIndex =
+    UniformCoreIndex<FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER, FVP_MAX_PE_PER_CPU>;
 
 // Safety: The implementation uses the default `cold_boot_handler` and `panic_handler` functions,
 // both of which meet the safety requirements, as does the platform-specific `dump_registers`
@@ -387,20 +348,34 @@ unsafe impl Platform for Fvp {
             .init(LockedWriter::new(Uart::new(uart_pointer)))
             .expect("Failed to initialise logger");
 
-        let psci_platform = FvpPsciPlatformImpl::new(
-            peripherals.power_controller,
-            peripherals.system,
+        // Power controller
+        let fvp_power_controller =
+            FvpPowerController::new(map_peripheral(peripherals.power_controller));
+        let system = FvpSystemPeripheral::new(map_peripheral(peripherals.system));
+
+        SYSTEM_REVISION.call_once(|| system.system_id().unwrap().revision as u32);
+
+        let power_controller = FvpPsciPowerController::new(fvp_power_controller, system);
+
+        // Timer
+        let timer_control = SpinMutex::new(GenericTimerControl::new(map_peripheral(
             peripherals.refclk_cntcontrol,
+        )));
+        let timer_ctl = SpinMutex::new(GenericTimerCtl::new(map_peripheral(
             peripherals.ap_refclk_cntctl,
+        )));
+
+        let timer = GenericMmioTimer::new(timer_control, timer_ctl, NS_TIMER_INDEX);
+
+        let topology = topology!(FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER);
+
+        let psci_platform = ArmPsciPlatform::new(
+            topology,
+            power_controller,
+            FvpGic,
+            timer,
+            &VALID_NS_ENTRYPOINT_RANGES,
         );
-
-        psci_platform.init_generic_timer();
-
-        SYSTEM_REVISION.call_once(|| {
-            psci_platform
-                .get_system_revision()
-                .expect("Failed to read system revision")
-        });
 
         *FVP_PSCI_PLATFORM_IMPL.lock() = Some(psci_platform);
 

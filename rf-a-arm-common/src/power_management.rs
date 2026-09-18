@@ -4,6 +4,8 @@
 
 //! Common power management related mechanisms for Arm platforms.
 
+pub mod generic_timer;
+
 use core::{fmt::Debug, marker::PhantomData, ops::Range};
 use rf_a_core::{
     aarch64::{dsb_ish, dsb_sy, wfi},

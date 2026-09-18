@@ -8,3 +8,4 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod power_management;
+pub mod reexports;

@@ -11,11 +11,20 @@ license = "BSD-3-Clause"
 description = "Common components specific to Arm platforms."
 
 [dependencies]
+arm-generic-timer = { version = "0.3.1", default-features = false, features = [
+    "el2",
+] }
 rf-a-core = { workspace = true, default-features = false }
+
+[dev-dependencies]
+arm-generic-timer = { version = "0.3.1", default-features = false, features = [
+    "el2",
+    "fakes",
+] }
 
 [features]
 default = []
-fakes = ["rf-a-core/fakes"]
+fakes = ["rf-a-core/fakes", "arm-generic-timer/fakes"]
 pauth = ["rf-a-core/pauth"]
 rme = ["rf-a-core/rme", "sel2"]
 sel2 = ["rf-a-core/sel2"]

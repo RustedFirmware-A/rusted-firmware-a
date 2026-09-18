@@ -349,6 +349,7 @@ dependencies = [
 name = "rf-a-arm-common"
 version = "0.1.0"
 dependencies = [
+ "arm-generic-timer",
  "rf-a-core",
 ]
 

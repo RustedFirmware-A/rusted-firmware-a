@@ -31,3 +31,7 @@ version 0.2.
 
 [1]: https://developer.arm.com/documentation/den0077/latest
 [2]: ./architecture-extensions.md
+
+---
+
+_Copyright The Rusted Firmware-A Contributors._

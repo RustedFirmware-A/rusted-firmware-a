@@ -126,6 +126,6 @@ As shown in `test_ffa_foo`, the `expect_ffa_interface!` macro may be used to:
 2. Log an error `$message` if an error has happened during SMC call invocation
 3. Check that the interface returned by secure world is the expected one via the `$expect` function.
 
---------------
+---
 
-*Copyright The Rusted Firmware-A Contributors*
+_Copyright The Rusted Firmware-A Contributors._

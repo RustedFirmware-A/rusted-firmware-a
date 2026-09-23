@@ -322,3 +322,7 @@ late initialisation.
 [`log::Log`]: https://docs.rs/log/latest/log/trait.Log.html
 [`RefCell`]: https://doc.rust-lang.org/stable/core/cell/struct.RefCell.html
 [Porting Guide]: porting.md
+
+---
+
+_Copyright The Rusted Firmware-A Contributors._

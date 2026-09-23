@@ -127,3 +127,7 @@ To display the documentation, open it with your preferred application of choice,
 ```sh
 xdg-open target/aarch64-unknown-none-softfloat/doc/rf_a_core/index.html
 ```
+
+---
+
+_Copyright The Rusted Firmware-A Contributors._

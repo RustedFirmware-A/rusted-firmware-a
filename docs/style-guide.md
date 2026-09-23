@@ -152,6 +152,13 @@ At the top of each source code file, put a header in this format:
 The SPDX tag replaces the full license text and enables machine processing of license information
 based on the SPDX License Identifiers that are available [here][8].
 
+At the bottom of documentation files, the following snippet should be present:
+```md
+---
+
+_Copyright The Rusted Firmware-A Contributors._
+```
+
 [1]: threat-model.md
 [2]: https://doc.rust-lang.org/reference/types/numeric.html#machine-dependent-integer-types
 [3]: https://doc.rust-lang.org/stable/std/ptr/index.html#provenance
@@ -161,3 +168,7 @@ based on the SPDX License Identifiers that are available [here][8].
 [7]: https://doc.rust-lang.org/rustdoc/write-documentation/linking-to-items-by-name.html
 [8]: http://spdx.org/licenses/
 [9]: https://doc.rust-lang.org/stable/style-guide/items.html#imports-use-statements
+
+---
+
+_Copyright The Rusted Firmware-A Contributors._

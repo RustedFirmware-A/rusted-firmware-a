@@ -90,6 +90,6 @@ To address TFA-SC-TOOL-01,
 , we can at least (and do) specify a specific Rust toolchain version in our rust-toolchain.toml
 file.
 
---------------
+---
 
-*Copyright The Rusted Firmware-A Contributors*
+_Copyright The Rusted Firmware-A Contributors._

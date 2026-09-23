@@ -2,6 +2,6 @@
 
 This directory contains scripts and other bits you might use while developing RF-A.
 
---------------
+---
 
-*Copyright The Rusted Firmware-A Contributors*
+_Copyright The Rusted Firmware-A Contributors._

@@ -100,4 +100,4 @@ Arm word trademark.
 
 ---
 
-_Copyright The Rusted Firmware-A Contributors_
+_Copyright The Rusted Firmware-A Contributors._

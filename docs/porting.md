@@ -226,3 +226,7 @@ rf-a-core = { workspace = true, default-features = false }
 [build-dependencies]
 rf-a-build = { workspace = true }
 ```
+
+---
+
+_Copyright The Rusted Firmware-A Contributors._

@@ -79,3 +79,7 @@ desired value.
 [unsafe-reviewers]: https://review.trustedfirmware.org/admin/groups/0438a39457c1a5c0e2e648bd5d51a57e7da9303f,members
 [maintainers]: https://review.trustedfirmware.org/admin/groups/2b67a42919bb2c91a8e6e41d1486ccfb2cac6697,members
 [approved-developers]: https://review.trustedfirmware.org/admin/groups/12cd7f45d37c370b4de75bd8e2b736330b063b34,members
+
+---
+
+_Copyright The Rusted Firmware-A Contributors._

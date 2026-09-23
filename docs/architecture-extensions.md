@@ -139,3 +139,7 @@ with extensions which fulfill any of the following criteria:
  - present in the output binary (see `FEAT_BTI` and `FEAT_LSE`).
 
 [1]: https://support.arm.com/documentation/ddi0487/latest/
+
+---
+
+_Copyright The Rusted Firmware-A Contributors._

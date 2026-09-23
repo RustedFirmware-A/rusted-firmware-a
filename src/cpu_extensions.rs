@@ -5,6 +5,7 @@
 //! A framework for managing ARM architectural CPU extensions using a trait-based approach.
 
 pub mod amu;
+pub mod csv2_2;
 pub mod fgt;
 pub mod fgt2;
 pub mod fgwte3;

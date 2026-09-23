@@ -5,6 +5,7 @@
 //! Test cases.
 
 mod amu;
+mod csv2_2;
 mod dit;
 mod ffa_spmd;
 mod gcs;

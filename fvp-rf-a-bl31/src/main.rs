@@ -37,10 +37,10 @@ use rf_a_bl31::{
     context::{CoresImpl, EntryPointInfo},
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
     cpu_extensions::{
-        CpuExtension, amu::Amu, fgt::Fgt, fgt2::Fgt2, fpmr::Fpmr, gcs::Gcs, hcx::Hcx, mpam::Mpam,
-        mte2::MemoryTagging, pfar::Pfar, pmuv3::MultiThreadedPmu, ras::Ras, sctlr2::Sctlr2,
-        simd::Simd, spe::StatisticalProfiling, sys_reg_trace::SysRegTrace, tcr2::Tcr2,
-        trbe::TraceBufferNonSecure, trf::TraceFiltering,
+        CpuExtension, amu::Amu, csv2_2::Csv2_2, fgt::Fgt, fgt2::Fgt2, fpmr::Fpmr, gcs::Gcs,
+        hcx::Hcx, mpam::Mpam, mte2::MemoryTagging, pfar::Pfar, pmuv3::MultiThreadedPmu, ras::Ras,
+        sctlr2::Sctlr2, simd::Simd, spe::StatisticalProfiling, sys_reg_trace::SysRegTrace,
+        tcr2::Tcr2, trbe::TraceBufferNonSecure, trf::TraceFiltering,
     },
     crash_console::pl011::Pl011CrashConsole,
     debug::DEBUG,
@@ -261,6 +261,7 @@ unsafe impl Platform for Fvp {
 
     const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[
         &AMU,
+        &Csv2_2,
         &Fgt,
         &Fgt2,
         &Fpmr,

@@ -285,11 +285,6 @@ unsafe impl Platform for Qemu {
         );
     }
 
-    #[unsafe(naked)]
-    unsafe extern "C" fn cold_boot_handler() {
-        naked_asm!("ret");
-    }
-
     /// Dumps relevant GIC and CCI registers.
     ///
     /// Clobbers x0-x11, x16, x17, sp.

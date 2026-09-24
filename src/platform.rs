@@ -166,8 +166,11 @@ pub unsafe trait Platform: Sized + Send + Sync {
     ///
     /// This should only be called once during cold boot, after the BSS has been zeroed but before
     /// any Rust code runs.
-    #[cfg_attr(test, allow(unused))]
-    unsafe extern "C" fn cold_boot_handler();
+    #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
+    #[unsafe(naked)]
+    unsafe extern "C" fn cold_boot_handler() {
+        crate::naked_asm!("ret");
+    }
 
     /// Handles a panic from assembly code.
     ///

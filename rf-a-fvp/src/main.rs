@@ -449,11 +449,6 @@ unsafe impl Platform for Fvp {
         );
     }
 
-    #[unsafe(naked)]
-    unsafe extern "C" fn cold_boot_handler() {
-        naked_asm!("ret");
-    }
-
     /// Dumps relevant GIC registers.
     ///
     /// Clobbers x0-x11, x16, x17, sp.

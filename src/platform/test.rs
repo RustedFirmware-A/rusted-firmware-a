@@ -188,8 +188,6 @@ unsafe impl Platform for TestPlatform {
         ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
     }
 
-    unsafe extern "C" fn cold_boot_handler() {}
-
     unsafe extern "C" fn dump_registers() {}
 }
 

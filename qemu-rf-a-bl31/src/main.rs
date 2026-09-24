@@ -15,7 +15,9 @@ use rf_a_bl31::{
     all_asm, asm_macros_common, asm_macros_common_purge, bl31_warm_entrypoint,
     context::{CoresImpl, EntryPointInfo},
     cpu::qemu_max::QemuMax,
-    cpu_extensions::{CpuExtension, simd::Simd},
+    cpu_extensions::{
+        CpuExtension, csv2_2::Csv2_2, gcs::Gcs, hcx::Hcx, sctlr2::Sctlr2, simd::Simd,
+    },
     crash_console::pl011::Pl011CrashConsole,
     debug::DEBUG,
     define_cpu_ops, define_errata_list,
@@ -129,8 +131,6 @@ static SECURE_GPIO: SpinMutex<PL061> = SpinMutex::new(PL061::new(unsafe {
     UniqueMmioPointer::new(NonNull::new(SECURE_GPIO_ADDR).unwrap())
 }));
 
-static SIMD: Simd = Simd::sve(512, false);
-
 #[repr(C, align(64))]
 struct HoldSlot {
     entry: u64,
@@ -228,7 +228,8 @@ unsafe impl Platform for Qemu {
         interrupts_config: &[],
     };
 
-    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] = &[&SIMD];
+    const CPU_EXTENSIONS: &'static [&'static dyn CpuExtension] =
+        &[&Csv2_2, &Gcs, &Hcx, &Simd::sve(512, false), &Sctlr2];
 
     fn init_with_early_mapping(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
         // SAFETY: `PL011_BASE_ADDRESS` is the base address of a PL011 device, and nothing else

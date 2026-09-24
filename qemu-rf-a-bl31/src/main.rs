@@ -7,12 +7,17 @@
 #![no_main]
 #![no_std]
 
-use arm_pl011_uart::{PL011Registers, Uart};
-use arm_pl061::{PL061, PL061Registers, UniqueMmioPointer};
+mod holding_pen;
+mod psci;
+
+use self::{
+    holding_pen::hold_pen_init,
+    psci::{PSCI_STATE_COUNT, QemuPsciPlatformImpl, gpio_init},
+};
+use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use core::{mem::offset_of, ptr::NonNull};
 use rf_a_bl31::{
-    aarch64::{dsb_sy, isb, sev, wfi},
-    all_asm, asm_macros_common, asm_macros_common_purge, bl31_warm_entrypoint,
+    all_asm, asm_macros_common, asm_macros_common_purge,
     context::{CoresImpl, EntryPointInfo},
     cpu::qemu_max::QemuMax,
     cpu_extensions::{
@@ -30,30 +35,26 @@ use rf_a_bl31::{
     },
     naked_asm,
     pagetable::{
-        IdMap, MT_DEVICE, MT_MEMORY_EL3, disable_mmu_el3,
+        IdMap, MT_DEVICE, MT_MEMORY_EL3,
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
     panic_handler,
-    platform::{Platform, my_core_pos},
+    platform::Platform,
     reexports::{
         aarch64_paging::paging::MemoryRegion,
         arm_gic::{
             IntId,
             gicv3::registers::{Gicd, GicrSgi},
         },
-        arm_psci::{ErrorCode, Mpidr, PowerState},
         arm_sysregs::{el1::registers::MpidrEl1, el3::registers::IccSreEl3},
         percore::Cores,
-        spin::mutex::{SpinMutex, SpinMutexGuard},
+        spin::mutex::SpinMutexGuard,
     },
     services::{
         Service,
         arch::{Arch, ArchPlatform},
         errata_management::ErrataManagement,
-        psci::{
-            PlatformPowerStateInterface, PowerStateType, PsciCompositePowerState,
-            PsciPlatformInterface, PsciPlatformOptionalFeatures, try_get_cpu_index_by_mpidr,
-        },
+        psci::PsciPlatformInterface,
     },
     statics,
 };
@@ -76,11 +77,6 @@ const GICD_BASE: usize = 0x0800_0000;
 const GICR_BASE: usize = 0x080A_0000;
 
 const TRUSTED_MAILBOX_BASE: usize = SHARED_RAM_BASE;
-const HOLD_SLOTS: *mut [HoldSlot; Qemu::CORE_COUNT] = TRUSTED_MAILBOX_BASE as _;
-
-const HOLD_MAGIC1: u64 = 0xCAFE_CAFE;
-const HOLD_MAGIC2: u64 = 0xBEEF_BEEF;
-const HOLD_STATE_WAIT: u64 = !0;
 
 /// Base address of the secure world PL011 UART, aka. UART1.
 const UART1_BASE: usize = 0x0904_0000;
@@ -89,15 +85,6 @@ const PL011_BASE_ADDRESS: *mut PL011Registers = UART1_BASE as _;
 const GICD_BASE_ADDRESS: *mut Gicd = GICD_BASE as _;
 /// Base address of the first GICv3 redistributor frame.
 const GICR_BASE_ADDRESS: *mut GicrSgi = GICR_BASE as _;
-
-/// Base addresses for GPIO block that controls system off and system reset as described in the
-/// [QEMU ARM virt platform docs](https://qemu-project.gitlab.io/qemu/system/arm/virt.html).
-/// Addresses taken from C TF-A.
-const SECURE_GPIO_ADDR: *mut PL061Registers = 0x090b_0000 as _;
-
-/// Constants for the system off and system reset GPIO indices.
-const SECURE_GPIO_SYSTEM_OFF: usize = 0;
-const SECURE_GPIO_SYSTEM_RESET: usize = 1;
 
 /// The address of the Flattened Device Tree Blob (DTB) in RAM.
 ///
@@ -123,57 +110,6 @@ const LOG_BUFFER_SIZE: usize = 1024 - size_of::<MemoryLogger<0>>();
 zeroed_mut! {
     /// Per-core in-memory loggers.
     MEMORY_LOGGERS, [MemoryLogger<LOG_BUFFER_SIZE>; Qemu::CORE_COUNT], unsafe(link_section = ".bss2.dram")
-}
-
-// SAFETY: `SECURE_GPIO_ADDR` is the base address for the PL061 device and nothing else
-// accesses that address range.
-static SECURE_GPIO: SpinMutex<PL061> = SpinMutex::new(PL061::new(unsafe {
-    UniqueMmioPointer::new(NonNull::new(SECURE_GPIO_ADDR).unwrap())
-}));
-
-#[repr(C, align(64))]
-struct HoldSlot {
-    entry: u64,
-    magic1: u64,
-    magic2: u64,
-}
-
-/// Initialise the hold pen by writing magic tags to every slot.
-fn plat_hold_pen_init() {
-    // SAFETY: `TRUSTED_MAILBOX_BASE` is the base address of the shared mailbox device memory.
-    // Other cores are concurrently reading from this region, but aligned 64bit writes are
-    // 'single-copy atomic' as they will either complete in full or not at all.
-    unsafe {
-        for i in 0..Qemu::CORE_COUNT {
-            let slot_ptr = &raw mut (*HOLD_SLOTS)[i];
-
-            (&raw mut (*slot_ptr).entry).write_volatile(HOLD_STATE_WAIT);
-
-            // Ensure the entry value is committed before the magic
-            // tags that make this slot visible to polling secondaries.
-            core::arch::asm!("dmb sy");
-
-            (&raw mut (*slot_ptr).magic1).write_volatile(HOLD_MAGIC1);
-            (&raw mut (*slot_ptr).magic2).write_volatile(HOLD_MAGIC2);
-        }
-    }
-}
-
-/// Signal a secondary core to branch to the given entrypoint.
-fn plat_hold_pen_signal(cpu_index: usize, entrypoint: unsafe extern "C" fn() -> !) {
-    // SAFETY: `TRUSTED_MAILBOX_BASE` is the base address of the shared mailbox device memory.
-    // Other cores are concurrently reading from or writing to this region, but aligned 64bit writes
-    // are 'single-copy atomic' as they will either complete in full or not at all.
-    unsafe {
-        let slot_ptr = &raw mut (*HOLD_SLOTS)[cpu_index];
-        (&raw mut (*slot_ptr).entry).write_volatile(entrypoint as usize as u64);
-    }
-
-    // Ensure that the entry value is committed before signalling secondary cores to wake up.
-    dsb_sy();
-
-    // Signal the secondary core to wake up and jump to the given entrypoint.
-    sev();
 }
 
 /// The aarch64 'virt' machine of the QEMU emulator.
@@ -246,12 +182,9 @@ unsafe impl Platform for Qemu {
     }
 
     fn init(_arg0: u64, _arg1: u64, _arg2: u64, _arg3: u64) {
-        let mut gpio = SECURE_GPIO.lock();
-        let mut config = gpio.config();
-        config.into_output(SECURE_GPIO_SYSTEM_OFF).unwrap();
-        config.into_output(SECURE_GPIO_SYSTEM_RESET).unwrap();
+        gpio_init();
         // Initialise hold pen for all secondary cores.
-        plat_hold_pen_init();
+        hold_pen_init();
 
         GIC.call_once(|| {
             // SAFETY: `GICD_BASE_ADDRESS` is a unique pointer to the Qemu's GICD register block.
@@ -335,10 +268,7 @@ unsafe impl Platform for Qemu {
     }
 
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
-        Some(QemuPsciPlatformImpl {
-            per_cpu_powerdown_kinds: [const { SpinMutex::new(PowerDownKind::Off) };
-                Qemu::CORE_COUNT],
-        })
+        Some(QemuPsciPlatformImpl::new())
     }
 
     #[unsafe(naked)]
@@ -379,334 +309,4 @@ unsafe impl Platform for Qemu {
             GICD_ISPENDR = const offset_of!(Gicd, ispendr),
         );
     }
-}
-
-#[derive(PartialEq, PartialOrd, Debug, Eq, Ord, Clone, Copy)]
-enum QemuPowerState {
-    On,
-    Retention,
-    PowerDown,
-}
-
-impl PlatformPowerStateInterface for QemuPowerState {
-    const OFF: Self = Self::PowerDown;
-    const RUN: Self = Self::On;
-
-    fn power_state_type(&self) -> PowerStateType {
-        match self {
-            Self::PowerDown => PowerStateType::PowerDown,
-            Self::Retention => PowerStateType::StandbyOrRetention,
-            Self::On => PowerStateType::Run,
-        }
-    }
-}
-
-impl From<QemuPowerState> for usize {
-    fn from(_value: QemuPowerState) -> Self {
-        todo!()
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Eq)]
-enum PowerDownKind {
-    // For CPU_OFF
-    Off,
-    // For CPU_SUSPEND
-    Suspend,
-}
-
-const PSCI_MAX_POWER_LEVEL: usize = 2;
-const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
-const PSCI_NON_CPU_DOMAIN_COUNT: usize = CLUSTER_COUNT + 1;
-
-struct QemuPsciPlatformImpl {
-    per_cpu_powerdown_kinds: [SpinMutex<PowerDownKind>; Qemu::CORE_COUNT],
-}
-
-impl
-    PsciPlatformInterface<
-        PSCI_STATE_COUNT,
-        PSCI_MAX_POWER_LEVEL,
-        { Qemu::CORE_COUNT },
-        PSCI_NON_CPU_DOMAIN_COUNT,
-    > for QemuPsciPlatformImpl
-{
-    const POWER_DOMAIN_COUNT: usize = PSCI_NON_CPU_DOMAIN_COUNT + Qemu::CORE_COUNT;
-
-    const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::OS_INITIATED_MODE;
-
-    type PlatformPowerState = QemuPowerState;
-
-    type NodeIndex = u8;
-
-    fn topology() -> &'static [usize] {
-        &[1, CLUSTER_COUNT, MAX_CPUS_PER_CLUSTER]
-    }
-
-    fn try_parse_power_state(
-        power_state: PowerState,
-    ) -> Option<
-        PsciCompositePowerState<
-            PSCI_STATE_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            { Qemu::CORE_COUNT },
-            PSCI_NON_CPU_DOMAIN_COUNT,
-            Self::NodeIndex,
-            QemuPowerState,
-        >,
-    > {
-        const POWER_STATES_MASK: u32 = 0x0000_0fff;
-        const LOCAL_PSTATE_WIDTH: u32 = 4;
-        const LOCAL_PSTATE_MASK: u32 = (1 << LOCAL_PSTATE_WIDTH) - 1;
-        // last_at_power_level is encoded in the bits immediately following the state ID bits
-        // for each power level.
-        let last_at_power_level_shift: u32 = LOCAL_PSTATE_WIDTH * (PSCI_MAX_POWER_LEVEL as u32 + 1);
-
-        let last_at_power_level_mask: u32 = LOCAL_PSTATE_MASK << last_at_power_level_shift;
-        let last_at_power_level: u32 =
-            (u32::from(power_state) & last_at_power_level_mask) >> last_at_power_level_shift;
-        if last_at_power_level as usize > PSCI_MAX_POWER_LEVEL {
-            return None;
-        }
-
-        let raw_composite_power_states = u32::from(power_state) & POWER_STATES_MASK;
-
-        if let PowerState::StandbyOrRetention(0x1) = power_state {
-            return Some(PsciCompositePowerState::new_with_last_power_level(
-                [
-                    QemuPowerState::Retention,
-                    QemuPowerState::On,
-                    QemuPowerState::On,
-                ],
-                last_at_power_level as usize,
-            ));
-        }
-
-        if let PowerState::StandbyOrRetention(_) = power_state {
-            return None;
-        }
-
-        let composite_states = match raw_composite_power_states {
-            0x2 => [
-                QemuPowerState::PowerDown,
-                QemuPowerState::On,
-                QemuPowerState::On,
-            ],
-            0x12 => [
-                QemuPowerState::PowerDown,
-                QemuPowerState::Retention,
-                QemuPowerState::On,
-            ],
-            0x22 => [
-                QemuPowerState::PowerDown,
-                QemuPowerState::PowerDown,
-                QemuPowerState::On,
-            ],
-            // Ensure that the system power domain can't be powered down by CPU_SUSPEND. Only SYSTEM_SUSPEND can do that.
-            0x222 => [
-                QemuPowerState::PowerDown,
-                QemuPowerState::PowerDown,
-                QemuPowerState::On,
-            ],
-            _ => return None,
-        };
-
-        Some(PsciCompositePowerState::new_with_last_power_level(
-            composite_states,
-            last_at_power_level as usize,
-        ))
-    }
-
-    fn cpu_standby(&self, cpu_state: QemuPowerState) {
-        assert_eq!(
-            cpu_state.power_state_type(),
-            PowerStateType::StandbyOrRetention
-        );
-
-        dsb_sy();
-        wfi();
-    }
-
-    fn power_domain_validate_suspend(
-        &self,
-        _target_state: &PsciCompositePowerState<
-            PSCI_STATE_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            { Qemu::CORE_COUNT },
-            PSCI_NON_CPU_DOMAIN_COUNT,
-            Self::NodeIndex,
-            QemuPowerState,
-        >,
-    ) -> Result<(), ErrorCode> {
-        Ok(())
-    }
-
-    fn power_domain_suspend(
-        &self,
-        _target_state: &PsciCompositePowerState<
-            PSCI_STATE_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            { Qemu::CORE_COUNT },
-            PSCI_NON_CPU_DOMAIN_COUNT,
-            Self::NodeIndex,
-            QemuPowerState,
-        >,
-    ) {
-        *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock() =
-            PowerDownKind::Suspend;
-    }
-
-    fn power_domain_suspend_finish(
-        &self,
-        _previous_state: &PsciCompositePowerState<
-            PSCI_STATE_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            { Qemu::CORE_COUNT },
-            PSCI_NON_CPU_DOMAIN_COUNT,
-            Self::NodeIndex,
-            QemuPowerState,
-        >,
-    ) {
-    }
-
-    fn power_domain_off(
-        &self,
-        target_state: &PsciCompositePowerState<
-            PSCI_STATE_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            { Qemu::CORE_COUNT },
-            PSCI_NON_CPU_DOMAIN_COUNT,
-            Self::NodeIndex,
-            QemuPowerState,
-        >,
-    ) {
-        assert_eq!(target_state.cpu_level_state(), QemuPowerState::PowerDown);
-
-        GIC.get().unwrap().cpu_interface_disable();
-        *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock() = PowerDownKind::Off;
-    }
-
-    fn power_domain_power_down(
-        &self,
-        _target_state: &PsciCompositePowerState<
-            PSCI_STATE_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            { Qemu::CORE_COUNT },
-            PSCI_NON_CPU_DOMAIN_COUNT,
-            Self::NodeIndex,
-            QemuPowerState,
-        >,
-    ) {
-        if *self.per_cpu_powerdown_kinds[CoresImpl::<Qemu>::core_index()].lock()
-            == PowerDownKind::Off
-        {
-            // SAFETY: `disable_mmu_el3` is safe to call here as the CPU is about to be switched off.
-            // `plat_secondary_cold_boot_setup` is trusted assembly.
-            unsafe {
-                disable_mmu_el3();
-                plat_secondary_cold_boot_setup();
-            }
-        } else {
-            dsb_sy();
-            wfi();
-            // Instead of behaving as if this was a powerdown abandon, simply call the bl31
-            // warmboot entry point. This is closer to what real hardware would do most of the time.
-            // SAFETY: `bl31_warmboot_entrypoint` and `disable_mmu_el3` are trusted assembly.
-            unsafe {
-                disable_mmu_el3();
-                bl31_warm_entrypoint::<Qemu>();
-            }
-        }
-    }
-
-    fn power_domain_on(&self, mpidr: Mpidr) -> Result<(), ErrorCode> {
-        let cpu_index = try_get_cpu_index_by_mpidr::<Qemu, Self::NodeIndex>(mpidr)
-            .ok_or(ErrorCode::InvalidParameters)?;
-        debug_assert!(usize::from(cpu_index) < Qemu::CORE_COUNT);
-        plat_hold_pen_signal(cpu_index.into(), bl31_warm_entrypoint::<Qemu>);
-        Ok(())
-    }
-
-    fn power_domain_on_finish(
-        &self,
-        previous_state: &PsciCompositePowerState<
-            PSCI_STATE_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            { Qemu::CORE_COUNT },
-            PSCI_NON_CPU_DOMAIN_COUNT,
-            Self::NodeIndex,
-            QemuPowerState,
-        >,
-    ) {
-        assert_eq!(previous_state.cpu_level_state(), QemuPowerState::PowerDown);
-        let gic = GIC.get().unwrap();
-        gic.redistributor_init(&Qemu::GIC_CONFIG);
-        gic.cpu_interface_enable();
-    }
-
-    fn system_off(&self) -> ! {
-        let mut gpio = SECURE_GPIO.lock();
-        gpio.pin_set(SECURE_GPIO_SYSTEM_OFF, false).unwrap();
-        gpio.pin_set(SECURE_GPIO_SYSTEM_OFF, true).unwrap();
-        isb();
-        panic!("System off was not triggered by secure GPIO pin");
-    }
-
-    fn system_reset(&self) -> ! {
-        let mut gpio = SECURE_GPIO.lock();
-        gpio.pin_set(SECURE_GPIO_SYSTEM_RESET, false).unwrap();
-        gpio.pin_set(SECURE_GPIO_SYSTEM_RESET, true).unwrap();
-        isb();
-        panic!("System reset was not triggered by secure GPIO pin");
-    }
-}
-
-/// Polls the holding pen for the given core until the magic tags and entrypoint are set, then
-/// jumps to the entrypoint. This is called by secondary cores after waking up from a power-down
-/// state.
-#[unsafe(naked)]
-unsafe extern "C" fn plat_secondary_cold_boot_setup() -> ! {
-    naked_asm!(
-        "bl  {plat_my_core_pos}",
-        // x0 = core index
-        "mov x1, #{HOLD_SLOT_SIZE}",
-        "ldr x2, ={HOLD_SLOTS_BASE}",
-        "madd x2, x0, x1, x2", // x2 = HOLD_SLOTS_BASE + core_pos * HOLD_SLOT_SIZE
-    "0:",
-        "ldr x0, [x2, #{MAGIC1_OFFSET}]", // load magic1
-        "ldr x1, ={HOLD_MAGIC1}",
-        "cmp x0, x1",
-        "b.ne 1f",
-
-        "ldr x0, [x2, #{MAGIC2_OFFSET}]", // load magic2
-        "ldr x1, ={HOLD_MAGIC2}",
-        "cmp x0, x1",
-        "b.ne 1f",
-
-        // Ensure that the loads above are totally completed before we load the entrypoint.
-        // This prevents the pipeline from speculatively pulling a stale 'entry' value.
-        "dmb sy",
-
-        "ldr x16, [x2, #{ENTRY_OFFSET}]", // load entry
-        "ldr x1, ={HOLD_STATE_WAIT}",
-        "cmp x16, x1",
-        "b.eq 1f",
-
-        // Prevent reuse of stale entry
-        "str x1, [x2, #{ENTRY_OFFSET}]", // reset to wait
-        // x16 is chosen to make this bti c compatible, not just bti j
-        "br x16",
-    "1:",
-        "wfe",
-        "b 0b",
-        HOLD_SLOT_SIZE = const core::mem::size_of::<HoldSlot>(),
-        ENTRY_OFFSET = const offset_of!(HoldSlot, entry),
-        MAGIC1_OFFSET = const offset_of!(HoldSlot, magic1),
-        MAGIC2_OFFSET = const offset_of!(HoldSlot, magic2),
-        HOLD_SLOTS_BASE = const TRUSTED_MAILBOX_BASE,
-        HOLD_MAGIC1 = const HOLD_MAGIC1,
-        HOLD_MAGIC2 = const HOLD_MAGIC2,
-        HOLD_STATE_WAIT = const HOLD_STATE_WAIT,
-        plat_my_core_pos = sym my_core_pos::<Qemu>,
-    );
 }

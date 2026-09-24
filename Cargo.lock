@@ -351,6 +351,8 @@ version = "0.1.0"
 dependencies = [
  "arm-generic-timer",
  "rf-a-core",
+ "safe-mmio",
+ "zerocopy",
 ]
 
 [[package]]

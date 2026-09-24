@@ -226,8 +226,7 @@ static ERRATA_MANAGEMENT: ErrataManagement<Fvp> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
 
-static AMU: Amu<PLATFORM_CORE_COUNT, CoresImpl<Fvp>> =
-    Amu::new([Amcntenset1El0::empty(); PLATFORM_CORE_COUNT], true);
+static AMU: Amu<CORE_COUNT, CoresImpl<Fvp>> = Amu::new([Amcntenset1El0::empty(); CORE_COUNT], true);
 
 // SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0-x5, and returns a unique core index as long as `FVP_MAX_CPUS_PER_CLUSTER` and

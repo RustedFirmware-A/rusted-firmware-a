@@ -7,6 +7,8 @@
 #![cfg_attr(not(any(test, feature = "fakes")), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(not(any(test, feature = "fakes")))]
+pub mod core_index;
 pub mod power_management;
 pub mod reexports;
 pub mod system_id;

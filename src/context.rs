@@ -176,11 +176,15 @@ impl CpuContext {
         el1_sysregs: El1Sysregs::EMPTY,
     };
 
-    fn save_lower_el_sysregs(&mut self) {
+    fn save_lower_el_sysregs(&mut self, world: World, errata_list: &'static [ErratumEntry]) {
         #[cfg(feature = "sel2")]
-        self.el2_sysregs.save();
+        self.el2_sysregs.save(world, errata_list);
         #[cfg(not(feature = "sel2"))]
-        self.el1_sysregs.save();
+        {
+            self.el1_sysregs.save();
+            let _ = world;
+            let _ = errata_list;
+        }
     }
 
     fn restore_lower_el_sysregs(&self, world: World, errata_list: &'static [ErratumEntry]) {
@@ -499,7 +503,7 @@ impl El2Sysregs {
     };
 
     /// Reads the current values from the system registers to save them.
-    fn save(&mut self) {
+    fn save(&mut self, world: World, errata_list: &'static [ErratumEntry]) {
         self.actlr_el2 = read_actlr_el2();
         self.afsr0_el2 = read_afsr0_el2();
         self.afsr1_el2 = read_afsr1_el2();
@@ -516,7 +520,29 @@ impl El2Sysregs {
         self.hstr_el2 = read_hstr_el2();
         self.icc_sre_el2 = read_icc_sre_el2();
         self.ich_hcr_el2 = read_ich_hcr_el2();
+
+        let scr_el3 = read_scr_el3();
+        let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies(errata_list);
+        if apply_ich_vmcr_el2_errata {
+            // Use a value of SCR_EL3.NS that reflects the security state that owned the value
+            // of ICH_VMCR_EL2 we are going to save aside.
+            let mut temp_scr_el3 = scr_el3;
+            temp_scr_el3.set(ScrEl3::NS, world != World::Secure);
+            // SAFETY: We are only changing the NS bit, which affects lower ELs only.
+            unsafe {
+                write_scr_el3(temp_scr_el3);
+            }
+            isb();
+        }
         self.ich_vmcr_el2 = read_ich_vmcr_el2();
+        if apply_ich_vmcr_el2_errata {
+            // SAFETY: We are restoring the original value of SCR_EL3, which was valid.
+            unsafe {
+                write_scr_el3(scr_el3);
+            }
+            isb();
+        }
+
         self.mair_el2 = read_mair_el2();
         self.mdcr_el2 = read_mdcr_el2();
         self.sctlr_el2 = read_sctlr_el2();
@@ -824,7 +850,7 @@ impl CpuStates {
 
     /// Saves the context for the given world.
     fn save_world(&self, world: World, context: &mut CpuContext) {
-        context.save_lower_el_sysregs();
+        context.save_lower_el_sysregs(world, self.errata_list);
         for ext in self.cpu_extensions {
             ext.save_context(world);
         }

@@ -134,8 +134,8 @@ STF_CARGO := RUSTFLAGS="$(TARGET_RUSTFLAGS) --cfg platform=\"${PLAT}\" -C link-a
 all: images
 
 build:
-	$(TARGET_CARGO) build --package $(PLAT)-rf-a-bl31 $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
-	ln -fsr $(OUT)/rfa/$(TARGET)/$(BUILDTYPE)/$(PLAT)-rf-a-bl31 $(BL31_ELF)
+	$(TARGET_CARGO) build --package rf-a-$(PLAT) $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
+	ln -fsr $(OUT)/rfa/$(TARGET)/$(BUILDTYPE)/rf-a-$(PLAT) $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
 	$(OBJDUMP) -dC $(BL31_ELF) > $(BL31_DUMP)
 
@@ -162,7 +162,7 @@ cargo-doc:
 
 clippy:
 	$(TARGET_CARGO) clippy $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
-	$(TARGET_CARGO) clippy --package $(PLAT)-rf-a-bl31 $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
+	$(TARGET_CARGO) clippy --package rf-a-$(PLAT) $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
 	$(STF_CARGO) clippy \
 		--package rf-a-secure-test-framework \
 		$(CARGO_FLAGS) \

@@ -4,12 +4,7 @@
 
 [workspace]
 resolver = "3"
-members = [
-  "fvp-rf-a-bl31",
-  "qemu-rf-a-bl31",
-  "rf-a-build",
-  "secure_test_framework",
-]
+members = ["rf-a-fvp", "rf-a-qemu", "rf-a-build", "secure_test_framework"]
 
 [package]
 name = "rf-a-core"

@@ -319,15 +319,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fvp-rf-a-bl31"
-version = "0.1.0"
-dependencies = [
- "arm-fvp-base-pac",
- "rf-a-build",
- "rf-a-core",
-]
-
-[[package]]
 name = "include-first"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -422,16 +413,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "qemu-rf-a-bl31"
-version = "0.1.0"
-dependencies = [
- "arm-pl011-uart",
- "arm-pl061",
- "rf-a-build",
- "rf-a-core",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -464,6 +445,25 @@ dependencies = [
  "spin 0.12.3",
  "uuid",
  "zerocopy",
+]
+
+[[package]]
+name = "rf-a-fvp"
+version = "0.1.0"
+dependencies = [
+ "arm-fvp-base-pac",
+ "rf-a-build",
+ "rf-a-core",
+]
+
+[[package]]
+name = "rf-a-qemu"
+version = "0.1.0"
+dependencies = [
+ "arm-pl011-uart",
+ "arm-pl061",
+ "rf-a-build",
+ "rf-a-core",
 ]
 
 [[package]]

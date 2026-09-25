@@ -23,6 +23,11 @@ if [[ "$clippy" != "clippy" ]]; then
     rustup component add clippy-preview
 fi
 
+deny=$(cargo --list | awk '$1 == "deny" { print $1 }')
+if [[ "$deny" != "deny" ]]; then
+    cargo install cargo-deny
+fi
+
 must() {
     if ! $@; then
         echo -- "$@" > /dev/stderr
@@ -64,3 +69,4 @@ done
 
 must cargo vet
 must cargo fmt --all --check
+must cargo deny --workspace check

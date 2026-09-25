@@ -8,7 +8,7 @@ $ sudo apt install clang build-essential lld rustup libssl-dev
 $ rustup default stable
 $ rustup target add aarch64-unknown-none-softfloat
 $ rustup component add llvm-tools
-$ cargo install cargo-binutils cargo-vet
+$ cargo install cargo-binutils cargo-vet cargo-deny
 ```
 
 [Add your SSH public key](https://review.trustedfirmware.org/settings/#SSHKeys) then get the source:

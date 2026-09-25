@@ -557,9 +557,11 @@ impl El2Sysregs {
             write_icc_sre_el2(self.icc_sre_el2);
             write_ich_hcr_el2(self.ich_hcr_el2);
 
+            let scr_el3 = read_scr_el3();
             let apply_ich_vmcr_el2_errata = errata_ich_vmcr_el2_applies(errata_list);
             if apply_ich_vmcr_el2_errata {
-                let scr_el3 = read_scr_el3();
+                // Use a value of SCR_EL3.NS that reflects the security state that owned the value
+                // of ICH_VMCR_EL2 we are going to restore.
                 if world == World::Secure {
                     write_scr_el3(scr_el3 - ScrEl3::NS);
                 } else {
@@ -568,8 +570,11 @@ impl El2Sysregs {
                 isb();
             }
             write_ich_vmcr_el2(self.ich_vmcr_el2);
-            // No need to restore the previous value of SCR_EL3, it will be overwritten soon by
-            // el3_exit.
+            if apply_ich_vmcr_el2_errata {
+                // Restore the original SCR_EL3 value.
+                write_scr_el3(scr_el3);
+                isb();
+            }
 
             write_mair_el2(self.mair_el2);
             write_mdcr_el2(self.mdcr_el2);

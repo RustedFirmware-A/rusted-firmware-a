@@ -12,10 +12,7 @@ license = "BSD-3-Clause"
 description = "RF-A for the Arm Fixed Virtual Platform"
 
 [dependencies]
-arm-fvp-base-pac = { version = "0.3.0", default-features = false, features = [
-  "base-revc",
-  "el3",
-] }
+arm-fvp-base-pac = { version = "0.4.0", default-features = false, features = ["base-revc", "el3"] }
 rf-a-core = { workspace = true, default-features = false }
 
 [build-dependencies]

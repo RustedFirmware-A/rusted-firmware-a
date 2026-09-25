@@ -62,10 +62,10 @@ impl From<FvpPowerState> for usize {
 
 struct FvpGicContext {
     distributor_context: GicDistributorContext<
-        { GicDistributorContext::ireg_count(988) },
-        { GicDistributorContext::ireg_e_count(1024) },
+        { GicDistributorContext::spi_count(988) },
+        { GicDistributorContext::espi_count(1024) },
     >,
-    redistributor_context: GicRedistributorContext<{ GicRedistributorContext::ireg_count(96) }>,
+    redistributor_context: GicRedistributorContext<{ GicRedistributorContext::ppi_count(96) }>,
 }
 
 impl FvpGicContext {

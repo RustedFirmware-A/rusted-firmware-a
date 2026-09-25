@@ -420,13 +420,13 @@ mod tests {
         let gic = fake_gic.build();
 
         let mut distributor_context = GicDistributorContext::<
-            { GicDistributorContext::ireg_count(988) },
-            { GicDistributorContext::ireg_e_count(1024) },
+            { GicDistributorContext::spi_count(988) },
+            { GicDistributorContext::espi_count(1024) },
         >::new();
         gic.distributor_save(&mut distributor_context);
         gic.distributor_restore(&distributor_context);
         let mut redistributor_context =
-            GicRedistributorContext::<{ GicRedistributorContext::ireg_count(96) }>::new();
+            GicRedistributorContext::<{ GicRedistributorContext::ppi_count(96) }>::new();
         gic.redistributor_save(&mut redistributor_context);
         gic.redistributor_restore(&redistributor_context);
         gic.redistributor_off();

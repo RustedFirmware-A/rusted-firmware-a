@@ -7,12 +7,12 @@ resolver = "3"
 members = [
   "fvp-rf-a-bl31",
   "qemu-rf-a-bl31",
-  "rf-a-bl31-build",
+  "rf-a-build",
   "secure_test_framework",
 ]
 
 [package]
-name = "rf-a-bl31"
+name = "rf-a-core"
 version = "0.1.0"
 edition = "2024"
 authors = [
@@ -60,15 +60,15 @@ uuid = { version = "1.26.0", default-features = false }
 zerocopy = { version = "0.8.56", features = ["derive"] }
 
 [build-dependencies]
-rf-a-bl31-build = { version = "0.1.0", path = "rf-a-bl31-build" }
+rf-a-build = { version = "0.1.0", path = "rf-a-build" }
 
 [dev-dependencies]
 arm-gic = { version = "0.9.1", features = ["fakes"] }
 arm-sysregs = { version = "0.5.1", features = ["fakes"] }
 
 [workspace.dependencies]
-rf-a-bl31 = { version = "0.1.0", default-features = false, path = "." }
-rf-a-bl31-build = { version = "0.1.0", path = "rf-a-bl31-build" }
+rf-a-core = { version = "0.1.0", default-features = false, path = "." }
+rf-a-build = { version = "0.1.0", path = "rf-a-build" }
 
 [features]
 default = ["sel2"]

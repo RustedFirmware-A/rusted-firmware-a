@@ -154,7 +154,7 @@ $(STF_RMM): build-stf
 
 clippy-test:
 	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --features "$(FEATURES)"
-	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --package rf-a-bl31-build
+	RUSTFLAGS="-D warnings" $(CARGO) clippy --tests --package rf-a-build
 
 cargo-doc:
 	RUSTDOCFLAGS="-D warnings" $(TARGET_CARGO) doc --target $(TARGET) --no-deps  \

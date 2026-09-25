@@ -323,8 +323,8 @@ name = "fvp-rf-a-bl31"
 version = "0.1.0"
 dependencies = [
  "arm-fvp-base-pac",
- "rf-a-bl31",
- "rf-a-bl31-build",
+ "rf-a-build",
+ "rf-a-core",
 ]
 
 [[package]]
@@ -427,8 +427,8 @@ version = "0.1.0"
 dependencies = [
  "arm-pl011-uart",
  "arm-pl061",
- "rf-a-bl31",
- "rf-a-bl31-build",
+ "rf-a-build",
+ "rf-a-core",
 ]
 
 [[package]]
@@ -441,7 +441,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "rf-a-bl31"
+name = "rf-a-build"
+version = "0.1.0"
+
+[[package]]
+name = "rf-a-core"
 version = "0.1.0"
 dependencies = [
  "aarch64-paging",
@@ -456,15 +460,11 @@ dependencies = [
  "num_enum",
  "pastey",
  "percore",
- "rf-a-bl31-build",
+ "rf-a-build",
  "spin 0.12.3",
  "uuid",
  "zerocopy",
 ]
-
-[[package]]
-name = "rf-a-bl31-build"
-version = "0.1.0"
 
 [[package]]
 name = "rf-a-secure-test-framework"

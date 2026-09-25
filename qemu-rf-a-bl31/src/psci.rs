@@ -8,7 +8,7 @@ use super::{
 };
 use arm_pl061::{PL061, PL061Registers, UniqueMmioPointer};
 use core::ptr::NonNull;
-use rf_a_bl31::{
+use rf_a_core::{
     aarch64::{dsb_sy, isb, wfi},
     bl31_warm_entrypoint,
     context::CoresImpl,

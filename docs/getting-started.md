@@ -120,10 +120,10 @@ Build the Rustdoc documentation for a given platform:
 make PLAT=<platform> cargo-doc
 ```
 
-... the built documentation will be found under `target/<target>/doc/rf_a_bl31`.
+... the built documentation will be found under `target/<target>/doc/rf_a_core`.
 
 To display the documentation, open it with your preferred application of choice, for example:
 
 ```sh
-xdg-open target/aarch64-unknown-none-softfloat/doc/rf_a_bl31/index.html
+xdg-open target/aarch64-unknown-none-softfloat/doc/rf_a_core/index.html
 ```

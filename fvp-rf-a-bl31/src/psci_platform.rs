@@ -15,7 +15,7 @@ use arm_fvp_base_pac::{
     power_controller::{FvpPowerController, FvpPowerControllerRegisters, SystemStatus},
     system::{FvpSystemPeripheral, FvpSystemRegisters, SystemConfigFunction},
 };
-use rf_a_bl31::{
+use rf_a_core::{
     aarch64::{dsb_ish, wfi},
     platform::Platform,
     reexports::{

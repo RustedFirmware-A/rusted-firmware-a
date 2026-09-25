@@ -4,7 +4,7 @@
 
 //! Build script for RF-A on QEMU.
 
-use rf_a_bl31_build::{Builder, configure_build};
+use rf_a_build::{Builder, configure_build};
 
 fn main() {
     configure_build(&QemuBuilder);

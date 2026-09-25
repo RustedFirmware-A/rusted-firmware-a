@@ -33,7 +33,7 @@ cleanup
 for commit in $(git log --pretty=format:"%h"); do
     git checkout "$commit" > /dev/null 2>> err || die "couldn't check out $commit"
     make PLAT="$PLAT" DEBUG=0 build > err 2>> err || die "couldn't build $commit"
-    size=$(stat --format="%s" target/aarch64-unknown-none-softfloat/release/rf-a-bl31 || die "unexpected object file")
+    size=$(stat --format="%s" target/aarch64-unknown-none-softfloat/release/rf-a-core || die "unexpected object file")
     printf "%10d\\t$commit\n" "$size"
 done
 

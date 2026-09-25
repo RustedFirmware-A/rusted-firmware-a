@@ -8,7 +8,7 @@
 mod config;
 
 use crate::config::{CACHE_WRITEBACK_GRANULE, CORE_COUNT};
-use rf_a_bl31_build::{Builder, configure_build};
+use rf_a_build::{Builder, configure_build};
 
 fn main() {
     configure_build(&FvpBuilder);

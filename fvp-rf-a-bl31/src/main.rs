@@ -32,8 +32,8 @@ use core::{
     ptr::NonNull,
 };
 #[cfg(feature = "pauth")]
-use rf_a_bl31::reexports::arm_sysregs::el0::accessors::read_cntpct_el0;
-use rf_a_bl31::{
+use rf_a_core::reexports::arm_sysregs::el0::accessors::read_cntpct_el0;
+use rf_a_core::{
     aarch64::dsb_sy,
     all_asm, asm_macros_common, asm_macros_common_purge, bl31_warm_entrypoint,
     context::{CoresImpl, EntryPointInfo},

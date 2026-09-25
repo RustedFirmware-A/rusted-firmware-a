@@ -4,7 +4,7 @@
 
 use super::{Qemu, TRUSTED_MAILBOX_BASE};
 use core::{arch::asm, mem::offset_of};
-use rf_a_bl31::{
+use rf_a_core::{
     aarch64::{dsb_sy, sev},
     naked_asm,
     platform::{Platform, my_core_pos},

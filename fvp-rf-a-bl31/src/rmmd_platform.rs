@@ -4,7 +4,7 @@
 
 use crate::{NT_FW_CONFIG_ADDRESS, UART0_RANGE};
 use arm_fvp_base_pac::MemoryMap;
-use rf_a_bl31::services::rmmd::{
+use rf_a_core::services::rmmd::{
     RMM_SHARED_BUFFER_SIZE, RmmdPlatform,
     manifest::{
         RMM_BOOT_MANIFEST_ROOT_COMPLEX_VERSION, RMM_BOOT_MANIFEST_VERSION, RmmBootManifest,

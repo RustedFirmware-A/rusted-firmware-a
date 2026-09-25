@@ -30,7 +30,7 @@ must() {
     fi
 }
 
-must cargo test --package rf-a-bl31-build
+must cargo test --package rf-a-build
 must make clippy-test
 
 IFS=" " read -a all_features <<< "$(make --silent list_test_features)"

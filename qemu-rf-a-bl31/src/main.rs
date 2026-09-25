@@ -16,7 +16,7 @@ use self::{
 };
 use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use core::{mem::offset_of, ptr::NonNull};
-use rf_a_bl31::{
+use rf_a_core::{
     all_asm, asm_macros_common, asm_macros_common_purge,
     context::{CoresImpl, EntryPointInfo},
     cpu::qemu_max::QemuMax,
@@ -228,7 +228,7 @@ unsafe impl Platform for Qemu {
         ((key_hi as u128) << 64) | (key_lo as u128)
     }
 
-    fn services() -> &'static [&'static dyn rf_a_bl31::services::Service] {
+    fn services() -> &'static [&'static dyn Service] {
         &PLATFORM_SERVICES
     }
 

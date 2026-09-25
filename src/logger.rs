@@ -156,7 +156,7 @@ impl<P: LogSink, S: LogSink> LogSink for HybridLogger<P, S> {
 /// ```
 /// use core::fmt::Write;
 /// use core::time::Duration;
-/// use rf_a_bl31::logger::{LogSink, LockedWriter, TimestampedLogger};
+/// use rf_a_core::logger::{LogSink, LockedWriter, TimestampedLogger};
 ///
 /// struct FakeUart;
 /// impl Write for FakeUart {

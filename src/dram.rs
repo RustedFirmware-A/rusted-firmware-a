@@ -18,7 +18,7 @@ pub const fn const_zeroed<T: FromZeros>() -> T {
 /// it. E.g.,
 ///
 /// ```
-/// use rf_a_bl31::dram::zeroed_mut;
+/// use rf_a_core::dram::zeroed_mut;
 ///
 /// zeroed_mut!(FOO, u64);
 /// ```
@@ -35,7 +35,7 @@ pub const fn const_zeroed<T: FromZeros>() -> T {
 /// wrapper, e.g.:
 ///
 /// ```
-/// use rf_a_bl31::dram::zeroed_mut;
+/// use rf_a_core::dram::zeroed_mut;
 ///
 /// # #[cfg(any(target_os = "none", target_os = "linux"))]
 /// zeroed_mut! {
@@ -63,7 +63,7 @@ pub use zeroed_mut;
 /// For example:
 ///
 /// ```
-/// use rf_a_bl31::dram::lazy_indirect;
+/// use rf_a_core::dram::lazy_indirect;
 ///
 /// lazy_indirect!(FOO, u64, 42);
 /// ```
@@ -79,7 +79,7 @@ pub use zeroed_mut;
 /// underlying static and for the `LazyLock` wrapper, e.g.:
 ///
 /// ```
-/// use rf_a_bl31::dram::lazy_indirect;
+/// use rf_a_core::dram::lazy_indirect;
 ///
 /// # #[cfg(any(target_os = "none", target_os = "linux"))]
 /// lazy_indirect! {

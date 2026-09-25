@@ -281,6 +281,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.2.0 -> 0.3.0"
 notes = "No code changes, only dependency updates."
 
+[[audits.arm-fvp-base-pac]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.0 -> 0.4.0"
+notes = "No code change, only dependency updates."
+
 [[audits.arm-generic-timer]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -307,6 +313,12 @@ who = "Gergely Balint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.2.1 -> 0.3.0"
 notes = "Adds new unsafe APIs, where safety requirements are delegated to the caller. Does not contain code calling these new unsafe APIs."
+
+[[audits.arm-generic-timer]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.0 -> 0.3.1"
+notes = "Dependency update and minimal code change due to a breaking change."
 
 [[audits.arm-gic]]
 who = "Jeremi Miller <jeremimiller@google.com>"
@@ -368,6 +380,16 @@ notes = """
 Changes redistributor frame size detection and the related register layout, which also affects the
 external API. Fixes the AArch32 build and testing on AArch64 hosts. Also fixes the interrupt disable
 code and includes some refactoring.
+"""
+
+[[audits.arm-gic]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.9.1 -> 0.10.0"
+notes = """
+Updates dependencies, optimizes distributor/redistributor save/restore to use
+32-bit MMIO writes. Restructures the (re)distributor contexts' internal
+representations.
 """
 
 [[audits.arm-pl011-uart]]

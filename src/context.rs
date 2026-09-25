@@ -822,6 +822,14 @@ impl CpuStates {
         unsafe { &raw mut (*CPU_STATE.get().as_ptr()).0[world.index()] }
     }
 
+    /// Saves the context for the given world.
+    fn save_world(&self, world: World, context: &mut CpuContext) {
+        context.save_lower_el_sysregs();
+        for ext in self.cpu_extensions {
+            ext.save_context(world);
+        }
+    }
+
     /// Restores the context for the given world.
     fn restore_world(&self, world: World, context: &CpuContext) {
         let world_context = world_context(world);
@@ -842,11 +850,7 @@ impl CpuStates {
         assert_ne!(old_world, new_world);
         exception_free(|token| {
             let mut cpu_state = CpuStates::cpu_state(token);
-            cpu_state[old_world].save_lower_el_sysregs();
-            for ext in self.cpu_extensions {
-                ext.save_context(old_world);
-            }
-
+            self.save_world(old_world, &mut cpu_state[old_world]);
             self.restore_world(new_world, &cpu_state[new_world]);
         });
     }

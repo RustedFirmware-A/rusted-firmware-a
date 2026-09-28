@@ -231,7 +231,7 @@ impl<'a> TableDescriptorRef<'a> {
         unsafe {
             from_raw_parts_mut(
                 self.address().0 as *mut Level1Descriptor,
-                1 << (config.l0gptsz.width() - (config.pgs.width() + 4)),
+                1 << (config.l0gptsz().width() - (config.pgs().width() + 4)),
             )
         }
     }
@@ -253,7 +253,7 @@ impl<'a> TableDescriptorRef<'a> {
         unsafe {
             from_raw_parts(
                 self.address().0 as *const Level1Descriptor,
-                1 << (config.l0gptsz.width() - (config.pgs.width() + 4)),
+                1 << (config.l0gptsz().width() - (config.pgs().width() + 4)),
             )
         }
     }

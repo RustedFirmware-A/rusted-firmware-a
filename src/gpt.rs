@@ -126,18 +126,7 @@ impl GranuleProtection<'static> {
         let gpcc = read_gpccr_el3();
         let gptbr = read_gptbr_el3();
 
-        if !gpcc.contains(GpccrEl3::GPC) {
-            return Err(Error::GptNotInitialized);
-        }
-
-        let config = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::try_from(gpcc.pps())
-                .map_err(|_| Error::InvalidConfiguration)?,
-            l0gptsz: Level0GptSize::try_from(gpcc.l0gptsz())
-                .map_err(|_| Error::InvalidConfiguration)?,
-            pgs: PhysicalGranuleSize::try_from(gpcc.pgs())
-                .map_err(|_| Error::InvalidConfiguration)?,
-        };
+        let config = GranuleProtectionConfig::new(gpcc)?;
 
         // Safety: since Granule Protection Checks are enabled, it is safe to assume the the
         // registers are correctly programmed hence GPTBR_EL3 contains the address of a Level0Table
@@ -148,9 +137,9 @@ impl GranuleProtection<'static> {
             from_raw_parts_mut(
                 (gptbr.baddr() << 12) as *mut _,
                 1 << (config
-                    .pps
+                    .pps()
                     .width()
-                    .checked_sub(config.l0gptsz.width())
+                    .checked_sub(config.l0gptsz().width())
                     .ok_or(Error::InvalidConfiguration)?),
             )
         };
@@ -165,7 +154,7 @@ impl GranuleProtection<'static> {
 impl<'a> GranuleProtection<'a> {
     /// `PhysicalGranuleSize` used by the `GranuleProtection` in bytes.
     pub fn pgs(&self) -> usize {
-        self.config.pgs.size()
+        self.config.pgs().size()
     }
 
     /// Checks if the `GPIAccessType` value is supported on the current system based on available
@@ -212,9 +201,9 @@ impl<'a> GranuleProtection<'a> {
         };
         assert!(!gpcc.contains(GpccrEl3::GPC));
 
-        gpcc.set_pps(self.config.pps as u8);
-        gpcc.set_l0gptsz(self.config.l0gptsz as u8);
-        gpcc.set_pgs(self.config.pgs as u8);
+        gpcc.set_pps(self.config.pps() as u8);
+        gpcc.set_l0gptsz(self.config.l0gptsz() as u8);
+        gpcc.set_pgs(self.config.pgs() as u8);
 
         let base = self.level0.0.as_ptr() as u64;
         if base & mask!(12) != 0 {
@@ -258,7 +247,7 @@ impl<'a> GranuleProtection<'a> {
     /// - `base_pa`: Address of the granule whose GPI is updated.
     /// - `gpi`: Describes which Physical Address Space the granule will belong to.
     pub fn set(&mut self, base_pa: PA, gpi: GPIAccessType) -> Result<(), GranuleError> {
-        if base_pa.0 >= self.config.pps.size() {
+        if base_pa.0 >= self.config.pps().size() {
             return Err(GranuleError::InvalidRequest);
         }
         // Do not allow setting to a currently unsupported GPI value.
@@ -299,7 +288,7 @@ impl<'a> GranuleProtection<'a> {
             dsb_oshst();
 
             // Ensure that all agents observe the new configuration.
-            tlbi_rpalos(base_pa.0, self.config.pgs.into());
+            tlbi_rpalos(base_pa.0, self.config.pgs().into());
             dsb_osh();
 
             self.fuse_descriptors(base_pa, gpi, l1_table)
@@ -311,7 +300,7 @@ impl<'a> GranuleProtection<'a> {
 
     /// Looks up the access control mapping of the memory region starting at `base_pa` from the GPT.
     pub fn lookup(&self, base_pa: PA) -> Result<GPIAccessType, GranuleError> {
-        if base_pa.0 >= self.config.pps.size() {
+        if base_pa.0 >= self.config.pps().size() {
             return Err(GranuleError::InvalidRequest);
         }
         let l0_idx = self.config.l0_resolve(base_pa);
@@ -575,31 +564,56 @@ impl From<ContigSize> for TlbiSize {
     }
 }
 
-/// Size configuration of the [`GranuleProtection`] object.
+/// Stores configuration of the [`GranuleProtection`] object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct GranuleProtectionConfig {
-    /// [`ProtectedPhysicalAddressSize`] used by this [`GranuleProtection`].
-    pps: ProtectedPhysicalAddressSize,
-    /// [`Level0GptSize`] used by this [`GranuleProtection`].
-    l0gptsz: Level0GptSize,
-    /// [`PhysicalGranuleSize`] used by this [`GranuleProtection`].
-    pgs: PhysicalGranuleSize,
+    /// Value of the GPCCR_EL3 system register.
+    gpccr_el3: GpccrEl3,
 }
 
 impl GranuleProtectionConfig {
+    /// Creates a `GranuleProtectionConfig` if the register values are valid.
+    fn new(gpccr_el3: GpccrEl3) -> Result<Self, Error> {
+        ProtectedPhysicalAddressSize::try_from(gpccr_el3.pps())
+            .map_err(|_| Error::InvalidConfiguration)?;
+        PhysicalGranuleSize::try_from(gpccr_el3.pgs()).map_err(|_| Error::InvalidConfiguration)?;
+        Level0GptSize::try_from(gpccr_el3.l0gptsz()).map_err(|_| Error::InvalidConfiguration)?;
+
+        if !gpccr_el3.contains(GpccrEl3::GPC) {
+            return Err(Error::GptNotInitialized);
+        }
+
+        Ok(Self { gpccr_el3 })
+    }
+
+    fn pps(&self) -> ProtectedPhysicalAddressSize {
+        // Self is only created if the PPS encoding was valid.
+        ProtectedPhysicalAddressSize::try_from(self.gpccr_el3.pps()).unwrap()
+    }
+
+    fn pgs(&self) -> PhysicalGranuleSize {
+        // Self is only created if the PGS encoding was valid.
+        PhysicalGranuleSize::try_from(self.gpccr_el3.pgs()).unwrap()
+    }
+
+    fn l0gptsz(&self) -> Level0GptSize {
+        // Self is only created if the L0GPTSZ encoding was valid.
+        Level0GptSize::try_from(self.gpccr_el3.l0gptsz()).unwrap()
+    }
+
     /// Retrieve the index of the L0 entry referencing the given PA.
     fn l0_resolve(&self, pa: PA) -> usize {
-        (pa.0 & mask!(self.pps.width())) >> (self.l0gptsz.width())
+        (pa.0 & mask!(self.pps().width())) >> (self.l0gptsz().width())
     }
 
     /// Retrieve the index of the L1 entry referencing the given PA.
     fn l1_resolve(&self, pa: PA) -> usize {
-        (pa.0 & mask!(self.l0gptsz.width())) >> (self.pgs.width() + 4)
+        (pa.0 & mask!(self.l0gptsz().width())) >> (self.pgs().width() + 4)
     }
 
     /// Retrieve the index inside a granule referencing the given PA.
     fn granule_resolve(&self, pa: PA) -> usize {
-        (pa.0 >> self.pgs.width()) & 0xF
+        (pa.0 >> self.pgs().width()) & 0xF
     }
 }
 #[cfg(test)]
@@ -617,13 +631,26 @@ mod test {
     };
     use table::Level0Descriptor;
 
+    fn config(
+        pps: ProtectedPhysicalAddressSize,
+        l0gptsz: Level0GptSize,
+        pgs: PhysicalGranuleSize,
+    ) -> GranuleProtectionConfig {
+        let gpccr_el3 = GpccrEl3::GPC
+            .with_pps(pps as u8)
+            .with_l0gptsz(l0gptsz as u8)
+            .with_pgs(pgs as u8);
+
+        GranuleProtectionConfig::new(gpccr_el3).unwrap()
+    }
+
     #[test]
     fn gpc_resolve() {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB4,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB4,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB4,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB4,
+        );
         assert_eq!(gpc.l0_resolve(PA(0xabcd_f432_9876)), 0x3);
         assert_eq!(gpc.l0_resolve(PA(0xabcd_5432_9876)), 0x1);
         assert_eq!(gpc.l1_resolve(PA(0xf432_abcd)), 0x3432);
@@ -634,11 +661,11 @@ mod test {
 
     #[test]
     fn gpc_resolve_2() {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::TB1,
-            l0gptsz: Level0GptSize::GB16,
-            pgs: PhysicalGranuleSize::KB64,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::TB1,
+            Level0GptSize::GB16,
+            PhysicalGranuleSize::KB64,
+        );
         assert_eq!(gpc.l0_resolve(PA(0xabcd_f432_9876)), 0x33);
         assert_eq!(gpc.l0_resolve(PA(0xcdab_5432_9876)), 0x2a);
         assert_eq!(gpc.l1_resolve(PA(0xf432_abcd)), 0xf43);
@@ -680,23 +707,23 @@ mod test {
 
     macro_rules! declare_empty_gpt {
         ($name:ident, $l0name:ident, $GPC:expr) => {
-            declare_l0!($l0name, $GPC.pps.width(), $GPC.l0gptsz.width());
+            declare_l0!($l0name, $GPC.pps().width(), $GPC.l0gptsz().width());
             let base = $l0name.as_ptr() as u64;
             assert_eq!(base & mask!(12), 0, "base is not aligned to 4KB");
 
             let mut gptbr = GptbrEl3::empty();
             gptbr.set_baddr(base >> 12);
             EL3_SYSREGS.lock().unwrap().gptbr_el3 = gptbr;
-            let gpccr = GpccrEl3::GPC
-            .with_pps($GPC.pps as u8)
-            .with_l0gptsz($GPC.l0gptsz as u8)
-            .with_pgs($GPC.pgs as u8);
+            let gpccr = $GPC.gpccr_el3;
             EL3_SYSREGS.lock().unwrap().gpccr_el3 = gpccr;
             #[allow(unused_mut)]
             let mut $name =
                 // SAFETY: Each test only calls this once.
                 unsafe { GranuleProtection::discover().expect("failed to discover GPT") };
-	        assert_eq!($name.config, $GPC);
+            assert_eq!(
+                $name.config,
+                GranuleProtectionConfig::new(gpccr).unwrap()
+            );
         };
     }
 
@@ -715,7 +742,7 @@ mod test {
     /// Change an L0 entry to a TableDescriptor, and point it to an L1 table.
     macro_rules! add_table_at_idx {
         ($gpt:ident, $l1name:ident, $idx:expr) => {
-            declare_l1!($l1name, $gpt.config.pgs, $gpt.config.l0gptsz, 1);
+            declare_l1!($l1name, $gpt.config.pgs(), $gpt.config.l0gptsz(), 1);
             $gpt.level0.0[$idx] = Level0Descriptor::table(PA($l1name.as_ptr() as usize));
         };
     }
@@ -824,7 +851,7 @@ mod test {
 
                         let size = match l1_entry.try_into() {
                             Ok(Level1DescriptorRef::Contiguous(contig)) => {
-                                contig.size().size() >> (gpc.pgs.width() + 4)
+                                contig.size().size() >> (gpc.pgs().width() + 4)
                             }
                             _ => 1,
                         };
@@ -865,30 +892,30 @@ mod test {
     use zerocopy::IntoBytes;
     #[test]
     fn gpt_get_set() {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB4,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB4,
+        );
 
         declare_empty_gpt!(gpt, l0table, gpc);
 
         // Set first descriptor to Block::NoAccess
         write_block!(l0table, 0, GPIAccessType::NoAccess);
 
-        let addr_0 = PA(1 << gpc.l0gptsz.width()) - 1;
+        let addr_0 = PA(1 << gpc.l0gptsz().width()) - 1;
         assert_eq!(gpc.l0_resolve(addr_0), 0);
         assert_eq!(gpt.lookup(addr_0), Ok(GPIAccessType::NoAccess));
 
         // Create secure block
-        let addr_1 = PA(1 << gpc.l0gptsz.width());
+        let addr_1 = PA(1 << gpc.l0gptsz().width());
         assert_eq!(gpc.l0_resolve(addr_1), 1);
         write_block!(l0table, 1, GPIAccessType::Secure);
         assert_eq!(gpt.lookup(addr_1), Ok(GPIAccessType::Secure));
 
         // Create L1 table
-        let addr_2 = PA(2 << gpc.l0gptsz.width());
-        declare_l1!(l1table, gpc.pgs, gpc.l0gptsz, 32);
+        let addr_2 = PA(2 << gpc.l0gptsz().width());
+        declare_l1!(l1table, gpc.pgs(), gpc.l0gptsz(), 32);
         let base = PA(l1table.as_ptr() as usize);
         let desc = Level0Descriptor::table(base);
         let offset = 2 * size_of::<Level0Descriptor>();
@@ -927,11 +954,11 @@ mod test {
 
     #[test]
     fn gpt_invalid_l0() {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB4,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB4,
+        );
 
         declare_empty_gpt!(gpt, l0table, gpc);
 
@@ -943,15 +970,15 @@ mod test {
 
     #[test]
     fn gpt_invalid_l1() {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB4,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB4,
+        );
 
         declare_gpt_noaccess!(gpt, l0table, gpc);
         // Create L1 table
-        let addr_1 = PA(1 << gpc.l0gptsz.width());
+        let addr_1 = PA(1 << gpc.l0gptsz().width());
         add_table_at_idx!(gpt, l1table, 1);
 
         // L1 table initialized with zeros means they are granules with NoAccess GPI.
@@ -971,11 +998,11 @@ mod test {
 
     #[test]
     fn gpi_encodings() {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB4,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB4,
+        );
         declare_empty_gpt!(gpt, l0table, gpc);
 
         // enable FEAT_RME_GDI
@@ -1034,11 +1061,11 @@ mod test {
 
     #[test]
     fn tables() -> Result<(), GranuleError> {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB64,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB64,
+        );
 
         declare_gpt_noaccess!(gpt, l0, gpc);
         add_table_at_idx!(gpt, l1, 1);
@@ -1058,11 +1085,11 @@ mod test {
     }
     #[test]
     fn set_granules() -> Result<(), GranuleError> {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB64,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB64,
+        );
         declare_gpt_noaccess!(gpt, l0, gpc);
         add_table_at_idx!(gpt, l1, 0);
 
@@ -1091,11 +1118,11 @@ mod test {
     }
     #[test]
     fn contig_2mb() -> Result<(), GranuleError> {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB64,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB64,
+        );
         declare_gpt_noaccess!(gpt, l0, gpc);
         add_table_at_idx!(gpt, l1, 0);
 
@@ -1116,11 +1143,11 @@ mod test {
 
     #[test]
     fn contigs_2mb() -> Result<(), GranuleError> {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB64,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB64,
+        );
         declare_gpt_noaccess!(gpt, l0, gpc);
         add_table_at_idx!(gpt, l1, 0);
 
@@ -1147,11 +1174,11 @@ mod test {
 
     #[test]
     fn contig_shatter() -> Result<(), GranuleError> {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB64,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB64,
+        );
         declare_gpt_noaccess!(gpt, l0, gpc);
         add_table_at_idx!(gpt, l1, 0);
 
@@ -1206,11 +1233,11 @@ mod test {
 
     #[test]
     fn contig_512mb() -> Result<(), GranuleError> {
-        let gpc = GranuleProtectionConfig {
-            pps: ProtectedPhysicalAddressSize::GB64,
-            l0gptsz: Level0GptSize::GB1,
-            pgs: PhysicalGranuleSize::KB64,
-        };
+        let gpc = config(
+            ProtectedPhysicalAddressSize::GB64,
+            Level0GptSize::GB1,
+            PhysicalGranuleSize::KB64,
+        );
 
         declare_gpt_noaccess!(gpt, l0, gpc);
         add_table_at_idx!(gpt, l1, 0);

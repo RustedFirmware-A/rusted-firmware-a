@@ -10,10 +10,6 @@ members = ["rf-a-fvp", "rf-a-qemu", "rf-a-build", "secure_test_framework"]
 name = "rf-a-core"
 version = "0.1.0"
 edition = "2024"
-authors = [
-  "Andrew Walbran <qwandor@google.com>",
-  "Okash Khawaja <okash@google.com>",
-]
 rust-version = "1.90"
 license = "BSD-3-Clause"
 

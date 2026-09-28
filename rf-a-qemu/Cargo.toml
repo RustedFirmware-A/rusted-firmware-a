@@ -6,7 +6,6 @@
 name = "rf-a-qemu"
 version = "0.1.0"
 edition = "2024"
-authors = ["Andrew Walbran <qwandor@google.com>"]
 rust-version = "1.90"
 license = "BSD-3-Clause"
 description = "RF-A for QEMU"

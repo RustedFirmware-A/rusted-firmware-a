@@ -12,13 +12,14 @@ mod psci_platform;
 #[cfg(feature = "rme")]
 mod rmmd_platform;
 
-use crate::psci_platform::{FvpPsciPlatformImpl, PSCI_STATE_COUNT};
 #[cfg(feature = "rme")]
 use crate::rmmd_platform::FvpRmmdPlatformImpl;
-
-use self::config::{
-    CACHE_WRITEBACK_GRANULE, CORE_COUNT, FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER,
-    FVP_MAX_PE_PER_CPU,
+use crate::{
+    config::{
+        CACHE_WRITEBACK_GRANULE, FVP_CLUSTER_COUNT, FVP_CORE_COUNT, FVP_MAX_CPUS_PER_CLUSTER,
+        FVP_MAX_PE_PER_CPU,
+    },
+    psci_platform::{FvpPsciPlatformImpl, PSCI_STATE_COUNT},
 };
 use arm_fvp_base_pac::{
     MemoryMap, Peripherals, PhysicalInstance,
@@ -36,7 +37,7 @@ use rf_a_core::reexports::arm_sysregs::el0::accessors::read_cntpct_el0;
 use rf_a_core::{
     aarch64::dsb_sy,
     all_asm, asm_macros_common, asm_macros_common_purge, bl31_warm_entrypoint,
-    context::{CoresImpl, EntryPointInfo},
+    context::{CoreIndex, EntryPointInfo},
     cpu::{aem_generic::AemGeneric, define_cpu_ops},
     cpu_extensions::{
         CpuExtension, amu::Amu, csv2_2::Csv2_2, fgt::Fgt, fgt2::Fgt2, fpmr::Fpmr, gcs::Gcs,
@@ -70,7 +71,6 @@ use rf_a_core::{
         arm_sysregs::{
             el0::registers::Amcntenset1El0, el1::registers::MpidrEl1, el3::registers::IccSreEl3,
         },
-        percore::Cores,
         spin::{Once, mutex::SpinMutex},
     },
     services::{
@@ -244,21 +244,75 @@ static ERRATA_MANAGEMENT: ErrataManagement<Fvp> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
 
-static AMU: Amu<CORE_COUNT, CoresImpl<Fvp>> = Amu::new([Amcntenset1El0::empty(); CORE_COUNT], true);
+static AMU: Amu<FVP_CORE_COUNT, FvpCoreIndex> =
+    Amu::new([Amcntenset1El0::empty(); FVP_CORE_COUNT], true);
 
 static SYSTEM_REVISION: Once<u32> = Once::new();
 
-// SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
+struct FvpCoreIndex;
+
+// SAFETY: `mpidr_to_index` is indeed a naked function, doesn't access the stack or any other memory,
 // only clobbers x0-x5, and returns a unique core index as long as `FVP_MAX_CPUS_PER_CLUSTER` and
 // `FVP_MAX_PE_PER_CPU` are correct.
+unsafe impl CoreIndex for FvpCoreIndex {
+    const CORE_COUNT: usize = FVP_CORE_COUNT;
+
+    fn is_valid_mpidr(mpidr: MpidrEl1) -> bool {
+        if mpidr.contains(MpidrEl1::MT) {
+            mpidr.aff3() == 0
+                && usize::from(mpidr.aff2()) < FVP_CLUSTER_COUNT
+                && usize::from(mpidr.aff1()) < FVP_MAX_CPUS_PER_CLUSTER
+                && usize::from(mpidr.aff0()) < FVP_MAX_PE_PER_CPU
+        } else {
+            mpidr.aff3() == 0
+                && mpidr.aff2() == 0
+                && usize::from(mpidr.aff1()) < FVP_CLUSTER_COUNT
+                && usize::from(mpidr.aff0()) < FVP_MAX_CPUS_PER_CLUSTER
+        }
+    }
+
+    /// Calculates core linear index as: ClusterId * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU +
+    /// CPUId * FVP_MAX_PE_PER_CPU + ThreadId
+    #[unsafe(naked)]
+    extern "C" fn mpidr_to_index(mpidr: MpidrEl1) -> usize {
+        naked_asm!(
+            // Check for MT bit in MPIDR. If not set, shift MPIDR to left to make it look as if in a
+            // multi-threaded implementation.
+            "tst	x0, #{MPIDR_MT_MASK}",
+            "lsl	x3, x0, #{MPIDR_AFFINITY_BITS}",
+            "csel	x3, x3, x0, eq",
+            // Extract individual affinity fields from MPIDR.
+            "ubfx	x0, x3, #{MPIDR_AFF0_SHIFT}, #{MPIDR_AFFINITY_BITS}",
+            "ubfx	x1, x3, #{MPIDR_AFF1_SHIFT}, #{MPIDR_AFFINITY_BITS}",
+            "ubfx	x2, x3, #{MPIDR_AFF2_SHIFT}, #{MPIDR_AFFINITY_BITS}",
+            // Compute linear position.
+            "mov	x4, #{FVP_MAX_CPUS_PER_CLUSTER}",
+            "madd	x1, x2, x4, x1",
+            "mov	x5, #{FVP_MAX_PE_PER_CPU}",
+            "madd	x0, x1, x5, x0",
+            "ret",
+            MPIDR_MT_MASK = const MpidrEl1::MT.bits(),
+            MPIDR_AFF0_SHIFT = const MpidrEl1::AFF0_SHIFT,
+            MPIDR_AFF1_SHIFT = const MpidrEl1::AFF1_SHIFT,
+            MPIDR_AFF2_SHIFT = const MpidrEl1::AFF2_SHIFT,
+            FVP_MAX_CPUS_PER_CLUSTER = const FVP_MAX_CPUS_PER_CLUSTER,
+            MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
+            FVP_MAX_PE_PER_CPU = const FVP_MAX_PE_PER_CPU,
+        );
+    }
+}
+
+// Safety: The implementation uses the default `cold_boot_handler` and `panic_handler` functions,
+// both of which meet the safety requirements, as does the platform-specific `dump_registers`
+// function. `NORMAL_MEMORY_MAIR_ATTRIBUTE` specifies a normal memory type with the caches enabled.
 unsafe impl Platform for Fvp {
-    const CORE_COUNT: usize = CORE_COUNT;
     const CACHE_WRITEBACK_GRANULE: usize = CACHE_WRITEBACK_GRANULE;
 
     const PAGE_HEAP_PAGE_COUNT: usize = 6;
 
     type LogSinkImpl = LockedWriter<Uart<'static>>;
     type PageTable = El3PageTable<{ Self::PAGE_HEAP_PAGE_COUNT }>;
+    type CoreIndexImpl = FvpCoreIndex;
     type PsciPlatformImpl = FvpPsciPlatformImpl<'static>;
     #[cfg(feature = "rme")]
     type RmmdPlatformImpl = FvpRmmdPlatformImpl;
@@ -396,7 +450,7 @@ unsafe impl Platform for Fvp {
     }
 
     fn secure_entry_point() -> EntryPointInfo {
-        let core_linear_id = CoresImpl::<Self>::core_index() as u64;
+        let core_linear_id = Self::CoreIndexImpl::local_index() as u64;
         EntryPointInfo {
             pc: 0x0600_0000,
             args: [
@@ -427,52 +481,8 @@ unsafe impl Platform for Fvp {
         }
     }
 
-    fn mpidr_is_valid(mpidr: MpidrEl1) -> bool {
-        if mpidr.contains(MpidrEl1::MT) {
-            mpidr.aff3() == 0
-                && usize::from(mpidr.aff2()) < FVP_CLUSTER_COUNT
-                && usize::from(mpidr.aff1()) < FVP_MAX_CPUS_PER_CLUSTER
-                && usize::from(mpidr.aff0()) < FVP_MAX_PE_PER_CPU
-        } else {
-            mpidr.aff3() == 0
-                && mpidr.aff2() == 0
-                && usize::from(mpidr.aff1()) < FVP_CLUSTER_COUNT
-                && usize::from(mpidr.aff0()) < FVP_MAX_CPUS_PER_CLUSTER
-        }
-    }
-
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
         FVP_PSCI_PLATFORM_IMPL.lock().take()
-    }
-
-    /// Calculates core linear index as: ClusterId * FVP_MAX_CPUS_PER_CLUSTER * FVP_MAX_PE_PER_CPU +
-    /// CPUId * FVP_MAX_PE_PER_CPU + ThreadId
-    #[unsafe(naked)]
-    extern "C" fn core_position(mpidr: u64) -> usize {
-        naked_asm!(
-            // Check for MT bit in MPIDR. If not set, shift MPIDR to left to make it look as if in a
-            // multi-threaded implementation.
-            "tst	x0, #{MPIDR_MT_MASK}",
-            "lsl	x3, x0, #{MPIDR_AFFINITY_BITS}",
-            "csel	x3, x3, x0, eq",
-            // Extract individual affinity fields from MPIDR.
-            "ubfx	x0, x3, #{MPIDR_AFF0_SHIFT}, #{MPIDR_AFFINITY_BITS}",
-            "ubfx	x1, x3, #{MPIDR_AFF1_SHIFT}, #{MPIDR_AFFINITY_BITS}",
-            "ubfx	x2, x3, #{MPIDR_AFF2_SHIFT}, #{MPIDR_AFFINITY_BITS}",
-            // Compute linear position.
-            "mov	x4, #{FVP_MAX_CPUS_PER_CLUSTER}",
-            "madd	x1, x2, x4, x1",
-            "mov	x5, #{FVP_MAX_PE_PER_CPU}",
-            "madd	x0, x1, x5, x0",
-            "ret",
-            MPIDR_MT_MASK = const MpidrEl1::MT.bits(),
-            MPIDR_AFF0_SHIFT = const MpidrEl1::AFF0_SHIFT,
-            MPIDR_AFF1_SHIFT = const MpidrEl1::AFF1_SHIFT,
-            MPIDR_AFF2_SHIFT = const MpidrEl1::AFF2_SHIFT,
-            FVP_MAX_CPUS_PER_CLUSTER = const FVP_MAX_CPUS_PER_CLUSTER,
-            MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
-            FVP_MAX_PE_PER_CPU = const FVP_MAX_PE_PER_CPU,
-        );
     }
 
     /// Dumps relevant GIC registers.

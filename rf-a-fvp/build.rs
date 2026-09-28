@@ -7,7 +7,7 @@
 #[path = "src/config.rs"]
 mod config;
 
-use crate::config::{CACHE_WRITEBACK_GRANULE, CORE_COUNT};
+use crate::config::{CACHE_WRITEBACK_GRANULE, FVP_CORE_COUNT};
 use rf_a_build::{Builder, configure_build};
 
 fn main() {
@@ -33,7 +33,7 @@ impl Builder for FvpBuilder {
     }
 
     fn core_count(&self) -> usize {
-        CORE_COUNT
+        FVP_CORE_COUNT
     }
 
     fn cache_writeback_granule(&self) -> usize {

@@ -6,7 +6,7 @@
 
 use crate::{
     aarch64::isb,
-    context::{CPU_DATA_CONTEXT_NUM, PerWorld, PerWorldContext, World},
+    context::{CPU_DATA_CONTEXT_NUM, CoreIndex, PerWorld, PerWorldContext, World},
     cpu_extensions::CpuExtension,
     platform::exception_free,
 };
@@ -41,7 +41,7 @@ use arm_sysregs::{
     el3::registers::{CptrEl3, ScrEl3},
 };
 use core::{cell::RefCell, marker::PhantomData};
-use percore::{Cores, ExceptionLock, derive::percore};
+use percore::{ExceptionLock, derive::percore};
 
 const GROUP0_ALWAYS_ON: Amcntenclr0El0 = Amcntenclr0El0::P0.union(Amcntenclr0El0::P1);
 const GROUP0_CONTEXTED: Amcntenclr0El0 = Amcntenclr0El0::P2.union(Amcntenclr0El0::P3);
@@ -248,13 +248,13 @@ static AMU_WORLD_CONTEXT: ExceptionLock<RefCell<PerWorld<AmuWorldContext>>> = Ex
 );
 
 /// Activity Monitor Unit (AMU) extension support.
-pub struct Amu<const CORE_COUNT: usize, CoresImpl: Cores> {
+pub struct Amu<const CORE_COUNT: usize, CoreIndexImpl: CoreIndex> {
     selected_group1_counters: [Amcntenset1El0; CORE_COUNT],
     restrict_group1_access_to_el3: bool,
-    _phantom: PhantomData<CoresImpl>,
+    _phantom: PhantomData<CoreIndexImpl>,
 }
 
-impl<const CORE_COUNT: usize, CoresImpl: Cores> Amu<CORE_COUNT, CoresImpl> {
+impl<const CORE_COUNT: usize, CoreIndexImpl: CoreIndex> Amu<CORE_COUNT, CoreIndexImpl> {
     /// Constructs a new instance of the AMU CPU extension.
     pub const fn new(
         selected_group1_counters: [Amcntenset1El0; CORE_COUNT],
@@ -292,14 +292,14 @@ impl<const CORE_COUNT: usize, CoresImpl: Cores> Amu<CORE_COUNT, CoresImpl> {
     }
 }
 
-impl<const CORE_COUNT: usize, CoresImpl: Cores> Default for Amu<CORE_COUNT, CoresImpl> {
+impl<const CORE_COUNT: usize, CoreIndexImpl: CoreIndex> Default for Amu<CORE_COUNT, CoreIndexImpl> {
     fn default() -> Self {
         Self::new([Amcntenset1El0::empty(); CORE_COUNT], true)
     }
 }
 
-impl<const CORE_COUNT: usize, CoresImpl: Cores + Send + Sync> CpuExtension
-    for Amu<CORE_COUNT, CoresImpl>
+impl<const CORE_COUNT: usize, CoreIndexImpl: CoreIndex> CpuExtension
+    for Amu<CORE_COUNT, CoreIndexImpl>
 {
     fn is_present(&self) -> bool {
         read_id_aa64pfr0_el1().is_feat_amuv1_present()
@@ -322,7 +322,7 @@ impl<const CORE_COUNT: usize, CoresImpl: Cores + Send + Sync> CpuExtension
 
             if Self::group1_counter_is_implemented() {
                 // Enable group 1 counters as defined by the platform
-                let core_index = CoresImpl::core_index();
+                let core_index = CoreIndexImpl::local_index();
                 Self::enable_group1_counters(self.selected_group1_counters[core_index]);
             }
         }
@@ -408,7 +408,7 @@ impl<const CORE_COUNT: usize, CoresImpl: Cores + Send + Sync> CpuExtension
 
         if read_id_aa64pfr0_el1().is_feat_amuv1p1_present() && Self::group1_counter_is_implemented()
         {
-            let core_index = CoresImpl::core_index();
+            let core_index = CoreIndexImpl::local_index();
             Self::enable_group1_counters(self.selected_group1_counters[core_index]);
         }
 

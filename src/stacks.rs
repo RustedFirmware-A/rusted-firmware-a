@@ -13,17 +13,13 @@ pub const STACK_SIZE: usize = 0x2000;
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 mod asm {
     use super::*;
-    use crate::{
-        debug::DEBUG,
-        naked_asm,
-        platform::{Platform, my_core_pos},
-    };
+    use crate::{context::CoreIndex, debug::DEBUG, naked_asm, platform::my_core_pos};
 
     /// Returns a pointer to the top of the stack to use for current CPU.
     ///
     /// Returns the stack pointer in x0. Clobbers x1-x5, x10.
     #[unsafe(naked)]
-    extern "C" fn get_my_stack<PlatformImpl: Platform>() -> *mut () {
+    extern "C" fn get_my_stack<CoreIndexImpl: CoreIndex>() -> *mut () {
         naked_asm!(
             include_str!("asm_macros_common.S"),
             "mov	x10, x30",
@@ -35,7 +31,7 @@ mod asm {
             include_str!("asm_macros_common_purge.S"),
             DEBUG = const DEBUG as i32,
             STACK_SIZE = const STACK_SIZE,
-            plat_my_core_pos = sym my_core_pos::<PlatformImpl>,
+            plat_my_core_pos = sym my_core_pos::<CoreIndexImpl>,
         );
     }
 
@@ -43,13 +39,13 @@ mod asm {
     ///
     /// Clobbers x0-x5, x9, x10.
     #[unsafe(naked)]
-    pub extern "C" fn set_my_stack<PlatformImpl: Platform>() {
+    pub extern "C" fn set_my_stack<CoreIndexImpl: CoreIndex>() {
         naked_asm!(
             "mov	x9, x30",
             "bl 	{get_my_stack}",
             "mov	sp, x0",
             "ret	x9",
-            get_my_stack = sym get_my_stack::<PlatformImpl>,
+            get_my_stack = sym get_my_stack::<CoreIndexImpl>,
         );
     }
 }
@@ -103,7 +99,7 @@ macro_rules! stacks_asm {
                 "early_page_table_end:",
 
                 STACK_SIZE = const $crate::stacks::STACK_SIZE,
-                PLATFORM_CORE_COUNT = const PlatformImpl::CORE_COUNT,
+                PLATFORM_CORE_COUNT = const <<PlatformImpl as $crate::platform::Platform>::CoreIndexImpl as $crate::context::CoreIndex>::CORE_COUNT,
                 CACHE_WRITEBACK_GRANULE = const PlatformImpl::CACHE_WRITEBACK_GRANULE,
                 GRANULE_SIZE = const $crate::pagetable::GRANULE_SIZE,
             );

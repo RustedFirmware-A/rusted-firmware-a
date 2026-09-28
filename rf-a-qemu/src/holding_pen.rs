@@ -2,19 +2,20 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-use super::{Qemu, TRUSTED_MAILBOX_BASE};
+use super::{QemuCoreIndex, TRUSTED_MAILBOX_BASE};
 use core::{arch::asm, mem::offset_of};
 use rf_a_core::{
     aarch64::{dsb_sy, sev},
+    context::CoreIndex,
     naked_asm,
-    platform::{Platform, my_core_pos},
+    platform::my_core_pos,
 };
 
 const HOLD_MAGIC1: u64 = 0xCAFE_CAFE;
 const HOLD_MAGIC2: u64 = 0xBEEF_BEEF;
 const HOLD_STATE_WAIT: u64 = !0;
 
-const HOLD_SLOTS: *mut [HoldSlot; Qemu::CORE_COUNT] = TRUSTED_MAILBOX_BASE as _;
+const HOLD_SLOTS: *mut [HoldSlot; QemuCoreIndex::CORE_COUNT] = TRUSTED_MAILBOX_BASE as _;
 
 #[repr(C, align(64))]
 struct HoldSlot {
@@ -29,7 +30,7 @@ pub fn hold_pen_init() {
     // Other cores are concurrently reading from this region, but aligned 64bit writes are
     // 'single-copy atomic' as they will either complete in full or not at all.
     unsafe {
-        for i in 0..Qemu::CORE_COUNT {
+        for i in 0..QemuCoreIndex::CORE_COUNT {
             let slot_ptr = &raw mut (*HOLD_SLOTS)[i];
 
             (&raw mut (*slot_ptr).entry).write_volatile(HOLD_STATE_WAIT);
@@ -107,6 +108,6 @@ pub unsafe extern "C" fn secondary_cold_boot_setup() -> ! {
         HOLD_MAGIC1 = const HOLD_MAGIC1,
         HOLD_MAGIC2 = const HOLD_MAGIC2,
         HOLD_STATE_WAIT = const HOLD_STATE_WAIT,
-        plat_my_core_pos = sym my_core_pos::<Qemu>,
+        plat_my_core_pos = sym my_core_pos::<QemuCoreIndex>,
     );
 }

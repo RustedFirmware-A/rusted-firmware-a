@@ -107,8 +107,8 @@ pub use lazy_indirect;
 mod tests {
     use super::*;
     use crate::{
-        context::PerCoreState,
-        platform::{Platform, exception_free, test::TestPlatform},
+        context::{CoreIndex, PerCoreState},
+        platform::{exception_free, test::TestCoreIndex},
     };
     use core::cell::RefCell;
     use percore::{ExceptionLock, PerCore};
@@ -142,9 +142,9 @@ mod tests {
     fn lazy_percore() {
         lazy_indirect!(
             TEST_PERCORE,
-            PerCoreState<{TestPlatform::CORE_COUNT}, TestPlatform, u64>,
+            PerCoreState<{TestCoreIndex::CORE_COUNT}, TestCoreIndex, u64>,
             PerCore::new(
-                [const { ExceptionLock::new(RefCell::new(42)) }; TestPlatform::CORE_COUNT]
+                [const { ExceptionLock::new(RefCell::new(42)) }; TestCoreIndex::CORE_COUNT]
             )
         );
 

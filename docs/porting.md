@@ -86,6 +86,7 @@ struct Foo;
 
 unsafe impl Platform for Foo {
     type PageTable = El3PageTable<{ Self::PAGE_HEAP_PAGE_COUNT }>;
+    type CoreIndexImpl = FooCoreIndex;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],
@@ -100,9 +101,8 @@ unsafe impl Platform for Foo {
 This trait has a number of constants, types and methods. Refer to the Rustdoc for details of each
 one, but as an overview:
 
-- `CORE_COUNT` should be the total number of CPU cores on the system. If different configurations
-  are possible and this can vary at runtime, then it should be the highest possible number that are
-  supported.
+- `CoreIndexImpl` implements core counting and MPIDR-to-index conversion, as explained in
+  [MPIDR parsing](#mpidr-parsing).
 - `GIC_CONFIG` contains a list of interrupts which should be configured by EL3, if any.
 - `CPU_EXTENSIONS` contains a list of CPU extensions which should be enabled.
 - `secure_entry_point` and `non_secure_entry_point` should return the entry points that RF-A should
@@ -126,7 +126,16 @@ panic_handler!();
 
 ## MPIDR parsing
 
-TODO: Explain `mpidr_is_valid` and `core_position`.
+Set `Platform::CoreIndexImpl` to a type implementing `rf_a_core::context::CoreIndex`:
+
+- `CORE_COUNT` is the maximum number of CPU cores supported by the platform.
+- `is_valid_mpidr` checks whether an `MpidrEl1` value identifies a core on the platform.
+- `mpidr_to_index` maps a valid `MpidrEl1` to a unique linear index below `CORE_COUNT`.
+  The primary core that boots first on cold boot must have index zero.
+- `local()` has a default implementation that reads the local MPIDR and returns its index.
+
+Implementing `CoreIndex` is unsafe: `mpidr_to_index` runs before a stack is available, so it must
+be a naked function, must not use the stack, and may only clobber registers x0-x5.
 
 ## Architecture service and SoC identification
 

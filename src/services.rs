@@ -131,7 +131,7 @@ pub struct CoreServices<
     pub spmd: Spmd,
     /// The CCA service for communication with TF-RMM.
     #[cfg(feature = "rme")]
-    pub rmmd: Rmmd<PlatformImpl>,
+    pub rmmd: Rmmd<PlatformImpl::RmmdPlatformImpl, PlatformImpl::CoreIndexImpl>,
 }
 
 impl<

@@ -8,7 +8,7 @@ mod power_domain_tree;
 
 use crate::{
     aarch64::{dsb_sy, wfi},
-    context::{CoresImpl, World},
+    context::{CoreIndex, World},
     cpu::{PlatformCpuOps, cpu_handle_power_down_abandon, cpu_power_down},
     platform::Platform,
     services::{Service, owns},
@@ -27,7 +27,6 @@ use core::{
     ops::{Add, AddAssign, Sub},
 };
 use log::debug;
-use percore::Cores;
 use power_domain_tree::{AncestorPowerDomains, CpuPowerNode, PowerDomainTree};
 use spin::mutex::SpinMutex;
 
@@ -1089,7 +1088,7 @@ impl<
     /// Handles `CPU_ON` PSCI call by turning on the CPU identified by the given `target_cpu` MPIDR.
     /// The caller has to provide a valid non-secure entry point for the CPU.
     fn cpu_on(&self, target_cpu: Mpidr, entry: EntryPoint) -> Result<(), ErrorCode> {
-        let cpu_index = try_get_cpu_index_by_mpidr::<PlatformImpl, _>(target_cpu)
+        let cpu_index = try_get_cpu_index_by_mpidr::<PlatformImpl::CoreIndexImpl, _>(target_cpu)
             .ok_or(ErrorCode::InvalidParameters)?;
 
         if !self.platform.is_valid_ns_entrypoint(&entry) {
@@ -1177,8 +1176,9 @@ impl<
         target_affinity: Mpidr,
         lowest_affinity_level: u32,
     ) -> Result<AffinityInfo, ErrorCode> {
-        let cpu_index = try_get_cpu_index_by_mpidr::<PlatformImpl, _>(target_affinity)
-            .ok_or(ErrorCode::InvalidParameters)?;
+        let cpu_index =
+            try_get_cpu_index_by_mpidr::<PlatformImpl::CoreIndexImpl, _>(target_affinity)
+                .ok_or(ErrorCode::InvalidParameters)?;
 
         if lowest_affinity_level as usize > CPU_POWER_LEVEL {
             // We don't support levels higher than CPU_POWER_LEVEL.
@@ -1385,8 +1385,10 @@ impl<
             return Err(ErrorCode::NotSupported);
         }
 
-        if try_get_cpu_index_by_mpidr::<PlatformImpl, PsciPlatformImpl::NodeIndex>(target_cpu)
-            .is_none()
+        if try_get_cpu_index_by_mpidr::<PlatformImpl::CoreIndexImpl, PsciPlatformImpl::NodeIndex>(
+            target_cpu,
+        )
+        .is_none()
             || power_level as usize > MAX_POWER_LEVEL
         {
             return Err(ErrorCode::InvalidParameters);
@@ -1558,7 +1560,8 @@ impl<
     }
 
     fn cpu_index() -> PsciPlatformImpl::NodeIndex {
-        CoresImpl::<PlatformImpl>::core_index().try_into().unwrap()
+        let local_index = PlatformImpl::CoreIndexImpl::local_index();
+        local_index.try_into().unwrap()
     }
 }
 
@@ -1629,20 +1632,16 @@ impl<
 
 /// Returns the corresponding linear core index for the given PSCI MPIDR value.
 ///
-/// For any valid MPIDR this will return a unique value less than `Platform::CORE_COUNT`.
+/// For any valid MPIDR this will return a unique value less than `CoreIndexImpl::CORE_COUNT`.
 /// For any invalid MPIDR it will return `None`.
-pub fn try_get_cpu_index_by_mpidr<PlatformImpl: Platform, NodeIndex: NodeIndexInterface>(
+pub fn try_get_cpu_index_by_mpidr<CoreIndexImpl: CoreIndex, NodeIndex: NodeIndexInterface>(
     psci_mpidr: Mpidr,
 ) -> Option<NodeIndex> {
     // The PSCI MPIDR value doesn't include the MT or U bits, but they might be important for how
     // the platform validates MPIDR values and calculates core position, so add them in.
     let mpidr = MpidrEl1::from_psci_mpidr(psci_mpidr.into());
-    if PlatformImpl::mpidr_is_valid(mpidr) {
-        Some(
-            PlatformImpl::core_position(mpidr.bits())
-                .try_into()
-                .unwrap(),
-        )
+    if CoreIndexImpl::is_valid_mpidr(mpidr) {
+        Some(CoreIndexImpl::mpidr_to_index(mpidr).try_into().unwrap())
     } else {
         None
     }
@@ -1653,7 +1652,7 @@ mod tests {
     use super::*;
     use crate::{
         platform::test::{
-            PSCI_MAX_POWER_LEVEL, TestPlatform, TestPowerState, TestPsciPlatformImpl,
+            PSCI_MAX_POWER_LEVEL, TestCoreIndex, TestPlatform, TestPowerState, TestPsciPlatformImpl,
         },
         services::ffa::spmd::TestSpm,
     };
@@ -1666,12 +1665,12 @@ mod tests {
 
     const PSCI_STATE_COUNT: usize = PSCI_MAX_POWER_LEVEL + 1;
     const NON_CPU_DOMAIN_COUNT: usize =
-        TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT;
+        TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestCoreIndex::CORE_COUNT;
 
     type TestPsci = Psci<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
-        { TestPlatform::CORE_COUNT },
+        { TestCoreIndex::CORE_COUNT },
         NON_CPU_DOMAIN_COUNT,
         TestPlatform,
         TestPsciPlatformImpl,
@@ -1681,7 +1680,7 @@ mod tests {
     type TestPsciCompositePowerState = PsciCompositePowerState<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
-        { TestPlatform::CORE_COUNT },
+        { TestCoreIndex::CORE_COUNT },
         NON_CPU_DOMAIN_COUNT,
         u8,
         TestPowerState,
@@ -1692,7 +1691,7 @@ mod tests {
         context_id: 0xfedc_ba98_7654_3210,
     };
 
-    const CPU_MPIDRS: [Mpidr; TestPlatform::CORE_COUNT] = [
+    const CPU_MPIDRS: [Mpidr; TestCoreIndex::CORE_COUNT] = [
         Mpidr::from_aff3210(0, 0, 0, 0),
         Mpidr::from_aff3210(0, 0, 0, 1),
         Mpidr::from_aff3210(0, 0, 0, 2),
@@ -1829,7 +1828,7 @@ mod tests {
             let _ = psci.handle_cpu_boot();
         }
 
-        for cpu_index in 1..TestPlatform::CORE_COUNT {
+        for cpu_index in 1..TestCoreIndex::CORE_COUNT {
             check_ancestor_state(&psci, cpu_index, &TestPsciCompositePowerState::RUN.states);
         }
 
@@ -2037,7 +2036,7 @@ mod tests {
     fn psci_composite_power_state_validate_state_coordination_single_lvl0_state_is_valid() {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2059,7 +2058,7 @@ mod tests {
     {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2082,7 +2081,7 @@ mod tests {
     fn psci_composite_power_state_validate_state_coordination_lvl1_off_state_is_valid() {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2106,7 +2105,7 @@ mod tests {
     fn psci_composite_power_state_validate_state_coordination_shallower_lvl1_state_is_valid() {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2130,7 +2129,7 @@ mod tests {
     fn psci_composite_power_state_validate_state_coordination_all_off_is_valid() {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2171,7 +2170,7 @@ mod tests {
     fn psci_composite_power_state_validate_state_coordination_denies_if_not_last_at_level() {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2197,7 +2196,7 @@ mod tests {
     fn psci_composite_power_state_validate_state_coordination_denies_if_peer_still_running() {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2220,7 +2219,7 @@ mod tests {
     fn psci_composite_power_state_validate_state_coordination_denies_lvl2_even_if_lv1_is_valid() {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2247,7 +2246,7 @@ mod tests {
      {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 
@@ -2274,7 +2273,7 @@ mod tests {
      {
         let tree = setup_power_domain_tree();
 
-        for index in 0..TestPlatform::CORE_COUNT {
+        for index in 0..TestCoreIndex::CORE_COUNT {
             set_cpu_power_state_by_index(&tree, index, TestPowerState::RUN);
         }
 

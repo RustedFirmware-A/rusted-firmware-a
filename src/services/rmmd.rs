@@ -15,15 +15,15 @@ use core::{
     sync::atomic::{AtomicU8, Ordering},
 };
 use log::{debug, error, warn};
-use percore::{Cores, ExceptionLock, derive::percore};
+use percore::{ExceptionLock, derive::percore};
 use spin::{Once, mutex::SpinMutex};
 
 use crate::{
     aarch64::dsb_osh,
-    context::{CoresImpl, World},
+    context::{CoreIndex, World},
     gpt::{GPIAccessType, GranuleProtection, PA},
     pagetable::flush_dcache_to_popa_range,
-    platform::{Platform, exception_free},
+    platform::exception_free,
     services::{
         Service, owns,
         rmmd::{
@@ -197,15 +197,17 @@ static RMMD_CORE_LOCAL: ExceptionLock<RefCell<RmmdLocal>> =
 ///
 /// This is described at
 /// <https://trustedfirmware-a.readthedocs.io/en/latest/components/rmm-el3-comms-spec.html>
-pub struct Rmmd<PlatformImpl: Platform> {
+pub struct Rmmd<RmmdPlatformImpl: RmmdPlatform, CoreIndexImpl: CoreIndex> {
     attestation_token_read_index: SpinMutex<usize>,
     // Boot status of RMM across all cores.
     // If RMM fails to boot on any core then it is disabled for all cores.
     rmm_boot_state: AtomicU8,
-    _platform: PhantomData<PlatformImpl>,
+    _phantom: PhantomData<(RmmdPlatformImpl, CoreIndexImpl)>,
 }
 
-impl<PlatformImpl: Platform> Service for Rmmd<PlatformImpl> {
+impl<RmmdPlatformImpl: RmmdPlatform, CoreIndexImpl: CoreIndex> Service
+    for Rmmd<RmmdPlatformImpl, CoreIndexImpl>
+{
     owns! {OwningEntityNumber::STANDARD_SECURE, 0x0150..=0x0211}
 
     fn handle_non_secure_smc(&self, regs: &mut SmcReturn) -> World {
@@ -234,7 +236,9 @@ impl<PlatformImpl: Platform> Service for Rmmd<PlatformImpl> {
     }
 }
 
-impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
+impl<CoreIndexImpl: CoreIndex, RmmdPlatformImpl: RmmdPlatform>
+    Rmmd<RmmdPlatformImpl, CoreIndexImpl>
+{
     pub(super) fn new() -> Self {
         // Safety:
         // - This function is called after initializing the MMU and pagetable.
@@ -242,8 +246,8 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
         //   upon return, before another call is made.
         // - This function is called before the first switch to Realm world and, similarly to above,
         //   the reference is dropped before that switch.
-        let buf = unsafe { get_shared_buffer::<PlatformImpl::RmmdPlatformImpl>() };
-        PlatformImpl::RmmdPlatformImpl::rme_prepare_manifest(buf);
+        let buf = unsafe { get_shared_buffer::<RmmdPlatformImpl>() };
+        RmmdPlatformImpl::rme_prepare_manifest(buf);
         debug!("RMM Boot Manifest ready");
 
         #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
@@ -258,7 +262,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
         Self {
             attestation_token_read_index: SpinMutex::new(0),
             rmm_boot_state: AtomicU8::new(RmmBootState::Unknown as u8),
-            _platform: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -279,12 +283,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 .unwrap_or_default()
         });
 
-        [
-            CoresImpl::<PlatformImpl>::core_index() as u64,
-            activation_token,
-            0,
-            0,
-        ]
+        [CoreIndexImpl::local_index() as u64, activation_token, 0, 0]
     }
 
     /// Performs Rmmd-related setup required for the initial boot of secondary cores and
@@ -522,12 +521,10 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 // - This function never calls again `get_shared_buffer()`, thus the reference will
                 //   be dropped upon return, before another call is made.
                 // - Similarly to the above, this function does not switch to the Realm World.
-                let shared_buffer = unsafe {
-                    get_shared_buffer_slice::<PlatformImpl::RmmdPlatformImpl>(buf_pa, buf_size)?
-                };
+                let shared_buffer =
+                    unsafe { get_shared_buffer_slice::<RmmdPlatformImpl>(buf_pa, buf_size)? };
 
-                let key_size =
-                    PlatformImpl::RmmdPlatformImpl::read_attestation_key(shared_buffer, ecc_curve)?;
+                let key_size = RmmdPlatformImpl::read_attestation_key(shared_buffer, ecc_curve)?;
 
                 regs.set_from(RmmAttestGetRealmKeyResponse { key_size });
                 Ok(World::Realm)
@@ -556,10 +553,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 //   be dropped upon return, before another call is made.
                 // - Similarly to the above, this function does not switch to the Realm World.
                 let shared_buffer = unsafe {
-                    get_shared_buffer_slice::<PlatformImpl::RmmdPlatformImpl>(
-                        buf_pa,
-                        buf_size.max(c_size),
-                    )?
+                    get_shared_buffer_slice::<RmmdPlatformImpl>(buf_pa, buf_size.max(c_size))?
                 };
 
                 // If not generating the first chunck, `c_size` will be zero and the hash will not
@@ -567,7 +561,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
                 let mut hash = [0u8; MAX_HASH_SIZE];
                 hash[..c_size].copy_from_slice(&shared_buffer[..c_size]);
 
-                let (size, rem) = PlatformImpl::RmmdPlatformImpl::read_attestation_token(
+                let (size, rem) = RmmdPlatformImpl::read_attestation_token(
                     &mut shared_buffer[..buf_size],
                     &hash[..c_size],
                     *idx,
@@ -631,7 +625,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
             } else {
                 warn!(
                     "Received multiple `RMM_BOOT_COMPLETE` SMCs from core {}",
-                    CoresImpl::<PlatformImpl>::core_index()
+                    CoreIndexImpl::local_index()
                 );
 
                 regs.set_from(NOT_SUPPORTED);
@@ -642,7 +636,7 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
 
     /// Returns arguments to pass to the RMM entrypoint.
     pub fn entrypoint_args(&self) -> [u64; 8] {
-        let core_linear_id = CoresImpl::<PlatformImpl>::core_index() as u64;
+        let core_linear_id = CoreIndexImpl::local_index() as u64;
         if self.boot_success() {
             // When warmbooting a PE for the first time, it should only receive the core id as
             // per the RMM-EL3 warmboot interface. Activation token is set to 0 as it was not
@@ -658,8 +652,8 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
             [
                 core_linear_id,
                 RMM_EL3_INTERFACE_VERSION.into(),
-                PlatformImpl::CORE_COUNT as u64,
-                PlatformImpl::RmmdPlatformImpl::RMM_SHARED_BUFFER_START as u64,
+                CoreIndexImpl::CORE_COUNT as u64,
+                RmmdPlatformImpl::RMM_SHARED_BUFFER_START as u64,
                 0,
                 0,
                 0,
@@ -672,9 +666,9 @@ impl<PlatformImpl: Platform> Rmmd<PlatformImpl> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::test::TestPlatform;
+    use crate::platform::test::{TestCoreIndex, TestRmmdPlatformImpl};
 
-    fn setup() -> Rmmd<TestPlatform> {
+    fn setup() -> Rmmd<TestRmmdPlatformImpl, TestCoreIndex> {
         Rmmd::new()
     }
 

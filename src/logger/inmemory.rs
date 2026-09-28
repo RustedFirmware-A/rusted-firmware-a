@@ -137,7 +137,7 @@ pub struct PerCoreMemoryLogger<
     const BUFFER_SIZE: usize,
     PlatformImpl: Platform,
 > {
-    logs: PerCoreState<CORE_COUNT, PlatformImpl, &'a mut MemoryLogger<BUFFER_SIZE>>,
+    logs: PerCoreState<CORE_COUNT, PlatformImpl::CoreIndexImpl, &'a mut MemoryLogger<BUFFER_SIZE>>,
 }
 
 impl<'a, const CORE_COUNT: usize, const BUFFER_SIZE: usize, PlatformImpl: Platform>

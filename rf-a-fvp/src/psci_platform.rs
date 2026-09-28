@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 use crate::{
-    Fvp, GIC,
+    Fvp, FvpCoreIndex, GIC,
     config::{FVP_CLUSTER_COUNT, FVP_MAX_CPUS_PER_CLUSTER},
     map_peripheral,
 };
@@ -17,6 +17,7 @@ use arm_fvp_base_pac::{
 };
 use rf_a_core::{
     aarch64::{dsb_ish, wfi},
+    context::CoreIndex,
     platform::Platform,
     reexports::{
         arm_gic::gicv3::{GicDistributorContext, GicRedistributorContext},
@@ -196,7 +197,7 @@ type NodeIndex = u8;
 type FvpCompositePowerState = PsciCompositePowerState<
     PSCI_STATE_COUNT,
     PSCI_MAX_POWER_LEVEL,
-    { Fvp::CORE_COUNT },
+    { FvpCoreIndex::CORE_COUNT },
     PSCI_NON_CPU_DOMAIN_COUNT,
     NodeIndex,
     FvpPowerState,
@@ -206,11 +207,12 @@ impl
     PsciPlatformInterface<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
-        { Fvp::CORE_COUNT },
+        { <<Fvp as Platform>::CoreIndexImpl as CoreIndex>::CORE_COUNT },
         PSCI_NON_CPU_DOMAIN_COUNT,
     > for FvpPsciPlatformImpl<'_>
 {
-    const POWER_DOMAIN_COUNT: usize = PSCI_NON_CPU_DOMAIN_COUNT + Fvp::CORE_COUNT;
+    const POWER_DOMAIN_COUNT: usize =
+        PSCI_NON_CPU_DOMAIN_COUNT + <<Fvp as Platform>::CoreIndexImpl as CoreIndex>::CORE_COUNT;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::NODE_HW_STATE
         .union(PsciPlatformOptionalFeatures::SYSTEM_SUSPEND)

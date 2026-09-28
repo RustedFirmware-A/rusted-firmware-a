@@ -10,12 +10,16 @@ pub mod test;
 #[cfg(feature = "rme")]
 use crate::services::rmmd::RmmdPlatform;
 use crate::{
-    context::EntryPointInfo, cpu_extensions::CpuExtension, crash_console::CrashConsole, gicv3,
-    logger::LogSink, pagetable::MAIR_IWBRWA_OWBRWA_NTR, services::Service,
+    context::{CoreIndex, EntryPointInfo},
+    cpu_extensions::CpuExtension,
+    crash_console::CrashConsole,
+    gicv3,
+    logger::LogSink,
+    pagetable::MAIR_IWBRWA_OWBRWA_NTR,
+    services::Service,
 };
 use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
-use arm_sysregs::el1::registers::MpidrEl1;
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::my_core_pos;
 #[cfg(any(test, feature = "fakes"))]
@@ -39,11 +43,6 @@ pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
 ///
 /// # Safety
 ///
-/// The implementation of `core_position` must be a naked function which doesn't use the stack, and
-/// only clobbers registers x0-x5. For any valid MPIDR value it must always return an index less than
-/// `CORE_COUNT`, and must return a different index for different MPIDR values. The index must be 0
-/// for the primary core that boots first on cold boot.
-///
 /// The implementations of `cold_boot_handler`, `dump_registers` and `panic_handler` must be naked
 /// functions which don't use the stack, and only clobber the registers they are documented to
 /// clobber.
@@ -53,9 +52,6 @@ pub fn exception_free<T>(f: impl FnOnce(ExceptionFree) -> T) -> T {
 ///
 /// (These requirements don't apply to the test platform, as it is only used in unit tests.)
 pub unsafe trait Platform: Sized + Send + Sync {
-    /// The number of CPU cores.
-    const CORE_COUNT: usize;
-
     /// The size in bytes of the largest cache line across all the cache levels in the platform.
     const CACHE_WRITEBACK_GRANULE: usize;
 
@@ -82,6 +78,9 @@ pub unsafe trait Platform: Sized + Send + Sync {
     ///
     /// Should be `El3PageTable<Self::PAGE_HEAP_PAGE_COUNT>`.
     type PageTable: 'static;
+
+    /// Platform dependent `CoreIndex` implementation type.
+    type CoreIndexImpl: CoreIndex;
 
     /// Platform dependent `PsciPlatformInterface` implementation type.
     type PsciPlatformImpl;
@@ -144,21 +143,9 @@ pub unsafe trait Platform: Sized + Send + Sync {
     #[cfg(feature = "rme")]
     fn realm_entry_point() -> EntryPointInfo;
 
-    /// Returns whether the given MPIDR is valid for this platform.
-    fn mpidr_is_valid(mpidr: MpidrEl1) -> bool;
-
     /// Returns an option with a PSCI platform implementation handle. The function should only be
     /// called once, when it returns `Some`. All subsequent calls must return `None`.
     fn psci_platform() -> Option<Self::PsciPlatformImpl>;
-
-    /// Given a valid MPIDR value, returns the corresponding linear core index.
-    ///
-    /// The implementation must never return the same index for two different valid MPIDR values,
-    /// and must never return a value greater than or equal to the corresponding
-    /// `Platform::CORE_COUNT`.
-    ///
-    /// For an invalid MPIDR value no guarantees are made about the return value.
-    extern "C" fn core_position(mpidr: u64) -> usize;
 
     /// Performs platform-specific initialisation on early cold boot before running Rust code.
     ///
@@ -201,15 +188,15 @@ mod asm {
     use super::*;
     use crate::naked_asm;
 
-    /// Uses `PlatformImpl::core_position` to get the index of the calling CPU.
+    /// Uses `PlatformImpl::CoreIndexImpl::mpidr_to_index` to get the index of the calling CPU.
     ///
     /// Clobbers x0-x5.
     #[unsafe(naked)]
-    pub extern "C" fn my_core_pos<PlatformImpl: Platform>() -> usize {
+    pub extern "C" fn my_core_pos<CoreIndexImpl: CoreIndex>() -> usize {
         naked_asm!(
             "mrs	x0, mpidr_el1",
-            "b	{core_position}",
-            core_position = sym PlatformImpl::core_position,
+            "b	{mpidr_to_index}",
+            mpidr_to_index = sym CoreIndexImpl::mpidr_to_index,
         );
     }
 }

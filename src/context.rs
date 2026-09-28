@@ -72,7 +72,7 @@ use arm_sysregs::{
     el3::accessors::read_scr_el3,
 };
 use arm_sysregs::{
-    el1::accessors::read_mpidr_el1,
+    el1::{accessors::read_mpidr_el1, registers::MpidrEl1},
     el3::{
         accessors::{read_tpidr_el3, write_cptr_el3, write_mpam3_el3, write_scr_el3},
         registers::{CptrEl3, EsrEl3, MdcrEl3, Mpam3El3, ScrEl3, SpsrEl3},
@@ -96,8 +96,8 @@ use spin::Once;
 pub const CPU_DATA_CONTEXT_NUM: usize = if cfg!(feature = "rme") { 3 } else { 2 };
 
 /// Per-core mutable state.
-pub type PerCoreState<const CORE_COUNT: usize, PlatformImpl, T> =
-    PerCore<[ExceptionLock<RefCell<T>>; CORE_COUNT], CoresImpl<PlatformImpl>>;
+pub type PerCoreState<const CORE_COUNT: usize, CoreIndexImpl, T> =
+    PerCore<[ExceptionLock<RefCell<T>>; CORE_COUNT], CoresImpl<CoreIndexImpl>>;
 
 /// A world which a CPU may be in.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -118,16 +118,46 @@ impl World {
     }
 }
 
+/// Handles all linear core index related operations.
+///
+/// # Safety
+///
+/// The implementation of `mpidr_to_index` must be a naked function which doesn't use the stack, and
+/// only clobbers registers x0-x5. For any valid MPIDR value it must always return an index less
+/// than `CORE_COUNT`, and must return a different index for different MPIDR values. The index must
+/// be 0 for the primary core that boots first on cold boot.
+/// The implementation of `local_index` must be consistent with `mpidr_to_index`.
+pub unsafe trait CoreIndex: Send + Sync {
+    /// The maximum number of CPU cores that the platform may have.
+    const CORE_COUNT: usize;
+
+    /// Returns whether the given MPIDR is valid for this platform.
+    fn is_valid_mpidr(mpidr: MpidrEl1) -> bool;
+
+    /// Given a valid MPIDR value, returns the corresponding linear core index.
+    ///
+    /// The implementation must never return the same index for two different valid MPIDR values,
+    /// and must never return a value greater than or equal to the corresponding `Self::CORE_COUNT`.
+    ///
+    /// For an invalid MPIDR value no guarantees are made about the return value.
+    extern "C" fn mpidr_to_index(mpidr: MpidrEl1) -> usize;
+
+    /// Returns the linear index of the local core.
+    fn local_index() -> usize {
+        Self::mpidr_to_index(read_mpidr_el1())
+    }
+}
+
 /// Implementation of the `Cores` trait to get the index of the current CPU core.
-pub struct CoresImpl<PlatformImpl: Platform> {
-    _platform: PhantomData<PlatformImpl>,
+pub struct CoresImpl<CoreIndexImpl: CoreIndex> {
+    _phantom: PhantomData<CoreIndexImpl>,
 }
 
 // SAFETY: This implementation never returns the same index for different cores because
-// `core_position` is guaranteed not to.
-unsafe impl<PlatformImpl: Platform> Cores for CoresImpl<PlatformImpl> {
+// `CoreIndexImpl::local()` is guaranteed not to.
+unsafe impl<CoreIndexImpl: CoreIndex> Cores for CoresImpl<CoreIndexImpl> {
     fn core_index() -> usize {
-        PlatformImpl::core_position(read_mpidr_el1().bits())
+        CoreIndexImpl::local_index()
     }
 }
 
@@ -1232,14 +1262,14 @@ mod asm {
     ///
     /// Clobbers x0-x5, x10.
     #[unsafe(naked)]
-    pub extern "C" fn percore_init_offset<PlatformImpl: Platform>() {
+    pub extern "C" fn percore_init_offset<CoreIndexImpl: CoreIndex>() {
         naked_asm!(
             "mov x10, x30",
             "bl {plat_my_core_pos}",
             "bl {percore_calculate_local_offset}",
             "msr tpidr_el3, x0",
             "ret x10",
-            plat_my_core_pos = sym my_core_pos::<PlatformImpl>,
+            plat_my_core_pos = sym my_core_pos::<CoreIndexImpl>,
             percore_calculate_local_offset = sym percore_calculate_local_offset,
         );
     }

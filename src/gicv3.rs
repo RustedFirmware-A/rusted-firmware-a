@@ -7,7 +7,7 @@
 
 use crate::{
     aarch64::{dsb_sy, isb},
-    context::{CoresImpl, World},
+    context::{CoreIndex, World},
     platform::Platform,
 };
 use arm_gic::{
@@ -25,7 +25,6 @@ use arm_sysregs::{
 };
 use core::{marker::PhantomData, panic, ptr::NonNull};
 use log::debug;
-use percore::Cores;
 use spin::mutex::SpinMutex;
 
 const GIC_PRI_MASK: u8 = 0xff;
@@ -95,13 +94,13 @@ pub enum InterruptType {
 }
 
 /// Registry for storing GIC redistributor instances.
-struct GicRedistributorRegistry<'a, const CORE_COUNT: usize, PlatformImpl: Platform> {
+struct GicRedistributorRegistry<'a, const CORE_COUNT: usize, CoreIndexImpl: CoreIndex> {
     redistributors: [SpinMutex<GicRedistributor<'a>>; CORE_COUNT],
-    _platform: PhantomData<PlatformImpl>,
+    _phantom: PhantomData<CoreIndexImpl>,
 }
 
-impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform>
-    GicRedistributorRegistry<'a, CORE_COUNT, PlatformImpl>
+impl<'a, const CORE_COUNT: usize, CoreIndexImpl: CoreIndex>
+    GicRedistributorRegistry<'a, CORE_COUNT, CoreIndexImpl>
 {
     /// # Safety
     /// The caller must ensure that `base` points to a continiously mapped GIC redistributor memory
@@ -113,16 +112,16 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform>
         // Safety: The function propagates the safety requirements to the caller.
         for redist in unsafe { GicRedistributorIterator::new(base)? } {
             let mpidr = MpidrEl1::from_psci_mpidr(redist.typer().core_mpidr());
-            assert!(PlatformImpl::mpidr_is_valid(mpidr));
+            assert!(CoreIndexImpl::is_valid_mpidr(mpidr));
 
-            let core_index = PlatformImpl::core_position(mpidr.bits());
+            let core_index = CoreIndexImpl::mpidr_to_index(mpidr);
 
             redistributors[core_index] = Some(SpinMutex::new(redist));
         }
 
         Ok(Self {
             redistributors: redistributors.map(|r| r.unwrap()),
-            _platform: PhantomData,
+            _phantom: PhantomData,
         })
     }
 
@@ -133,19 +132,19 @@ impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform>
 
     /// Get the redistributor of the local core.
     pub fn local_redistributor(&self) -> &SpinMutex<GicRedistributor<'a>> {
-        self.redistributor(CoresImpl::<PlatformImpl>::core_index())
+        self.redistributor(CoreIndexImpl::local_index())
     }
 }
 
 /// The `Gic` structure contains the driver instances of the GIC distributor and redistributors. Its
 /// implementation offers platform independent functions for initializing, enabling, disabling,
 /// saving and restoring the various components of the GIC peripheral.
-pub struct Gic<'a, const CORE_COUNT: usize, PlatformImpl: Platform> {
+pub struct Gic<'a, const CORE_COUNT: usize, CoreIndexImpl: CoreIndex> {
     distributor: SpinMutex<GicDistributor<'a>>,
-    redistributors: GicRedistributorRegistry<'a, CORE_COUNT, PlatformImpl>,
+    redistributors: GicRedistributorRegistry<'a, CORE_COUNT, CoreIndexImpl>,
 }
 
-impl<'a, const CORE_COUNT: usize, PlatformImpl: Platform> Gic<'a, CORE_COUNT, PlatformImpl> {
+impl<'a, const CORE_COUNT: usize, CoreIndexImpl: CoreIndex> Gic<'a, CORE_COUNT, CoreIndexImpl> {
     /// # Safety
     /// The caller must ensure that `gicr_base` points to a continiously mapped GIC redistributor
     /// memory area that spans until the last redistributor block where GICR_TYPER.Last is set.
@@ -377,7 +376,7 @@ pub fn handle_group0_interrupt<PlatformImpl: Platform>() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::test::TestPlatform;
+    use crate::{context::CoreIndex, platform::test::TestCoreIndex};
     use arm_gic::gicv3::registers::{Pidr2, Waker};
     use zerocopy::{FromBytes, FromZeros, transmute_mut};
 
@@ -385,18 +384,18 @@ mod tests {
     #[derive(Clone, Eq, PartialEq, FromBytes)]
     struct FakeGic {
         gicd_regs: Gicd,
-        gicr_regs: [GicrSgi; TestPlatform::CORE_COUNT],
+        gicr_regs: [GicrSgi; TestCoreIndex::CORE_COUNT],
     }
 
     impl FakeGic {
-        fn build(&mut self) -> Gic<'_, { TestPlatform::CORE_COUNT }, TestPlatform> {
-            for (core_index, mpidr) in TestPlatform::MPIDR_VALUES.iter().enumerate() {
+        fn build(&mut self) -> Gic<'_, { TestCoreIndex::CORE_COUNT }, TestCoreIndex> {
+            for (core_index, mpidr) in TestCoreIndex::MPIDR_VALUES.iter().enumerate() {
                 let typer: &mut u64 = transmute_mut!(&mut self.gicr_regs[core_index].gicr.typer.0);
                 *typer = u64::from(mpidr.aff3()) << 56
                     | u64::from(mpidr.aff2()) << 48
                     | u64::from(mpidr.aff1()) << 40
                     | u64::from(mpidr.aff0()) << 32;
-                if core_index == TestPlatform::CORE_COUNT - 1 {
+                if core_index == TestCoreIndex::CORE_COUNT - 1 {
                     // Mark the last redistributor as being the last.
                     *typer |= 1 << 4;
                 }

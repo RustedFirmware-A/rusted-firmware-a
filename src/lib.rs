@@ -33,7 +33,7 @@ pub mod stacks;
 #[cfg(feature = "pauth")]
 use crate::cpu_extensions::pauth;
 use crate::{
-    context::{CoresImpl, CpuStates},
+    context::{CoreIndex, CpuStates},
     cpu::PlatformCpuOps,
     errata_framework::PlatformErrata,
     gicv3::Gic,
@@ -50,7 +50,6 @@ use core::arch::global_asm;
 #[cfg(not(any(test, feature = "fakes")))]
 use include_first::include_first;
 use log::{debug, info};
-use percore::Cores;
 use spin::{LazyLock, Once};
 
 /// Handles early initialisation at the start of a cold boot, and then runs the main loop.
@@ -65,7 +64,7 @@ pub fn coldboot<
 >(
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
-    gic: &'static Once<Gic<'static, CORE_COUNT, PlatformImpl>>,
+    gic: &'static Once<Gic<'static, CORE_COUNT, PlatformImpl::CoreIndexImpl>>,
     el3_runtime: &'static LazyLock<
         El3Runtime<
             CORE_COUNT,
@@ -142,7 +141,7 @@ pub trait WarmbootEntrypoint {
 extern "C" fn psci_warmboot_entrypoint<PlatformImpl: Platform + WarmbootEntrypoint>() -> ! {
     debug!(
         "Warmboot on core #{}",
-        CoresImpl::<PlatformImpl>::core_index()
+        PlatformImpl::CoreIndexImpl::local_index()
     );
 
     // SAFETY: This function never returns, so it is safe to enable PAuth part way through it.
@@ -209,8 +208,8 @@ mod asm {
             enable_mmu = sym enable_mmu::<PlatformImpl>,
             psci_warmboot_entrypoint = sym psci_warmboot_entrypoint::<PlatformImpl>,
             apply_reset_errata = sym PlatformImpl::apply_reset_errata,
-            plat_set_my_stack = sym set_my_stack::<PlatformImpl>,
-            percore_init_offset = sym percore_init_offset::<PlatformImpl>,
+            plat_set_my_stack = sym set_my_stack::<PlatformImpl::CoreIndexImpl>,
+            percore_init_offset = sym percore_init_offset::<PlatformImpl::CoreIndexImpl>,
             init_sctlr2_el3 = sym init_sctlr2_el3,
         );
     }
@@ -270,8 +269,8 @@ macro_rules! main_asm {
                     enable_mmu = sym $crate::pagetable::enable_mmu::<PlatformImpl>,
                     bl31_main = sym super::bl31_main,
                     apply_reset_errata = sym <PlatformImpl as $crate::errata_framework::PlatformErrata>::apply_reset_errata,
-                    plat_set_my_stack = sym $crate::stacks::set_my_stack::<PlatformImpl>,
-                    percore_init_offset = sym $crate::context::percore_init_offset::<PlatformImpl>,
+                    plat_set_my_stack = sym $crate::stacks::set_my_stack::<<PlatformImpl as $crate::platform::Platform>::CoreIndexImpl>,
+                    percore_init_offset = sym $crate::context::percore_init_offset::<<PlatformImpl as $crate::platform::Platform>::CoreIndexImpl>,
                     init_sctlr2_el3 = sym $crate::cpu_extensions::sctlr2::init_sctlr2_el3,
                     percore_copy_secondary_data = sym $crate::reexports::percore::derive::aarch64::percore_copy_secondary_data,
                 );
@@ -340,9 +339,11 @@ global_asm!(include_str!("gic_debug_macros_data.S"));
 #[macro_export]
 macro_rules! statics {
     ($platform:ty) => {
+        const CORE_COUNT_: usize = <<$platform as $crate::platform::Platform>::CoreIndexImpl as $crate::context::CoreIndex>::CORE_COUNT;
+
         const _: () = assert!(
             EARLY_PAGE_TABLE_SIZE
-                <= (<$platform as $crate::platform::Platform>::CORE_COUNT - 1)
+                <= (CORE_COUNT_ - 1)
                     * $crate::stacks::STACK_SIZE,
             "The early page tables do not fit into the secondary core stack range."
         );
@@ -351,8 +352,8 @@ macro_rules! statics {
 
         static GIC: $crate::reexports::spin::Once<
             $crate::gicv3::Gic<
-                { <$platform as $crate::platform::Platform>::CORE_COUNT },
-                $platform,
+                CORE_COUNT_,
+                <$platform as $crate::platform::Platform>::CoreIndexImpl,
             >,
         > = $crate::reexports::spin::Once::new();
 
@@ -372,11 +373,11 @@ macro_rules! statics {
         /// The number of PSCI power domains other than CPUs.
         pub const NON_CPU_DOMAIN_COUNT: usize =
             <$platform as $crate::platform::Platform>::PsciPlatformImpl::POWER_DOMAIN_COUNT
-                - <$platform as $crate::platform::Platform>::CORE_COUNT;
+                - CORE_COUNT_;
 
         static CORE_SERVICES: $crate::reexports::spin::LazyLock<
             $crate::services::CoreServices<
-                { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                CORE_COUNT_,
                 PSCI_STATE_COUNT,
                 MAX_POWER_LEVEL_,
                 NON_CPU_DOMAIN_COUNT,
@@ -389,7 +390,7 @@ macro_rules! statics {
         /// The EL3 runtime instance.
         pub(crate) static EL3_RUNTIME: $crate::reexports::spin::LazyLock<
             $crate::services::El3Runtime<
-                { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                CORE_COUNT_,
                 PSCI_STATE_COUNT,
                 MAX_POWER_LEVEL_,
                 NON_CPU_DOMAIN_COUNT,
@@ -408,7 +409,7 @@ macro_rules! statics {
         #[cfg_attr(test, allow(unused))]
         extern "C" fn bl31_main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) -> ! {
             $crate::coldboot::<
-                { <$platform as $crate::platform::Platform>::CORE_COUNT },
+                CORE_COUNT_,
                 PSCI_STATE_COUNT,
                 MAX_POWER_LEVEL_,
                 NON_CPU_DOMAIN_COUNT,

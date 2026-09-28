@@ -12,7 +12,7 @@ use crate::services::rmmd::{
 };
 use crate::{
     aarch64::sev,
-    context::EntryPointInfo,
+    context::{CoreIndex, EntryPointInfo},
     cpu::{Cpu, CpuOps, PlatformCpuOps},
     cpu_extensions::CpuExtension,
     crash_console::CrashConsole,
@@ -65,12 +65,12 @@ define_errata_list!(
     ]
 );
 
-/// A fake platform for unit tests.
-pub struct TestPlatform;
+/// `CoreIndex` implementation for tests.
+pub struct TestCoreIndex;
 
-impl TestPlatform {
+impl TestCoreIndex {
     /// The MPIDR values for each core, for use in tests.
-    pub const MPIDR_VALUES: [MpidrEl1; Self::CORE_COUNT] = [
+    pub const MPIDR_VALUES: [MpidrEl1; TestCoreIndex::CORE_COUNT] = [
         MpidrEl1::from_bits_retain(0x0000_0000_0000_0000),
         MpidrEl1::from_bits_retain(0x0000_0000_0000_0001),
         MpidrEl1::from_bits_retain(0x0000_0000_0000_0002),
@@ -87,17 +87,59 @@ impl TestPlatform {
     ];
 }
 
-// SAFETY: The test platform is exempt from the usual safety requirements on `core_position`,
-// because it is only used in unit tests and so `TestPlatform::core_position` is never called from
+// SAFETY: The test platform is exempt from the usual safety requirements on `mpidr_to_index`,
+// because it is only used in unit tests and so `TestCoreIndex::mpidr_to_index` is never called from
 // assembly code.
-unsafe impl Platform for TestPlatform {
+unsafe impl CoreIndex for TestCoreIndex {
     const CORE_COUNT: usize = 13;
+
+    fn is_valid_mpidr(mpidr: MpidrEl1) -> bool {
+        let system_index = mpidr.aff3();
+        let soc_index = mpidr.aff2();
+        let cluster_index = usize::from(mpidr.aff1());
+        let core_index = usize::from(mpidr.aff0());
+
+        // Validate System, SoC and Cluster indexes
+        if system_index != SYSTEM_DOMAIN_INDEX
+            || soc_index >= SOCS_PER_SYSTEM
+            || cluster_index >= CLUSTERS_PER_SOC
+        {
+            return false;
+        }
+
+        // Validate Core index
+        let is_last_cluster =
+            soc_index == SOCS_PER_SYSTEM - 1 && cluster_index == CLUSTERS_PER_SOC - 1;
+        if is_last_cluster {
+            core_index < CORES_PER_CLUSTER_LAST
+        } else {
+            core_index < CORES_PER_CLUSTER
+        }
+    }
+
+    extern "C" fn mpidr_to_index(mpidr: MpidrEl1) -> usize {
+        assert!(Self::is_valid_mpidr(mpidr));
+
+        let soc_index = usize::from(mpidr.aff2());
+        let cluster_index = usize::from(mpidr.aff1());
+        let core_index = usize::from(mpidr.aff0());
+
+        ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
+    }
+}
+
+/// A fake platform for unit tests.
+pub struct TestPlatform;
+
+// Safety: The requirements does not appliy to test implementation.
+unsafe impl Platform for TestPlatform {
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
     const PAGE_HEAP_PAGE_COUNT: usize = 6;
 
     type LogSinkImpl = StdOutSink;
     type PageTable = El3PageTable<{ Self::PAGE_HEAP_PAGE_COUNT }>;
+    type CoreIndexImpl = TestCoreIndex;
     type PsciPlatformImpl = TestPsciPlatformImpl;
     #[cfg(feature = "rme")]
     type RmmdPlatformImpl = TestRmmdPlatformImpl;
@@ -157,44 +199,8 @@ unsafe impl Platform for TestPlatform {
         }
     }
 
-    fn mpidr_is_valid(mpidr: MpidrEl1) -> bool {
-        let system_index = mpidr.aff3();
-        let soc_index = mpidr.aff2();
-        let cluster_index = usize::from(mpidr.aff1());
-        let core_index = usize::from(mpidr.aff0());
-
-        // Validate System, SoC and Cluster indexes
-        if system_index != SYSTEM_DOMAIN_INDEX
-            || soc_index >= SOCS_PER_SYSTEM
-            || cluster_index >= CLUSTERS_PER_SOC
-        {
-            return false;
-        }
-
-        // Validate Core index
-        let is_last_cluster =
-            soc_index == SOCS_PER_SYSTEM - 1 && cluster_index == CLUSTERS_PER_SOC - 1;
-        if is_last_cluster {
-            core_index < CORES_PER_CLUSTER_LAST
-        } else {
-            core_index < CORES_PER_CLUSTER
-        }
-    }
-
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
         Some(TestPsciPlatformImpl::new())
-    }
-
-    extern "C" fn core_position(mpidr: u64) -> usize {
-        let mpidr = MpidrEl1::from_bits_retain(mpidr);
-
-        assert!(TestPlatform::mpidr_is_valid(mpidr));
-
-        let soc_index = usize::from(mpidr.aff2());
-        let cluster_index = usize::from(mpidr.aff1());
-        let core_index = usize::from(mpidr.aff0());
-
-        ((soc_index * CLUSTERS_PER_SOC) + cluster_index) * CORES_PER_CLUSTER + core_index
     }
 
     unsafe extern "C" fn dump_registers() {}
@@ -329,11 +335,11 @@ impl
     PsciPlatformInterface<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
-        { TestPlatform::CORE_COUNT },
+        { TestCoreIndex::CORE_COUNT },
         PSCI_NON_CPU_DOMAIN_COUNT,
     > for TestPsciPlatformImpl
 {
-    const POWER_DOMAIN_COUNT: usize = TestPlatform::CORE_COUNT + PSCI_NON_CPU_DOMAIN_COUNT;
+    const POWER_DOMAIN_COUNT: usize = TestCoreIndex::CORE_COUNT + PSCI_NON_CPU_DOMAIN_COUNT;
 
     const FEATURES: PsciPlatformOptionalFeatures = PsciPlatformOptionalFeatures::all();
 
@@ -351,7 +357,7 @@ impl
         PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
-            { TestPlatform::CORE_COUNT },
+            { TestCoreIndex::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -410,7 +416,7 @@ impl
             PsciCompositePowerState::<
                 PSCI_STATE_COUNT,
                 PSCI_MAX_POWER_LEVEL,
-                { TestPlatform::CORE_COUNT },
+                { TestCoreIndex::CORE_COUNT },
                 PSCI_NON_CPU_DOMAIN_COUNT,
                 Self::NodeIndex,
                 TestPowerState,
@@ -427,7 +433,7 @@ impl
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
-            { TestPlatform::CORE_COUNT },
+            { TestCoreIndex::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -440,7 +446,7 @@ impl
         _previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
-            { TestPlatform::CORE_COUNT },
+            { TestCoreIndex::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -453,7 +459,7 @@ impl
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
-            { TestPlatform::CORE_COUNT },
+            { TestCoreIndex::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -467,7 +473,7 @@ impl
         target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
-            { TestPlatform::CORE_COUNT },
+            { TestCoreIndex::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -481,7 +487,7 @@ impl
         _target_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
-            { TestPlatform::CORE_COUNT },
+            { TestCoreIndex::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -505,7 +511,7 @@ impl
         _previous_state: &PsciCompositePowerState<
             PSCI_STATE_COUNT,
             PSCI_MAX_POWER_LEVEL,
-            { TestPlatform::CORE_COUNT },
+            { TestCoreIndex::CORE_COUNT },
             PSCI_NON_CPU_DOMAIN_COUNT,
             Self::NodeIndex,
             TestPowerState,
@@ -558,7 +564,7 @@ impl
     ) -> PsciCompositePowerState<
         PSCI_STATE_COUNT,
         PSCI_MAX_POWER_LEVEL,
-        { TestPlatform::CORE_COUNT },
+        { TestCoreIndex::CORE_COUNT },
         PSCI_NON_CPU_DOMAIN_COUNT,
         Self::NodeIndex,
         TestPowerState,

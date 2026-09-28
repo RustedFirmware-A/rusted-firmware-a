@@ -473,7 +473,7 @@ impl<
 /// The PowerDomainTree is responsible for storing the non-CPU and CPU power nodes and providing
 /// safe ways to access for them.
 ///
-/// CPU_DOMAIN_COUNT = PlatformImpl::CORE_COUNT
+/// CPU_DOMAIN_COUNT = PlatformImpl::CoreIndexImpl::CORE_COUNT
 /// NON_CPU_DOMAIN_COUNT = PsciPlatformImpl::POWER_DOMAIN_COUNT - CPU_DOMAIN_COUNT
 /// MAX_POWER_LEVEL = PsciPlatformImpl::MAX_POWER_LEVEL
 pub struct PowerDomainTree<
@@ -736,21 +736,21 @@ impl<
 pub mod test_helpers {
     use super::*;
     use crate::{
-        platform::{
-            Platform,
-            test::{PSCI_MAX_POWER_LEVEL, TestPlatform, TestPowerState, TestPsciPlatformImpl},
+        context::CoreIndex,
+        platform::test::{
+            PSCI_MAX_POWER_LEVEL, TestCoreIndex, TestPowerState, TestPsciPlatformImpl,
         },
         services::psci::PsciPlatformInterface,
     };
 
     const NON_CPU_DOMAIN_COUNT: usize =
-        TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT;
+        TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestCoreIndex::CORE_COUNT;
 
     pub type TestNonCpuPowerNode =
-        NonCpuPowerNode<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8, TestPowerState>;
+        NonCpuPowerNode<{ TestCoreIndex::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8, TestPowerState>;
 
     pub type TestPowerDomainTree = PowerDomainTree<
-        { TestPlatform::CORE_COUNT },
+        { TestCoreIndex::CORE_COUNT },
         NON_CPU_DOMAIN_COUNT,
         PSCI_MAX_POWER_LEVEL,
         u8,
@@ -789,10 +789,8 @@ mod tests {
     use super::test_helpers::*;
     use super::*;
     use crate::{
-        platform::{
-            Platform,
-            test::{PSCI_MAX_POWER_LEVEL, TestPlatform, TestPowerState},
-        },
+        context::CoreIndex,
+        platform::test::{PSCI_MAX_POWER_LEVEL, TestCoreIndex, TestPowerState},
         services::psci::PlatformPowerStateInterface,
     };
 
@@ -1102,7 +1100,7 @@ mod tests {
         ));
         assert!(is_last_cpu_to_idle_at_power_level_helper(
             &tree,
-            (TestPlatform::CORE_COUNT - 1).try_into().unwrap(),
+            (TestCoreIndex::CORE_COUNT - 1).try_into().unwrap(),
             CPU_POWER_LEVEL
         ));
     }

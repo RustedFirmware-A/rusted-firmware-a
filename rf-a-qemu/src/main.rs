@@ -18,7 +18,7 @@ use arm_pl011_uart::{PL011Registers, Uart, UniqueMmioPointer};
 use core::{mem::offset_of, ptr::NonNull};
 use rf_a_core::{
     all_asm, asm_macros_common, asm_macros_common_purge,
-    context::{CoresImpl, EntryPointInfo},
+    context::{CoreIndex, EntryPointInfo},
     cpu::qemu_max::QemuMax,
     cpu_extensions::{
         CpuExtension, csv2_2::Csv2_2, gcs::Gcs, hcx::Hcx, sctlr2::Sctlr2, simd::Simd,
@@ -47,7 +47,6 @@ use rf_a_core::{
             gicv3::registers::{Gicd, GicrSgi},
         },
         arm_sysregs::{el1::registers::MpidrEl1, el3::registers::IccSreEl3},
-        percore::Cores,
         spin::mutex::SpinMutexGuard,
     },
     services::{
@@ -109,7 +108,7 @@ const LOG_BUFFER_SIZE: usize = 1024 - size_of::<MemoryLogger<0>>();
 
 zeroed_mut! {
     /// Per-core in-memory loggers.
-    MEMORY_LOGGERS, [MemoryLogger<LOG_BUFFER_SIZE>; Qemu::CORE_COUNT], unsafe(link_section = ".bss2.dram")
+    MEMORY_LOGGERS, [MemoryLogger<LOG_BUFFER_SIZE>; QemuCoreIndex::CORE_COUNT], unsafe(link_section = ".bss2.dram")
 }
 
 /// The aarch64 'virt' machine of the QEMU emulator.
@@ -136,6 +135,36 @@ statics!(Qemu);
 all_asm!(Qemu);
 panic_handler!();
 
+struct QemuCoreIndex;
+
+// SAFETY: `mpidr_to_index` is indeed a naked function, doesn't access the stack or any other memory,
+// only clobbers x0 and x1, and returns a unique index as long as `PLATFORM_CPU_PER_CLUSTER_SHIFT`
+// is correct.
+unsafe impl CoreIndex for QemuCoreIndex {
+    const CORE_COUNT: usize = CLUSTER_COUNT * MAX_CPUS_PER_CLUSTER;
+
+    fn is_valid_mpidr(mpidr: MpidrEl1) -> bool {
+        mpidr.aff3() == 0
+            && mpidr.aff2() == 0
+            && usize::from(mpidr.aff1()) < CLUSTER_COUNT
+            && usize::from(mpidr.aff0()) < MAX_CPUS_PER_CLUSTER
+    }
+
+    #[unsafe(naked)]
+    extern "C" fn mpidr_to_index(mpidr: MpidrEl1) -> usize {
+        naked_asm!(
+            "and	x1, x0, #{MPIDR_CPU_MASK}",
+            "and	x0, x0, #{MPIDR_CLUSTER_MASK}",
+            "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
+            "ret",
+            MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK << MpidrEl1::AFF0_SHIFT,
+            MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK << MpidrEl1::AFF1_SHIFT,
+            MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
+            PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
+        );
+    }
+}
+
 struct ArchPlatformImpl;
 
 impl ArchPlatform for ArchPlatformImpl {
@@ -153,18 +182,17 @@ static ERRATA_MANAGEMENT: ErrataManagement<Qemu> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];
 
-// SAFETY: `core_position` is indeed a naked function, doesn't access the stack or any other memory,
-// only clobbers x0 and x1, and returns a unique index as long as `PLATFORM_CPU_PER_CLUSTER_SHIFT`
-// is correct.
+// SAFETY: `dump_registers` is a naked function which doesn't use the stack, and only clobbers the
+// registers it is documented to clobber.
 unsafe impl Platform for Qemu {
-    const CORE_COUNT: usize = CLUSTER_COUNT * MAX_CPUS_PER_CLUSTER;
     const CACHE_WRITEBACK_GRANULE: usize = 1 << 6;
 
     type LogSinkImpl = HybridLogger<
-        PerCoreMemoryLogger<'static, { Self::CORE_COUNT }, LOG_BUFFER_SIZE, Self>,
+        PerCoreMemoryLogger<'static, { QemuCoreIndex::CORE_COUNT }, LOG_BUFFER_SIZE, Self>,
         LockedWriter<Uart<'static>>,
     >;
     type PageTable = El3PageTable<{ Self::PAGE_HEAP_PAGE_COUNT }>;
+    type CoreIndexImpl = QemuCoreIndex;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
     type CrashConsoleImpl = Pl011CrashConsole<UART1_BASE, 1, 115_200>;
 
@@ -245,7 +273,7 @@ unsafe impl Platform for Qemu {
     }
 
     fn secure_entry_point() -> EntryPointInfo {
-        let core_linear_id = CoresImpl::<Self>::core_index() as u64;
+        let core_linear_id = QemuCoreIndex::local_index() as u64;
         EntryPointInfo {
             pc: 0x0e10_0000,
             args: [
@@ -268,29 +296,8 @@ unsafe impl Platform for Qemu {
         }
     }
 
-    fn mpidr_is_valid(mpidr: MpidrEl1) -> bool {
-        mpidr.aff3() == 0
-            && mpidr.aff2() == 0
-            && usize::from(mpidr.aff1()) < CLUSTER_COUNT
-            && usize::from(mpidr.aff0()) < MAX_CPUS_PER_CLUSTER
-    }
-
     fn psci_platform() -> Option<Self::PsciPlatformImpl> {
         Some(QemuPsciPlatformImpl::new())
-    }
-
-    #[unsafe(naked)]
-    extern "C" fn core_position(mpidr: u64) -> usize {
-        naked_asm!(
-            "and	x1, x0, #{MPIDR_CPU_MASK}",
-            "and	x0, x0, #{MPIDR_CLUSTER_MASK}",
-            "add	x0, x1, x0, LSR #({MPIDR_AFFINITY_BITS} - {PLATFORM_CPU_PER_CLUSTER_SHIFT})",
-            "ret",
-            MPIDR_CPU_MASK = const MpidrEl1::AFF0_MASK << MpidrEl1::AFF0_SHIFT,
-            MPIDR_CLUSTER_MASK = const MpidrEl1::AFF1_MASK << MpidrEl1::AFF1_SHIFT,
-            MPIDR_AFFINITY_BITS = const MpidrEl1::AFFINITY_BITS,
-            PLATFORM_CPU_PER_CLUSTER_SHIFT = const PLATFORM_CPU_PER_CLUSTER_SHIFT,
-        );
     }
 
     /// Dumps relevant GIC and CCI registers.

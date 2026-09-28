@@ -204,7 +204,7 @@ help:
 	@echo "Supported targets:"
 	@echo
 	@echo "  all          	Build all binaries for the specified platform."
-	@echo "  build       	Build BL31 for the specified platform."
+	@echo "  build       	Build RF-A for the specified platform."
 	@echo "  build-stf   	Build the Secure Test Framework."
 	@echo "  cargo-doc   	Run `cargo doc` checks for the given platform"
 	@echo "  clean        	Clean the build for all platforms."

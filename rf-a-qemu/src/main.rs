@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! RF-A BL31 deployment for QEMU.
+//! RF-A deployment for QEMU.
 
 #![no_main]
 #![no_std]

@@ -36,7 +36,7 @@ $ sudo apt install qemu-system-arm
 
 ## Build and run in QEMU
 
-Build BL1, BL2 and Rust BL31 and run in QEMU:
+Build BL1, BL2 and RF-A and run in QEMU:
 
 ```sh
 $ PLAT=qemu DEBUG=1 ./build-and-run.sh
@@ -90,7 +90,7 @@ to download this or any other FVP.
 
 ### Without RME support
 
-Build C BL1 and BL2, Rust BL31 and FIP, then run everything in FVP:
+Build C BL1 and BL2, RF-A and FIP, then run everything in FVP:
 
 ```sh
 $ PLAT=fvp DEBUG=1 ./build-and-run.sh
@@ -98,7 +98,7 @@ $ PLAT=fvp DEBUG=1 ./build-and-run.sh
 
 ### With RME support
 
-Build C BL1 and BL2 with RME support, Rust BL31 with RME support and FIP, then run everything in FVP:
+Build C BL1 and BL2 with RME support, RF-A with RME support and FIP, then run everything in FVP:
 
 ```sh
 $ PLAT=fvp RME=1 DEBUG=1 ./build-and-run.sh

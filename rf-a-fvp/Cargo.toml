@@ -9,7 +9,7 @@ edition = "2024"
 authors = ["Andrew Walbran <qwandor@google.com>"]
 rust-version = "1.90"
 license = "BSD-3-Clause"
-description = "RF-A BL31 for the Arm Fixed Virtual Platform"
+description = "RF-A for the Arm Fixed Virtual Platform"
 
 [dependencies]
 arm-fvp-base-pac = { version = "0.3.0", default-features = false, features = [

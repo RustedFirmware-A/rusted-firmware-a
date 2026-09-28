@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! Build script helpers for RF-A BL31.
+//! Build script helpers for RF-A.
 
 use std::{env, error::Error, fmt::Display, path::Path};
 

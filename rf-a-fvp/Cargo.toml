@@ -8,7 +8,8 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.90"
 license = "BSD-3-Clause"
-description = "RF-A for the Arm Fixed Virtual Platform"
+description = "RF-A for the Arm Base RevC FVP platform"
+publish = false
 
 [dependencies]
 arm-fvp-base-pac = { version = "0.4.0", default-features = false, features = ["base-revc", "el3"] }

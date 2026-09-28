@@ -8,6 +8,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.90"
 license = "BSD-3-Clause"
+publish = false
 
 [dependencies]
 aarch64-rt = { version = "0.4.3", default-features = false, features = [

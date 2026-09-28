@@ -6,7 +6,7 @@
 name = "rf-a-build"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.90"
 license = "BSD-3-Clause"
 description = "RF-A build script helpers"
 

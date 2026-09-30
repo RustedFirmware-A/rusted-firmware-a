@@ -168,10 +168,10 @@ struct RmmBootManifestHeader {
 }
 
 /// Boot Manifest version number.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Immutable, FromBytes, IntoBytes)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RmmBootManifestVersion {
-    pub(crate) minor: u16,
     pub(crate) major: u16,
+    pub(crate) minor: u16,
 }
 
 impl TryFrom<u32> for RmmBootManifestVersion {

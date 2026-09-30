@@ -18,8 +18,11 @@ use arm_sysregs::{
         registers::{GpccrEl3, GptbrEl3},
     },
 };
-use core::fmt::Debug;
-use core::ops::{Add, Sub};
+use core::{
+    cmp::Ordering,
+    fmt::Debug,
+    ops::{Add, Sub},
+};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 pub use table::GPIAccessType;
 
@@ -509,7 +512,7 @@ impl Level0GptSize {
 }
 
 /// Physical Granule size.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive, IntoPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum PhysicalGranuleSize {
     /// Physical granules cover 4KB.
@@ -533,6 +536,18 @@ impl PhysicalGranuleSize {
     /// Physical Granule Size in bytes.
     pub fn size(&self) -> usize {
         0x1 << self.width()
+    }
+}
+
+impl Ord for PhysicalGranuleSize {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.width().cmp(&other.width())
+    }
+}
+
+impl PartialOrd for PhysicalGranuleSize {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -1350,5 +1365,11 @@ mod test {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn pgs_ordering() {
+        assert!(PhysicalGranuleSize::KB4 < PhysicalGranuleSize::KB16);
+        assert!(PhysicalGranuleSize::KB16 < PhysicalGranuleSize::KB64);
     }
 }

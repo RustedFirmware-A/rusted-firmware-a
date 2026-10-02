@@ -16,7 +16,7 @@ use crate::{
     cpu::{Cpu, CpuOps, PlatformCpuOps},
     cpu_extensions::CpuExtension,
     crash_console::CrashConsole,
-    errata_framework::{Cve, Erratum, ErratumId, ErratumType, define_errata_list},
+    errata_framework::{CveId, Erratum, ErratumId, ErratumType, define_errata_list},
     gicv3::GicConfig,
     logger::LogSink,
     pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
@@ -54,7 +54,16 @@ const CORES_PER_CLUSTER: usize = 3;
 const CORES_PER_CLUSTER_LAST: usize = 4;
 
 define_early_mapping!(TestPlatform, []);
-define_errata_list!(TestPlatform, [TestMitigatedErratum, TestUnneededErratum]);
+define_errata_list!(
+    TestPlatform,
+    [
+        TestMitigatedErratum,
+        TestUnneededErratum,
+        // Multiple entries with the Erratum ID = None are allowed.
+        TestIdlessErratum,
+        TestIdlessErratum
+    ]
+);
 
 /// A fake platform for unit tests.
 pub struct TestPlatform;
@@ -626,8 +635,8 @@ pub struct TestMitigatedErratum;
 // SAFETY: This erratum is only used in unit tests, so the usual requirements on `check` and
 // `workaround` don't apply as they aren't called from assembly.
 unsafe impl Erratum for TestMitigatedErratum {
-    const ID: ErratumId = 7;
-    const CVE: Cve = 1234;
+    const ID: Option<ErratumId> = Some(ErratumId::new(7));
+    const CVE: Option<CveId> = Some(CveId::new(2022, 1234));
     const APPLY_ON: ErratumType = ErratumType::Reset;
 
     extern "C" fn check() -> bool {
@@ -643,12 +652,29 @@ pub struct TestUnneededErratum;
 // SAFETY: This erratum is only used in unit tests, so the usual requirements on `check` and
 // `workaround` don't apply as they aren't called from assembly.
 unsafe impl Erratum for TestUnneededErratum {
-    const ID: ErratumId = 8;
-    const CVE: Cve = 4321;
+    const ID: Option<ErratumId> = Some(ErratumId::new(8));
+    const CVE: Option<CveId> = Some(CveId::new(2018, 4321));
     const APPLY_ON: ErratumType = ErratumType::Reset;
 
     extern "C" fn check() -> bool {
         false
+    }
+
+    extern "C" fn workaround() {}
+}
+
+/// A fake reset erratum without an Erratum ID.
+pub struct TestIdlessErratum;
+
+// SAFETY: This erratum is only used in unit tests, so the usual requirements on `check` and
+// `workaround` don't apply as they aren't called from assembly.
+unsafe impl Erratum for TestIdlessErratum {
+    const ID: Option<ErratumId> = None;
+    const CVE: Option<CveId> = Some(CveId::new(2024, 5678));
+    const APPLY_ON: ErratumType = ErratumType::Reset;
+
+    extern "C" fn check() -> bool {
+        true
     }
 
     extern "C" fn workaround() {}

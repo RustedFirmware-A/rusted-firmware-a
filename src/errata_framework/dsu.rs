@@ -5,7 +5,7 @@
 //! Errata for the DynamIQ Shared Unit.
 
 use crate::{
-    errata_framework::{Cve, Erratum, ErratumId, ErratumType},
+    errata_framework::{Erratum, ErratumId, ErratumType},
     naked_asm,
 };
 
@@ -18,8 +18,7 @@ pub struct DsuErratum3396010;
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
 // memory, and only clobber x0-x2.
 unsafe impl Erratum for DsuErratum3396010 {
-    const ID: ErratumId = 3_396_010;
-    const CVE: Cve = 0;
+    const ID: Option<ErratumId> = Some(ErratumId::new(3_396_010));
     const APPLY_ON: ErratumType = ErratumType::Reset;
 
     #[unsafe(naked)]

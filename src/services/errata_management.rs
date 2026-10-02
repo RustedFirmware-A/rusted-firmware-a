@@ -6,7 +6,7 @@
 
 use crate::{
     context::{CpuStates, World},
-    errata_framework::PlatformErrata,
+    errata_framework::{PlatformErrata, erratum_by_id},
     platform::exception_free,
     services::{Service, owns},
     smccc::{FunctionId, NOT_SUPPORTED, OwningEntityNumber, SetFrom, SmcReturn},
@@ -129,17 +129,17 @@ fn cpu_erratum_features<PlatformImpl: PlatformErrata>(regs: &[u64]) -> Status {
 
     trace!("Checking erratum {cpu_erratum_id} for {effective_originator:?}");
 
-    for erratum in PlatformImpl::ERRATA_LIST {
-        if erratum.id == cpu_erratum_id {
-            return if (erratum.check)() {
-                Status::HigherElMitigation
-            } else {
-                Status::NotAffected
-            };
-        }
+    let Ok(erratum_id) = cpu_erratum_id.try_into() else {
+        return Status::UnknownErratum;
+    };
+    let Some(erratum) = erratum_by_id(PlatformImpl::ERRATA_LIST, erratum_id) else {
+        return Status::UnknownErratum;
+    };
+    if (erratum.check)() {
+        Status::HigherElMitigation
+    } else {
+        Status::NotAffected
     }
-
-    Status::UnknownErratum
 }
 
 #[cfg(test)]
@@ -291,7 +291,7 @@ mod tests {
         let mut regs = SmcReturn::EMPTY;
         regs.mark_all_used()[0..3].copy_from_slice(&[
             EM_CPU_ERRATUM_FEATURES.into(),
-            TestMitigatedErratum::ID.into(),
+            TestMitigatedErratum::ID.unwrap().get().into(),
             0,
         ]);
         assert_eq!(
@@ -306,7 +306,7 @@ mod tests {
         let mut regs = SmcReturn::EMPTY;
         regs.mark_all_used()[0..3].copy_from_slice(&[
             EM_CPU_ERRATUM_FEATURES.into(),
-            TestUnneededErratum::ID.into(),
+            TestUnneededErratum::ID.unwrap().get().into(),
             0,
         ]);
         assert_eq!(

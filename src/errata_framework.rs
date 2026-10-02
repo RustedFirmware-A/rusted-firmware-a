@@ -4,14 +4,66 @@
 
 //! Framework for working around CPU and other errata.
 
+use core::{fmt::Debug, num::NonZero};
+
 #[cfg(all(target_arch = "aarch64", not(any(test, feature = "fakes"))))]
 pub mod dsu;
 
 /// A unique identifier for an erratum.
-pub type ErratumId = u32;
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct ErratumId(NonZero<u32>);
 
-/// The CVE number associated with an erratum, or 0 if none.
-pub type Cve = u32;
+impl ErratumId {
+    /// Initializes an Erratum ID
+    pub const fn new(value: u32) -> Self {
+        Self(NonZero::new(value).unwrap())
+    }
+
+    /// Returns the contained value as a primitive type.
+    pub const fn get(self) -> u32 {
+        self.0.get()
+    }
+}
+
+impl TryFrom<u32> for ErratumId {
+    type Error = <NonZero<u32> as TryFrom<u32>>::Error;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        value.try_into().map(Self)
+    }
+}
+
+/// The CVE number associated with an erratum.
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct CveId(NonZero<u32>);
+
+impl CveId {
+    const CVE_NUM_BITS: usize = 20; // works for numbers up to 1048575
+    const CVE_YEAR_BITS: usize = 12; // works for years up to 4095
+    const CVE_YEAR_SHIFT: usize = Self::CVE_NUM_BITS;
+    const CVE_NUM_MAX: u32 = 1 << Self::CVE_NUM_BITS;
+    const CVE_YEAR_MAX: u32 = 1 << Self::CVE_YEAR_BITS;
+
+    /// Initializes a CVE ID from year and number
+    pub const fn new(year: u32, num: u32) -> Self {
+        assert!(year != 0 && year < Self::CVE_YEAR_MAX);
+        assert!(num != 0 && num < Self::CVE_NUM_MAX);
+        Self(NonZero::new(year << Self::CVE_YEAR_SHIFT | num).unwrap())
+    }
+}
+
+impl Debug for CveId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "Some(CVE-{}-{:04})",
+            self.0.get() >> Self::CVE_YEAR_SHIFT,
+            self.0.get() & ((1 << Self::CVE_YEAR_SHIFT) - 1)
+        )
+    }
+}
 
 /// Represents a CPU revision and variant.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
@@ -53,10 +105,10 @@ pub enum ErratumType {
 /// stack and don't access memory. Check function may clobber x0-x4, workaround may clobber x0-x7.
 pub unsafe trait Erratum {
     /// The unique ID of the erratum workaround.
-    const ID: ErratumId;
+    const ID: Option<ErratumId> = None;
 
-    /// The CVE number of the erratum, or 0 if there is none.
-    const CVE: Cve;
+    /// The CVE number of the erratum if it has one. Multiple errata may have the same CVE number.
+    const CVE: Option<CveId> = None;
 
     /// The time at which the erratum workaround should be applied.
     const APPLY_ON: ErratumType;
@@ -73,7 +125,10 @@ pub unsafe trait Erratum {
 #[repr(C)]
 pub struct ErratumEntry {
     /// The unique ID of the erratum workaround.
-    pub id: ErratumId,
+    pub id: Option<ErratumId>,
+
+    /// The CVE number of the erratum if it has one. Multiple errata may have the same CVE number.
+    pub cve: Option<CveId>,
 
     /// The time at which the erratum workaround should be applied.
     pub apply_on: ErratumType,
@@ -88,8 +143,15 @@ pub struct ErratumEntry {
 impl ErratumEntry {
     /// Creates an ErratumEntry struct from an implementation of the Erratum trait.
     pub const fn from_erratum<T: Erratum>() -> Self {
+        const {
+            assert!(
+                T::ID.is_some() || T::CVE.is_some(),
+                "Every erratum entry must have at least one of ID or CVE set."
+            )
+        }
         Self {
             id: T::ID,
+            cve: T::CVE,
             apply_on: T::APPLY_ON,
             check: T::check,
             workaround: T::workaround,
@@ -97,11 +159,35 @@ impl ErratumEntry {
     }
 }
 
+/// Returns an erratum entry by ErratumId, if present. Note that the returned erratum may not apply
+/// on the current CPU.
+pub const fn erratum_by_id(errata_list: &[ErratumEntry], id: ErratumId) -> Option<&ErratumEntry> {
+    // Must do iteration manually, since iterators aren't const compatible yet.
+    // This is equivalent to `errata_list.iter().find(|erratum| erratum.id == Some(id))`
+    let mut i = 0;
+    while i < errata_list.len() {
+        if let Some(id2) = errata_list[i].id
+            && id2.get() == id.get()
+        {
+            return Some(&errata_list[i]);
+        }
+        i += 1
+    }
+    None
+}
+
 /// Returns true if the given errata list contains an erratum ID, and it applies on the current CPU.
 pub fn erratum_applies(errata_list: &[ErratumEntry], id: ErratumId) -> bool {
+    matches!(erratum_by_id(errata_list, id), Some(erratum) if (erratum.check)())
+}
+
+/// Returns true if the errata list contains an erratum with the given CVE number that applies on
+/// the current CPU. Note that a false result could mean that the CVE is known on the current CPU
+/// but fixed in hardware.
+pub fn cve_applies(errata_list: &[ErratumEntry], cve: CveId) -> bool {
     errata_list
         .iter()
-        .any(|erratum| erratum.id == id && (erratum.check)())
+        .any(|erratum| erratum.cve == Some(cve) && (erratum.check)())
 }
 
 /// Methods to access the errata for the platform.
@@ -143,6 +229,29 @@ macro_rules! define_errata_list {
         static ERRATA_LIST : [$crate::errata_framework::ErratumEntry; $crate::errata_framework::errata_count!($($erratum),*)] = [
             $($crate::errata_framework::ErratumEntry::from_erratum::<$erratum>()),*
         ];
+
+        const _: () = {
+            let mut i = 0;
+            while i < ERRATA_LIST.len() {
+                if ERRATA_LIST[i].id.is_none() {
+                    i += 1;
+                    continue;
+                }
+                let mut j = i + 1;
+                while j < ERRATA_LIST.len() {
+                    if ERRATA_LIST[j].id.is_none() {
+                        j += 1;
+                        continue;
+                    }
+                    assert!(
+                        ERRATA_LIST[i].id.unwrap().get() != ERRATA_LIST[j].id.unwrap().get(),
+                        "ERRATA_LIST contains multiple entries with the same ErratumId",
+                    );
+                    j += 1;
+                }
+                i += 1;
+            }
+        };
 
         // SAFETY: apply_reset_errata is a naked function and only clobbers x0-x11.
         unsafe impl $crate::errata_framework::PlatformErrata for $platform {

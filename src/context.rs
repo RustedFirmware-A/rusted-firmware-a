@@ -6,7 +6,7 @@
 //! ELs.
 
 #[cfg(feature = "sel2")]
-use crate::errata_framework::erratum_applies;
+use crate::errata_framework::{ErratumId, erratum_applies};
 use crate::{
     aarch64::isb,
     cpu_extensions::{
@@ -612,9 +612,9 @@ impl El2Sysregs {
 
 #[cfg(feature = "sel2")]
 fn errata_ich_vmcr_el2_applies(errata_list: &[ErratumEntry]) -> bool {
-    erratum_applies(errata_list, 3_300_099)
-        || erratum_applies(errata_list, 3_658_374)
-        || erratum_applies(errata_list, 3_773_617)
+    erratum_applies(errata_list, ErratumId::new(3_300_099))
+        || erratum_applies(errata_list, ErratumId::new(3_658_374))
+        || erratum_applies(errata_list, ErratumId::new(3_773_617))
 }
 
 /// Registers whose values can be shared across CPUs.

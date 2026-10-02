@@ -7,9 +7,7 @@
 use crate::{
     aarch64::isb,
     cpu::Cpu,
-    errata_framework::{
-        Cve, Erratum, ErratumId, ErratumType, RevisionVariant, implement_erratum_check,
-    },
+    errata_framework::{Erratum, ErratumId, ErratumType, RevisionVariant, implement_erratum_check},
     naked_asm,
 };
 use arm_sysregs::{el1::registers::MidrEl1, read_write_sysreg};
@@ -75,8 +73,7 @@ pub struct Erratum3300099;
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
 // memory, and only clobber x0-x4.
 unsafe impl Erratum for Erratum3300099 {
-    const ID: ErratumId = 3_300_099;
-    const CVE: Cve = 0;
+    const ID: Option<ErratumId> = Some(ErratumId::new(3_300_099));
     const APPLY_ON: ErratumType = ErratumType::Runtime;
 
     #[unsafe(naked)]
@@ -100,8 +97,7 @@ pub struct Erratum3773617;
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
 // memory, and only clobber x0-x4.
 unsafe impl Erratum for Erratum3773617 {
-    const ID: ErratumId = 3_773_617;
-    const CVE: Cve = 0;
+    const ID: Option<ErratumId> = Some(ErratumId::new(3_773_617));
     const APPLY_ON: ErratumType = ErratumType::Runtime;
 
     #[unsafe(naked)]
@@ -125,8 +121,7 @@ pub struct Erratum3619847;
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
 // memory, and only clobber x0-x4.
 unsafe impl Erratum for Erratum3619847 {
-    const ID: ErratumId = 3_619_847;
-    const CVE: Cve = 0;
+    const ID: Option<ErratumId> = Some(ErratumId::new(3_619_847));
     const APPLY_ON: ErratumType = ErratumType::Reset;
 
     #[unsafe(naked)]
@@ -156,8 +151,7 @@ pub struct Erratum3686597;
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
 // memory, and only clobber x0-x4.
 unsafe impl Erratum for Erratum3686597 {
-    const ID: ErratumId = 3_686_597;
-    const CVE: Cve = 0;
+    const ID: Option<ErratumId> = Some(ErratumId::new(3_686_597));
     const APPLY_ON: ErratumType = ErratumType::Runtime;
 
     #[unsafe(naked)]
@@ -188,8 +182,7 @@ pub struct Erratum3694158;
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
 // memory, and only clobber x0-x4.
 unsafe impl Erratum for Erratum3694158 {
-    const ID: ErratumId = 3_694_158;
-    const CVE: Cve = 0;
+    const ID: Option<ErratumId> = Some(ErratumId::new(3_694_158));
     const APPLY_ON: ErratumType = ErratumType::Reset;
 
     #[unsafe(naked)]
@@ -227,8 +220,7 @@ pub struct Erratum3684268;
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
 // memory, and only clobber x0-x4.
 unsafe impl Erratum for Erratum3684268 {
-    const ID: ErratumId = 3_684_268;
-    const CVE: Cve = 0;
+    const ID: Option<ErratumId> = Some(ErratumId::new(3_684_268));
     const APPLY_ON: ErratumType = ErratumType::Reset;
 
     #[unsafe(naked)]
@@ -259,8 +251,7 @@ pub struct Erratum3706576;
 // SAFETY: `check` and `workaround` are both implemented using naked_asm, don't use the stack or
 // memory, and only clobber x0-x4.
 unsafe impl Erratum for Erratum3706576 {
-    const ID: ErratumId = 3_706_576;
-    const CVE: Cve = 0;
+    const ID: Option<ErratumId> = Some(ErratumId::new(3_706_576));
     const APPLY_ON: ErratumType = ErratumType::Reset;
 
     #[unsafe(naked)]

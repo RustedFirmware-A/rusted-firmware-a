@@ -599,7 +599,7 @@ impl TrngPlatformInterface<TRNG_REQ_WORDS> for TestTrngPlatformImpl {
     }
 }
 
-static ARCH: Arch<ArchPlatformImpl> = Arch::new(ArchPlatformImpl);
+static ARCH: Arch<ArchPlatformImpl, TestPlatform> = Arch::new(ArchPlatformImpl);
 static ERRATA_MANAGEMENT: ErrataManagement<TestPlatform> = ErrataManagement::new();
 static TRNG: LazyLock<Trng<TRNG_REQ_WORDS, WORDS_IN_POOL, TestTrngPlatformImpl>> =
     LazyLock::new(Trng::new);

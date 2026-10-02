@@ -190,6 +190,23 @@ pub fn cve_applies(errata_list: &[ErratumEntry], cve: CveId) -> bool {
         .any(|erratum| erratum.cve == Some(cve) && (erratum.check)())
 }
 
+/// Returns true if the errata list contains an erratum with the given CVE number, i.e. the system
+/// contains at least one PE which may be affected by the CVE.
+pub const fn cve_known(errata_list: &[ErratumEntry], cve: CveId) -> bool {
+    // Must do iteration manually, since iterators aren't const compatible yet.
+    // This is equivalent to `errata_list.iter().any(|erratum| erratum.cve == Some(cve))`
+    let mut i = 0;
+    while i < errata_list.len() {
+        if let Some(cve2) = errata_list[i].cve
+            && cve2.0.get() == cve.0.get()
+        {
+            return true;
+        }
+        i += 1
+    }
+    false
+}
+
 /// Methods to access the errata for the platform.
 ///
 /// Implemented for the platform by the `define_errata_list!` macro, platforms shouldn't implement

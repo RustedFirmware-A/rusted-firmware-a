@@ -239,7 +239,7 @@ impl ArchPlatform for ArchPlatformImpl {
     }
 }
 
-static ARCH: Arch<ArchPlatformImpl> = Arch::new(ArchPlatformImpl);
+static ARCH: Arch<ArchPlatformImpl, Fvp> = Arch::new(ArchPlatformImpl);
 static ERRATA_MANAGEMENT: ErrataManagement<Fvp> = ErrataManagement::new();
 
 static PLATFORM_SERVICES: [&'static dyn Service; 2] = [&ARCH, &ERRATA_MANAGEMENT];

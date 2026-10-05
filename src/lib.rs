@@ -359,6 +359,8 @@ macro_rules! statics {
         static LOGGER: $crate::logger::OnceLogger<LogSinkImpl_> = $crate::logger::OnceLogger::new();
 
         /// An array of pages which can be allocated for pagetables.
+        // SAFETY: The linker script includes this section in the zero initialized range.
+        #[unsafe(link_section = ".page_heap")]
         pub static PAGE_HEAP: $crate::pagetable::PageHeap<
             { <$platform as $crate::platform::Platform>::PAGE_HEAP_PAGE_COUNT },
         > = $crate::pagetable::PageHeap::new();

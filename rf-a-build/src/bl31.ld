@@ -78,10 +78,19 @@ SECTIONS
 	} >image
 
 	/* The entry point code assumes that .bss is 16-byte aligned. */
-	.bss : ALIGN(16)  {
+	.bss (NOLOAD) : ALIGN(16) {
 		__BSS_START__ = .;
 		*(SORT_BY_ALIGNMENT(.bss.*))
 		*(COMMON)
+		. = ALIGN(16);
+	} >image
+
+	/*
+	 * Keep the page heap in a separate output section so its PAGE_SIZE alignment does not
+	 * increase the alignment of .bss. Include it in the BSS zero init range.
+	 */
+	.page_heap (NOLOAD) : ALIGN(PAGE_SIZE) {
+		*(.page_heap)
 		. = ALIGN(16);
 		__BSS_END__ = .;
 	} >image

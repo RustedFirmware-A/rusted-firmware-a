@@ -546,6 +546,11 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> Translation<El23Attributes>
         // SAFETY: `index` is an index into `self.allocated`, so it is less than
         // `PAGE_HEAP_PAGE_COUNT`, which is the number of pages in the pool `self.pages` points to.
         let table = unsafe { self.pages.add(index) };
+        // SAFETY: `table` points to a properly aligned `PageTable` in `self.pages`, and
+        // `self.allocated[index]` was `false` so no other pointer or reference aliases this slot.
+        unsafe {
+            table.write(PageTable::EMPTY);
+        }
         (
             table,
             Self::virtual_to_physical(VirtualAddress(table.as_ptr() as usize)),
@@ -692,5 +697,44 @@ mod tests {
         idmap.mark_active();
         // `aarch64-paging` will detect the dropped idmap and panic
         core::mem::forget(idmap);
+    }
+
+    #[test]
+    fn reallocate_zeroed_table() {
+        static TEST_PAGE_HEAP: PageHeap<{ TestPlatform::PAGE_HEAP_PAGE_COUNT }> = PageHeap::new();
+
+        let page_heap = TEST_PAGE_HEAP.take();
+        let mut idmap = IdMap::new(page_heap);
+
+        // Map a single 4 KiB page at 0x2000..0x3000 (allocates L2 and L3 subtables, setting
+        // entry 2 in the L3 subtable).
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            idmap.map_region(
+                &MemoryRegion::new(2 * GRANULE_SIZE, 3 * GRANULE_SIZE),
+                MT_MEMORY_EL3,
+            );
+        }
+
+        // Unmap the entire 2 MiB L2 block (0x0..0x20_0000), which frees the L3 subtable directly
+        // without `aarch64-paging` clearing its individual entries.
+        const L2_BLOCK_SIZE: usize = GRANULE_SIZE << 9;
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            idmap.unmap_regions(&[MemoryRegion::new(0, L2_BLOCK_SIZE)]);
+        }
+
+        // Map 0x0..0x1000, which reallocates the previously freed L2 and L3 subtables.
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            idmap.map_region(&MemoryRegion::new(0, GRANULE_SIZE), MT_MEMORY_EL3);
+        }
+
+        // Verify that the reallocated L3 subtable was zeroed (entries 1..=511 are 0) and does not
+        // retain the stale descriptor for 0x2000..0x3000.
+        let debug_str = format!("{idmap:?}");
+        assert!(debug_str.contains("0x0000000000000000"));
+        assert!(debug_str.contains("1  -511: 0"));
+        assert!(!debug_str.contains("0x0000000000002000"));
     }
 }

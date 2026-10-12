@@ -743,6 +743,24 @@ pub mod test_helpers {
         services::psci::PsciPlatformInterface,
     };
 
+    const NON_CPU_DOMAIN_COUNT: usize =
+        TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT;
+
+    pub type TestNonCpuPowerNode =
+        NonCpuPowerNode<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8, TestPowerState>;
+
+    pub type TestPowerDomainTree = PowerDomainTree<
+        { TestPlatform::CORE_COUNT },
+        NON_CPU_DOMAIN_COUNT,
+        PSCI_MAX_POWER_LEVEL,
+        u8,
+        TestPowerState,
+    >;
+
+    pub fn setup_power_domain_tree() -> TestPowerDomainTree {
+        PowerDomainTree::new(TestPsciPlatformImpl.topology())
+    }
+
     /// Sets the power state (both the local_state and the CPU requested states) of the CPU given by
     /// `cpu_index` to `state` for the given PowerDomainTree. This state will be propagated
     /// throughout the tree; from the CPU nodes all the way to the root non CPU nodes. This
@@ -751,13 +769,7 @@ pub mod test_helpers {
     /// ancestors are at a shallower power state than descendants. This API does not facilitate this
     /// capability.
     pub fn set_cpu_power_state_by_index(
-        tree: &PowerDomainTree<
-            { TestPlatform::CORE_COUNT },
-            { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
-            PSCI_MAX_POWER_LEVEL,
-            u8,
-            TestPowerState,
-        >,
+        tree: &TestPowerDomainTree,
         cpu_index: usize,
         state: TestPowerState,
     ) {
@@ -779,22 +791,13 @@ mod tests {
     use crate::{
         platform::{
             Platform,
-            test::{PSCI_MAX_POWER_LEVEL, TestPlatform, TestPowerState, TestPsciPlatformImpl},
+            test::{PSCI_MAX_POWER_LEVEL, TestPlatform, TestPowerState},
         },
-        services::psci::{PlatformPowerStateInterface, PsciPlatformInterface},
+        services::psci::PlatformPowerStateInterface,
     };
 
-    const NON_CPU_DOMAIN_COUNT: usize =
-        TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT;
-
     fn is_last_cpu_to_idle_at_power_level_helper(
-        tree: &PowerDomainTree<
-            { TestPlatform::CORE_COUNT },
-            NON_CPU_DOMAIN_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            u8,
-            TestPowerState,
-        >,
+        tree: &TestPowerDomainTree,
         cpu_index: u8,
         end_power_level: usize,
     ) -> bool {
@@ -806,10 +809,7 @@ mod tests {
 
     #[test]
     fn non_cpu_power_node() {
-        let mut node =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8, _>::new(
-                Some(1),
-            );
+        let mut node = TestNonCpuPowerNode::new(Some(1));
         assert_eq!(node.parent, Some(1));
         assert_eq!(TestPowerState::OFF, node.local_state);
         assert!(node.cpu_range.is_empty());
@@ -852,10 +852,7 @@ mod tests {
 
     #[test]
     fn non_cpu_power_node_is_last_cpu_to_idle() {
-        let mut node =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8, _>::new(
-                Some(0),
-            );
+        let mut node = TestNonCpuPowerNode::new(Some(0));
         for cpu_index in 0..3 {
             node.assign_cpu(cpu_index);
         }
@@ -884,10 +881,7 @@ mod tests {
 
     #[test]
     fn non_cpu_power_node_get_osi_minimal_allowed_state_without_core() {
-        let mut node0 =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8, _>::new(
-                Some(0),
-            );
+        let mut node0 = TestNonCpuPowerNode::new(Some(0));
         for cpu_index in 0..3 {
             node0.assign_cpu(cpu_index);
         }
@@ -915,12 +909,7 @@ mod tests {
             TestPowerState::RUN
         );
 
-        let mut node1 = NonCpuPowerNode::<
-            { TestPlatform::CORE_COUNT },
-            NON_CPU_DOMAIN_COUNT,
-            u8,
-            TestPowerState,
-        >::new(Some(1));
+        let mut node1 = TestNonCpuPowerNode::new(Some(1));
         node1.assign_cpu(3);
         assert_eq!(
             node1.get_osi_minimal_allowed_state_without_core(3, None),
@@ -930,10 +919,7 @@ mod tests {
 
     #[test]
     fn non_cpu_power_node_get_osi_minimal_allowed_state_with_running_non_cpu() {
-        let mut node0 =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8, _>::new(
-                Some(0),
-            );
+        let mut node0 = TestNonCpuPowerNode::new(Some(0));
         for cpu_index in 0..3 {
             node0.assign_cpu(cpu_index);
         }
@@ -959,10 +945,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn non_cpu_power_node_invalid_cpu_request() {
-        let mut node =
-            NonCpuPowerNode::<{ TestPlatform::CORE_COUNT }, NON_CPU_DOMAIN_COUNT, u8, _>::new(
-                Some(1),
-            );
+        let mut node = TestNonCpuPowerNode::new(Some(1));
         node.assign_cpu(2);
         node.assign_cpu(3);
         node.set_requested_power_state(4, TestPowerState::RUN);
@@ -1014,13 +997,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_create() {
-        let tree = PowerDomainTree::<
-            { TestPlatform::CORE_COUNT },
-            NON_CPU_DOMAIN_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            u8,
-            TestPowerState,
-        >::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
         let non_cpu_parents = [None, Some(0), Some(0), Some(1), Some(1), Some(2), Some(2)];
         let non_cpu_ranges = [0..13, 0..6, 6..13, 0..3, 3..6, 6..9, 9..13];
         let cpu_parents = [3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 6];
@@ -1045,13 +1022,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_is_last_cpu() {
-        let tree = PowerDomainTree::<
-            { TestPlatform::CORE_COUNT },
-            NON_CPU_DOMAIN_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            u8,
-            TestPowerState,
-        >::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
 
         tree.locked_cpu_node(2).set_affinity_info(AffinityInfo::On);
         assert!(tree.is_last_cpu(2));
@@ -1063,13 +1034,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_with_acenstors_locked() {
-        let tree = PowerDomainTree::<
-            { TestPlatform::CORE_COUNT },
-            NON_CPU_DOMAIN_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            u8,
-            TestPowerState,
-        >::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
 
         let mut cpu = tree.locked_cpu_node(4);
         tree.with_ancestors_locked_to_max_level(&mut cpu, 1, |_cpu, ancestors| {
@@ -1090,13 +1055,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_all_cpus_on_returns_true_for_all_on() {
-        let tree = PowerDomainTree::<
-            { TestPlatform::CORE_COUNT },
-            NON_CPU_DOMAIN_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            u8,
-            TestPowerState,
-        >::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
         for cpu in &tree.cpu_power_nodes {
             cpu.lock().set_affinity_info(AffinityInfo::On);
         }
@@ -1105,13 +1064,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_some_cpus_off_returns_false_for_all_on() {
-        let tree = PowerDomainTree::<
-            { TestPlatform::CORE_COUNT },
-            NON_CPU_DOMAIN_COUNT,
-            PSCI_MAX_POWER_LEVEL,
-            u8,
-            TestPowerState,
-        >::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
         for cpu in &tree.cpu_power_nodes {
             cpu.lock().set_affinity_info(AffinityInfo::On);
         }
@@ -1131,13 +1084,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_some_cpus_off_returns_false_for_all_off() {
-        let tree = PowerDomainTree::<
-            { TestPlatform::CORE_COUNT },
-            { TestPsciPlatformImpl::POWER_DOMAIN_COUNT - TestPlatform::CORE_COUNT },
-            PSCI_MAX_POWER_LEVEL,
-            u8,
-            TestPowerState,
-        >::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
         for cpu in &tree.cpu_power_nodes {
             cpu.lock().set_affinity_info(AffinityInfo::Off);
         }
@@ -1147,7 +1094,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_last_cpu_idled_at_power_level_cpu_level_returns_true() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
         assert!(is_last_cpu_to_idle_at_power_level_helper(
             &tree,
             0,
@@ -1162,7 +1109,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_last_cpu_idled_at_power_level_one_cpu_on_returns_true() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
         // All power nodes start in off state.
 
         // Turn on some random cores outside the subtree we're going to run tests with to
@@ -1189,7 +1136,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_last_cpu_idled_at_power_level_two_cpu_on_returns_true() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
         // All power nodes start in off state.
 
         // Turn on CPU 1 to demonstrate that the code only looks at the tree up to end_power_level.
@@ -1214,7 +1161,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_last_cpu_idled_at_root_with_cpu_on_returns_true() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
         // All power nodes start in off state.
 
         // Use the root node to turn on CPU 0.
@@ -1246,7 +1193,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_is_last_cpu_idled_at_power_level_false_for_two_children_on() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
 
         set_cpu_power_state_by_index(&tree, 0, TestPowerState::RUN);
         set_cpu_power_state_by_index(&tree, 1, TestPowerState::RUN);
@@ -1259,7 +1206,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_is_last_cpu_idled_at_power_level_false_for_two_grandchildren_on() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
 
         set_cpu_power_state_by_index(&tree, 0, TestPowerState::RUN);
         set_cpu_power_state_by_index(&tree, 1, TestPowerState::RUN);
@@ -1279,7 +1226,7 @@ mod tests {
 
     #[test]
     fn power_domain_tree_is_last_cpu_idled_at_power_level_false_for_two_great_grandchildren_on() {
-        let tree = PowerDomainTree::new(TestPsciPlatformImpl.topology());
+        let tree = setup_power_domain_tree();
 
         set_cpu_power_state_by_index(&tree, 0, TestPowerState::RUN);
         set_cpu_power_state_by_index(&tree, 1, TestPowerState::RUN);

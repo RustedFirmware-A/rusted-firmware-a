@@ -277,8 +277,7 @@ so is used by the PSCI service implementation in RF-A.
 ### `arm-sysregs`
 
 This provides functions to read and write AArch64 system registers, and types for accessing their
-fields. It is currently maintained within the RF-A repository, but will soon be moved to a separate
-repository on the TrustedFirmware Gerrit instance.
+fields.
 
 ### `log`
 

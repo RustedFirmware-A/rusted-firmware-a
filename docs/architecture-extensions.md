@@ -75,7 +75,7 @@ The level of support sometimes depends on the security state and exception level
 | | `FEAT_SVE` | Armv8.2 | Yes | Platform + Runtime | S/NS/R\* | No | Yes | Scalable Vector Extension | \* Disables traps for Non-Secure world, Secure world if `sel2`, Realm world if `rme`. Context-switches Non-Secure `Z0-Z31`, `P0-P15`, `FFR`, `FPCR`, and `FPSR` when `sel2` is disabled; `FFR` is not saved/restored in Streaming SVE mode unless `FEAT_SME_FA64` is present. See `FEAT_AdvSIMD`. |
 | **The Armv8.3 architecture extension** |  |  |  |  |  |  |  |  |  |
 | | `FEAT_CCIDX` | Armv8.2 | Yes | Runtime | N/A | Yes | No | Extended cache index | Reads extended `CCSIDR_EL1` format for cache maintenance. |
-| | `FEAT_PAuth` | Armv8.2; mandatory from Armv8.3 | Yes | Unconditional\* | N/A | Yes if the `pauth` feature is enabled | No | Pointer authentication | \* EL3 keys are enabled by the `pauth` feature flag. PAuth registers are context-switched unconditionally. |
+| | `FEAT_PAuth` | Armv8.2; mandatory from Armv8.3 | Yes | Unconditional\* | N/A | Yes if the `pauth` feature is enabled | No | Pointer authentication | \* EL3 keys are enabled by the `pauth` feature flag. PAuth registers are context-switched unconditionally. See [feat_pauth.md]. |
 | **The Armv8.4 architecture extension** |  |  |  |  |  |  |  |  |  |
 | | `FEAT_AMUv1` | Armv8.3 | Yes | Platform + Runtime | NS | No | Yes | Activity Monitor Extension | Saves AMU on powerdown suspend. G0 counters 0-1 are always on; G0 counters 2-3 are context-switched and disabled in EL3. G1 counters cannot be enabled without `FEAT_AMUv1p1`. |
 | | `FEAT_DIT` | Armv8.3; mandatory from Armv8.4 | Yes | Unconditional | S/NS/R | Yes | Yes | Data Independent Timing Instructions | Context-switched along with `SPSR`. |
@@ -139,6 +139,8 @@ with extensions which fulfill any of the following criteria:
  - present in the output binary (see `FEAT_BTI` and `FEAT_LSE`).
 
 [1]: https://support.arm.com/documentation/ddi0487/latest/
+
+[feat_pauth.md]: architecture-extensions/feat_pauth.md
 
 ---
 

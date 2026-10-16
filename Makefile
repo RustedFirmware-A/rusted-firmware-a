@@ -38,7 +38,7 @@ ifndef PLAT
 endif
 
 STF_CARGO_FLAGS = --release
-STF_IMAGES_FLAGS = $(patsubst target/%.bin, "--bin" "%", $(STF_IMAGES))
+STF_IMAGES_FLAGS = $(patsubst $(OUT)/%.bin, "--bin" "%", $(STF_IMAGES))
 RFA_CARGO_FLAGS := --no-default-features
 
 # List of test images that can be built for that platform.

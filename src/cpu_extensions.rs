@@ -17,6 +17,7 @@ pub mod mte2;
 #[cfg(feature = "pauth")]
 pub mod pauth;
 pub mod pfar;
+pub mod pie;
 pub mod pmuv3;
 pub mod ras;
 pub mod sctlr2;

@@ -104,7 +104,9 @@ The level of support sometimes depends on the security state and exception level
 | | `FEAT_FGT2` | Armv8.8 | Yes | Platform + Runtime | S/NS/R | No | No | Fine-Grained Traps 2 | Context-switches only when `sel2` or `rme` are present. |
 | | `FEAT_PFAR` | Armv8.8 | Yes | Platform + Runtime | S/NS/R | No | Yes | Physical Fault Address Registers | Enables lower EL support in all worlds; saves NS/S/Realm. |
 | | `FEAT_S1PIE` | Armv8.8 | Yes | Platform + Runtime | S/NS/R | No | Yes | Stage 1 permission indirections | Enables lower EL support in all worlds. Context-switches `PIR_EL1` and `PIRE0_EL1` when `sel2` is disabled, or `PIR_EL2` and `PIRE0_EL2` when enabled. |
+| | `FEAT_S1POE` | Armv8.8 | Yes | Platform + Runtime | S/NS/R | No | Yes | Stage 1 permission overlays | Enables lower EL support in all worlds. Context-switches `POR_EL1` when `sel2` is disabled, or `POR_EL2` when enabled. |
 | | `FEAT_S2PIE` | Armv8.8 | Yes | Platform + Runtime | S/NS/R in EL2 | No | Yes | Stage 2 permission indirections | Enables lower EL support in all worlds. Context-switches `S2PIR_EL2` only when `sel2` is enabled. |
+| | `FEAT_S2POE` | Armv8.8 | Yes | Platform + Runtime | S/NS/R | No | Yes | Stage 2 permission overlays | Enables lower EL support in all worlds. Context-switches `S2POR_EL1` only when `sel2` is disabled. |
 | **The Armv9.0 architecture extension** |  |  |  |  |  |  |  |  |  |
 | | `FEAT_TRBE` | Armv9.0 | Yes | Platform + Runtime | NS | No | No | Trace Buffer Extension | Enables trace buffer for NS world. Other accesses are trapped. |
 | **The Armv9.2 architecture extension** |  |  |  |  |  |  |  |  |  |

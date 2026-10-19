@@ -133,6 +133,10 @@ case "$PLAT" in
         -C cluster1.has_permission_indirection_s1=2 \
         -C cluster0.has_permission_indirection_s2=2 \
         -C cluster1.has_permission_indirection_s2=2 \
+        -C cluster0.has_permission_overlay_s1=2 \
+        -C cluster1.has_permission_overlay_s1=2 \
+        -C cluster0.has_permission_overlay_s2=2 \
+        -C cluster1.has_permission_overlay_s2=2 \
         -C cluster0.has_sctlr2=2 \
         -C cluster1.has_sctlr2=2 \
         -C cluster0.has_self_hosted_trace_extension=2 \

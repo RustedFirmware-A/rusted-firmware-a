@@ -16,6 +16,7 @@ mod pan;
 mod pan3;
 mod pfar;
 mod pie;
+mod poe;
 mod psci;
 mod psci_osi;
 #[cfg(all(feature = "rme", not(feature = "test_rmm_fail")))]

@@ -151,6 +151,8 @@ case "$PLAT" in
         -C cluster1.has_gcs=2 \
         -C cluster0.restriction_on_speculative_execution=2 \
         -C cluster1.restriction_on_speculative_execution=2 \
+        -C cluster0.has_uinj=2 \
+        -C cluster1.has_uinj=2 \
         -C gic_distributor.ARE-fixed-to-one=1 \
         -C gic_distributor.extended-ppi-count=64 \
         -C gic_distributor.extended-spi-count=1024 \

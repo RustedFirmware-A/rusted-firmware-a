@@ -11,7 +11,8 @@ use arm_sysregs::{
     el1::{
         accessors::{
             read_gcscr_el1, read_id_aa64dfr1_el1, read_id_aa64mmfr1_el1, read_id_aa64pfr1_el1,
-            read_sctlr_el1, read_vbar_el1, write_elr_el1, write_esr_el1, write_spsr_el1,
+            read_id_aa64pfr2_el1, read_sctlr_el1, read_vbar_el1, write_elr_el1, write_esr_el1,
+            write_spsr_el1,
         },
         registers::{ElrEl1, EsrEl1, GcscrEl1, SctlrEl1, SpsrEl1},
     },
@@ -39,6 +40,7 @@ const LOWER_EL_AARCH64: usize = 0x400;
 /// registers of which EL3 firmware is unaware.
 ///
 /// This is a safety net to avoid EL3 panics caused by system register access.
+/// It leverages FEAT_UINJ if supported, otherwise the exception is injected through software means.
 pub fn inject_undef64(world: World) {
     exception_free(|token| {
         let mut cpu_state = CpuStates::cpu_state(token);
@@ -46,13 +48,18 @@ pub fn inject_undef64(world: World) {
 
         let elr_el3 = el3_state.elr_el3;
         let old_spsr = el3_state.spsr_el3;
-        let to_el = target_el(old_spsr.exception_level(), world_context(world).scr_el3);
 
         if old_spsr.contains(SpsrEl3::M_4) {
             panic!("Trying to inject undefined exception to lower EL in AArch32 mode")
         }
 
+        if read_id_aa64pfr2_el1().is_feat_uinj_present() {
+            el3_state.spsr_el3.insert(SpsrEl3::UINJ);
+            return;
+        }
+
         let vbar;
+        let to_el = target_el(old_spsr.exception_level(), world_context(world).scr_el3);
         // Write directly to EL1 or EL2 system registers, because we don't save or restore the lower
         // EL system registers in this path.
         match to_el {

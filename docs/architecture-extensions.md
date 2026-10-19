@@ -121,6 +121,7 @@ The level of support sometimes depends on the security state and exception level
 | | `FEAT_RME_GPC2` | Armv9.4 | Yes | Build + Runtime | N/A | Yes | No | RME Granule Protection Check 2 Extension | Enabled by the `rme` feature flag. Used for access-type validation. |
 | **The Armv9.6 architecture extension** |  |  |  |  |  |  |  |  |  |
 | | `FEAT_RME_GDI` | Armv9.4 | Yes | Build + Runtime | N/A | Yes | No | RME Granular Data Isolation extension | Enabled by the `rme` feature flag. |
+| | `FEAT_UINJ` | Armv9.0; mandatory from Armv9.6 | Yes | Runtime | N/A | Yes | No | Injection of Undefined Instruction exceptions |  |
 
 ## Table Extension Guide
 

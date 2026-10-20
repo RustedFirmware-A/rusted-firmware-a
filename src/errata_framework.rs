@@ -68,16 +68,16 @@ impl Debug for CveId {
 /// Represents a CPU revision and variant.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub struct RevisionVariant {
-    /// The CPU revision.
-    pub revision: u8,
-    /// The CPU variant.
+    /// The CPU variant (major revision, e.g., the 'r' in r0p0).
     pub variant: u8,
+    /// The CPU revision (minor revision/patch, e.g., the 'p' in r0p0).
+    pub revision: u8,
 }
 
 impl RevisionVariant {
     /// Creates a new RevisionVariant.
-    pub const fn new(revision: u8, variant: u8) -> Self {
-        Self { revision, variant }
+    pub const fn new(variant: u8, revision: u8) -> Self {
+        Self { variant, revision }
     }
 
     /// A sentinel value for errata that are not yet fixed.
@@ -376,11 +376,12 @@ macro_rules! implement_erratum_check {
                 "cmp x2, x3",
                 "b.ne 1f",
 
-                // Load variant into bits [3:0] and revision into bits [7:4] of x2
-                "ubfx x2, x1, #{midr_variant_shift}, #{midr_variant_len}",
-                "bfi x2, x1, #{midr_variant_len}, #{midr_revision_len}",
+                // Pack ARM Variant (Major) into bits [7:4] and ARM Revision (Minor) into bits [3:0] of x2
+                "ubfx x2, x1, #{midr_variant_shift}, #{midr_variant_len}", // Extract Variant (Major)
+                "lsl x2, x2, #{midr_revision_len}",                        // Shift Variant up
+                "bfi x2, x1, #0, #{midr_revision_len}",                    // Insert Revision (Minor) at bottom
 
-                // Load APPLY_FROM with variant in bits [3:0] and revision in bits [7:4] into x3
+                // Load APPLY_FROM with Variant in [7:4] and Revision in [3:0] into x3
                 "mov x3, #{apply_from}",
 
                 // Compare current revision and variant with APPLY_FROM
@@ -388,7 +389,7 @@ macro_rules! implement_erratum_check {
                 "b.lt 1f",    // If less, condition not met, return false, else check against
                               // FIXED_IN
 
-                // Load FIXED_IN with variant in bits [3:0] and revision in bits [7:4] into x4
+                // Load FIXED_IN with Variant in [7:4] and Revision in [3:0] into x4
                 "mov x4, #{fixed_in}",
 
                 // Compare current revision and variant with FIXED_IN
@@ -406,8 +407,8 @@ macro_rules! implement_erratum_check {
 
                 include_str!("../asm_macros_common_purge.S"),
                 DEBUG = const $crate::debug::DEBUG as i32, // Required by asm_macros_common.S
-                apply_from = const (((APPLY_FROM__.revision as u32) << VARIANT_LEN) | APPLY_FROM__.variant as u32),
-                fixed_in = const (((FIXED_IN__.revision as u32) << VARIANT_LEN) | FIXED_IN__.variant as u32),
+                apply_from = const (((APPLY_FROM__.variant as u32) << REVISION_LEN) | APPLY_FROM__.revision as u32),
+                fixed_in = const (((FIXED_IN__.variant as u32) << REVISION_LEN) | FIXED_IN__.revision as u32),
                 midr_revision_len = const REVISION_LEN as u32,
                 midr_variant_shift = const MidrEl1::VARIANT_SHIFT as u32,
                 midr_variant_len = const VARIANT_LEN,
@@ -419,3 +420,48 @@ macro_rules! implement_erratum_check {
     };
 }
 pub use implement_erratum_check;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_revision_variant_ordering() {
+        // According to ARM docs, Variant is the major version (e.g. the 'r' in r0p0)
+        // and Revision is the minor version (e.g. the 'p' in r0p0).
+        //
+        // `RevisionVariant` relies on `#[derive(PartialOrd, Ord)]` which evaluates
+        // fields in lexical order. Because `variant` is correctly declared before
+        // `revision` in the struct definition, this evaluates to true, proving the
+        // lexical order is correct. This protects against accidental struct member
+        // reordering which would silently break errata logic.
+
+        let r0p9 = RevisionVariant::new(0, 9);
+        let r1p0 = RevisionVariant::new(1, 0);
+        let r1p2 = RevisionVariant::new(1, 2);
+
+        // 1. Variant (major) must override Revision (minor).
+        assert!(r1p0 > r0p9);
+
+        // 2. Same variant, larger revision is greater.
+        assert!(r1p2 > r1p0);
+
+        // 3. Extreme bounds: absolute max minor version is still less than next major version.
+        let r0p255 = RevisionVariant::new(0, 255);
+        assert!(r1p0 > r0p255);
+
+        // 4. Equality constraints.
+        let r1p0_duplicate = RevisionVariant::new(1, 0);
+        assert!(r1p0 == r1p0_duplicate);
+        assert!(r1p0 >= r1p0_duplicate);
+        assert!(r1p0 <= r1p0_duplicate);
+    }
+
+    #[test]
+    fn test_not_fixed_sentinel() {
+        // NOT_FIXED should act as the absolute upper bound (255, 255) and evaluate
+        // as greater than any real core version.
+        let late_core = RevisionVariant::new(254, 254);
+        assert!(RevisionVariant::NOT_FIXED > late_core);
+    }
+}

@@ -178,7 +178,7 @@ fn handle_rmi_call(regs: &[u64; 18]) -> [u64; 17] {
     let not_supported = || {
         let mut ret = [0; 17];
         ret[0] = (NOT_SUPPORTED as i64) as u64;
-        return ret;
+        ret
     };
 
     let Ok(function): Result<RmiFunction, _> = regs.try_into() else {

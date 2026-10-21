@@ -135,7 +135,7 @@ all: images
 
 build:
 	$(TARGET_CARGO) build --package rf-a-$(PLAT) $(CARGO_FLAGS) $(RFA_CARGO_FLAGS)
-	ln -fsr $(OUT)/rfa/$(TARGET)/$(BUILDTYPE)/rf-a-$(PLAT) $(BL31_ELF)
+	ln -fs $(abspath $(OUT)/rfa/$(TARGET)/$(BUILDTYPE)/rf-a-$(PLAT)) $(BL31_ELF)
 	$(OBJCOPY) $(BL31_ELF) -O binary $(BL31_BIN)
 	$(OBJDUMP) -dC $(BL31_ELF) > $(BL31_DUMP)
 

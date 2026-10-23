@@ -81,7 +81,6 @@
 	/* Disable cycle counter when event counting is prohibited */
 	orr	x18, x18, #{PMCR_EL0_DP_BIT}
 	msr	pmcr_el0, x18
-	isb
 
 	/* Save the FEAT_PAuth keys as they are not banked by exception level */
 	mrs	x20, s3_0_c2_c1_0 /* apiakeylo_el1 */
@@ -130,6 +129,7 @@ func prepare_el3_entry
 	save_gp_pmcr_pauth_regs
 	enable_serror_at_el3
 	set_unset_pstate_bits
+	isb
 	ret
 endfunc prepare_el3_entry
 

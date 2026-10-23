@@ -65,12 +65,12 @@ pub fn sev() {
 }
 
 /// Issues a translation lookaside buffer invalidate (`tlbi`) instruction that invalidates all TLB
-/// entries for EL3 (`alle3`).
-pub fn tlbi_alle3() {
+/// entries for EL3 in the Inner Shareable domain (`alle3is`).
+pub fn tlbi_alle3is() {
     // SAFETY: `tlbi` does not violate safe Rust guarantees.
     #[cfg(all(target_arch = "aarch64", not(test)))]
     unsafe {
-        asm!("tlbi alle3", options(nostack));
+        asm!("tlbi alle3is", options(nostack));
     }
 }
 

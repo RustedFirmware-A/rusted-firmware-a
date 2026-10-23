@@ -7,7 +7,7 @@
 pub mod early_pagetable;
 
 use crate::{
-    aarch64::{dsb_sy, isb, tlbi_alle3},
+    aarch64::{dsb_ish, dsb_sy, isb, tlbi_alle3is},
     layout::{
         bl_code_base, bl_code_end, bl_ro_data_base, bl_ro_data_end, bl31_end, bl31_start, bss2_end,
         bss2_start,
@@ -342,10 +342,17 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
                     Ttbr0El3::from_bits_retain(idmap.root_address().0 as u64) | Ttbr0El3::CNP,
                 );
             }
+            // Ensure the new TTBR0_EL3 is in effect before the TLB invalidation, so that no
+            // translation table walk after the invalidation can refill the TLB from the early page
+            // tables.
+            isb();
 
             // Make sure that any entry from the early page table is invalidated. If WXN is not cached,
             // setting WXN removes execution right of the current PC that would result in an exception.
-            tlbi_alle3();
+            // TTBR0_EL3.CnP is set, so the invalidation must be broadcast to the Inner Shareable
+            // domain, and the DSB is required to wait for the invalidation to complete.
+            tlbi_alle3is();
+            dsb_ish();
             isb();
 
             sctlr |= SctlrEl3::WXN;
@@ -358,7 +365,8 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
             isb();
 
             // Invalidate entries to prevent having entries cached without WXN.
-            tlbi_alle3();
+            tlbi_alle3is();
+            dsb_ish();
             isb();
 
             debug!("Marking page table as active");

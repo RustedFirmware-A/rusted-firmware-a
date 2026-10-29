@@ -85,7 +85,7 @@ use rf_a_core::{cpu_extensions::CpuExtension, gicv3::GicConfig, platform::Platfo
 struct Foo;
 
 unsafe impl Platform for Foo {
-    type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
+    type PageTable = El3PageTable<{ Self::PAGE_HEAP_PAGE_COUNT }>;
 
     const GIC_CONFIG: GicConfig = GicConfig {
         interrupts_config: &[],

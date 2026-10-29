@@ -35,7 +35,7 @@ use rf_a_core::{
     },
     naked_asm,
     pagetable::{
-        IdMap, MT_DEVICE, MT_MEMORY_EL3,
+        El3PageTable, MT_DEVICE, MT_MEMORY_EL3,
         early_pagetable::{EarlyRegion, define_early_mapping},
     },
     panic_handler,
@@ -164,7 +164,7 @@ unsafe impl Platform for Qemu {
         PerCoreMemoryLogger<'static, { Self::CORE_COUNT }, LOG_BUFFER_SIZE, Self>,
         LockedWriter<Uart<'static>>,
     >;
-    type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
+    type PageTable = El3PageTable<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = QemuPsciPlatformImpl;
     type CrashConsoleImpl = Pl011CrashConsole<UART1_BASE, 1, 115_200>;
 
@@ -205,13 +205,13 @@ unsafe impl Platform for Qemu {
         });
     }
 
-    fn map_extra_regions(idmap: &mut Self::IdMap) {
+    fn map_extra_regions(page_table: &mut Self::PageTable) {
         // SAFETY: Nothing is being unmapped, and the regions being mapped have the correct
         // attributes.
         unsafe {
-            idmap.map_region(&SHARED_RAM, MT_DEVICE);
-            idmap.map_region(&DEVICE0, MT_DEVICE);
-            idmap.map_region(&DEVICE1, MT_DEVICE);
+            page_table.map_region(&SHARED_RAM, MT_DEVICE);
+            page_table.map_region(&DEVICE0, MT_DEVICE);
+            page_table.map_region(&DEVICE1, MT_DEVICE);
         }
     }
 

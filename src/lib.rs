@@ -37,7 +37,7 @@ use crate::{
     cpu::PlatformCpuOps,
     errata_framework::PlatformErrata,
     gicv3::Gic,
-    pagetable::{IdMap, OncePageTable, PageHeap},
+    pagetable::{El3PageTable, OncePageTable, PageHeap},
     platform::Platform,
     services::{El3Runtime, psci::PsciPlatformInterface},
 };
@@ -61,7 +61,7 @@ pub fn coldboot<
     const PSCI_MAX_POWER_LEVEL: usize,
     const NON_CPU_DOMAIN_COUNT: usize,
     const PAGE_HEAP_PAGE_COUNT: usize,
-    PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>> + PlatformCpuOps + PlatformErrata,
+    PlatformImpl: Platform<PageTable = El3PageTable<PAGE_HEAP_PAGE_COUNT>> + PlatformCpuOps + PlatformErrata,
 >(
     page_table: &OncePageTable<PAGE_HEAP_PAGE_COUNT>,
     page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,

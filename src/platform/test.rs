@@ -19,7 +19,7 @@ use crate::{
     errata_framework::{CveId, Erratum, ErratumId, ErratumType, define_errata_list},
     gicv3::GicConfig,
     logger::LogSink,
-    pagetable::{IdMap, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
+    pagetable::{El3PageTable, MT_DEVICE, disable_mmu_el3, early_pagetable::define_early_mapping},
     services::{
         Service,
         arch::{Arch, ArchPlatform, SocVersion},
@@ -97,7 +97,7 @@ unsafe impl Platform for TestPlatform {
     const PAGE_HEAP_PAGE_COUNT: usize = 6;
 
     type LogSinkImpl = StdOutSink;
-    type IdMap = IdMap<{ Self::PAGE_HEAP_PAGE_COUNT }>;
+    type PageTable = El3PageTable<{ Self::PAGE_HEAP_PAGE_COUNT }>;
     type PsciPlatformImpl = TestPsciPlatformImpl;
     #[cfg(feature = "rme")]
     type RmmdPlatformImpl = TestRmmdPlatformImpl;
@@ -115,10 +115,10 @@ unsafe impl Platform for TestPlatform {
             .expect("Failed to initialise logger");
     }
 
-    fn map_extra_regions(idmap: &mut Self::IdMap) {
+    fn map_extra_regions(page_table: &mut Self::PageTable) {
         // SAFETY: The pagetable isn't actually used in unit tests.
         unsafe {
-            idmap.map_region(&DEVICE0, MT_DEVICE);
+            page_table.map_region(&DEVICE0, MT_DEVICE);
         }
     }
 

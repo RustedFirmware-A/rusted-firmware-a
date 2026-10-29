@@ -311,11 +311,11 @@ pub fn flush_dcache_to_popa_range(
     Ok(())
 }
 
-/// Wrapper around an [`IdMap`] with a mutex and late initialisation, to be stored in a static
-/// variable.
+/// Wrapper around an [`El3PageTable`] with a mutex and late initialisation, to be stored in a
+/// static variable.
 #[derive(Default)]
 pub struct OncePageTable<const PAGE_HEAP_PAGE_COUNT: usize> {
-    page_table: Once<SpinMutex<IdMap<PAGE_HEAP_PAGE_COUNT>>>,
+    page_table: Once<SpinMutex<El3PageTable<PAGE_HEAP_PAGE_COUNT>>>,
 }
 
 impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
@@ -332,21 +332,23 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
     /// function only switches the TTBR value and updates SCTLR to add WXN.
     ///
     /// This should be called once in the startup sequence of the primary core.
-    pub fn init_runtime_mapping<PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>>(
+    pub fn init_runtime_mapping<
+        PlatformImpl: Platform<PageTable = El3PageTable<PAGE_HEAP_PAGE_COUNT>>,
+    >(
         &self,
         page_heap: &'static PageHeap<PAGE_HEAP_PAGE_COUNT>,
     ) {
         self.page_table.call_once(|| {
             let page_heap = page_heap.take();
-            let idmap = init_page_table::<PAGE_HEAP_PAGE_COUNT, PlatformImpl>(page_heap);
+            let page_table = init_page_table::<PAGE_HEAP_PAGE_COUNT, PlatformImpl>(page_heap);
 
-            trace!("Page table: {idmap:?}");
+            trace!("Page table: {page_table:?}");
 
             // Safety: `PAGE_TABLE_ADDR` is only written once here and then its value is flushed from
             // the cache to make it visible to other core's early boot sequence.
             unsafe {
                 // Expose page table address so other cores can access it in their boot sequence.
-                PAGE_TABLE_ADDR = idmap.root_address().0;
+                PAGE_TABLE_ADDR = page_table.root_address().0;
 
                 flush_dcache((&raw const PAGE_TABLE_ADDR).as_ref().unwrap());
             }
@@ -361,10 +363,10 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
             isb();
 
             // Safety: The MMU is already enabled with the correct configuration parameters MAIR, TCR.
-            // `idmap` provides a valid address to the runtime page tables.
+            // `page_table` provides a valid address to the runtime page tables.
             unsafe {
                 write_ttbr0_el3(
-                    Ttbr0El3::from_bits_retain(idmap.root_address().0 as u64) | Ttbr0El3::CNP,
+                    Ttbr0El3::from_bits_retain(page_table.root_address().0 as u64) | Ttbr0El3::CNP,
                 );
             }
             // Ensure the new TTBR0_EL3 is in effect before the TLB invalidation, so that no
@@ -395,9 +397,9 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
             isb();
 
             debug!("Marking page table as active");
-            idmap.mark_active();
+            page_table.mark_active();
 
-            SpinMutex::new(idmap)
+            SpinMutex::new(page_table)
         });
     }
 }
@@ -475,11 +477,11 @@ pub extern "C" fn enable_mmu<PlatformImpl: Platform>(
 /// regions.
 fn init_page_table<
     const PAGE_HEAP_PAGE_COUNT: usize,
-    PlatformImpl: Platform<IdMap = IdMap<PAGE_HEAP_PAGE_COUNT>>,
+    PlatformImpl: Platform<PageTable = El3PageTable<PAGE_HEAP_PAGE_COUNT>>,
 >(
     pages: &'static mut [PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT],
-) -> IdMap<PAGE_HEAP_PAGE_COUNT> {
-    let mut idmap = IdMap::new(pages);
+) -> El3PageTable<PAGE_HEAP_PAGE_COUNT> {
+    let mut page_table = El3PageTable::new(pages);
 
     // If the BL32 entry point is in the middle of our memory range then something is misconfigured.
     let secure_entry_pc = PlatformImpl::secure_entry_point().pc;
@@ -490,24 +492,24 @@ fn init_page_table<
     unsafe {
         // Corresponds to `bl_regions` in C TF-A, `plat/arm/common/arm_bl31_setup.c`.
         // BL31_TOTAL
-        idmap.map_region(&MemoryRegion::new(bl31_start(), bl31_end()), MT_MEMORY_EL3);
+        page_table.map_region(&MemoryRegion::new(bl31_start(), bl31_end()), MT_MEMORY_EL3);
         // BL31_RO
-        idmap.map_region(
+        page_table.map_region(
             &MemoryRegion::new(bl_code_base(), bl_code_end()),
             MT_CODE_EL3,
         );
-        idmap.map_region(
+        page_table.map_region(
             &MemoryRegion::new(bl_ro_data_base(), bl_ro_data_end()),
             MT_RO_DATA_EL3,
         );
         let bss2_start = bss2_start();
         let bss2_end = bss2_end();
         if bss2_start != bss2_end {
-            idmap.map_region(&MemoryRegion::new(bss2_start, bss2_end), MT_RW_DATA_EL3);
+            page_table.map_region(&MemoryRegion::new(bss2_start, bss2_end), MT_RW_DATA_EL3);
         }
 
         #[cfg(feature = "rme")]
-        idmap.map_region(
+        page_table.map_region(
             &MemoryRegion::new(
                 PlatformImpl::RmmdPlatformImpl::RMM_SHARED_BUFFER_START,
                 PlatformImpl::RmmdPlatformImpl::RMM_SHARED_BUFFER_START + RMM_SHARED_BUFFER_SIZE,
@@ -517,9 +519,9 @@ fn init_page_table<
     }
 
     // Corresponds to `plat_regions` in C TF-A.
-    PlatformImpl::map_extra_regions(&mut idmap);
+    PlatformImpl::map_extra_regions(&mut page_table);
 
-    idmap
+    page_table
 }
 
 /// # Safety
@@ -551,8 +553,8 @@ struct IdTranslation<const PAGE_HEAP_PAGE_COUNT: usize> {
     allocated: [bool; PAGE_HEAP_PAGE_COUNT],
 }
 
-// SAFETY: `pages` is the `&'static mut` passed to `IdMap::new`, kept as a raw pointer, so it has
-// the same threading properties as that reference.
+// SAFETY: `pages` is the `&'static mut` passed to `El3PageTable::new`, kept as a raw pointer, so it
+// has the same threading properties as that reference.
 unsafe impl<const PAGE_HEAP_PAGE_COUNT: usize> Send for IdTranslation<PAGE_HEAP_PAGE_COUNT> {}
 
 // SAFETY: As for `Send` above.
@@ -560,8 +562,8 @@ unsafe impl<const PAGE_HEAP_PAGE_COUNT: usize> Sync for IdTranslation<PAGE_HEAP_
 
 impl<const PAGE_HEAP_PAGE_COUNT: usize> IdTranslation<PAGE_HEAP_PAGE_COUNT> {
     fn virtual_to_physical(va: VirtualAddress) -> PhysicalAddress {
-        // Physical address is the same as the virtual address because we are using identity mapping
-        // everywhere.
+        // Physical address is the same as the virtual address because the page heap lives in the
+        // identity-mapped region.
         PhysicalAddress(va.0)
     }
 }
@@ -606,13 +608,13 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> Translation<El23Attributes>
     }
 }
 
-/// A page table using identity mapping.
+/// The EL3 runtime page table.
 #[derive(Debug)]
-pub struct IdMap<const PAGE_HEAP_PAGE_COUNT: usize> {
+pub struct El3PageTable<const PAGE_HEAP_PAGE_COUNT: usize> {
     mapping: Mapping<IdTranslation<PAGE_HEAP_PAGE_COUNT>, El3>,
 }
 
-impl<const PAGE_HEAP_PAGE_COUNT: usize> IdMap<PAGE_HEAP_PAGE_COUNT> {
+impl<const PAGE_HEAP_PAGE_COUNT: usize> El3PageTable<PAGE_HEAP_PAGE_COUNT> {
     fn new(pages: &'static mut [PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT]) -> Self {
         Self {
             mapping: Mapping::new(
@@ -742,12 +744,12 @@ mod tests {
 
         let page_heap = PAGE_HEAP.take();
 
-        let idmap =
+        let page_table =
             init_page_table::<{ TestPlatform::PAGE_HEAP_PAGE_COUNT }, TestPlatform>(page_heap);
-        assert_ne!(idmap.root_address().0, 0);
-        idmap.mark_active();
-        // `aarch64-paging` will detect the dropped idmap and panic
-        core::mem::forget(idmap);
+        assert_ne!(page_table.root_address().0, 0);
+        page_table.mark_active();
+        // `aarch64-paging` will detect the dropped active page table and panic.
+        core::mem::forget(page_table);
     }
 
     #[test]
@@ -755,13 +757,13 @@ mod tests {
         static TEST_PAGE_HEAP: PageHeap<{ TestPlatform::PAGE_HEAP_PAGE_COUNT }> = PageHeap::new();
 
         let page_heap = TEST_PAGE_HEAP.take();
-        let mut idmap = IdMap::new(page_heap);
+        let mut page_table = El3PageTable::new(page_heap);
 
         // Map a single 4 KiB page at 0x2000..0x3000 (allocates L2 and L3 subtables, setting
         // entry 2 in the L3 subtable).
         // SAFETY: The page table is not active in unit tests.
         unsafe {
-            idmap.map_region(
+            page_table.map_region(
                 &MemoryRegion::new(2 * GRANULE_SIZE, 3 * GRANULE_SIZE),
                 MT_MEMORY_EL3,
             );
@@ -772,18 +774,18 @@ mod tests {
         const L2_BLOCK_SIZE: usize = GRANULE_SIZE << 9;
         // SAFETY: The page table is not active in unit tests.
         unsafe {
-            idmap.unmap_regions(&[MemoryRegion::new(0, L2_BLOCK_SIZE)]);
+            page_table.unmap_regions(&[MemoryRegion::new(0, L2_BLOCK_SIZE)]);
         }
 
         // Map 0x0..0x1000, which reallocates the previously freed L2 and L3 subtables.
         // SAFETY: The page table is not active in unit tests.
         unsafe {
-            idmap.map_region(&MemoryRegion::new(0, GRANULE_SIZE), MT_MEMORY_EL3);
+            page_table.map_region(&MemoryRegion::new(0, GRANULE_SIZE), MT_MEMORY_EL3);
         }
 
         // Verify that the reallocated L3 subtable was zeroed (entries 1..=511 are 0) and does not
         // retain the stale descriptor for 0x2000..0x3000.
-        let debug_str = format!("{idmap:?}");
+        let debug_str = format!("{page_table:?}");
         assert!(debug_str.contains("0x0000000000000000"));
         assert!(debug_str.contains("1  -511: 0"));
         assert!(!debug_str.contains("0x0000000000002000"));

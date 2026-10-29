@@ -80,8 +80,8 @@ pub unsafe trait Platform: Sized + Send + Sync {
 
     /// The type passed to `map_extra_regions`.
     ///
-    /// Should be `IdMap<Self::PAGE_HEAP_PAGE_COUNT>`.
-    type IdMap: 'static;
+    /// Should be `El3PageTable<Self::PAGE_HEAP_PAGE_COUNT>`.
+    type PageTable: 'static;
 
     /// Platform dependent `PsciPlatformInterface` implementation type.
     type PsciPlatformImpl;
@@ -113,7 +113,7 @@ pub unsafe trait Platform: Sized + Send + Sync {
 
     /// Maps device memory and any other regions specific to the platform, before the MMU is
     /// enabled.
-    fn map_extra_regions(idmap: &mut Self::IdMap);
+    fn map_extra_regions(page_table: &mut Self::PageTable);
 
     /// Returns a 128-bit value that can be used to program the pointer authentication keys.
     ///

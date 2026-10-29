@@ -157,6 +157,12 @@ implementation without a name.
 TODO: Explain `map_extra_regions`, `define_early_mapping!` and `cold_boot_handler` vs.
 `init_with_early_mapping` vs. `init`.
 
+By default all EL3 mappings are identity mappings (`VA == PA`), so physical addresses at or above
+`1 << pagetable::VA_BITS` can't be mapped. To map such addresses, set
+`Platform::NON_IDENTITY_VA_RANGE` to a page-aligned virtual address range which doesn't overlap
+anything the platform needs to identity-map, then map windows within it with
+`El3PageTable::map_region_to_pa`.
+
 ## Logging
 
 RF-A supports two kinds of logs: regular runtime logs from Rust code via the `log` macros, and crash

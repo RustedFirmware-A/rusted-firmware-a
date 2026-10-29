@@ -30,7 +30,7 @@ use arm_sysregs::el3::{
     accessors::{read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3},
     registers::{SctlrEl3, TcrEl3, Ttbr0El3},
 };
-use core::{num::NonZeroUsize, ptr::NonNull};
+use core::{num::NonZeroUsize, ops::Range, ptr::NonNull};
 use log::{debug, trace};
 use spin::{
     Once,
@@ -63,19 +63,60 @@ pub(crate) const MAIR_IWBRWA_OWBRWA_NTR: MairAttribute = MairAttribute::normal(
 const MAIR_NON_CACHEABLE: MairAttribute =
     MairAttribute::normal(NormalMemory::NonCacheable, NormalMemory::NonCacheable);
 
+/// Physical address width in bits (256 TiB).
+const PA_BITS: u32 = 48;
+
+/// Virtual address width in bits (512 GiB).
+pub const VA_BITS: u32 = 39;
+
+/// Returns the `TCR_EL3.PS` encoding for the given physical address width in bits.
+///
+/// 52-bit physical addresses aren't supported, as they need FEAT_LPA2.
+const fn tcr_ps(pa_bits: u32) -> u8 {
+    match pa_bits {
+        32 => 0b000,
+        36 => 0b001,
+        40 => 0b010,
+        42 => 0b011,
+        44 => 0b100,
+        48 => 0b101,
+        _ => panic!("Unsupported physical address width"),
+    }
+}
+
 /// Base `TCR_EL3` configuration before platform-specific walk cacheability attributes are applied.
 const BASE_TCR: TcrEl3 = TcrEl3::RES1
-    .with_ps(0b101) // 48-bit physical address size (256 TiB).
+    .with_ps(tcr_ps(PA_BITS))
     .with_tg0(0b00) // 4 KiB granule.
     .with_sh0(0b11) // Inner Shareable, matching `MT_MEMORY_EL3`.
-    .with_t0sz(64 - 39); // 2^39 bytes (512 GiB) virtual address space.
+    .with_t0sz((64 - VA_BITS) as u8);
 
 const TOP_LEVEL_BLOCK_SIZE: usize = 0x4000_0000; // 1GB block size at level 0
 const TOP_LEVEL_DESCRIPTOR_COUNT: usize = 512; // 512 descriptors in the level 0 table.
 /// The smallest unit of memory which can be mapped in the pagetable, a single page.
 pub const GRANULE_SIZE: usize = 4096; // Using 4k pages.
 
-const _: () = assert!(BASE_TCR.tg0() == 0b00 && GRANULE_SIZE == 4096);
+// Verify that `GRANULE_SIZE`, `VA_BITS`, `PA_BITS`, `ROOT_LEVEL`, and `BASE_TCR` are mutually
+// consistent.
+const _: () = {
+    assert!(BASE_TCR.tg0() == 0b00 && GRANULE_SIZE == 4096);
+    assert!(BASE_TCR.t0sz() as u32 == 64 - VA_BITS);
+    assert!(ROOT_LEVEL <= 3);
+    assert!(VA_BITS as usize == 12 + 9 * (4 - ROOT_LEVEL));
+    assert!(VA_BITS < usize::BITS);
+    assert!(PA_BITS < usize::BITS);
+};
+
+/// Panics if `range` is not a valid [`Platform::NON_IDENTITY_VA_RANGE`].
+const fn check_non_identity_va_range(range: &Range<usize>) {
+    assert!(
+        range.start <= range.end
+            && range.end <= 1 << VA_BITS
+            && range.start.is_multiple_of(GRANULE_SIZE)
+            && range.end.is_multiple_of(GRANULE_SIZE),
+        "NON_IDENTITY_VA_RANGE must be page-aligned and below 1 << VA_BITS"
+    );
+}
 
 // Attribute values corresponding to the above MAIR indices.
 const NORMAL_MEMORY: El23Attributes = El23Attributes::ATTRIBUTE_INDEX_0;
@@ -331,6 +372,9 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
     /// At this point the early page tables are active with the required MAIR and TCR values, so the
     /// function only switches the TTBR value and updates SCTLR to add WXN.
     ///
+    /// `page_heap` must always be identity-mapped, as `IdTranslation::physical_to_virtual` relies
+    /// on this.
+    ///
     /// This should be called once in the startup sequence of the primary core.
     pub fn init_runtime_mapping<
         PlatformImpl: Platform<PageTable = El3PageTable<PAGE_HEAP_PAGE_COUNT>>,
@@ -401,6 +445,16 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> OncePageTable<PAGE_HEAP_PAGE_COUNT> {
 
             SpinMutex::new(page_table)
         });
+    }
+
+    /// Locks the runtime page table so that it can be modified.
+    ///
+    /// Panics if called before [`init_runtime_mapping`](Self::init_runtime_mapping).
+    pub fn lock(&self) -> SpinMutexGuard<'_, El3PageTable<PAGE_HEAP_PAGE_COUNT>> {
+        self.page_table
+            .get()
+            .expect("Runtime page table is not initialised")
+            .lock()
     }
 }
 
@@ -475,13 +529,16 @@ pub extern "C" fn enable_mmu<PlatformImpl: Platform>(
 
 /// Creates the page table and maps initial regions needed for boot, including any platform-specific
 /// regions.
+///
+/// `pages` must always be identity-mapped, as `IdTranslation::physical_to_virtual` relies on this.
 fn init_page_table<
     const PAGE_HEAP_PAGE_COUNT: usize,
     PlatformImpl: Platform<PageTable = El3PageTable<PAGE_HEAP_PAGE_COUNT>>,
 >(
     pages: &'static mut [PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT],
 ) -> El3PageTable<PAGE_HEAP_PAGE_COUNT> {
-    let mut page_table = El3PageTable::new(pages);
+    const { check_non_identity_va_range(&PlatformImpl::NON_IDENTITY_VA_RANGE) };
+    let mut page_table = El3PageTable::new(pages, PlatformImpl::NON_IDENTITY_VA_RANGE);
 
     // If the BL32 entry point is in the middle of our memory range then something is misconfigured.
     let secure_entry_pc = PlatformImpl::secure_entry_point().pc;
@@ -561,9 +618,11 @@ unsafe impl<const PAGE_HEAP_PAGE_COUNT: usize> Send for IdTranslation<PAGE_HEAP_
 unsafe impl<const PAGE_HEAP_PAGE_COUNT: usize> Sync for IdTranslation<PAGE_HEAP_PAGE_COUNT> {}
 
 impl<const PAGE_HEAP_PAGE_COUNT: usize> IdTranslation<PAGE_HEAP_PAGE_COUNT> {
+    /// Returns the physical address for an identity-mapped virtual address.
+    ///
+    /// Must only be called on virtual addresses outside [`Platform::NON_IDENTITY_VA_RANGE`]
+    /// (including the page heap).
     fn virtual_to_physical(va: VirtualAddress) -> PhysicalAddress {
-        // Physical address is the same as the virtual address because the page heap lives in the
-        // identity-mapped region.
         PhysicalAddress(va.0)
     }
 }
@@ -612,10 +671,18 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> Translation<El23Attributes>
 #[derive(Debug)]
 pub struct El3PageTable<const PAGE_HEAP_PAGE_COUNT: usize> {
     mapping: Mapping<IdTranslation<PAGE_HEAP_PAGE_COUNT>, El3>,
+    /// Range of virtual addresses that can be used for non-identity mappings
+    /// ([`Platform::NON_IDENTITY_VA_RANGE`]).
+    non_identity_va: Range<usize>,
 }
 
 impl<const PAGE_HEAP_PAGE_COUNT: usize> El3PageTable<PAGE_HEAP_PAGE_COUNT> {
-    fn new(pages: &'static mut [PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT]) -> Self {
+    /// Creates a new page table backed by `pages`, which must always be identity-mapped as
+    /// `IdTranslation::physical_to_virtual` relies on this.
+    fn new(
+        pages: &'static mut [PageTable<El23Attributes>; PAGE_HEAP_PAGE_COUNT],
+        non_identity_va: Range<usize>,
+    ) -> Self {
         Self {
             mapping: Mapping::new(
                 IdTranslation {
@@ -625,6 +692,7 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> El3PageTable<PAGE_HEAP_PAGE_COUNT> {
                 ROOT_LEVEL,
                 El3,
             ),
+            non_identity_va,
         }
     }
 
@@ -636,7 +704,9 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> El3PageTable<PAGE_HEAP_PAGE_COUNT> {
         self.mapping.root_address()
     }
 
-    /// Adds the given region to the page table with the given attributes, logging it first.
+    /// Identity-maps the given region with the given attributes, logging it first.
+    ///
+    /// Panics if `region` overlaps [`Platform::NON_IDENTITY_VA_RANGE`].
     ///
     /// # Safety
     ///
@@ -644,34 +714,159 @@ impl<const PAGE_HEAP_PAGE_COUNT: usize> El3PageTable<PAGE_HEAP_PAGE_COUNT> {
     /// attributes.
     pub unsafe fn map_region(&mut self, region: &MemoryRegion, attributes: El23Attributes) {
         debug!("Mapping {region} as {attributes:?}.");
-        assert!(attributes.contains(El23Attributes::VALID));
+        assert!(
+            !early_pagetable::overlaps(&(region.start().0..region.end().0), &self.non_identity_va),
+            "Identity mapping {region} overlaps the non-identity VA range"
+        );
         let pa = IdTranslation::<PAGE_HEAP_PAGE_COUNT>::virtual_to_physical(region.start());
+        // SAFETY: Our caller promised to uphold the safety requirements of `map_region`.
+        unsafe {
+            self.map_range(region, pa, attributes);
+        }
+    }
+
+    /// Maps the given region to the physical range starting at `pa`, with the given attributes.
+    ///
+    /// Panics if `region` is not within [`Platform::NON_IDENTITY_VA_RANGE`], or if `pa` is not
+    /// page-aligned.
+    ///
+    /// # Safety
+    ///
+    /// Neither `region` nor the physical range may already be mapped in this page table, and
+    /// `attributes` must be valid for the target physical memory.
+    pub unsafe fn map_region_to_pa(
+        &mut self,
+        region: &MemoryRegion,
+        pa: PhysicalAddress,
+        attributes: El23Attributes,
+    ) {
+        trace!("Mapping window {region} -> {pa} as {attributes:?}.");
+        assert!(
+            region.start().0 >= self.non_identity_va.start
+                && region.end().0 <= self.non_identity_va.end,
+            "Window mapping {region} is outside the non-identity VA range"
+        );
+        // SAFETY: Our caller promised to uphold the safety requirements of `map_region_to_pa`.
+        unsafe {
+            self.map_range(region, pa, attributes);
+        }
+    }
+
+    /// Maps `region` to the physical range starting at `pa` with the given attributes.
+    ///
+    /// # Safety
+    ///
+    /// Caller must uphold the safety requirements of [`map_region`](Self::map_region) or
+    /// [`map_region_to_pa`](Self::map_region_to_pa).
+    unsafe fn map_range(
+        &mut self,
+        region: &MemoryRegion,
+        pa: PhysicalAddress,
+        attributes: El23Attributes,
+    ) {
+        assert!(
+            attributes.contains(BASE),
+            "Mapping attributes {attributes:?} must contain {BASE:?}"
+        );
+        assert!(
+            pa.0.is_multiple_of(GRANULE_SIZE),
+            "Physical address {pa} is not aligned to {GRANULE_SIZE:#x}"
+        );
+        assert!(
+            region.start() <= region.end() && region.end().0 <= 1usize << VA_BITS,
+            "Mapping {region} is backwards or exceeds the virtual address space"
+        );
+        if region.is_empty() {
+            return;
+        }
+        assert!(
+            pa.0.checked_add(region.len())
+                .is_some_and(|pa_end| pa_end <= 1usize << PA_BITS),
+            "Mapping {region} -> {pa} exceeds the physical address space"
+        );
         self.mapping
             .map_range(region, pa, attributes, Constraints::empty())
             .expect("Error mapping memory range");
     }
 
+    /// Unmaps the given memory region from the page table, but keeps any subtables for reuse.
+    ///
+    /// Panics if `region` only partially covers a block mapping.
+    ///
+    /// # Safety
+    ///
+    /// The region being unmapped must not include any memory which is still used by RF-A after
+    /// this point.
+    pub unsafe fn unmap_region_in_place(&mut self, region: &MemoryRegion) {
+        trace!("Unmapping {region} in place.");
+        // SAFETY: Our caller promised that `region` isn't used by RF-A after this point.
+        unsafe {
+            self.clear_region_descriptors(region);
+        }
+    }
+
+    /// Frees any empty subtables, returning their pages to the page heap.
+    pub fn compact_subtables(&mut self) {
+        trace!("Compacting page table subtables.");
+        self.mapping.compact_subtables();
+    }
+
     /// Unmaps the given memory regions from the page table, and removes any subtables which are no
     /// longer needed as a result.
+    ///
+    /// Panics if any region only partially covers a block mapping.
     ///
     /// # Safety
     ///
     /// The regions being unmapped must not include any memory which is still used by RF-A after
     /// this point.
-    #[allow(unused)]
     pub unsafe fn unmap_regions(&mut self, regions: &[MemoryRegion]) {
         for region in regions {
             debug!("Unmapping {region}.");
+            // SAFETY: Our caller promised that `regions` aren't used by RF-A after this point.
+            unsafe {
+                self.clear_region_descriptors(region);
+            }
+        }
+        self.compact_subtables();
+    }
+
+    /// Clears the descriptors covering `region` without splitting blocks or allocating subtables.
+    ///
+    /// # Safety
+    ///
+    /// `region` must not include any memory which is still used by RF-A after this point.
+    unsafe fn clear_region_descriptors(&mut self, region: &MemoryRegion) {
+        // Find the span from the first to the last valid leaf within `region`, and fail if
+        // `region` only partially covers a valid block.
+        let mut span: Option<(usize, usize)> = None;
+        self.mapping
+            .walk_range(region, &mut |mr, desc, level| {
+                if !desc.is_valid() {
+                    return Ok(());
+                }
+                let granularity = GRANULE_SIZE << ((3 - level) * 9);
+                if !mr.start().0.is_multiple_of(granularity) || mr.len() != granularity {
+                    return Err(());
+                }
+                let (_, end) = span.get_or_insert((mr.start().0, mr.end().0));
+                *end = mr.end().0;
+                Ok(())
+            })
+            .expect("Error unmapping memory range");
+
+        // Narrow to `valid_span` so unmapped edges don't allocate subtables; interior gaps are
+        // already block-aligned or backed by subtables.
+        if let Some((start, end)) = span {
+            let valid_span = MemoryRegion::new(start, end);
+            // Use `modify_range` rather than `map_range` so subtables stay allocated for reuse and
+            // unmapped gaps don't allocate subtables when `pa` isn't block-aligned.
             self.mapping
-                .map_range(
-                    region,
-                    PhysicalAddress(0),
-                    El23Attributes::empty(),
-                    Constraints::empty(),
-                )
+                .modify_range(&valid_span, &|_, desc| {
+                    desc.set(PhysicalAddress(0), El23Attributes::empty())
+                })
                 .expect("Error unmapping memory range");
         }
-        self.mapping.compact_subtables();
     }
 }
 
@@ -720,6 +915,10 @@ mod tests {
     use super::*;
     use crate::platform::test::{PAGE_HEAP, TestPlatform};
 
+    const L2_BLOCK_SIZE: usize = GRANULE_SIZE << 9;
+    const WINDOW_BASE: usize = 64 << 30;
+    const NON_IDENTITY_VA: Range<usize> = WINDOW_BASE..2 * WINDOW_BASE;
+
     #[test]
     fn create_page_table() {
         let test_tcr = tcr::<TestPlatform>();
@@ -757,7 +956,7 @@ mod tests {
         static TEST_PAGE_HEAP: PageHeap<{ TestPlatform::PAGE_HEAP_PAGE_COUNT }> = PageHeap::new();
 
         let page_heap = TEST_PAGE_HEAP.take();
-        let mut page_table = El3PageTable::new(page_heap);
+        let mut page_table = El3PageTable::new(page_heap, NON_IDENTITY_VA);
 
         // Map a single 4 KiB page at 0x2000..0x3000 (allocates L2 and L3 subtables, setting
         // entry 2 in the L3 subtable).
@@ -769,15 +968,19 @@ mod tests {
             );
         }
 
-        // Unmap the entire 2 MiB L2 block (0x0..0x20_0000), which frees the L3 subtable directly
-        // without `aarch64-paging` clearing its individual entries.
-        const L2_BLOCK_SIZE: usize = GRANULE_SIZE << 9;
-        // SAFETY: The page table is not active in unit tests.
-        unsafe {
-            page_table.unmap_regions(&[MemoryRegion::new(0, L2_BLOCK_SIZE)]);
-        }
+        // Unmap the entire 2 MiB L2 block (0x0..0x20_0000) via `Mapping::map_range`, which detaches
+        // and frees the L3 subtable directly without clearing its individual entries.
+        page_table
+            .mapping
+            .map_range(
+                &MemoryRegion::new(0, L2_BLOCK_SIZE),
+                PhysicalAddress(0),
+                El23Attributes::empty(),
+                Constraints::empty(),
+            )
+            .unwrap();
 
-        // Map 0x0..0x1000, which reallocates the previously freed L2 and L3 subtables.
+        // Map 0x0..0x1000, which reallocates the previously freed L3 subtable.
         // SAFETY: The page table is not active in unit tests.
         unsafe {
             page_table.map_region(&MemoryRegion::new(0, GRANULE_SIZE), MT_MEMORY_EL3);
@@ -789,5 +992,116 @@ mod tests {
         assert!(debug_str.contains("0x0000000000000000"));
         assert!(debug_str.contains("1  -511: 0"));
         assert!(!debug_str.contains("0x0000000000002000"));
+
+        // Unmapping the whole 2 MiB block must not allocate, and frees both subtables.
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            page_table.unmap_regions(&[MemoryRegion::new(0, L2_BLOCK_SIZE)]);
+        }
+        let allocated = page_table.mapping.translation().allocated;
+        assert_eq!(allocated.iter().filter(|&&a| a).count(), 1);
+    }
+
+    #[test]
+    fn map_window_to_high_pa() {
+        static TEST_PAGE_HEAP: PageHeap<2> = PageHeap::new();
+        let mut page_table = El3PageTable::new(TEST_PAGE_HEAP.take(), NON_IDENTITY_VA);
+
+        // Map a 2 MiB window block to a physical address above `1 << VA_BITS`.
+        let window = MemoryRegion::new(WINDOW_BASE, WINDOW_BASE + L2_BLOCK_SIZE);
+        let high_pa = PhysicalAddress(0x80_0000_0000);
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            page_table.map_region_to_pa(&window, high_pa, MT_RW_DATA_NS);
+        }
+        page_table
+            .mapping
+            .walk_range(&window, &mut |mr, desc, level| {
+                assert_eq!(level, 2);
+                assert_eq!(mr, &window);
+                assert_eq!(desc.output_address(), high_pa);
+                assert_eq!(desc.flags(), MT_RW_DATA_NS);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn unmap_in_place_does_not_allocate() {
+        static TEST_PAGE_HEAP: PageHeap<3> = PageHeap::new();
+        let mut page_table = El3PageTable::new(TEST_PAGE_HEAP.take(), NON_IDENTITY_VA);
+
+        let block_window = MemoryRegion::new(WINDOW_BASE, WINDOW_BASE + L2_BLOCK_SIZE);
+        // Leave an unmapped 2 MiB slot and an unmapped leading 4 KiB page before this window.
+        let page_window = MemoryRegion::new(
+            WINDOW_BASE + 2 * L2_BLOCK_SIZE + GRANULE_SIZE,
+            WINDOW_BASE + 2 * L2_BLOCK_SIZE + 3 * GRANULE_SIZE,
+        );
+
+        // Mapping an empty region or unmapping a never-mapped sub-block range is a no-op.
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            page_table.map_region(
+                &MemoryRegion::new(GRANULE_SIZE, GRANULE_SIZE),
+                MT_MEMORY_EL3,
+            );
+            page_table.map_region_to_pa(
+                &MemoryRegion::new(WINDOW_BASE, WINDOW_BASE),
+                PhysicalAddress(0x80_0000_0000),
+                MT_RW_DATA_NS,
+            );
+            page_table.unmap_region_in_place(&page_window);
+        }
+        assert_eq!(
+            page_table.mapping.translation().allocated,
+            [true, false, false]
+        );
+
+        // Map a block and two pages, using up the whole page heap.
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            page_table.map_region_to_pa(
+                &block_window,
+                PhysicalAddress(0x80_0000_0000),
+                MT_RW_DATA_NS,
+            );
+            page_table.map_region_to_pa(&page_window, PhysicalAddress(0x8000_1000), MT_RW_DATA_NS);
+        }
+        assert_eq!(
+            page_table.mapping.translation().allocated,
+            [true, true, true]
+        );
+
+        // Unmapping both windows and the gaps between them must not allocate, as the heap is full.
+        let sparse_span =
+            MemoryRegion::new(WINDOW_BASE, WINDOW_BASE + 3 * L2_BLOCK_SIZE + GRANULE_SIZE);
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            page_table.unmap_region_in_place(&sparse_span);
+        }
+        page_table.compact_subtables();
+        assert_eq!(
+            page_table.mapping.translation().allocated,
+            [true, false, false]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Error unmapping memory range")]
+    fn unmap_in_place_rejects_partial_block() {
+        static TEST_PAGE_HEAP: PageHeap<2> = PageHeap::new();
+        let mut page_table = El3PageTable::new(TEST_PAGE_HEAP.take(), NON_IDENTITY_VA);
+
+        let block_window = MemoryRegion::new(WINDOW_BASE, WINDOW_BASE + L2_BLOCK_SIZE);
+        // SAFETY: The page table is not active in unit tests.
+        unsafe {
+            page_table.map_region_to_pa(
+                &block_window,
+                PhysicalAddress(0x80_0000_0000),
+                MT_RW_DATA_NS,
+            );
+            page_table
+                .unmap_region_in_place(&MemoryRegion::new(WINDOW_BASE, WINDOW_BASE + GRANULE_SIZE));
+        }
     }
 }

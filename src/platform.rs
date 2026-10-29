@@ -22,6 +22,7 @@ use aarch64_paging::mair::MairAttribute;
 use arm_gic::IntId;
 #[cfg(not(any(test, feature = "fakes")))]
 pub use asm::my_core_pos;
+use core::ops::Range;
 #[cfg(any(test, feature = "fakes"))]
 use percore::ExceptionFree;
 #[cfg(not(any(test, feature = "fakes")))]
@@ -70,6 +71,13 @@ pub unsafe trait Platform: Sized + Send + Sync {
     /// platform doesn't have a DSU. In any case, it must be a normal memory type with cache
     /// enabled so that atomics operations work correctly.
     const NORMAL_MEMORY_MAIR_ATTRIBUTE: MairAttribute = MAIR_IWBRWA_OWBRWA_NTR;
+
+    /// The virtual address range for non-identity mappings (`VA != PA`), which are created with
+    /// `El3PageTable::map_region_to_pa`.
+    ///
+    /// Must be page-aligned, within the EL3 virtual address space, and not overlap anything the
+    /// platform identity-maps. Empty by default.
+    const NON_IDENTITY_VA_RANGE: Range<usize> = 0..0;
 
     /// Platform dependent LogSink implementation type for Logger.
     type LogSinkImpl: LogSink;

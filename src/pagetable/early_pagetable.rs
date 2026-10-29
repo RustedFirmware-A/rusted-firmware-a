@@ -4,7 +4,7 @@
 
 //! The early pagetable is built and enabled by assembly code before running any Rust code.
 
-use crate::pagetable::{GRANULE_SIZE, TOP_LEVEL_BLOCK_SIZE, TOP_LEVEL_DESCRIPTOR_COUNT};
+use crate::pagetable::{GRANULE_SIZE, TOP_LEVEL_BLOCK_SIZE, TOP_LEVEL_DESCRIPTOR_COUNT, VA_BITS};
 use aarch64_paging::descriptor::El23Attributes;
 use core::ops::Range;
 
@@ -40,7 +40,20 @@ pub struct DescriptorRange {
 /// from the `DescriptorRange` list.
 pub const fn build_ranges<const N: usize>(
     regions: &[EarlyRegion],
+    non_identity_va: &Range<usize>,
 ) -> ([DescriptorRange; N], usize) {
+    let mut i = 0;
+    while i < regions.len() {
+        let range = &regions[i].address_range;
+        assert!(
+            range.start <= range.end
+                && range.end <= 1 << VA_BITS
+                && !overlaps(range, non_identity_va),
+            "Early page table region must be identity-mappable"
+        );
+        i += 1;
+    }
+
     let mut ranges = [const {
         DescriptorRange {
             index: 0,
@@ -256,7 +269,7 @@ const fn max(a: usize, b: usize) -> usize {
 }
 
 /// const version of Range::overlaps.
-const fn overlaps(a: &Range<usize>, b: &Range<usize>) -> bool {
+pub(super) const fn overlaps(a: &Range<usize>, b: &Range<usize>) -> bool {
     max(a.start, b.start) < min(a.end, b.end)
 }
 
@@ -286,7 +299,10 @@ macro_rules! define_early_mapping {
         const RANGES_AND_COUNT: (
             [$crate::pagetable::early_pagetable::DescriptorRange; EARLY_PAGE_TABLE_RANGE_COUNT],
             usize,
-        ) = $crate::pagetable::early_pagetable::build_ranges(&$regions);
+        ) = $crate::pagetable::early_pagetable::build_ranges(
+            &$regions,
+            &<$platform as $crate::platform::Platform>::NON_IDENTITY_VA_RANGE,
+        );
 
         static EARLY_PAGE_TABLE_RANGES: [$crate::pagetable::early_pagetable::DescriptorRange;
             EARLY_PAGE_TABLE_RANGE_COUNT] = RANGES_AND_COUNT.0;
@@ -381,6 +397,7 @@ pub use define_early_mapping;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::test::TestPlatform;
 
     #[test]
     fn map_empty() {

@@ -32,7 +32,7 @@ arm-ffa = "0.5.0"
 arm-gic = { version = "0.10.0", features = ["el3"] }
 arm-psci = "0.2.0"
 arm-rmi = { version = "0.1.0", path = "arm-rmi", optional = true }
-arm-sysregs = { version = "0.5.1", features = ["el3"] }
+arm-sysregs = { version = "0.5.2", features = ["el3"] }
 arrayvec = { version = "0.7.8", default-features = false }
 bitflags = "2.13.1"
 include-first = "0.1.0"
@@ -56,7 +56,7 @@ rf-a-build = { version = "0.1.0", path = "rf-a-build" }
 
 [dev-dependencies]
 arm-gic = { version = "0.10.0", features = ["fakes"] }
-arm-sysregs = { version = "0.5.1", features = ["fakes"] }
+arm-sysregs = { version = "0.5.2", features = ["fakes"] }
 
 [workspace.dependencies]
 rf-a-core = { version = "0.1.0", default-features = false, path = "." }

@@ -28,7 +28,7 @@ use aarch64_paging::{
 };
 use arm_sysregs::el3::{
     accessors::{read_sctlr_el3, write_sctlr_el3, write_ttbr0_el3},
-    registers::{SctlrEl3, Ttbr0El3},
+    registers::{SctlrEl3, TcrEl3, Ttbr0El3},
 };
 use core::{num::NonZeroUsize, ptr::NonNull};
 use log::{debug, trace};
@@ -63,14 +63,19 @@ pub(crate) const MAIR_IWBRWA_OWBRWA_NTR: MairAttribute = MairAttribute::normal(
 const MAIR_NON_CACHEABLE: MairAttribute =
     MairAttribute::normal(NormalMemory::NonCacheable, NormalMemory::NonCacheable);
 
-#[cfg_attr(any(test, feature = "fakes"), allow(unused))]
-const TCR: u64 = (0b101 << 16) // 48 bit physical address size (256 TiB).
-        | (64 - 39); // Size offset is 2**39 bytes (512 GiB).
+/// Base `TCR_EL3` configuration before platform-specific walk cacheability attributes are applied.
+const BASE_TCR: TcrEl3 = TcrEl3::RES1
+    .with_ps(0b101) // 48-bit physical address size (256 TiB).
+    .with_tg0(0b00) // 4 KiB granule.
+    .with_sh0(0b11) // Inner Shareable, matching `MT_MEMORY_EL3`.
+    .with_t0sz(64 - 39); // 2^39 bytes (512 GiB) virtual address space.
 
 const TOP_LEVEL_BLOCK_SIZE: usize = 0x4000_0000; // 1GB block size at level 0
 const TOP_LEVEL_DESCRIPTOR_COUNT: usize = 512; // 512 descriptors in the level 0 table.
 /// The smallest unit of memory which can be mapped in the pagetable, a single page.
 pub const GRANULE_SIZE: usize = 4096; // Using 4k pages.
+
+const _: () = assert!(BASE_TCR.tg0() == 0b00 && GRANULE_SIZE == 4096);
 
 // Attribute values corresponding to the above MAIR indices.
 const NORMAL_MEMORY: El23Attributes = El23Attributes::ATTRIBUTE_INDEX_0;
@@ -192,6 +197,26 @@ const fn mair<PlatformImpl: Platform>() -> Mair {
             PlatformImpl::NORMAL_MEMORY_MAIR_ATTRIBUTE,
         )
         .with_attribute(MAIR_NON_CACHEABLE_INDEX, MAIR_NON_CACHEABLE)
+}
+
+/// Maps a 4-bit Normal memory MAIR inner/outer nibble to its 2-bit `TCR_EL3.IRGN0`/`ORGN0`
+/// translation table walk cacheability encoding.
+const fn mair_normal_to_tcr_rgn(nibble: u8) -> u8 {
+    match nibble {
+        0b0100 => 0b00,                            // Normal memory, Non-cacheable.
+        0b0001..=0b0011 | 0b1000..=0b1011 => 0b10, // Write-Through Read-Allocate No Write-Allocate.
+        0b0101 | 0b0111 | 0b1101 | 0b1111 => 0b01, // Write-Back Read-Allocate Write-Allocate.
+        0b0110 | 0b1100 | 0b1110 => 0b11,          // Write-Back Read-Allocate No Write-Allocate.
+        _ => panic!("NORMAL_MEMORY_MAIR_ATTRIBUTE must be a valid Normal memory encoding"),
+    }
+}
+
+#[cfg_attr(any(test, feature = "fakes"), allow(unused))]
+const fn tcr<PlatformImpl: Platform>() -> TcrEl3 {
+    let normal = PlatformImpl::NORMAL_MEMORY_MAIR_ATTRIBUTE.0;
+    BASE_TCR
+        .with_irgn0(mair_normal_to_tcr_rgn(normal & 0x0f))
+        .with_orgn0(mair_normal_to_tcr_rgn(normal >> 4))
 }
 
 /// Flushes the value from the data cache.
@@ -441,7 +466,7 @@ pub extern "C" fn enable_mmu<PlatformImpl: Platform>(
         isb
         ret",
         mair = const mair::<PlatformImpl>().0,
-        tcr = const TCR,
+        tcr = const tcr::<PlatformImpl>().bits(),
         TTBR0_EL3_CNP_BIT = const Ttbr0El3::CNP.bits(),
     )
 }
@@ -695,6 +720,24 @@ mod tests {
 
     #[test]
     fn create_page_table() {
+        let test_tcr = tcr::<TestPlatform>();
+        assert!(test_tcr.contains(TcrEl3::RES1));
+        assert_eq!(test_tcr.sh0(), 0b11);
+        assert_eq!(test_tcr.irgn0(), 0b01);
+        assert_eq!(test_tcr.orgn0(), 0b01);
+        assert_eq!(
+            mair_normal_to_tcr_rgn(NormalMemory::WriteThroughTransientReadWriteAllocate as u8),
+            0b10
+        );
+        assert_eq!(
+            mair_normal_to_tcr_rgn(NormalMemory::WriteBackNonTransientReadAllocate as u8),
+            0b11
+        );
+        assert_eq!(
+            mair_normal_to_tcr_rgn(NormalMemory::NonCacheable as u8),
+            0b00
+        );
+
         assert_ne!(TestPlatform::PAGE_HEAP_PAGE_COUNT, 0);
 
         let page_heap = PAGE_HEAP.take();

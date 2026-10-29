@@ -148,6 +148,19 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.11.0 -> 0.12.1"
 notes = "Substantial changes to support different translation regimes, but well documented and reviewed."
 
+[[audits.aarch64-paging]]
+who = "Snehal Koukuntla <snehalreddy@google.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.12.1 -> 0.12.3"
+notes = """
+Fixes missing `dsb ishst` store-completion barriers before TLB invalidation and
+page table activation, masks TLBI VA operands to 44 bits, fixes EL2&0 TLB
+invalidation, performs TLB maintenance before freeing detached subtables on
+live page tables, and fixes chunk splitting overflow at the top of the upper VA
+range. All new `unsafe` blocks are well-documented barrier/TLBI instructions or
+sound wrappers around existing subtable deallocation.
+"""
+
 [[audits.aarch64-rt]]
 who = "Pranjal Shrivastava <praan@google.com>"
 criteria = "safe-to-run"

@@ -600,6 +600,15 @@ Updates changelog and dependency versions.
 Adds example code for the newly supported registers.
 """
 
+[[audits.arm-sysregs]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.5.1 -> 0.5.2"
+notes = """
+Updates changelog and dependency versions.
+Adds example code for the newly supported registers.
+"""
+
 [[audits.arm-sysregs-aarch32]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -616,6 +625,12 @@ Timer value changed to signed integer. Some redundant assertions were removed.
 Many trivial refactors.
 """
 
+[[audits.arm-sysregs-aarch32]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.5.1 -> 0.5.2"
+notes = "Updates dependencies, fixes clippy warnings."
+
 [[audits.arm-sysregs-common]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -629,6 +644,15 @@ delta = "0.4.0 -> 0.5.1"
 notes = """
 The crate's dependency on the paste crate has been replaced with the pastey crate.
 Also adds a helper macro for masking values.
+"""
+
+[[audits.arm-sysregs-common]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.5.1 -> 0.5.2"
+notes = """
+Updates dependencies, fixes clippy warnings.
+Adds a helper for decoding ESR_ELx.ISS for sysreg traps.
 """
 
 [[audits.arm-sysregs-el0]]
@@ -646,6 +670,12 @@ The change adds two new registers, and some test code. Also contains some trivia
 Timer value changed to signed integer.
 """
 
+[[audits.arm-sysregs-el0]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.5.1 -> 0.5.2"
+notes = "Updates dependencies, fixes clippy warnings."
+
 [[audits.arm-sysregs-el1]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -661,6 +691,16 @@ The change adds 1 new register, multiple feature query accessors, and many trivi
 Timer value changed to signed integer. Renames a public function.
 """
 
+[[audits.arm-sysregs-el1]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.5.1 -> 0.5.2"
+notes = """
+Updates dependencies, fixes clippy warnings.
+Adds 2 new registers and checker functions for several features.
+Adds a helper for decoding ESR_ELx.ISS for sysreg traps.
+"""
+
 [[audits.arm-sysregs-el2]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -673,6 +713,16 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.4.0 -> 0.5.1"
 notes = "Adds one new register. Many trivial refactors. Timer value changed to signed integer."
 
+[[audits.arm-sysregs-el2]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.5.1 -> 0.5.2"
+notes = """
+Updates dependencies, fixes clippy warnings.
+Adds 4 new registers and checker functions for several features.
+Adds a helper for decoding ESR_ELx.ISS for sysreg traps.
+"""
+
 [[audits.arm-sysregs-el3]]
 who = "Gergely Bálint <gergely.balint@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -684,6 +734,15 @@ who = "Sandor Teleki <sandor.teleki@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.4.0 -> 0.5.1"
 notes = "The change adds one new register. Contains some trivial refactors."
+
+[[audits.arm-sysregs-el3]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.5.1 -> 0.5.2"
+notes = """
+Updates dependencies, fixes clippy warnings.
+Adds a new register and a helper for decoding ESR_ELx.ISS for sysreg traps.
+"""
 
 [[audits.arm-tzc]]
 who = "Andrew Walbran <qwandor@google.com>"

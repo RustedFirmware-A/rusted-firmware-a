@@ -1343,6 +1343,26 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "3.0.0 -> 3.0.3"
 notes = "Extended const and unsafe syntax parsing, minor optimizations."
 
+[[audits.tf-firmware-handoff]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.2.0"
+notes = """
+"safe-to-deploy"
+The functionality of the crate is limited to parsing and managing Transfer List data as per the
+Firmware Handoff specification. Contains multiple tests and fuzzing to cover a considerable portion
+of the code.
+
+"does-not-implement-crypto"
+The crate does not implement any cryptographic functionality.
+
+"ub-risk-2"
+The crate contains several unsafe functions related to parsing Transfer Lists from raw pointers. The
+safety requirements of these functions are well-documented.
+Unsafe code related to raw pointers is used throughout the crate. In non-test cases, safety comments
+are provided to explain how the contracts are upheld.
+"""
+
 [[audits.thiserror]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

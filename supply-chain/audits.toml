@@ -811,6 +811,15 @@ Missed in previous audits; since 2.2.0, unsafe impls for `Zeroable` and `Pod` ar
 feature `bytemuck` is enabled. The safety of these implementations is well-documented.
 """
 
+[[audits.bitflags]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
+delta = "2.13.1 -> 2.13.2"
+notes = """
+Does not add new code, only moves existing code around as a workaround for a doc
+generation issue. Adds linting bypasses for these workarounds.
+"""
+
 [[audits.buddy_system_allocator]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
@@ -1374,6 +1383,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "2.0.18 -> 2.0.20"
 notes = "Dependency update and MSRV change to 1.71."
 
+[[audits.thiserror]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "2.0.20 -> 2.0.21"
+notes = "Adds a regression test, and updates compile error messages. Updates MSRV to 1.77."
+
 [[audits.thiserror-impl]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -1413,6 +1428,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "2.0.18 -> 2.0.20"
 notes = "Dependency update, MSRV change to 1.71 and Clippy warning fixes."
+
+[[audits.thiserror-impl]]
+who = "Sandor Teleki <sandor.teleki@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "2.0.20 -> 2.0.21"
+notes = "Updates MSRV to 1.77. Contains a single bugfix targeting token parsing."
 
 [[audits.unicode-ident]]
 who = "Andrew Walbran <qwandor@google.com>"

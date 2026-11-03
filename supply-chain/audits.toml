@@ -1556,6 +1556,17 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.8.55 -> 0.8.56"
 notes = "Dependency update and one minor fix."
 
+[[audits.zerocopy]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.8.56 -> 0.8.63"
+notes = """
+The changes include increased test and benchmark coverage, fixes for soundness issues involving
+pointer metadata, slice layouts, enum projections, and byte preservation during conversions.
+The update also includes internal refactoring, performance optimizations, documentation
+improvements, and minor compatibility fixes.
+"""
+
 [[audits.zerocopy-derive]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "does-not-implement-crypto"
@@ -1595,3 +1606,14 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.8.55 -> 0.8.56"
 notes = 'Fixes #[zerocopy(crate = "...")] path parsing.'
+
+[[audits.zerocopy-derive]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.8.56 -> 0.8.63"
+notes = """
+The changes include test and benchmark coverage, refactoring, documentation updates, and minor
+fixes. They improve derive macro hygiene, correct raw attribute handling, and strengthen slice-DST
+layout calculations. Added regression tests and formal verification to validate correctness and
+safety.
+"""

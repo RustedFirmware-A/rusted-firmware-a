@@ -919,6 +919,12 @@ Changed MSRV to 1.71, support was added for handling std::net types, key handlin
 a key comparison bug was fixed. The small amount of unsafe code is sound and well documented.
 """
 
+[[audits.log]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]
+delta = "0.4.34 -> 0.4.35"
+notes = "It doesn't include source changes, it only verifies the crate's new CI/CD processes."
+
 [[audits.num_enum]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -1099,6 +1105,16 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "1.0.94 -> 1.0.101"
 notes = "Changes are mostly around probing for span support in proc macro. No unsafe code."
 
+[[audits.proc-macro2]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.0.101 -> 1.0.107"
+notes = """
+Updated dependencies, migrated to Rust 2021 edition, improved compatibility with older compilers,
+and increased test coverage. Added rustc_literal_escaper, new Literal methods and TokenStream Extend
+implementations. Other changes include lint fixes, documentation updates, and minor refactoring.
+"""
+
 [[audits.quote]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -1116,6 +1132,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "1.0.20 -> 1.0.22"
 notes = "Dependency update, minor refactoring in build.rs."
+
+[[audits.rustversion]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.0.22 -> 1.0.23"
+notes = "Fixes Clippy lint and relaxes rustc version parsing."
 
 [[audits.safe-mmio]]
 who = "Chris Palmer <palmer@google.com>"
@@ -1255,6 +1277,12 @@ Changed the trait bounds on the read_unsafe methods of UniqueMmioPointer and Sha
 new unsafe code.
 """
 
+[[audits.safe-mmio]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.1 -> 0.3.2"
+notes = "Fixes MSRV and Kani build on AArch64."
+
 [[audits.scopeguard]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = "safe-to-run"
@@ -1342,6 +1370,16 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "3.0.0 -> 3.0.3"
 notes = "Extended const and unsafe syntax parsing, minor optimizations."
+
+[[audits.syn]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "3.0.3 -> 3.0.9"
+notes = """
+Add Punctuated::retain, improve parsing of expressions, labeled breaks, lifetimes, and foreign
+functions, and fix diagnostic span reporting. Includes regression tests, test infrastructure
+adjustments, and minor lint fixes. No security concerns identified in the reviewed changes.
+"""
 
 [[audits.tf-firmware-handoff]]
 who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
@@ -1461,6 +1499,16 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "1.0.18 -> 1.0.19"
 notes = "Just changes to data and tests."
 
+[[audits.unicode-ident]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "1.0.19 -> 1.0.27"
+notes = """
+The changes include dependency updates, migration to Rust 2021 edition, MSRV bump, performance
+improvements, minor refactoring, lint fixes, documentation updates, and exposing the UNICODE_VERSION
+constant.
+"""
+
 [[audits.uuid]]
 who = "Chris Palmer <palmer@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -1512,6 +1560,17 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "1.23.0 -> 1.26.0"
 notes = "Improved parsing and formatting logic along with several smaller changes."
+
+[[audits.uuid]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "1.26.0 -> 1.29.0"
+notes = """
+The changes include MSRV bump to 1.89, minor refactoring, simplifications, and optimizations.
+Fixes improve UUIDv7 ordering and counter handling, prevent panics during timestamp conversion, and
+support case-insensitive URN prefixes. New optional Serde adapters and versioned NonNilUuid
+constructors were also added.
+"""
 
 [[audits.zerocopy]]
 who = "Andrew Walbran <qwandor@google.com>"

@@ -34,9 +34,9 @@ arm-psci = "0.2.0"
 arm-rmi = { version = "0.1.0", path = "arm-rmi", optional = true }
 arm-sysregs = { version = "0.5.2", features = ["el3"] }
 arrayvec = { version = "0.7.8", default-features = false }
-bitflags = "2.13.1"
+bitflags = "2.13.2"
 include-first = "0.1.0"
-log = "0.4.34"
+log = "0.4.35"
 num_enum = { version = "0.7.6", default-features = false }
 pastey = "0.2.3"
 percore = { version = "0.3.0", default-features = false, features = [
@@ -48,8 +48,8 @@ spin = { version = "0.12.3", default-features = false, features = [
   "once",
   "spin_mutex",
 ] }
-uuid = { version = "1.26.0", default-features = false }
-zerocopy = { version = "0.8.56", features = ["derive"] }
+uuid = { version = "1.29.0", default-features = false }
+zerocopy = { version = "0.8.63", features = ["derive"] }
 
 [build-dependencies]
 rf-a-build = { version = "0.1.0", path = "rf-a-build" }

@@ -417,6 +417,23 @@ Updates dependencies, optimizes distributor/redistributor save/restore to use
 representations.
 """
 
+[[audits.arm-mhu]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.1.1"
+notes = """
+"safe-to-deploy"
+The crate's scope is limited to drivers for memory-mapped structures described
+in the Arm Message Handling Unit Architecture Specification.
+
+"does-not-implement-crypto"
+The crate does not implement any cryptographic functionality.
+
+"ub-risk-2"
+The crate has some unsafe blocks used internally, related to the `safe-mmio`
+crate. All unsafe blocks have safety comments explaining their soundness.
+"""
+
 [[audits.arm-pl011-uart]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-1"]

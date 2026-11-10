@@ -501,6 +501,25 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.3 -> 0.2.0"
 
+[[audits.arm-scmi]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+version = "0.2.0"
+notes = """
+"safe-to-deploy"
+The implementation is confined to types, serialization and deserialization for the System Control
+and Management Interface (SCMI), as well as implementing the Shared Memory transport layer.
+
+"does-not-implement-crypto"
+The crate does not implement any cryptographic functionality.
+
+"ub-risk-2"
+The crate contains several unsafe functions in its public API, as well as unsafe blocks related to
+Shared Memory management through raw pointers. The safety requirements of `SharedMemory` are
+documented in the safety comment of `SharedMemory::new()`, other unsafe code inside the
+implementation relies on promises made at construction.
+"""
+
 [[audits.arm-sp805]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

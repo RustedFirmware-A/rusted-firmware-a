@@ -11,15 +11,15 @@ license = "BSD-3-Clause"
 description = "Common components specific to Arm platforms."
 
 [dependencies]
-arm-generic-timer = { version = "0.3.1", default-features = false, features = [
+arm-generic-timer = { version = "0.4.0", default-features = false, features = [
     "el2",
 ] }
 rf-a-core = { workspace = true, default-features = false }
-safe-mmio = "0.3.1"
+safe-mmio = "0.4.0"
 zerocopy = { version = "0.8", features = ["derive"] }
 
 [dev-dependencies]
-arm-generic-timer = { version = "0.3.1", default-features = false, features = [
+arm-generic-timer = { version = "0.4.0", default-features = false, features = [
     "el2",
     "fakes",
 ] }

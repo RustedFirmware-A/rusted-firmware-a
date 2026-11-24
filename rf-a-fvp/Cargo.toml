@@ -12,7 +12,10 @@ description = "RF-A for the Arm Base RevC FVP platform"
 publish = false
 
 [dependencies]
-arm-fvp-base-pac = { version = "0.4.0", default-features = false, features = ["base-revc", "el3"] }
+arm-fvp-base-pac = { version = "0.5.0", default-features = false, features = [
+    "base-revc",
+    "el3",
+] }
 rf-a-core = { workspace = true, default-features = false }
 
 [build-dependencies]

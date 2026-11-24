@@ -583,6 +583,20 @@ documented in the safety comment of `SharedMemory::new()`, other unsafe code ins
 implementation relies on promises made at construction.
 """
 
+[[audits.arm-scmi]]
+who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.0 -> 0.2.1"
+notes = """
+This version adds memory barriers to the doorbell protocol implementation. It also updates the
+version of the bitflags, zerocopy, and thiserror crates.
+
+"ub-risk-2"
+The new barrier functions, `dmb_st`, `dmb_ld`, and `dmb_sy` contain unsafe blocks, as they embed
+assembly code. The assembly only handles memory ordering, therefore it does not violate safety
+guarantees. This fact is documented in safety comments above each of the added unsafe blocks.
+"""
+
 [[audits.arm-sp805]]
 who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

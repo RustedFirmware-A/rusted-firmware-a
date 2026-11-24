@@ -225,6 +225,12 @@ domain since version 0.1.0. These functions are unsafe and require care from the
 handling shareable data in the cache. The actions to be taken are described by safety comments.
 """
 
+[[audits.arm-cci]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.2.1 -> 0.3.0"
+notes = "Dependency update only."
+
 [[audits.arm-ffa]]
 who = "Andrew Walbran <qwandor@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
@@ -311,6 +317,12 @@ who = "Baltazár Radics <baltazar.radics@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.0 -> 0.4.0"
 notes = "No code change, only dependency updates."
+
+[[audits.arm-fvp-base-pac]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.4.0 -> 0.5.0"
+notes = "Dependency update only."
 
 [[audits.arm-generic-timer]]
 who = "Imre Kis <imre.kis@arm.com>"
@@ -444,6 +456,16 @@ The crate does not implement any cryptographic functionality.
 "ub-risk-2"
 The crate has some unsafe blocks used internally, related to the `safe-mmio`
 crate. All unsafe blocks have safety comments explaining their soundness.
+"""
+
+[[audits.arm-mhu]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.1.1 -> 0.2.0"
+notes = """
+Updates dependencies, fixes some soundness bugs.
+
+Some public functions are now marked unsafe, and return values have explicit lifetimes to prevent accidental lifetime extension.
 """
 
 [[audits.arm-pl011-uart]]
@@ -584,6 +606,12 @@ who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.2.0 -> 0.2.1"
 notes = "No code changes, only dependency updates and MSRV bump."
+
+[[audits.arm-sp805]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.2.1 -> 0.3.0"
+notes = "Dependency update only."
 
 [[audits.arm-sysregs]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -821,6 +849,12 @@ who = "Tamas Szilagyi <tamas.szilagyi@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.2.0 -> 0.2.1"
 notes = "No code changes. Dependency update only."
+
+[[audits.arm-tzc]]
+who = "Baltazár Radics <baltazar.radics@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.2.1 -> 0.3.0"
+notes = "Dependency update only."
 
 [[audits.arrayvec]]
 who = "Imre Kis <imre.kis@arm.com>"

@@ -270,6 +270,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.4.1 -> 0.5.0"
 notes = "Most of the changes is refactoring and splitting lib.rs into smaller modules. The rest of the changes correspond to the FF-A 1.3 updates."
 
+[[audits.arm-ffa]]
+who = "Gergely Balint <gergely.balint@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
+delta = "0.5.0 -> 0.6.0"
+notes = "No crypto, or new unsafe code. New dependency is dtoolkit, used for parsing FDT blobs."
+
 [[audits.arm-firme]]
 who = "Sandor Teleki <sandor.teleki@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]

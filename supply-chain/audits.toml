@@ -345,6 +345,12 @@ criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.0 -> 0.3.1"
 notes = "Dependency update and minimal code change due to a breaking change."
 
+[[audits.arm-generic-timer]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.1 -> 0.4.0"
+notes = "Dependency update only."
+
 [[audits.arm-gic]]
 who = "Jeremi Miller <jeremimiller@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -417,6 +423,12 @@ Updates dependencies, optimizes distributor/redistributor save/restore to use
 representations.
 """
 
+[[audits.arm-gic]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.10.0 -> 0.11.0"
+notes = "Fixes priority corruption and power transition hangs, adds GICv2 CPU targeting, and updates dependencies."
+
 [[audits.arm-mhu]]
 who = "Baltazár Radics <baltazar.radics@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -470,6 +482,12 @@ The crate contains an unsafe `Sync` implementation for `Uart` since the 0.1.0 re
 safety comment justifies the implementation.
 """
 
+[[audits.arm-pl011-uart]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-deploy"
+delta = "0.5.1 -> 0.6.0"
+notes = "Dependency update only."
+
 [[audits.arm-pl061]]
 who = "Jim Ray <jimray@google.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
@@ -501,6 +519,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-0"]
 delta = "0.1.1 -> 0.2.0"
 notes = "Dependency update only."
+
+[[audits.arm-pl061]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = "safe-to-deploy"
+delta = "0.2.0 -> 0.3.0"
+notes = "The changes update the MSRV and dependencies, along with adjustments to accommodate the latest changes in safe-mmio."
 
 [[audits.arm-psci]]
 who = "Andrew Walbran <qwandor@google.com>"
@@ -1318,6 +1342,12 @@ who = "Imre Kis <imre.kis@arm.com>"
 criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
 delta = "0.3.1 -> 0.3.2"
 notes = "Fixes MSRV and Kani build on AArch64."
+
+[[audits.safe-mmio]]
+who = "Imre Kis <imre.kis@arm.com>"
+criteria = ["safe-to-deploy", "does-not-implement-crypto", "ub-risk-2"]
+delta = "0.3.2 -> 0.4.0"
+notes = "Fixes slice aliasing, shared pointer lifetime escapes, and unaligned MMIO accesses."
 
 [[audits.scopeguard]]
 who = "Andrew Walbran <qwandor@google.com>"
